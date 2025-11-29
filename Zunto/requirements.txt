@@ -1,0 +1,50 @@
+# Core Django - Python 3.13 compatible
+Django==5.1.3
+djangorestframework==3.15.2
+djangorestframework-simplejwt==5.3.1
+django-cors-headers==4.6.0
+django-filter==24.3
+python-decouple==3.8
+python-dotenv==1.0.1
+
+# Forms
+django-crispy-forms==2.3
+crispy-bootstrap5==2.0.0
+
+# Media
+Pillow==11.0.0
+
+# Database - Using psycopg3 (modern, Python 3.13 compatible)
+psycopg[binary]==3.2.3
+
+# HTTP Requests
+requests==2.32.3
+
+# Task Queue
+celery==5.4.0
+redis==5.2.0
+django-redis==5.4.0
+
+# ASGI/WSGI Server
+gunicorn==23.0.0
+daphne==4.1.2
+
+# WebSockets & Real-time
+channels==4.2.0
+channels-redis==4.2.1
+
+# Development Tools
+django-debug-toolbar==4.4.6
+
+# Admin Enhancements - Compatible versions only
+django-import-export==4.3.3
+tablib==3.7.0
+
+# Code Quality
+black==24.10.0
+flake8==7.1.1
+
+# Core dependencies
+asgiref==3.8.1
+sqlparse==0.5.1
+tzdata==2024.2
