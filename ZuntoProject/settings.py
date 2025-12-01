@@ -353,14 +353,14 @@ CSRF_TRUSTED_ORIGINS = config(
 # ============================================
 
 # Groq AI Configuration (Cloud-based LLM)
-***REMOVED*** = config('***REMOVED***', default='')
+***REMOVED*** = config('***REMOVED***', default='***REMOVED***5GeKxEt9aGcsCHWJZj7GWGdyb3FYJigoux3eyKzOe0ZweIq21AUT')
 GROQ_MODEL = config('GROQ_MODEL', default='mixtral-8x7b-32768')
 
 # FAQ Matching Configuration (Local semantic search)
-FAQ_MATCH_THRESHOLD = config('FAQ_MATCH_THRESHOLD', default=0.7, cast=float)
+FAQ_MATCH_THRESHOLD = config('FAQ_MATCH_THRESHOLD', default=0.55, cast=float)
 SENTENCE_TRANSFORMER_MODEL = config(
     'SENTENCE_TRANSFORMER_MODEL', 
-    default='all-MiniLM-L6-v2'
+    default='sentence-transformers/all-mpnet-base-v2'
 )
 
 # ============================================
