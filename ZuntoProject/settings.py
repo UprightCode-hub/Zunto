@@ -354,7 +354,7 @@ CSRF_TRUSTED_ORIGINS = config(
 
 # Groq AI Configuration (Cloud-based LLM)
 ***REMOVED*** = config('***REMOVED***', default='***REMOVED***5GeKxEt9aGcsCHWJZj7GWGdyb3FYJigoux3eyKzOe0ZweIq21AUT')
-GROQ_MODEL = config('GROQ_MODEL', default='mixtral-8x7b-32768')
+GROQ_MODEL = config('GROQ_MODEL', default='moonshotai/kimi-k2-instruct-0905')
 
 # FAQ Matching Configuration (Local semantic search)
 FAQ_MATCH_THRESHOLD = config('FAQ_MATCH_THRESHOLD', default=0.55, cast=float)
