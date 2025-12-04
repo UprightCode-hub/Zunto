@@ -316,14 +316,10 @@ SESSION_COOKIE_SAMESITE = 'Lax'
 # CORS CONFIGURATION (for separate frontend)
 # ============================================
 
-# For development: Allow all origins (includes file:// protocol)
-CORS_ALLOW_ALL_ORIGINS = True  # ← ADD THIS LINE for local HTML files
-
-# Original settings (comment out or keep, CORS_ALLOW_ALL_ORIGINS overrides these)
-# CORS_ALLOWED_ORIGINS = config(
-#     'CORS_ALLOWED_ORIGINS',
-#     default='http://localhost:3000,http://127.0.0.1:3000'
-# ).split(',')
+CORS_ALLOWED_ORIGINS = config(
+    'CORS_ALLOWED_ORIGINS',
+    default='http://localhost:3000,http://127.0.0.1:3000'
+).split(',')
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -337,15 +333,6 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
-]
-
-CORS_ALLOW_METHODS = [
-    'DELETE',
-    'GET',
-    'OPTIONS',
-    'PATCH',
-    'POST',
-    'PUT',
 ]
 
 # ============================================
@@ -366,15 +353,14 @@ CSRF_TRUSTED_ORIGINS = config(
 # ============================================
 
 # Groq AI Configuration (Cloud-based LLM)
-***REMOVED*** = config('***REMOVED***')
-GROQ_MODEL = config('GROQ_MODEL', default='llama-3.3-70b-versatile')
-
+GROQ_API_KEY = config('GROQ_API_KEY', default='')
+GROQ_MODEL = config('GROQ_MODEL', default='mixtral-8x7b-32768')
 
 # FAQ Matching Configuration (Local semantic search)
-FAQ_MATCH_THRESHOLD = config('FAQ_MATCH_THRESHOLD', default=0.65, cast=float)
+FAQ_MATCH_THRESHOLD = config('FAQ_MATCH_THRESHOLD', default=0.7, cast=float)
 SENTENCE_TRANSFORMER_MODEL = config(
     'SENTENCE_TRANSFORMER_MODEL', 
-    default='BAAI/bge-small-en-v1.5'
+    default='all-MiniLM-L6-v2'
 )
 
 # ============================================

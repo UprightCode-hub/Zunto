@@ -1,0 +1,963 @@
+rules:
+  # ==========================================
+  # CRITICAL SECURITY & SAFETY RULES
+  # ==========================================
+  
+  - id: fraud_report
+    severity: high
+    action: escalate
+    description: User reporting potential fraud or scam
+    phrases:
+      - "seller is scamming"
+      - "this is a scam"
+      - "fraudulent seller"
+      - "fake product"
+      - "never received item but marked delivered"
+      - "seller took my money"
+      - "got scammed"
+      - "lost money"
+      - "scam happened"
+      - "cheated"
+
+  - id: threat
+    severity: critical
+    action: escalate_urgent
+    description: Direct threats or violence
+    phrases:
+      - "going to hurt"
+      - "find you"
+      - "you'll regret"
+      - "physical threat"
+      - "violence"
+      - "threatening me"
+      - "threatened"
+
+  - id: hate_abuse
+    severity: high
+    action: escalate
+    description: Harassment, hate speech, or abusive behavior
+    phrases:
+      - "seller called me"
+      - "harassment"
+      - "offensive messages"
+      - "discriminated"
+      - "abusive seller"
+      - "abusive buyer"
+      - "hate speech"
+      - "insults"
+
+  - id: unauthorized_access
+    severity: critical
+    action: freeze_account
+    description: Account compromised or hacked
+    phrases:
+      - "account hacked"
+      - "unauthorized activity"
+      - "account compromised"
+      - "someone accessed my account"
+      - "suspicious activity on account"
+      - "account breach"
+
+  # ==========================================
+  # ACCOUNT & VERIFICATION
+  # ==========================================
+
+  - id: account_creation
+    severity: low
+    action: guide_registration
+    description: Questions about creating account
+    phrases:
+      - "how to create account"
+      - "sign up"
+      - "register"
+      - "new account"
+      - "join zunto"
+
+  - id: verification_issues
+    severity: low
+    action: guide_verification
+    description: Verification code or email/phone verification issues
+    phrases:
+      - "verification code"
+      - "not receiving code"
+      - "resend code"
+      - "verify email"
+      - "verify phone"
+      - "can't verify"
+
+  - id: password_reset
+    severity: low
+    action: guide_password_reset
+    description: Password reset requests
+    phrases:
+      - "reset password"
+      - "forgot password"
+      - "change password"
+      - "can't login"
+      - "password recovery"
+
+  - id: account_restricted
+    severity: medium
+    action: review_restriction
+    description: Account suspended or restricted
+    phrases:
+      - "account restricted"
+      - "account suspended"
+      - "account banned"
+      - "account locked"
+      - "why restricted"
+      - "account flagged"
+
+  - id: account_deletion
+    severity: medium
+    action: guide_deletion
+    description: Delete or deactivate account
+    phrases:
+      - "delete account"
+      - "close account"
+      - "remove account"
+      - "deactivate account"
+      - "cancel account"
+
+  - id: verified_badge
+    severity: low
+    action: guide_verification_benefits
+    description: Questions about verification badge
+    phrases:
+      - "verified user"
+      - "verification badge"
+      - "how to verify"
+      - "get verified"
+      - "verified seller"
+
+  # ==========================================
+  # BUYING & SELLING
+  # ==========================================
+
+  - id: how_to_buy
+    severity: low
+    action: guide_buying_process
+    description: Questions about buying process
+    phrases:
+      - "how to buy"
+      - "buying process"
+      - "make purchase"
+      - "purchase item"
+
+  - id: price_negotiation
+    severity: low
+    action: guide_negotiation
+    description: Questions about negotiating prices
+    phrases:
+      - "negotiate"
+      - "bargain"
+      - "lower price"
+      - "price negotiation"
+      - "haggle"
+
+  - id: seller_trust
+    severity: low
+    action: guide_trust_verification
+    description: Questions about seller trustworthiness
+    phrases:
+      - "trustworthy seller"
+      - "reliable seller"
+      - "safe seller"
+      - "check seller"
+      - "seller trust"
+
+  - id: create_listing
+    severity: low
+    action: guide_listing_creation
+    description: Questions about creating listings
+    phrases:
+      - "post listing"
+      - "create listing"
+      - "list item"
+      - "sell item"
+      - "upload product"
+
+  - id: listing_rejected
+    severity: medium
+    action: review_listing_policy
+    description: Listing rejected or removed
+    phrases:
+      - "listing rejected"
+      - "listing removed"
+      - "listing deleted"
+      - "why rejected"
+      - "listing blocked"
+
+  - id: prohibited_items
+    severity: high
+    action: enforce_policy
+    description: Questions about prohibited items
+    phrases:
+      - "prohibited items"
+      - "banned items"
+      - "not allowed"
+      - "illegal items"
+      - "restricted items"
+      - "what can't sell"
+
+  - id: fake_seller_concern
+    severity: medium
+    action: guide_scam_prevention
+    description: User concerned about fake sellers
+    phrases:
+      - "fake seller"
+      - "scam seller"
+      - "avoid scam"
+      - "identify fake"
+      - "spot scammer"
+
+  # ==========================================
+  # PAYMENTS & TRANSACTIONS
+  # ==========================================
+
+  - id: payment_methods
+    severity: low
+    action: explain_payment_options
+    description: Questions about payment methods
+    phrases:
+      - "payment methods"
+      - "how to pay"
+      - "payment options"
+      - "accepted payments"
+      - "paystack"
+
+  - id: in_app_payment_benefits
+    severity: low
+    action: explain_escrow_benefits
+    description: Questions about in-app payment advantages
+    phrases:
+      - "why use app payment"
+      - "payment benefits"
+      - "buyer protection"
+      - "secure payment"
+      - "in-app payment"
+
+  - id: direct_payment_warning
+    severity: medium
+    action: warn_unprotected
+    description: User paying outside app
+    phrases:
+      - "pay seller directly"
+      - "outside app"
+      - "off-platform payment"
+      - "cash payment"
+      - "direct payment"
+
+  - id: payment_failed
+    severity: medium
+    action: troubleshoot_payment
+    description: Payment failure or error
+    phrases:
+      - "payment failed"
+      - "payment error"
+      - "payment declined"
+      - "transaction failed"
+      - "can't complete payment"
+
+  - id: payment_security
+    severity: low
+    action: assure_security
+    description: Questions about payment security
+    phrases:
+      - "payment secure"
+      - "card security"
+      - "safe payment"
+      - "payment privacy"
+      - "payment information secure"
+
+  - id: seller_payment_timing
+    severity: low
+    action: explain_escrow_release
+    description: When seller gets paid
+    phrases:
+      - "when paid"
+      - "seller payment"
+      - "payment release"
+      - "when get money"
+      - "payment timing"
+
+  - id: transaction_fees
+    severity: low
+    action: explain_fees
+    description: Questions about fees and charges
+    phrases:
+      - "payment fees"
+      - "transaction fees"
+      - "service fees"
+      - "charges"
+      - "processing fees"
+
+  # ==========================================
+  # ESCROW & BUYER PROTECTION
+  # ==========================================
+
+  - id: escrow_explanation
+    severity: low
+    action: explain_escrow
+    description: Questions about how escrow works
+    phrases:
+      - "what is escrow"
+      - "how escrow works"
+      - "escrow system"
+      - "held funds"
+      - "payment protection"
+
+  - id: funds_held_duration
+    severity: low
+    action: explain_hold_period
+    description: How long funds are held in escrow
+    phrases:
+      - "how long held"
+      - "escrow duration"
+      - "funds held"
+      - "how long escrow"
+
+  - id: delivery_confirmation
+    severity: medium
+    action: guide_confirmation
+    description: Buyer not confirming delivery
+    phrases:
+      - "confirm delivery"
+      - "buyer not confirming"
+      - "no confirmation"
+      - "didn't confirm"
+
+  - id: freeze_funds
+    severity: high
+    action: explain_fund_freeze
+    description: Platform freezing funds
+    phrases:
+      - "freeze funds"
+      - "frozen payment"
+      - "payment frozen"
+      - "hold funds"
+
+  # ==========================================
+  # REFUNDS & CANCELLATIONS
+  # ==========================================
+
+  - id: request_refund
+    severity: medium
+    action: guide_refund_process
+    description: General refund requests
+    phrases:
+      - "want a refund"
+      - "get my money back"
+      - "return this"
+      - "refund policy"
+      - "how to return"
+      - "get refund"
+      - "money back"
+
+  - id: refund_timing
+    severity: low
+    action: explain_refund_timeline
+    description: How long refunds take
+    phrases:
+      - "how long refund"
+      - "refund time"
+      - "when refund"
+      - "refund timing"
+      - "refund processing time"
+
+  - id: change_of_mind
+    severity: low
+    action: explain_change_of_mind_policy
+    description: Buyer changed mind
+    phrases:
+      - "change mind"
+      - "changed mind"
+      - "don't want anymore"
+      - "mind changed"
+
+  - id: cancel_order
+    severity: medium
+    action: guide_cancellation
+    description: Cancel order or payment
+    phrases:
+      - "cancel order"
+      - "cancel payment"
+      - "cancellation"
+      - "stop payment"
+      - "undo payment"
+
+  - id: partial_refund
+    severity: medium
+    action: review_partial_refund
+    description: Partial refund request
+    phrases:
+      - "partial refund"
+      - "part refund"
+      - "half refund"
+      - "some money back"
+      - "incomplete order"
+
+  - id: chargeback_fraud
+    severity: high
+    action: document_dispute
+    description: Chargeback or payment disputes
+    phrases:
+      - "chargeback"
+      - "unauthorized charge"
+      - "dispute the payment"
+      - "fraudulent charge"
+      - "reverse payment"
+
+  # ==========================================
+  # DISPUTES & RESOLUTION
+  # ==========================================
+
+  - id: open_dispute
+    severity: high
+    action: initiate_dispute_process
+    description: User wants to open a dispute
+    phrases:
+      - "open dispute"
+      - "file dispute"
+      - "dispute order"
+      - "report problem"
+      - "transaction problem"
+
+  - id: wrong_item
+    severity: high
+    action: guide_return
+    description: Received wrong or defective item
+    phrases:
+      - "wrong item"
+      - "incorrect product"
+      - "defective"
+      - "broken"
+      - "not as described"
+      - "different than photo"
+      - "wrong product"
+      - "different item"
+
+  - id: damaged_item
+    severity: high
+    action: document_damage
+    description: Received damaged item
+    phrases:
+      - "damaged product"
+      - "broken item"
+      - "damaged delivery"
+      - "item broken"
+      - "defective product"
+
+  - id: counterfeit_product
+    severity: critical
+    action: escalate_counterfeit
+    description: Counterfeit or fake product received
+    phrases:
+      - "counterfeit"
+      - "fake product"
+      - "not authentic"
+      - "imitation"
+      - "replica"
+      - "fake item"
+
+  - id: not_delivered
+    severity: high
+    action: guide_tracking
+    description: Order not delivered issues
+    phrases:
+      - "hasn't arrived"
+      - "not delivered"
+      - "never received"
+      - "where is my order"
+      - "tracking says delivered but"
+      - "item not delivered"
+
+  - id: lost_delivery
+    severity: high
+    action: investigate_lost_item
+    description: Delivery service lost item
+    phrases:
+      - "lost delivery"
+      - "lost package"
+      - "item lost"
+      - "missing item"
+      - "delivery lost"
+
+  - id: fake_tracking
+    severity: high
+    action: investigate_fraud
+    description: Seller provided fake tracking
+    phrases:
+      - "fake tracking"
+      - "false tracking"
+      - "wrong tracking"
+      - "fraudulent tracking"
+
+  - id: dispute_resolution_time
+    severity: low
+    action: explain_dispute_timeline
+    description: How long disputes take
+    phrases:
+      - "how long dispute"
+      - "dispute time"
+      - "dispute resolution time"
+      - "dispute duration"
+
+  - id: escalate_dispute
+    severity: high
+    action: escalate_to_senior
+    description: Escalate unresolved dispute
+    phrases:
+      - "escalate dispute"
+      - "unhappy with resolution"
+      - "dispute escalation"
+      - "escalate case"
+
+  # ==========================================
+  # DELIVERY & SHIPPING
+  # ==========================================
+
+  - id: delivery_services
+    severity: low
+    action: explain_delivery
+    description: Questions about delivery services
+    phrases:
+      - "delivery service"
+      - "shipping"
+      - "does zunto deliver"
+      - "courier service"
+
+  - id: meetup_safety
+    severity: medium
+    action: guide_safe_meetup
+    description: Questions about safe meetup locations
+    phrases:
+      - "safe meetup"
+      - "where to meet"
+      - "safe place"
+      - "meetup location"
+      - "public location"
+
+  - id: track_delivery
+    severity: low
+    action: guide_tracking
+    description: Track delivery or shipment
+    phrases:
+      - "track delivery"
+      - "tracking"
+      - "where is delivery"
+      - "delivery status"
+      - "track order"
+      - "track shipment"
+
+  - id: delivery_fees
+    severity: low
+    action: explain_delivery_fees
+    description: Questions about delivery costs
+    phrases:
+      - "delivery fee"
+      - "shipping cost"
+      - "delivery charge"
+      - "shipping fee"
+
+  - id: wrong_address
+    severity: medium
+    action: guide_address_change
+    description: Wrong delivery address entered
+    phrases:
+      - "wrong address"
+      - "change address"
+      - "incorrect address"
+      - "update address"
+      - "delivery address error"
+
+  - id: late_delivery
+    severity: medium
+    action: investigate_delay
+    description: Delivery delayed or late
+    phrases:
+      - "late delivery"
+      - "delayed delivery"
+      - "delivery late"
+      - "not on time"
+      - "overdue delivery"
+
+  - id: unsafe_meetup
+    severity: critical
+    action: escalate_safety
+    description: User feels unsafe during meetup
+    phrases:
+      - "unsafe meetup"
+      - "feel unsafe"
+      - "dangerous situation"
+      - "uncomfortable meeting"
+      - "safety concern"
+
+  - id: inspect_before_payment
+    severity: low
+    action: remind_inspection
+    description: Questions about inspecting items
+    phrases:
+      - "inspect item"
+      - "check item"
+      - "verify item"
+      - "test before pay"
+      - "examine product"
+
+  # ==========================================
+  # CHAT & COMMUNICATION
+  # ==========================================
+
+  - id: chat_issues
+    severity: medium
+    action: troubleshoot_chat
+    description: Problems with chat functionality
+    phrases:
+      - "can't chat"
+      - "chat not working"
+      - "can't message"
+      - "messaging disabled"
+      - "unable to message"
+
+  - id: chat_frozen
+    severity: medium
+    action: review_chat_restriction
+    description: Chat frozen or restricted
+    phrases:
+      - "chat frozen"
+      - "chat restricted"
+      - "chat disabled"
+      - "chat blocked"
+
+  - id: block_user
+    severity: low
+    action: guide_blocking
+    description: How to block a user
+    phrases:
+      - "block user"
+      - "block seller"
+      - "block buyer"
+      - "stop messages"
+      - "prevent contact"
+
+  - id: chat_privacy
+    severity: low
+    action: explain_privacy
+    description: Questions about chat privacy
+    phrases:
+      - "chat security"
+      - "message privacy"
+      - "encrypted messages"
+      - "secure chat"
+
+  - id: seller_unresponsive
+    severity: medium
+    action: guide_unresponsive_seller
+    description: Seller not responding to messages
+    phrases:
+      - "seller not responding"
+      - "unresponsive seller"
+      - "seller won't respond"
+      - "no reply"
+      - "seller ignoring"
+
+  # ==========================================
+  # REVIEWS & RATINGS
+  # ==========================================
+
+  - id: leave_review
+    severity: low
+    action: guide_review_process
+    description: How to leave reviews
+    phrases:
+      - "leave review"
+      - "write review"
+      - "rate seller"
+      - "rate buyer"
+      - "post review"
+
+  - id: edit_review
+    severity: low
+    action: guide_review_editing
+    description: Edit or delete review
+    phrases:
+      - "edit review"
+      - "delete review"
+      - "change review"
+      - "remove review"
+      - "update review"
+
+  - id: unfair_review
+    severity: medium
+    action: review_complaint
+    description: User received unfair review
+    phrases:
+      - "unfair review"
+      - "bad review"
+      - "false review"
+      - "wrong review"
+      - "fake review"
+      - "dispute review"
+
+  - id: rating_impact
+    severity: low
+    action: explain_rating_system
+    description: How ratings affect account
+    phrases:
+      - "rating impact"
+      - "rating effect"
+      - "low ratings"
+      - "ratings matter"
+
+  # ==========================================
+  # SAFETY & SCAM PREVENTION
+  # ==========================================
+
+  - id: safety_tips
+    severity: low
+    action: provide_safety_guidance
+    description: General safety questions
+    phrases:
+      - "stay safe"
+      - "safety tips"
+      - "how to be safe"
+      - "safety guide"
+      - "protect myself"
+
+  - id: identify_scam
+    severity: medium
+    action: educate_scam_prevention
+    description: How to identify scams
+    phrases:
+      - "identify scam"
+      - "spot scam"
+      - "scam warning"
+      - "fraud warning"
+      - "avoid fraud"
+
+  - id: report_user
+    severity: high
+    action: process_report
+    description: User wants to report someone
+    phrases:
+      - "report user"
+      - "report seller"
+      - "report buyer"
+      - "flag user"
+      - "report account"
+      - "report scam"
+
+  - id: fraud_prevention
+    severity: low
+    action: explain_fraud_measures
+    description: Questions about fraud prevention
+    phrases:
+      - "fraud prevention"
+      - "prevent fraud"
+      - "fraud protection"
+      - "anti-fraud"
+      - "security measures"
+
+  # ==========================================
+  # CATEGORIES & SEARCH
+  # ==========================================
+
+  - id: category_questions
+    severity: low
+    action: explain_categories
+    description: Questions about product categories
+    phrases:
+      - "categories"
+      - "what categories"
+      - "product categories"
+      - "category list"
+
+  - id: search_help
+    severity: low
+    action: guide_search
+    description: Help with searching for items
+    phrases:
+      - "search items"
+      - "find products"
+      - "how to search"
+      - "filter search"
+
+  - id: listing_not_showing
+    severity: medium
+    action: troubleshoot_visibility
+    description: Listing not appearing in search
+    phrases:
+      - "listing not showing"
+      - "can't find listing"
+      - "listing invisible"
+      - "not in search"
+      - "listing hidden"
+
+  # ==========================================
+  # NOTIFICATIONS
+  # ==========================================
+
+  - id: notification_issues
+    severity: low
+    action: troubleshoot_notifications
+    description: Not receiving notifications
+    phrases:
+      - "no notifications"
+      - "notifications not working"
+      - "not getting alerts"
+      - "notification problem"
+      - "missing notifications"
+
+  - id: mute_notifications
+    severity: low
+    action: guide_notification_settings
+    description: Mute or manage notifications
+    phrases:
+      - "mute notifications"
+      - "mute chat"
+      - "silence notifications"
+      - "turn off notifications"
+
+  # ==========================================
+  # MODERATION & COMMUNITY
+  # ==========================================
+
+  - id: rule_violation
+    severity: high
+    action: enforce_policy
+    description: User broke platform rules
+    phrases:
+      - "break rules"
+      - "rule violation"
+      - "policy violation"
+      - "breaking rules"
+      - "violate policy"
+
+  - id: appeal_ban
+    severity: high
+    action: review_appeal
+    description: Appeal ban or restriction
+    phrases:
+      - "appeal ban"
+      - "appeal restriction"
+      - "unban"
+      - "challenge ban"
+      - "contest ban"
+      - "reverse ban"
+
+  - id: community_guidelines
+    severity: low
+    action: explain_guidelines
+    description: Questions about community guidelines
+    phrases:
+      - "community guidelines"
+      - "rules"
+      - "policies"
+      - "platform rules"
+      - "community rules"
+
+  # ==========================================
+  # TECHNICAL ISSUES
+  # ==========================================
+
+  - id: app_not_loading
+    severity: medium
+    action: troubleshoot_app
+    description: App not loading or working
+    phrases:
+      - "app not loading"
+      - "app won't load"
+      - "app stuck"
+      - "won't open"
+      - "loading problem"
+
+  - id: app_crashing
+    severity: high
+    action: troubleshoot_crash
+    description: App keeps crashing
+    phrases:
+      - "app crashing"
+      - "app crashes"
+      - "keeps crashing"
+      - "crash problem"
+
+  - id: upload_issues
+    severity: medium
+    action: troubleshoot_upload
+    description: Cannot upload photos
+    phrases:
+      - "can't upload"
+      - "photo upload"
+      - "upload problem"
+      - "image upload"
+      - "upload failed"
+
+  - id: login_issues
+    severity: medium
+    action: troubleshoot_login
+    description: Cannot log in
+    phrases:
+      - "can't login"
+      - "login problem"
+      - "login failed"
+      - "unable to login"
+      - "login error"
+
+  - id: app_update
+    severity: low
+    action: guide_update
+    description: How to update app
+    phrases:
+      - "update app"
+      - "app update"
+      - "new version"
+      - "upgrade app"
+      - "latest version"
+
+  # ==========================================
+  # SUPPORT & HELP
+  # ==========================================
+
+  - id: contact_support
+    severity: low
+    action: direct_to_support
+    description: How to contact support
+    phrases:
+      - "contact support"
+      - "customer support"
+      - "help"
+      - "support team"
+      - "contact us"
+      - "get help"
+
+  - id: support_response_time
+    severity: low
+    action: explain_response_time
+    description: How long support takes
+    phrases:
+      - "support response time"
+      - "how long support"
+      - "response time"
+      - "support speed"
+
+  - id: feature_request
+    severity: low
+    action: collect_feedback
+    description: User suggesting new features
+    phrases:
+      - "feature request"
+      - "suggest feature"
+      - "new feature"
+      - "feedback"
+      - "suggestion"
+
+  - id: transaction_history
+    severity: low
+    action: guide_history_access
+    description: Access payment or transaction history
+    phrases:
+      - "payment history"
+      - "transaction report"
+      - "transaction history"
+      - "payment report"
+      - "account statement"

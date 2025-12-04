@@ -1,0 +1,6 @@
+scikit-learn>=1.3.0  # For TF-IDF FAQ matching
+numpy>=1.24.0        # Required by scikit-learn
+pyyaml>=6.0          # For parsing rules.yaml
+
+# Optional: Only install if you want local LLM  
+gpt4all>=2.0.0           
