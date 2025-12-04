@@ -366,8 +366,9 @@ CSRF_TRUSTED_ORIGINS = config(
 # ============================================
 
 # Groq AI Configuration (Cloud-based LLM)
-***REMOVED*** = config('***REMOVED***', default='***REMOVED***5GeKxEt9aGcsCHWJZj7GWGdyb3FYJigoux3eyKzOe0ZweIq21AUT')
+***REMOVED*** = config('***REMOVED***')
 GROQ_MODEL = config('GROQ_MODEL', default='llama-3.3-70b-versatile')
+
 
 # FAQ Matching Configuration (Local semantic search)
 FAQ_MATCH_THRESHOLD = config('FAQ_MATCH_THRESHOLD', default=0.65, cast=float)
