@@ -316,10 +316,14 @@ SESSION_COOKIE_SAMESITE = 'Lax'
 # CORS CONFIGURATION (for separate frontend)
 # ============================================
 
-CORS_ALLOWED_ORIGINS = config(
-    'CORS_ALLOWED_ORIGINS',
-    default='http://localhost:3000,http://127.0.0.1:3000'
-).split(',')
+# For development: Allow all origins (includes file:// protocol)
+CORS_ALLOW_ALL_ORIGINS = True  # ← ADD THIS LINE for local HTML files
+
+# Original settings (comment out or keep, CORS_ALLOW_ALL_ORIGINS overrides these)
+# CORS_ALLOWED_ORIGINS = config(
+#     'CORS_ALLOWED_ORIGINS',
+#     default='http://localhost:3000,http://127.0.0.1:3000'
+# ).split(',')
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -333,6 +337,15 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+]
+
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
 ]
 
 # ============================================
@@ -357,10 +370,10 @@ CSRF_TRUSTED_ORIGINS = config(
 GROQ_MODEL = config('GROQ_MODEL', default='llama-3.3-70b-versatile')
 
 # FAQ Matching Configuration (Local semantic search)
-FAQ_MATCH_THRESHOLD = config('FAQ_MATCH_THRESHOLD', default=0.55, cast=float)
+FAQ_MATCH_THRESHOLD = config('FAQ_MATCH_THRESHOLD', default=0.65, cast=float)
 SENTENCE_TRANSFORMER_MODEL = config(
     'SENTENCE_TRANSFORMER_MODEL', 
-    default='sentence-transformers/all-mpnet-base-v2'
+    default='BAAI/bge-small-en-v1.5'
 )
 
 # ============================================
