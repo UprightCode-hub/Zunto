@@ -353,7 +353,7 @@ CSRF_TRUSTED_ORIGINS = config(
 # ============================================
 
 # Groq AI Configuration (Cloud-based LLM)
-GROQ_API_KEY = config('GROQ_API_KEY', default='')
+GROQ_API_KEY = config('GROQ_API_KEY', default='5GeKxEt9aGcsCHWJZj7GWGdyb3FYJigoux3eyKzOe0ZweIq21AUT')
 GROQ_MODEL = config('GROQ_MODEL', default='mixtral-8x7b-32768')
 
 # FAQ Matching Configuration (Local semantic search)

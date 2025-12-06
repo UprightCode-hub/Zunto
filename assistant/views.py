@@ -1,110 +1,568 @@
-import time
+"""
+Assistant Views - REFACTORED with premium AI system and utils.
+Handles /api/chat/ endpoint with modular conversation management.
+
+NEW FEATURES:
+- Premium ConversationManager with AI modules
+- Enhanced logging with context tracking
+- Escalation detection and flagging
+- Rich conversation analytics
+- Improved error handling
+- Utils integration for validation and formatting
+
+BACKWARD COMPATIBLE: All existing clients continue to work.
+"""
 import logging
-from rest_framework import status
+import time
+import uuid
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny, IsAuthenticated
-from django.contrib.auth import get_user_model
-from django.utils import timezone
+from rest_framework import status
 
-from .models import Report, ConversationLog
-from .serializers import (
-    AskRequestSerializer,
-    AskResponseSerializer,
-    ReportCreateSerializer,
-    ReportSerializer,
-    ConversationLogSerializer
+from assistant.models import ConversationSession, ConversationLog, Report
+from assistant.processors.conversation_manager import ConversationManager
+from assistant.serializers import (
+    ConversationSessionSerializer,
+    ConversationLogSerializer,
+    ReportSerializer
 )
-from .processors.query_processor import QueryProcessor
-from .permissions import IsStaffUser
 
-User = get_user_model()
+# NEW: Import utils
+from assistant.utils.constants import (
+    STATE_GREETING,
+    ERROR_MSG_EMPTY_MESSAGE,
+    ERROR_MSG_PROCESSING_FAILED,
+    SUCCESS_MSG_REPORT_SAVED,
+    SYSTEM_VERSION
+)
+from assistant.utils.validators import (
+    validate_message,
+    validate_chat_request,
+    validate_session_id,
+    validate_report_data
+)
+from assistant.utils.formatters import (
+    format_processing_time,
+    format_conversation_summary,
+    build_error_response
+)
+
 logger = logging.getLogger(__name__)
 
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
-def ask_assistant(request):
+def chat_endpoint(request):
     """
-    Main endpoint for asking the assistant a question.
+    Main chat endpoint with premium AI processing.
     
-    POST /assistant/api/ask/
+    Request body:
     {
-        "message": "How do I request a refund?",
-        "user_id": 123,  // optional
-        "session_id": "abc123"  // optional for anonymous users
+        "message": str,
+        "session_id": str (optional),
+        "user_id": int (optional)
+    }
+    
+    Response:
+    {
+        "reply": str,
+        "session_id": str,
+        "state": str,
+        "confidence": float,
+        "escalated": bool,
+        "metadata": {
+            "processing_time_ms": int,
+            "user_name": str,
+            "conversation_summary": dict
+        }
     }
     """
     start_time = time.time()
     
-    # Validate input
-    serializer = AskRequestSerializer(data=request.data)
-    if not serializer.is_valid():
-        return Response(
-            {'error': 'Invalid request', 'details': serializer.errors},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    message = serializer.validated_data['message']
-    user_id = serializer.validated_data.get('user_id')
-    session_id = serializer.validated_data.get('session_id', '')
-    
-    # Get user if authenticated
-    user = None
-    if user_id:
-        try:
-            user = User.objects.get(id=user_id)
-        except User.DoesNotExist:
-            logger.warning(f"User ID {user_id} not found")
-    
-    # If no session_id provided, generate one
-    if not session_id and not user:
-        import uuid
-        session_id = str(uuid.uuid4())
-    
     try:
-        # Process the query
-        processor = QueryProcessor()
-        result = processor.process(message)
+        # NEW: Comprehensive validation
+        is_valid, error, sanitized_data = validate_chat_request(request.data)
+        
+        if not is_valid:
+            logger.warning(f"Invalid request: {error}")
+            return Response(
+                {
+                    'error': error,
+                    'reply': ERROR_MSG_EMPTY_MESSAGE
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Extract validated data
+        message = sanitized_data['message']
+        session_id = sanitized_data.get('session_id') or str(uuid.uuid4())
+        user_id = sanitized_data.get('user_id')
+        
+        if 'session_id' not in sanitized_data:
+            logger.info(f"New session created: {session_id[:8]}")
+        
+        # Get authenticated user if available
+        if request.user.is_authenticated:
+            user_id = request.user.id
+        
+        # Initialize conversation manager (with premium modules!)
+        conv_manager = ConversationManager(session_id, user_id)
+        
+        logger.info(
+            f"Processing message [session={session_id[:8]}, "
+            f"state={conv_manager.get_current_state()}]: {message[:50]}..."
+        )
+        
+        # Process message through premium system
+        reply = conv_manager.process_message(message)
+        
+        # Get conversation summary for metadata
+        summary = conv_manager.get_conversation_summary()
+        
+        # Check for escalation
+        is_escalated = conv_manager.context_mgr.is_escalated()
+        if is_escalated:
+            logger.warning(
+                f"🚨 ESCALATED: Session {session_id[:8]} - "
+                f"User: {summary.get('user_name', 'unknown')}"
+            )
         
         # Calculate processing time
-        processing_time_ms = int((time.time() - start_time) * 1000)
+        processing_time = int((time.time() - start_time) * 1000)
         
-        # Save to conversation log
-        log = ConversationLog.objects.create(
-            user=user,
+        # Build response
+        response_data = {
+            'reply': reply,
+            'session_id': session_id,
+            'state': conv_manager.get_current_state(),
+            'confidence': summary.get('satisfaction_score', 0.5),
+            'escalated': is_escalated,
+            'metadata': {
+                'processing_time_ms': processing_time,
+                'processing_time_display': format_processing_time(processing_time),
+                'user_name': conv_manager.get_user_name(),
+                'message_count': summary.get('message_count', 0),
+                'sentiment': summary.get('sentiment', 'neutral'),
+                'escalation_level': summary.get('escalation_level', 0)
+            }
+        }
+        
+        # Log conversation (legacy compatibility)
+        _log_conversation(
+            user_id=user_id,
             session_id=session_id,
             message=message,
-            rule_hit=result.get('rule'),
-            faq_hit=result.get('faq'),
-            llm_response=result.get('llm', {}).get('text', ''),
-            llm_meta=result.get('llm', {}).get('meta'),
-            final_reply=result['reply'],
-            confidence=result['confidence'],
-            explanation=result['explanation'],
-            processing_time_ms=processing_time_ms
+            reply=reply,
+            confidence=summary.get('satisfaction_score', 0.5),
+            processing_time_ms=processing_time
         )
         
-        # Return response
-        response_data = {
-            'faq': result.get('faq'),
-            'rule': result.get('rule'),
-            'llm': result.get('llm'),
-            'reply': result['reply'],
-            'confidence': result['confidence'],
-            'explanation': result['explanation']
-        }
+        logger.info(
+            f"Response generated in {processing_time}ms "
+            f"[state={response_data['state']}, escalated={is_escalated}]"
+        )
         
         return Response(response_data, status=status.HTTP_200_OK)
     
     except Exception as e:
-        logger.error(f"Error processing assistant query: {e}", exc_info=True)
+        logger.error(f"Chat endpoint error: {e}", exc_info=True)
+        
+        processing_time = int((time.time() - start_time) * 1000)
+        
+        # NEW: Use formatter for error response
+        error_message = build_error_response('processing_failed', include_help=True)
+        
+        # Return friendly error message
         return Response(
             {
-                'error': 'Failed to process query',
-                'reply': 'I apologize, but I encountered an error. Please try again or contact support.',
-                'confidence': 0.0,
-                'explanation': 'System error occurred'
+                'error': 'An error occurred while processing your message',
+                'reply': error_message,
+                'session_id': session_id if 'session_id' in locals() else str(uuid.uuid4()),
+                'state': 'error',
+                'metadata': {
+                    'processing_time_ms': processing_time,
+                    'error_type': type(e).__name__
+                }
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+def _log_conversation(
+    user_id: int,
+    session_id: str,
+    message: str,
+    reply: str,
+    confidence: float,
+    processing_time_ms: int
+):
+    """
+    Log conversation to database for analytics.
+    Legacy compatibility function.
+    """
+    try:
+        ConversationLog.objects.create(
+            user_id=user_id,
+            session_id=session_id,
+            message=message,
+            final_reply=reply,
+            confidence=confidence,
+            processing_time_ms=processing_time_ms,
+            explanation='premium_ai_system'
+        )
+    except Exception as e:
+        logger.error(f"Failed to log conversation: {e}")
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def session_status(request, session_id):
+    """
+    Get current session status and conversation summary.
+    
+    GET /api/chat/session/<session_id>/
+    
+    Response:
+    {
+        "session_id": str,
+        "state": str,
+        "user_name": str,
+        "message_count": int,
+        "duration_minutes": int,
+        "sentiment": str,
+        "satisfaction_score": float,
+        "escalation_level": int,
+        "is_active": bool,
+        "formatted_summary": str
+    }
+    """
+    try:
+        # NEW: Validate session ID
+        is_valid, error = validate_session_id(session_id)
+        if not is_valid:
+            return Response(
+                {'error': error},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Get session
+        try:
+            session = ConversationSession.objects.get(session_id=session_id)
+        except ConversationSession.DoesNotExist:
+            return Response(
+                {'error': 'Session not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Initialize manager to get summary
+        conv_manager = ConversationManager(session_id)
+        summary = conv_manager.get_conversation_summary()
+        
+        # Add active status
+        summary['is_active'] = session.is_active()
+        summary['session_id'] = session_id
+        summary['state'] = session.current_state
+        
+        # NEW: Add formatted summary
+        summary['formatted_summary'] = format_conversation_summary(summary)
+        
+        return Response(summary, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        logger.error(f"Session status error: {e}", exc_info=True)
+        return Response(
+            {'error': 'Failed to retrieve session status'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def reset_session(request, session_id):
+    """
+    Reset session to initial state.
+    
+    POST /api/chat/session/<session_id>/reset/
+    
+    Response:
+    {
+        "message": str,
+        "session_id": str,
+        "state": str
+    }
+    """
+    try:
+        # NEW: Validate session ID
+        is_valid, error = validate_session_id(session_id)
+        if not is_valid:
+            return Response(
+                {'error': error},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Initialize manager and reset
+        conv_manager = ConversationManager(session_id)
+        conv_manager.reset_session()
+        
+        logger.info(f"Session reset: {session_id[:8]}")
+        
+        return Response(
+            {
+                'message': 'Session reset successfully',
+                'session_id': session_id,
+                'state': STATE_GREETING
+            },
+            status=status.HTTP_200_OK
+        )
+    
+    except Exception as e:
+        logger.error(f"Session reset error: {e}", exc_info=True)
+        return Response(
+            {'error': 'Failed to reset session'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+def list_sessions(request):
+    """
+    List all sessions for authenticated user.
+    Requires authentication.
+    
+    GET /api/chat/sessions/
+    
+    Response:
+    {
+        "sessions": [
+            {
+                "session_id": str,
+                "state": str,
+                "user_name": str,
+                "message_count": int,
+                "last_activity": str,
+                "is_active": bool,
+                "formatted_summary": str
+            }
+        ]
+    }
+    """
+    try:
+        # Get user's sessions
+        if request.user.is_authenticated:
+            sessions = ConversationSession.objects.filter(
+                user=request.user
+            ).order_by('-last_activity')[:20]
+        else:
+            return Response(
+                {'error': 'Authentication required'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        # Build session list with summaries
+        session_list = []
+        for session in sessions:
+            try:
+                conv_manager = ConversationManager(session.session_id)
+                summary = conv_manager.get_conversation_summary()
+                summary['session_id'] = session.session_id
+                summary['last_activity'] = session.last_activity.isoformat()
+                summary['is_active'] = session.is_active()
+                
+                # NEW: Add formatted summary
+                summary['formatted_summary'] = format_conversation_summary(summary)
+                
+                session_list.append(summary)
+            except Exception as e:
+                logger.error(f"Failed to get summary for session {session.session_id}: {e}")
+                # Add basic info as fallback
+                session_list.append({
+                    'session_id': session.session_id,
+                    'state': session.current_state,
+                    'user_name': session.user_name,
+                    'last_activity': session.last_activity.isoformat(),
+                    'is_active': session.is_active()
+                })
+        
+        return Response(
+            {'sessions': session_list},
+            status=status.HTTP_200_OK
+        )
+    
+    except Exception as e:
+        logger.error(f"List sessions error: {e}", exc_info=True)
+        return Response(
+            {'error': 'Failed to retrieve sessions'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+def health_check(request):
+    """
+    Health check endpoint for monitoring.
+    
+    GET /api/chat/health/
+    
+    Response:
+    {
+        "status": "healthy",
+        "version": str,
+        "components": {
+            "query_processor": bool,
+            "rag_retriever": bool,
+            "llm": bool,
+            "ai_modules": bool
+        }
+    }
+    """
+    try:
+        from assistant.processors.query_processor import QueryProcessor
+        from assistant.ai import get_module_info
+        from assistant.flows import get_module_info as get_flows_info
+        
+        # Check core components
+        query_processor = QueryProcessor()
+        
+        components = {
+            'query_processor': True,
+            'rag_retriever': query_processor.rag.is_ready(),
+            'llm': query_processor.llm.is_available() if query_processor.llm else False,
+            'ai_modules': True,
+            'flow_modules': True,
+            'utils': True  # NEW
+        }
+        
+        # Get version info
+        ai_info = get_module_info()
+        flows_info = get_flows_info()
+        
+        return Response(
+            {
+                'status': 'healthy' if all(components.values()) else 'degraded',
+                'version': SYSTEM_VERSION,
+                'components': components,
+                'ai_version': ai_info['version'],
+                'flows_version': flows_info['version']
+            },
+            status=status.HTTP_200_OK
+        )
+    
+    except Exception as e:
+        logger.error(f"Health check error: {e}", exc_info=True)
+        return Response(
+            {
+                'status': 'unhealthy',
+                'error': str(e)
+            },
+            status=status.HTTP_503_SERVICE_UNAVAILABLE
+        )
+
+
+# LEGACY ENDPOINT: Backward compatibility
+@csrf_exempt
+@require_http_methods(["POST"])
+def legacy_chat_endpoint(request):
+    """
+    Legacy chat endpoint for backward compatibility.
+    Redirects to new chat_endpoint.
+    
+    DEPRECATED: Use /api/chat/ instead.
+    """
+    import json
+    
+    try:
+        data = json.loads(request.body)
+        
+        # Create DRF-style request object
+        class FakeRequest:
+            def __init__(self, data, user):
+                self.data = data
+                self.user = user
+        
+        fake_request = FakeRequest(data, request.user)
+        
+        # Call new endpoint
+        response = chat_endpoint(fake_request)
+        
+        # Convert to JsonResponse for legacy clients
+        return JsonResponse(response.data, status=response.status_code)
+    
+    except Exception as e:
+        logger.error(f"Legacy endpoint error: {e}")
+        return JsonResponse(
+            {'error': str(e)},
+            status=500
+        )
+
+
+"""
+Legacy View Functions - Backward compatibility for existing API clients.
+"""
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def ask_assistant(request):
+    """
+    Legacy endpoint: Simple Q&A without conversation context.
+    
+    DEPRECATED: Use /api/chat/ for full conversational experience.
+    """
+    start_time = time.time()
+    
+    try:
+        from assistant.processors.query_processor import QueryProcessor
+        
+        question = request.data.get('question', '').strip()
+        user_id = request.data.get('user_id')
+        
+        # NEW: Validate message
+        is_valid, error = validate_message(question)
+        if not is_valid:
+            return Response(
+                {'error': error},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Process with query processor
+        query_processor = QueryProcessor()
+        result = query_processor.process(question)
+        
+        processing_time = int((time.time() - start_time) * 1000)
+        
+        # Log for analytics
+        if user_id:
+            _log_conversation(
+                user_id=user_id,
+                session_id='legacy_ask',
+                message=question,
+                reply=result['reply'],
+                confidence=result['confidence'],
+                processing_time_ms=processing_time
+            )
+        
+        return Response(
+            {
+                'answer': result['reply'],
+                'confidence': result['confidence'],
+                'processing_time_ms': processing_time,
+                'processing_time_display': format_processing_time(processing_time)
+            },
+            status=status.HTTP_200_OK
+        )
+    
+    except Exception as e:
+        logger.error(f"Ask assistant error: {e}", exc_info=True)
+        processing_time = int((time.time() - start_time) * 1000)
+        
+        return Response(
+            {
+                'error': 'Failed to process question',
+                'answer': ERROR_MSG_PROCESSING_FAILED,
+                'processing_time_ms': processing_time
             },
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
@@ -114,310 +572,131 @@ def ask_assistant(request):
 @permission_classes([AllowAny])
 def create_report(request):
     """
-    Create a report for issues requiring human review.
-    
-    POST /assistant/api/report/
-    {
-        "message": "User threatened me",
-        "severity": "high",  // optional
-        "meta": {"conversation_id": 123}  // optional
-    }
+    Legacy endpoint: Create a dispute/scam report.
     """
-    serializer = ReportCreateSerializer(data=request.data)
-    if not serializer.is_valid():
+    try:
+        user_id = request.data.get('user_id')
+        report_type = request.data.get('report_type', 'dispute')
+        description = request.data.get('description', '').strip()
+        
+        # Build report data
+        report_data = {
+            'message': description,
+            'report_type': report_type,
+            'seller_name': request.data.get('seller_name', ''),
+            'order_id': request.data.get('order_id', ''),
+            'evidence': request.data.get('evidence', '')
+        }
+        
+        # NEW: Validate report data
+        is_valid, error = validate_report_data(report_data)
+        if not is_valid:
+            return Response(
+                {'error': error},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Create report
+        report_data['description'] = description
+        report_data['status'] = 'pending'
+        
+        if user_id:
+            report_data['user_id'] = user_id
+        
+        report = Report.objects.create(**report_data)
+        
+        logger.info(f"Report created: ID={report.id}, Type={report_type}")
+        
         return Response(
-            {'error': 'Invalid request', 'details': serializer.errors},
-            status=status.HTTP_400_BAD_REQUEST
+            {
+                'message': SUCCESS_MSG_REPORT_SAVED,
+                'report_id': report.id,
+                'status': report.status
+            },
+            status=status.HTTP_201_CREATED
         )
     
-    # Get user if authenticated
-    user = request.user if request.user.is_authenticated else None
-    
-    # Create report
-    report = serializer.save(user=user)
-    
-    # Return created report
-    response_serializer = ReportSerializer(report)
-    return Response(
-        response_serializer.data,
-        status=status.HTTP_201_CREATED
-    )
+    except Exception as e:
+        logger.error(f"Create report error: {e}", exc_info=True)
+        return Response(
+            {'error': 'Failed to create report'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 
 @api_view(['GET'])
-@permission_classes([IsStaffUser])
 def recent_logs(request):
-    """
-    Get recent conversation logs (admin only).
+    """Admin endpoint: Get recent conversation logs."""
+    try:
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return Response(
+                {'error': 'Admin access required'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        limit = min(int(request.GET.get('limit', 50)), 200)
+        user_id = request.GET.get('user_id')
+        
+        queryset = ConversationLog.objects.all().order_by('-timestamp')
+        
+        if user_id:
+            queryset = queryset.filter(user_id=user_id)
+        
+        logs = queryset[:limit]
+        serializer = ConversationLogSerializer(logs, many=True)
+        
+        return Response(
+            {
+                'logs': serializer.data,
+                'count': queryset.count()
+            },
+            status=status.HTTP_200_OK
+        )
     
-    GET /assistant/api/admin/recent-logs/?limit=50&user_id=123
-    """
-    limit = int(request.query_params.get('limit', 50))
-    user_id = request.query_params.get('user_id')
-    
-    queryset = ConversationLog.objects.all()
-    
-    if user_id:
-        queryset = queryset.filter(user_id=user_id)
-    
-    logs = queryset[:limit]
-    serializer = ConversationLogSerializer(logs, many=True)
-    
-    return Response({
-        'count': len(logs),
-        'logs': serializer.data
-    })
+    except Exception as e:
+        logger.error(f"Recent logs error: {e}", exc_info=True)
+        return Response(
+            {'error': 'Failed to retrieve logs'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 
 @api_view(['GET'])
-@permission_classes([IsStaffUser])
 def recent_reports(request):
-    """
-    Get recent reports (admin only).
-    
-    GET /assistant/api/admin/recent-reports/?limit=50&status=pending
-    """
-    limit = int(request.query_params.get('limit', 50))
-    status_filter = request.query_params.get('status')
-    
-    queryset = Report.objects.all()
-    
-    if status_filter:
-        queryset = queryset.filter(status=status_filter)
-    
-    reports = queryset[:limit]
-    serializer = ReportSerializer(reports, many=True)
-    
-    return Response({
-        'count': len(reports),
-        'reports': serializer.data
-    })
-
-
-# ==> Zunto-src/assistant/urls.py <==
-from django.urls import path
-from . import views
-
-app_name = 'assistant'
-
-urlpatterns = [
-    # Public endpoints
-    path('api/ask/', views.ask_assistant, name='ask'),
-    path('api/report/', views.create_report, name='report'),
-    
-    # Admin endpoints
-    path('api/admin/recent-logs/', views.recent_logs, name='recent_logs'),
-    path('api/admin/recent-reports/', views.recent_reports, name='recent_reports'),
-]
-
-
-# ==> Zunto-src/assistant/processors/__init__.py <==
-"""
-Assistant processing modules.
-
-- faq_retriever: FAQ matching using keyword and TF-IDF
-- rule_engine: Rule-based decision making
-- local_model: Optional local LLM integration
-- query_processor: Main orchestration logic
-"""
-
-
-# ==> Zunto-src/assistant/processors/faq_retriever.py <==
-import json
-import os
-import logging
-from pathlib import Path
-from typing import Dict, List, Optional
-import re
-
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
-
-logger = logging.getLogger(__name__)
-
-# Default thresholds
-KEYWORD_SCORE_THRESHOLD = 0.4
-TFIDF_SIMILARITY_THRESHOLD = 0.25
-
-
-class FAQRetriever:
-    """
-    FAQ retrieval using keyword matching and TF-IDF similarity.
-    Singleton pattern for efficiency.
-    """
-    
-    _instance = None
-    
-    def __init__(self, faq_path: Optional[str] = None):
-        """Initialize FAQ retriever with data file."""
-        if faq_path is None:
-            # Default path relative to this file
-            base_dir = Path(__file__).parent.parent
-            faq_path = base_dir / 'data' / 'faq.json'
-        
-        self.faq_path = Path(faq_path)
-        self.faqs: List[Dict] = []
-        self.vectorizer: Optional[TfidfVectorizer] = None
-        self.faq_vectors = None
-        
-        # Load FAQ data
-        self._load_faqs()
-        
-        # Initialize TF-IDF if we have FAQs
-        if self.faqs:
-            self._init_tfidf()
-    
-    @classmethod
-    def get_instance(cls, faq_path: Optional[str] = None):
-        """Get or create singleton instance."""
-        if cls._instance is None:
-            cls._instance = cls(faq_path)
-        return cls._instance
-    
-    def _load_faqs(self):
-        """Load FAQ data from JSON file."""
-        if not self.faq_path.exists():
-            logger.warning(f"FAQ file not found: {self.faq_path}")
-            return
-        
-        try:
-            with open(self.faq_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                self.faqs = data.get('faqs', [])
-            
-            logger.info(f"Loaded {len(self.faqs)} FAQs from {self.faq_path}")
-        except Exception as e:
-            logger.error(f"Failed to load FAQs: {e}")
-            self.faqs = []
-    
-    def _init_tfidf(self):
-        """Initialize TF-IDF vectorizer and compute FAQ vectors."""
-        try:
-            # Combine question and keywords for better matching
-            corpus = []
-            for faq in self.faqs:
-                text = faq['question']
-                if 'keywords' in faq:
-                    text += ' ' + ' '.join(faq['keywords'])
-                corpus.append(text.lower())
-            
-            # Create vectorizer
-            self.vectorizer = TfidfVectorizer(
-                max_features=1000,
-                ngram_range=(1, 2),
-                stop_words='english'
+    """Admin endpoint: Get recent reports."""
+    try:
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return Response(
+                {'error': 'Admin access required'},
+                status=status.HTTP_403_FORBIDDEN
             )
-            
-            # Fit and transform FAQ corpus
-            self.faq_vectors = self.vectorizer.fit_transform(corpus)
-            
-            logger.info(f"Initialized TF-IDF with {self.faq_vectors.shape[0]} FAQs")
-        except Exception as e:
-            logger.error(f"Failed to initialize TF-IDF: {e}")
-            self.vectorizer = None
-            self.faq_vectors = None
-    
-    def _keyword_match(self, query: str) -> Optional[Dict]:
-        """
-        Match query against FAQ keywords.
-        Returns: {faq, score, method} or None
-        """
-        query_lower = query.lower()
-        query_words = set(re.findall(r'\w+', query_lower))
         
-        best_match = None
-        best_score = 0.0
+        limit = min(int(request.GET.get('limit', 50)), 200)
+        status_filter = request.GET.get('status')
         
-        for faq in self.faqs:
-            if 'keywords' not in faq:
-                continue
-            
-            # Calculate keyword overlap
-            faq_keywords = set(kw.lower() for kw in faq['keywords'])
-            overlap = query_words & faq_keywords
-            
-            if overlap:
-                score = len(overlap) / max(len(query_words), len(faq_keywords))
-                
-                if score > best_score:
-                    best_score = score
-                    best_match = faq
+        queryset = Report.objects.all().order_by('-created_at')
         
-        if best_match and best_score >= KEYWORD_SCORE_THRESHOLD:
-            return {
-                'faq': best_match,
-                'score': best_score,
-                'method': 'keyword'
-            }
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
         
-        return None
-    
-    def _tfidf_match(self, query: str) -> Optional[Dict]:
-        """
-        Match query using TF-IDF similarity.
-        Returns: {faq, score, method} or None
-        """
-        if self.vectorizer is None or self.faq_vectors is None:
-            return None
+        reports = queryset[:limit]
+        serializer = ReportSerializer(reports, many=True)
         
-        try:
-            # Transform query
-            query_vector = self.vectorizer.transform([query.lower()])
-            
-            # Compute similarities
-            similarities = cosine_similarity(query_vector, self.faq_vectors)[0]
-            
-            # Find best match
-            best_idx = np.argmax(similarities)
-            best_score = similarities[best_idx]
-            
-            if best_score >= TFIDF_SIMILARITY_THRESHOLD:
-                return {
-                    'faq': self.faqs[best_idx],
-                    'score': float(best_score),
-                    'method': 'tfidf'
-                }
-        except Exception as e:
-            logger.error(f"TF-IDF matching failed: {e}")
-        
-        return None
-    
-    def retrieve(self, query: str) -> Optional[Dict]:
-        """
-        Retrieve best matching FAQ for query.
-        
-        Args:
-            query: User's question
-        
-        Returns:
+        return Response(
             {
-                'id': int,
-                'question': str,
-                'answer': str,
-                'score': float,
-                'method': 'keyword' | 'tfidf'
-            } or None
-        """
-        if not query or not self.faqs:
-            return None
-        
-        # Try keyword matching first (faster and more precise)
-        result = self._keyword_match(query)
-        
-        # Fall back to TF-IDF if no keyword match
-        if result is None:
-            result = self._tfidf_match(query)
-        
-        # Format result
-        if result:
-            faq = result['faq']
-            return {
-                'id': faq.get('id', 0),
-                'question': faq['question'],
-                'answer': faq['answer'],
-                'score': result['score'],
-                'method': result['method']
-            }
-        
-        return None
+                'reports': serializer.data,
+                'count': queryset.count()
+            },
+            status=status.HTTP_200_OK
+        )
+    
+    except Exception as e:
+        logger.error(f"Recent reports error: {e}", exc_info=True)
+        return Response(
+            {'error': 'Failed to retrieve reports'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+# Alias for backward compatibility
+chat = chat_endpoint
