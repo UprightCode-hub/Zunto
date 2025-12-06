@@ -11,6 +11,7 @@ from pathlib import Path
 from decouple import config
 from celery.schedules import crontab
 from dotenv import load_dotenv
+import dj_database_url
 
 load_dotenv()
 
@@ -22,7 +23,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = config('SECRET_KEY', default='your-secret-key-change-in-production')
 DEBUG = config('DEBUG', default=True, cast=bool)
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,*').split(',')
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,*,.herokuapp.com,unevinced-propraetorial-milda.ngrok-free.dev').split(',')
 
 # Production Security Settings
 if not DEBUG:
@@ -86,6 +87,7 @@ CRISPY_TEMPLATE_PACK = "bootstrap5"
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',  # CORS (if using separate frontend)
     'django.middleware.common.CommonMiddleware',
@@ -130,27 +132,11 @@ TEMPLATES = [
 # ============================================
 
 DATABASES = {
-    'default': {
-        # Development: SQLite
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-        
-        # Production: PostgreSQL (uncomment when ready)
-        # 'ENGINE': 'django.db.backends.postgresql',
-        # 'NAME': config('DB_NAME'),
-        # 'USER': config('DB_USER'),
-        # 'PASSWORD': config('DB_PASSWORD'),
-        # 'HOST': config('DB_HOST', default='localhost'),
-        # 'PORT': config('DB_PORT', default='5432'),
-        # 'OPTIONS': {
-        #     'pool': {
-        #         'min_size': 2,
-        #         'max_size': 10,
-        #         'max_lifetime': 3600,  # 1 hour
-        #         'max_idle': 600,        # 10 minutes
-        #     }
-        # }
-    }
+    'default': dj_database_url.config(
+        default=config('DATABASE_URL', default='sqlite:///' + str(BASE_DIR / 'db.sqlite3')),
+        conn_max_age=600,
+        conn_health_checks=True,
+    )
 }
 
 # ============================================
@@ -175,15 +161,11 @@ CACHES = {
 
 CHANNEL_LAYERS = {
     'default': {
-        # Development: In-memory channel layer
-        'BACKEND': 'channels.layers.InMemoryChannelLayer',
-        
-        # Production: Use Redis (uncomment when deploying)
-        # 'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        # 'CONFIG': {
-        #     "hosts": [(config('REDIS_HOST', default='127.0.0.1'), 
-        #                config('REDIS_PORT', default=6379, cast=int))],
-        # },
+        # Use Redis if REDIS_URL is provided (Heroku), otherwise in-memory
+        'BACKEND': 'channels_redis.core.RedisChannelLayer' if config('REDIS_URL', default=None) else 'channels.layers.InMemoryChannelLayer',
+        'CONFIG': {
+            "hosts": [config('REDIS_URL', default='redis://127.0.0.1:6379')],
+        } if config('REDIS_URL', default=None) else {},
     },
 }
 
@@ -234,10 +216,20 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / "static_my_project"]
-STATIC_ROOT = os.path.join(os.path.dirname(BASE_DIR), "static_cdn", "static_root")
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(os.path.dirname(BASE_DIR), "static_cdn", "media_root")
+
+# WhiteNoise Static Files Storage
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 # Allowed file upload extensions
 ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
@@ -318,7 +310,7 @@ SESSION_COOKIE_SAMESITE = 'Lax'
 
 CORS_ALLOWED_ORIGINS = config(
     'CORS_ALLOWED_ORIGINS',
-    default='http://localhost:3000,http://127.0.0.1:3000'
+    default='http://localhost:3000,http://127.0.0.1:3000,https://unevinced-propraetoorial-milda.ngrok-free.dev'
 ).split(',')
 
 CORS_ALLOW_CREDENTIALS = True
@@ -345,7 +337,7 @@ CSRF_COOKIE_SECURE = not DEBUG
 
 CSRF_TRUSTED_ORIGINS = config(
     'CSRF_TRUSTED_ORIGINS',
-    default='http://localhost:3000,http://127.0.0.1:3000'
+    default='http://localhost:3000,http://127.0.0.1:3000,https://unevinced-propraetorial-milda.ngrok-free.dev'
 ).split(',')
 
 # ============================================
@@ -353,7 +345,7 @@ CSRF_TRUSTED_ORIGINS = config(
 # ============================================
 
 # Groq AI Configuration (Cloud-based LLM)
-GROQ_API_KEY = config('GROQ_API_KEY', default='5GeKxEt9aGcsCHWJZj7GWGdyb3FYJigoux3eyKzOe0ZweIq21AUT')
+GROQ_API_KEY = config('GROQ_API_KEY', default='')
 GROQ_MODEL = config('GROQ_MODEL', default='mixtral-8x7b-32768')
 
 # FAQ Matching Configuration (Local semantic search)

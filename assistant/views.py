@@ -22,6 +22,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
+from django.shortcuts import render
 
 from assistant.models import ConversationSession, ConversationLog, Report
 from assistant.processors.conversation_manager import ConversationManager
@@ -700,3 +701,114 @@ def recent_reports(request):
 
 # Alias for backward compatibility
 chat = chat_endpoint
+
+
+"""
+Add these views to your assistant/views.py file
+These handle the web interface and documentation pages
+"""
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def chat_interface(request):
+    """
+    Main landing page - Professional AI Assistant Interface
+    This is the page you'll share on LinkedIn via ngrok
+    """
+    context = {
+        'creator_name': 'Wisdom Ekwugha',
+        'ai_name': 'Gigi - Zunto Assistant',
+        'tagline': 'Your Intelligent E-commerce Support Companion',
+        'version': '2.0 Premium Edition',
+        'linkedin_url': 'https://www.linkedin.com/in/wisdom-ekwugha',  # Update with your actual LinkedIn
+        'github_url': 'https://github.com/wisdomekwugha',  # Update with your actual GitHub
+        'email': 'wisdom@zunto.com',  # Update with your email
+    }
+    return render(request, 'assistant/chat_interface.html', context)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def api_documentation(request):
+    """
+    API Documentation page for developers
+    Shows all available endpoints and how to use them
+    """
+    endpoints = [
+        {
+            'endpoint': '/assistant/api/chat/',
+            'method': 'POST',
+            'description': 'Main chat endpoint for conversational AI',
+            'auth': 'Optional',
+            'example': {
+                'message': 'Hello, I need help',
+                'session_id': 'optional-uuid',
+                'user_id': 'optional-int'
+            }
+        },
+        {
+            'endpoint': '/assistant/api/chat/session/<session_id>/',
+            'method': 'GET',
+            'description': 'Get session status and conversation summary',
+            'auth': 'Optional',
+        },
+        {
+            'endpoint': '/assistant/api/chat/health/',
+            'method': 'GET',
+            'description': 'System health check',
+            'auth': 'None',
+        },
+        {
+            'endpoint': '/assistant/api/ask/',
+            'method': 'POST',
+            'description': 'Simple Q&A without conversation context (Legacy)',
+            'auth': 'Optional',
+        },
+    ]
+    
+    return Response({
+        'title': 'Zunto AI Assistant API Documentation',
+        'version': SYSTEM_VERSION,
+        'creator': 'Wisdom Ekwugha',
+        'endpoints': endpoints,
+        'base_url': request.build_absolute_uri('/assistant/'),
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def about_page(request):
+    """
+    About page with information about the AI system
+    """
+    return Response({
+        'project': 'Zunto AI Assistant',
+        'version': SYSTEM_VERSION,
+        'creator': {
+            'name': 'Wisdom Ekwugha',
+            'role': 'AI Engineer & Full-Stack Developer',
+            'linkedin': 'https://www.linkedin.com/in/wisdom-ekwugha',
+            'github': 'https://github.com/wisdomekwugha',
+        },
+        'description': 'An intelligent conversational AI assistant for e-commerce support, '
+                      'featuring advanced NLP, sentiment analysis, and escalation detection.',
+        'features': [
+            'Real-time conversational AI',
+            'Context-aware responses',
+            'Sentiment analysis',
+            'Automatic escalation detection',
+            'FAQ retrieval system',
+            'Dispute resolution flow',
+            'Multi-session management',
+            'Advanced analytics',
+        ],
+        'tech_stack': [
+            'Django REST Framework',
+            'Python NLP Libraries',
+            'FAISS Vector Database',
+            'WebSocket Support',
+            'PostgreSQL/SQLite',
+        ],
+        'year': '2024',
+    }, status=status.HTTP_200_OK)

@@ -108,3 +108,9 @@ asgiref==3.8.1
 sqlparse==0.5.1
 tzdata==2024.2
 
+# ============================================
+# HEROKU DEPLOYMENT DEPENDENCIES
+# ============================================
+dj-database-url==2.1.0
+psycopg2-binary==2.9.9
+whitenoise==6.6.0
