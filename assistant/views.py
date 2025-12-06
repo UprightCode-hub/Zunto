@@ -723,7 +723,7 @@ def chat_interface(request):
         'version': '2.0 Premium Edition',
         'linkedin_url': 'https://www.linkedin.com/in/wisdom-ekwugha',  # Update with your actual LinkedIn
         'github_url': 'https://github.com/wisdomekwugha',  # Update with your actual GitHub
-        'email': 'wisdom@zunto.com',  # Update with your email
+        'email': 'zuntoproject@gmail.com',  # Update with your email
     }
     return render(request, 'assistant/chat_interface.html', context)
 
