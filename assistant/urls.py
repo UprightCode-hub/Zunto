@@ -15,7 +15,8 @@ urlpatterns = [
     # ============================================================
     # This will be your main ngrok link for LinkedIn
     path('', views.chat_interface, name='home'),  # Main landing page
-    path('demo/', views.chat_interface, name='demo'),  # Alternative demo URL
+    path('demo/', views.chat_interface, name='demo'),
+    path('', views.chat_interface, name='chat_interface'),  # Alternative demo URL
     
     # ============================================================
     # PREMIUM CHAT API - NEW ENDPOINTS

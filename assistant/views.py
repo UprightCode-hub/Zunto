@@ -812,3 +812,8 @@ def about_page(request):
         ],
         'year': '2024',
     }, status=status.HTTP_200_OK)
+
+
+def chat_interface(request):
+    """Serve the chat interface HTML"""
+    return render(request, 'assistant/chat.html')
