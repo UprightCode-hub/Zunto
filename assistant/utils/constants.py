@@ -16,7 +16,7 @@ Contains:
 # ============================================================================
 SYSTEM_VERSION = '2.0.0'
 SYSTEM_NAME = 'Gigi (Zunto AI Assistant)'
-CREATOR_NAME = 'Wisdom Ekwyugha'
+CREATOR_NAME = 'Wisdom Ekwugha'
 ORGANIZATION = 'Gigi Development Engine (GDE)'
 
 # ============================================================================

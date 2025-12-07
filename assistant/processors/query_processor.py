@@ -1,6 +1,7 @@
 """
 Query Processor - Main orchestrator for the hybrid assistant.
 Flow: RuleEngine → RAGRetriever → LocalModelAdapter
+ENHANCED: Now detects creator questions and responds with accurate info!
 """
 import logging
 import time
@@ -8,6 +9,13 @@ from typing import Dict, Optional
 from .rule_engine import RuleEngine, BLOCK_THRESHOLD
 from .rag_retriever import RAGRetriever, FAQ_MATCH_THRESHOLD
 from .local_model import LocalModelAdapter, NoModelAvailable
+
+# NEW: Import creator info detection
+from assistant.ai.creator_info import (
+    should_mention_creator,
+    get_detailed_creator_response,
+    format_creator_card
+)
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +28,7 @@ LLM_TIMEOUT = 10.0  # seconds
 class QueryProcessor:
     """
     Main query processor coordinating all assistant components.
+    NOW WITH CREATOR INFO DETECTION!
     """
     
     def __init__(self):
@@ -70,7 +79,7 @@ class QueryProcessor:
             str: Formatted prompt
         """
         # System context
-        system_prompt = """You are a helpful Zunto marketplace assistant. 
+        system_prompt = """You are Gigi, a helpful Zunto marketplace assistant created by Wisdom Ekwugha.
 Answer briefly (2-3 sentences max), professionally, and based on the provided FAQ context.
 If the question isn't covered by FAQs, provide helpful general guidance for marketplace issues.
 
@@ -128,12 +137,14 @@ ASSISTANT:"""
         
         return sum(scores) / len(scores)
     
-    def process(self, message: str) -> Dict:
+    def process(self, message: str, user_name: str = None) -> Dict:
         """
         Process user query through the hybrid pipeline.
+        ENHANCED: Now detects and responds to creator questions!
         
         Args:
             message: User's input message
+            user_name: Optional user name for personalization
         
         Returns:
             {
@@ -154,6 +165,24 @@ ASSISTANT:"""
                 'reply': "I didn't receive a valid message. Could you please try again?",
                 'confidence': 0.0,
                 'explanation': 'empty_input',
+                'rule': None,
+                'faq': None,
+                'llm': None
+            }
+        
+        # ⭐ NEW: Check if asking about creator FIRST (high priority)
+        if should_mention_creator(clean_message):
+            logger.info("🎨 Creator question detected! Responding with Wisdom's info...")
+            
+            creator_response = get_detailed_creator_response(clean_message, user_name)
+            
+            processing_time = time.time() - start_time
+            logger.info(f"✅ Creator query processed in {processing_time:.3f}s")
+            
+            return {
+                'reply': creator_response,
+                'confidence': 1.0,  # High confidence for creator info
+                'explanation': 'creator_info',
                 'rule': None,
                 'faq': None,
                 'llm': None

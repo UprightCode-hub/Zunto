@@ -13,7 +13,7 @@ All components are production-ready and optimized for performance.
 
 # Version info
 __version__ = '2.0.0'
-__author__ = 'Wisdom Ekwyugha'
+__author__ = 'Wisdom Ekwugha'
 __email__ = 'ZuntoProject@gmail.com'
 
 # Import core AI components

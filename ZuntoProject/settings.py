@@ -15,11 +15,32 @@ import dj_database_url
 
 load_dotenv()
 
+
+import dj_database_url
+BASE_DIR = Path(__file__).resolve().parent.parent
+# Render.com deployment settings
+RENDER = os.environ.get('RENDER', False)
+
+if RENDER:
+    DEBUG = False
+    ALLOWED_HOSTS = ['.onrender.com', 'localhost', '127.0.0.1']
+    
+    # Database from environment
+    DATABASES = {
+        'default': dj_database_url.config(
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
+    }
+    
+    # Static files
+    STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 # ============================================
 # BASE & SECURITY
 # ============================================
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+
 
 SECRET_KEY = config('SECRET_KEY', default='your-secret-key-change-in-production')
 DEBUG = config('DEBUG', default=True, cast=bool)

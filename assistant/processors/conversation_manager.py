@@ -386,6 +386,12 @@ class ConversationManager:
             intent=intent.value,
             emotion=emotion
         )
+
+        #Process through query processor WITH user_name for personalization
+        result = self.query_processor.process(
+            message=message,
+            user_name=self.session.user_name or None  # Pass user's name!
+        )
         
         # Process through query processor (RAG + LLM)
         result = self.query_processor.process(message)

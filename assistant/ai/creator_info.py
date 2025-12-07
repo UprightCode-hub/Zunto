@@ -1,6 +1,6 @@
 """
 Creator Information Module
-Stores details about Wisdom Ekwyugha (AI Creator) and Zunto Team
+Stores details about Wisdom Ekwugha (AI Creator) and Zunto Team
 
 When users ask "Who made you?" or "Tell me about your creator",
 the AI references this module for accurate, detailed responses.
@@ -16,7 +16,7 @@ class CreatorInfo:
     
     # Primary Creator (AI Developer)
     CREATOR = {
-        'name': 'Wisdom Ekwyugha',
+        'name': 'Wisdom Ekwugha',
         'role': 'AI Systems Developer & Creator of Gigi',
         'title': 'Lead AI Engineer',
         
@@ -123,12 +123,12 @@ class CreatorInfo:
         'description': (
             "The Zunto Team is responsible for building and maintaining "
             "the Zunto Marketplace platform - Nigeria's innovative e-commerce solution. "
-            "While the team handles the marketplace infrastructure, Wisdom Ekwyugha "
+            "While the team handles the marketplace infrastructure, Wisdom Ekwugha "
             "specifically created and developed Gigi, the AI assistant."
         ),
         'division_of_work': {
             'marketplace_platform': 'Zunto Team (Frontend, Backend, Infrastructure)',
-            'ai_assistant': 'Wisdom Ekwyugha (Design, Development, Training)',
+            'ai_assistant': 'Wisdom Ekwugha (Design, Development, Training)',
         }
     }
     
@@ -248,7 +248,7 @@ class CreatorInfo:
             'your creator',
             'your developer',
             'who is wisdom',
-            'wisdom ekwyugha',
+            'wisdom Ekwugha',
             'tell me about wisdom',
             'who designed you',
             'your creator',
@@ -327,3 +327,131 @@ contact_info = {
     "email": "ZuntoProject@gmail.com",
     "github": "https://github.com/UprightCode-hub"
 }
+
+# ============================================================================
+# EXPORTS - Required by assistant/ai/__init__.py
+# ============================================================================
+
+# Export CREATOR_INFO as a dictionary (backward compatibility)
+CREATOR_INFO = CreatorInfo.CREATOR
+
+
+def get_creator_bio(detail_level: str = 'balanced', user_name: Optional[str] = None) -> str:
+    """
+    Get creator biography with optional personalization.
+    
+    Args:
+        detail_level: 'brief', 'balanced', or 'detailed'
+        user_name: Optional user name for personalization
+    
+    Returns:
+        Formatted biography string
+    
+    Examples:
+        >>> get_creator_bio('brief')
+        'Wisdom Ekwugha is the creator and lead developer of Gigi...'
+        
+        >>> get_creator_bio('detailed', 'John')
+        'John, Wisdom Ekwugha is a 2 years AI systems developer...'
+    """
+    bio = CreatorInfo.get_creator_bio(detail_level)
+    
+    if user_name:
+        return f"{user_name}, {bio}"
+    return bio
+
+
+def format_creator_card() -> str:
+    """
+    Format creator information as a conversational card/introduction.
+    
+    Returns:
+        Formatted string with creator attribution and quick facts
+    
+    Example Output:
+        "I'm Gigi, created by Wisdom Ekwugha. He's an AI systems developer
+        who built me specifically for Zunto Marketplace..."
+    """
+    attribution = CreatorInfo.get_attribution()
+    fun_fact = CreatorInfo.get_fun_fact()
+    
+    return (
+        f"{attribution}\n\n"
+        f"💡 Fun fact: {fun_fact}"
+    )
+
+
+def get_detailed_creator_response(user_query: str, user_name: Optional[str] = None) -> str:
+    """
+    Generate a detailed response when users ask about the creator.
+    
+    This function analyzes the user's query and provides appropriate
+    detail level and context.
+    
+    Args:
+        user_query: User's question about the creator
+        user_name: Optional user name for personalization
+    
+    Returns:
+        Contextual response about Wisdom Ekwugha
+    
+    Examples:
+        >>> get_detailed_creator_response("who made you?")
+        'Wisdom Ekwugha is the creator of Gigi...'
+        
+        >>> get_detailed_creator_response("tell me more about wisdom", "Sarah")
+        'Sarah, Wisdom Ekwugha is a 2 years AI systems developer...'
+    """
+    return CreatorInfo.get_response_for_creator_query(user_query, user_name)
+
+
+def should_mention_creator(user_query: str) -> bool:
+    """
+    Detect if user is asking about the creator.
+    
+    Triggers on keywords like:
+    - "who made you"
+    - "who created you"
+    - "tell me about your creator"
+    - "who is wisdom"
+    
+    Args:
+        user_query: User's message
+    
+    Returns:
+        True if query is about the creator
+    """
+    return CreatorInfo.should_mention_creator(user_query)
+
+
+# ============================================================================
+# ADDITIONAL HELPER FUNCTIONS
+# ============================================================================
+
+def get_team_info() -> str:
+    """Get information about the Zunto development team."""
+    return CreatorInfo.get_team_info()
+
+
+def get_project_timeline() -> Dict:
+    """Get project development timeline."""
+    return CreatorInfo.TIMELINE
+
+
+def get_technologies_used() -> List[str]:
+    """Get list of technologies used in Gigi."""
+    return CreatorInfo.CREATOR['zunto_project']['technologies_used']
+
+
+def get_creator_achievements() -> List[str]:
+    """Get list of creator's achievements."""
+    return CreatorInfo.CREATOR['professional']['achievements']
+
+
+def get_creator_contact() -> Dict:
+    """Get creator contact information."""
+    return {
+        **CreatorInfo.CREATOR['contact'],
+        'email': contact_info.get('email'),
+        'github': contact_info.get('github')
+    }

@@ -410,3 +410,59 @@ def test_intent_classifier():
 if __name__ == "__main__":
     # Run tests when executed directly
     test_intent_classifier()
+
+
+
+# ADD THIS AT THE VERY END OF YOUR intent_classifier.py FILE
+# (After the if __name__ == "__main__": block)
+
+# ============================================================================
+# STANDALONE WRAPPER FUNCTION (Required for __init__.py import)
+# ============================================================================
+
+def classify_intent(message: str, context: dict = None):
+    """
+    Standalone wrapper function for IntentClassifier.classify()
+    
+    This function exists so that __init__.py can import it as:
+    from .intent_classifier import classify_intent
+    
+    Args:
+        message: User's input message
+        context: Optional conversation context (for future enhancements)
+    
+    Returns:
+        Tuple of (intent, confidence, metadata_dict)
+        
+    Example:
+        >>> intent, confidence, metadata = classify_intent("I want to report a scam")
+        >>> print(intent.value)  # 'dispute'
+        >>> print(metadata['emotion'])  # 'frustrated'
+    """
+    # Context parameter is accepted but not used yet (reserved for future features)
+    intent, confidence, all_scores = IntentClassifier.classify(message)
+    
+    # Build metadata dictionary
+    metadata = {
+        'all_scores': all_scores,
+        'method': 'rule_based',
+        'classifier_version': '2.0.0',
+        'emotion': 'neutral'  # Basic emotion inference
+    }
+    
+    # Infer basic emotion from intent
+    emotion_map = {
+        Intent.DISPUTE: 'frustrated',
+        Intent.COMPLAINT: 'frustrated',
+        Intent.GREETING: 'happy',
+        Intent.GRATITUDE: 'happy',
+        Intent.AFFIRMATION: 'neutral',
+        Intent.NEGATION: 'concerned',
+        Intent.HELP_REQUEST: 'concerned',
+        Intent.FAQ: 'neutral',
+        Intent.FEEDBACK: 'neutral'
+    }
+    
+    metadata['emotion'] = emotion_map.get(intent, 'neutral')
+    
+    return (intent, confidence, metadata)
