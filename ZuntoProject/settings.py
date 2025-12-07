@@ -112,6 +112,7 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',  # CORS (if using separate frontend)
     'django.middleware.common.CommonMiddleware',
+    'assistant.middleware.DisableCSRFForAPIMiddleware',  # Custom CSRF disable for API during local testing
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -325,14 +326,22 @@ SESSION_COOKIE_SAMESITE = 'Lax'
 # SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
 # SESSION_CACHE_ALIAS = 'default'
 
+# Add this to your CORS configuration in settings.py
+# REPLACE the existing CORS_ALLOWED_ORIGINS section with this:
+
 # ============================================
 # CORS CONFIGURATION (for separate frontend)
 # ============================================
 
-CORS_ALLOWED_ORIGINS = config(
-    'CORS_ALLOWED_ORIGINS',
-    default='http://localhost:3000,http://127.0.0.1:3000,https://unevinced-propraetoorial-milda.ngrok-free.dev'
-).split(',')
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:5500',      # For Live Server
+    'http://127.0.0.1:5500',      # For Live Server
+    'http://localhost:8000',      # For Django served frontend
+    'http://127.0.0.1:8000',      # For Django served frontend (CRITICAL FOR LOCAL TESTING)
+    'https://unevinced-propraetorial-milda.ngrok-free.dev',  # Your ngrok
+]
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -348,19 +357,20 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 
-# ============================================
-# CSRF CONFIGURATION
-# ============================================
+# Also update CSRF_TRUSTED_ORIGINS to match
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:5500',
+    'http://127.0.0.1:5500',
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',       # CRITICAL FOR LOCAL TESTING
+    'https://unevinced-propraetorial-milda.ngrok-free.dev',
+]
 
-CSRF_COOKIE_HTTPONLY = True
-CSRF_COOKIE_SAMESITE = 'Lax'
-CSRF_COOKIE_SECURE = not DEBUG
-
-CSRF_TRUSTED_ORIGINS = config(
-    'CSRF_TRUSTED_ORIGINS',
-    default='http://localhost:3000,http://127.0.0.1:3000,https://unevinced-propraetorial-milda.ngrok-free.dev'
-).split(',')
-
+# For local testing only - allows all origins (DEVELOPMENT ONLY!)
+# Uncomment this line if you still have issues:
+# CORS_ALLOW_ALL_ORIGINS = True  # WARNING: Only for local testing!
 # ============================================
 # AI ASSISTANT CONFIGURATION
 # ============================================
@@ -464,3 +474,8 @@ MESSAGE_TAGS = {
 ADMIN_SITE_HEADER = "Zunto Administration"
 ADMIN_SITE_TITLE = "Zunto Admin Portal"
 ADMIN_INDEX_TITLE = "Welcome to Zunto Admin Portal"
+
+
+
+# Add this at the bottom of settings.py
+CORS_ALLOW_ALL_ORIGINS = True  # FOR LOCAL TESTING ONLY

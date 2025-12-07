@@ -55,6 +55,8 @@ from assistant.utils.formatters import (
 logger = logging.getLogger(__name__)
 
 
+# MODIFIED FOR LOCAL TESTING: Added @csrf_exempt
+@csrf_exempt
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def chat_endpoint(request):
@@ -704,28 +706,9 @@ chat = chat_endpoint
 
 
 """
-Add these views to your assistant/views.py file
-These handle the web interface and documentation pages
+Web Interface Views - For local testing only
+PRODUCTION NOTE: In production, use React/Next.js frontend via Render
 """
-
-
-@api_view(['GET'])
-@permission_classes([AllowAny])
-def chat_interface(request):
-    """
-    Main landing page - Professional AI Assistant Interface
-    This is the page you'll share on LinkedIn via ngrok
-    """
-    context = {
-        'creator_name': 'Wisdom Ekwugha',
-        'ai_name': 'Gigi - Zunto Assistant',
-        'tagline': 'Your Intelligent E-commerce Support Companion',
-        'version': '2.0 Premium Edition',
-        'linkedin_url': 'https://www.linkedin.com/in/wisdom-ekwugha',  # Update with your actual LinkedIn
-        'github_url': 'https://github.com/wisdomekwugha',  # Update with your actual GitHub
-        'email': 'zuntoproject@gmail.com',  # Update with your email
-    }
-    return render(request, 'assistant/chat_interface.html', context)
 
 
 @api_view(['GET'])
@@ -814,6 +797,14 @@ def about_page(request):
     }, status=status.HTTP_200_OK)
 
 
+# LOCAL TESTING ONLY: Simple HTML interface
+# PRODUCTION: Remove this and use React frontend on Render
+@csrf_exempt  # Only for local testing
 def chat_interface(request):
-    """Serve the chat interface HTML"""
+    """
+    LOCAL TESTING ONLY: Serve simple chat.html
+    
+    PRODUCTION: This will be replaced with React frontend on Render.
+    The React app will call the /assistant/api/chat/ endpoint.
+    """
     return render(request, 'assistant/chat.html')
