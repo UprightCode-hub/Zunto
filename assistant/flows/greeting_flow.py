@@ -30,9 +30,36 @@ Here's how I can assist you today:
 
 Just type **1**, **2**, or **3**, or describe what you need help with!"""
     
-    def __init__(self, session: ConversationSession):
+    def __init__(self, session: ConversationSession, context_manager=None):
+        """
+        Initialize greeting flow.
+        
+        Args:
+            session: ConversationSession instance
+            context_manager: Optional ContextManager for tracking
+        """
         self.session = session
+        self.context_manager = context_manager
         self.personalizer = ResponsePersonalizer(session)
+    
+    def start_conversation(self) -> str:
+        """
+        Start a new conversation with greeting.
+        
+        Returns:
+            Greeting message
+        """
+        # Update session state
+        self.session.current_state = 'awaiting_name'
+        self.session.save()
+        
+        # Track mode usage
+        if self.context_manager:
+            self.context_manager.mark_mode_used('greeting')
+        
+        logger.info(f"Session {self.session.session_id[:8]} - Initial greeting sent")
+        
+        return self.GREETING_MESSAGE
     
     def handle_initial_greeting(self) -> Tuple[str, str]:
         """
@@ -40,17 +67,14 @@ Just type **1**, **2**, or **3**, or describe what you need help with!"""
         
         Returns: (message, new_state)
         """
-        self.session.current_state = 'awaiting_name'
-        self.session.save()
-        
-        logger.info(f"Session {self.session.session_id[:8]} - Initial greeting sent")
-        return self.GREETING_MESSAGE, 'awaiting_name'
+        message = self.start_conversation()
+        return message, 'awaiting_name'
     
-    def handle_name_input(self, message: str) -> Tuple[str, str, Dict]:
+    def handle_name_input(self, message: str) -> Tuple[str, Dict]:
         """
         Premium name extraction with validation and personalization.
         
-        Returns: (menu_message, new_state, metadata)
+        Returns: (menu_message, metadata)
         """
         # Use premium name detector
         is_name, detected_name, metadata = detect_name(message, self.session.context)
@@ -79,7 +103,10 @@ Just type **1**, **2**, or **3**, or describe what you need help with!"""
                 f"(confidence: {metadata.get('confidence', 0):.2f}, method: {metadata.get('method')})"
             )
             
-            return menu_message, 'menu', metadata
+            # Add success flag to metadata
+            metadata['name_detected'] = True
+            
+            return menu_message, metadata
         
         else:
             # Name detection failed - ask for clarification
@@ -89,7 +116,10 @@ Just type **1**, **2**, or **3**, or describe what you need help with!"""
                 f"Session {self.session.session_id[:8]} - Name detection failed: {metadata.get('reason', 'unknown')}"
             )
             
-            return clarification, 'awaiting_name', metadata
+            # Add failure flag to metadata
+            metadata['name_detected'] = False
+            
+            return clarification, metadata
     
     def _generate_clarification(self, metadata: Dict) -> str:
         """Generate friendly clarification request based on failure reason."""
@@ -164,9 +194,9 @@ Just type **1**, **2**, or **3**, or describe what you need help with!"""
         )
     
     @staticmethod
-    def get_instance(session: ConversationSession):
+    def get_instance(session: ConversationSession, context_manager=None):
         """Factory method."""
-        return GreetingFlow(session)
+        return GreetingFlow(session, context_manager)
 
 
 # Integration Example
@@ -180,12 +210,13 @@ class ConversationManager:
         self.session_id = session_id
         self.user_id = user_id
         self.session = self._get_or_create_session()
-        self.greeting_flow = GreetingFlow(self.session)
+        self.context_mgr = ContextManager(self.session)
+        self.greeting_flow = GreetingFlow(self.session, self.context_mgr)
     
     def get_greeting(self) -> Tuple[str, str]:
         return self.greeting_flow.handle_initial_greeting()
     
-    def handle_name_input(self, message: str) -> Tuple[str, str]:
-        menu_msg, state, metadata = self.greeting_flow.handle_name_input(message)
-        return menu_msg, state
+    def handle_name_input(self, message: str) -> Tuple[str, Dict]:
+        menu_msg, metadata = self.greeting_flow.handle_name_input(message)
+        return menu_msg, metadata
 """
