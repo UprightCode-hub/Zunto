@@ -479,3 +479,6 @@ ADMIN_INDEX_TITLE = "Welcome to Zunto Admin Portal"
 
 # Add this at the bottom of settings.py
 CORS_ALLOW_ALL_ORIGINS = True  # FOR LOCAL TESTING ONLY
+
+# Assistant Configuration
+ASSISTANT_PORTFOLIO_MODE = True  # Set False for production
