@@ -412,10 +412,6 @@ if __name__ == "__main__":
     test_intent_classifier()
 
 
-
-# ADD THIS AT THE VERY END OF YOUR intent_classifier.py FILE
-# (After the if __name__ == "__main__": block)
-
 # ============================================================================
 # STANDALONE WRAPPER FUNCTION (Required for __init__.py import)
 # ============================================================================
