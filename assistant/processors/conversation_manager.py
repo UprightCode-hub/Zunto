@@ -305,9 +305,9 @@ class ConversationManager:
         # Personalize response (tone: empathetic for disputes)
         final_reply = self.personalizer.personalize(
             base_response=reply,
-            confidence=0.9,  # High confidence for templated flow
+            confidence=0.9,
             emotion=emotion,
-            formality='formal'  # Professional tone for disputes
+            formality='formal'
         )
         
         # Add assistant response to context
@@ -386,25 +386,24 @@ class ConversationManager:
             intent=intent.value,
             emotion=emotion
         )
-
-        #Process through query processor WITH user_name for personalization
+        
+        # Process through query processor WITH user_name for personalization
         result = self.query_processor.process(
             message=message,
-            user_name=self.session.user_name or None  # Pass user's name!
+            user_name=self.session.user_name or None
         )
-        
-        # Process through query processor (RAG + LLM)
-        result = self.query_processor.process(message)
         
         # Personalize response
         hints = self.context_mgr.get_personalization_hints()
+        formality = ResponsePersonalizer.detect_formality_preference(message)
         
         final_reply = self.personalizer.personalize(
             base_response=result['reply'],
             confidence=result['confidence'],
             emotion=emotion,
-            formality=hints.get('formality', 'neutral'),
-            emoji_level=hints.get('emoji_level', 'moderate')
+            formality=hints.get('formality', formality),
+            add_greeting=True,
+            add_emoji=True
         )
         
         # Add assistant response to context

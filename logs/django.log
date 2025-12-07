@@ -641,3 +641,5 @@ ERROR 2025-12-07 13:48:41,448 log 5148 17568 Internal Server Error: /assistant/a
 ERROR 2025-12-07 13:48:41,451 runserver 5148 12692 [35;1mHTTP POST /assistant/api/chat/ 500 [0.06, 127.0.0.1:54583][0m
 ERROR 2025-12-07 14:11:07,875 log 10768 14196 Internal Server Error: /assistant/api/chat/
 ERROR 2025-12-07 14:11:07,878 runserver 10768 1880 [35;1mHTTP POST /assistant/api/chat/ 500 [0.60, 127.0.0.1:55577][0m
+ERROR 2025-12-07 14:24:53,874 log 17816 19700 Internal Server Error: /assistant/api/chat/
+ERROR 2025-12-07 14:24:53,876 runserver 17816 10992 [35;1mHTTP POST /assistant/api/chat/ 500 [0.57, 127.0.0.1:56122][0m
