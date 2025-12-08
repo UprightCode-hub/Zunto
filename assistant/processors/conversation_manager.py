@@ -1,25 +1,22 @@
 """
-Conversation Manager - REFACTORED with premium AI modules.
-Orchestrates multi-turn conversations using modular flow handlers.
+Conversation Manager - UNIFIED PRODUCTION VERSION (CLEANED)
+assistant/processors/conversation_manager.py
 
-NEW FEATURES:
-- Premium name detection (multi-language, typo correction)
-- Intent classification with emotion detection
-- Context tracking and learning
-- Response personalization
-- Modular flow handlers (greeting, FAQ, dispute, feedback)
-- Smart escalation detection
-- Portfolio Demo Mode support
-- Creator context tracking with follow-ups
+FINAL CLEANUP:
+✅ Removed all portfolio_config.py references (file deleted)
+✅ Removed all portfolio_greeting.py references (file deleted)
+✅ Single unified flow for all users
+✅ Creator info as menu option 4
+✅ Optimized with LRU cache + memory management
+✅ Production-ready, no legacy code
 
-BACKWARD COMPATIBLE: All existing functionality preserved.
-
-FIXES (Dec 7, 2024):
-- ✅ Fixed detect_name() unpacking error (returns 2 values, not 4)
-- ✅ Fixed ConversationLog UUID error (handled in query_processor.py)
+Author: Wisdom Ekwugha
+Date: December 2024
 """
 import logging
 from typing import Dict, Tuple, Optional
+from functools import lru_cache
+import gc
 
 from assistant.models import ConversationSession
 from assistant.processors.query_processor import QueryProcessor
@@ -41,7 +38,7 @@ from assistant.flows import (
     FeedbackFlow
 )
 
-# NEW: Import utils
+# Import utils
 from assistant.utils.constants import (
     STATE_GREETING,
     STATE_AWAITING_NAME,
@@ -59,8 +56,6 @@ from assistant.utils.validators import (
     is_spam_message
 )
 from assistant.utils.formatters import (
-    format_greeting,
-    format_menu,
     clean_message
 )
 
@@ -69,33 +64,15 @@ logger = logging.getLogger(__name__)
 
 class ConversationManager:
     """
-    Premium conversation orchestrator with modular AI system.
-    Handles: greeting → name → menu → [FAQ | Dispute | Feedback]
+    Unified conversation orchestrator - production ready.
     
-    NEW: Portfolio Demo Mode - Showcases creator skills on LinkedIn
+    Flow: greeting → name → menu → [FAQ | Dispute | Feedback | Creator Info]
     
-    Architecture:
-    - Modular AI components (name detection, intent classification, context tracking)
-    - Flow-based handlers (greeting, FAQ, dispute, feedback)
-    - Smart state management with context awareness
-    - Personalized responses based on emotion and conversation history
+    Creator info is menu option 4 - accessible to all users.
     """
     
     def __init__(self, session_id: str, user_id: int = None):
-        """
-        Initialize conversation manager with premium modules.
-        
-        Args:
-            session_id: Unique session identifier (UUID string)
-            user_id: Optional authenticated user ID for personalization
-        
-        Components initialized:
-        - QueryProcessor: Handles RAG-based FAQ queries
-        - LocalModelAdapter: LLM for dispute drafts
-        - ContextManager: Tracks conversation history and emotions
-        - ResponsePersonalizer: Adjusts tone and formality
-        - Flow Handlers: Greeting, FAQ, Dispute, Feedback
-        """
+        """Initialize conversation manager with unified flow."""
         self.session_id = session_id
         self.user_id = user_id
         self.session = self._get_or_create_session()
@@ -114,17 +91,13 @@ class ConversationManager:
         self.dispute_flow = DisputeFlow(self.session, self.llm, self.context_mgr)
         self.feedback_flow = FeedbackFlow(self.session, self.context_mgr, intent_classifier=True)
         
+        # OPTIMIZATION: Reduce memory footprint
+        gc.collect()
+        
         logger.info(f"ConversationManager initialized for session {session_id[:8]}")
     
     def _get_or_create_session(self) -> ConversationSession:
-        """
-        Get existing session or create new one with greeting state.
-        
-        Returns:
-            ConversationSession: Django model instance
-        
-        Note: New sessions always start in STATE_GREETING
-        """
+        """Get existing session or create new one."""
         session, created = ConversationSession.objects.get_or_create(
             session_id=self.session_id,
             defaults={
@@ -142,36 +115,19 @@ class ConversationManager:
     def process_message(self, message: str) -> str:
         """
         Main entry point: process user message and return response.
-        
-        Args:
-            message: User's input message (raw text)
-        
-        Returns:
-            str: Assistant's response (formatted markdown)
-        
-        Flow:
-        1. Validate & sanitize input
-        2. Check for spam
-        3. Route to state-specific handler
-        4. Return personalized response
-        
-        Validation includes:
-        - Length checks (1-2000 chars)
-        - Content filtering (profanity, spam)
-        - HTML sanitization
         """
-        # NEW: Validate and sanitize message
+        # Validate and sanitize
         is_valid, error = validate_message(message)
         if not is_valid:
             logger.warning(f"Invalid message: {error}")
             return f"⚠️ {error}"
         
-        # NEW: Check for spam
+        # Check for spam
         if is_spam_message(message):
             logger.warning(f"Spam detected: {message[:50]}...")
             return "I'm sorry, but your message appears to be spam. Please try again with a genuine question."
         
-        # NEW: Sanitize message
+        # Sanitize message
         message = sanitize_message(message)
         message = clean_message(message)
         
@@ -179,7 +135,7 @@ class ConversationManager:
         
         logger.info(f"Processing message in state '{current_state}': {message[:50]}...")
         
-        # Route to appropriate handler based on state
+        # Route to appropriate handler
         if current_state == STATE_GREETING:
             return self._handle_greeting()
         
@@ -202,55 +158,23 @@ class ConversationManager:
             return self._handle_chat_mode(message)
         
         else:
-            # Fallback: treat as general query
             logger.warning(f"Unknown state '{current_state}', falling back to query processor")
             return self._handle_chat_mode(message)
     
     def _handle_greeting(self) -> str:
         """
-        Handle initial greeting state.
-        Uses GreetingFlow for premium welcome experience.
+        Handle initial greeting using unified flow.
         
-        NEW: Supports Portfolio Mode for LinkedIn demos.
-        
-        Returns:
-            str: Greeting message + name prompt
-        
-        State transition: GREETING → AWAITING_NAME
+        No portfolio mode checks - everyone gets the same great experience.
         """
-        # Check if portfolio mode is enabled
-        try:
-            from assistant.portfolio_config import is_portfolio_mode, get_portfolio_greeting
-            if is_portfolio_mode():
-                self.session.current_state = STATE_AWAITING_NAME
-                self.session.save()
-                return get_portfolio_greeting()
-        except ImportError:
-            pass  # portfolio_config not available, use standard flow
-        
         return self.greeting_flow.start_conversation()
     
     def _handle_name_input(self, message: str) -> str:
         """
-        Handle name collection with PREMIUM name detection.
-        Replaces old basic capitalization with multi-language detection.
+        Handle name collection with unified menu.
         
-        NEW: Supports Portfolio Mode menu.
-        
-        Args:
-            message: User's name input (e.g. "John", "María", "李明")
-        
-        Returns:
-            str: Personalized greeting + menu OR retry prompt
-        
-        State transition: AWAITING_NAME → MENU (if name detected)
-        
-        FIXED (Dec 7, 2024):
-        - detect_name() now correctly unpacks 2 values instead of 4
-        - Old: name, confidence, metadata, extra = detect_name(message)
-        - New: name, confidence = detect_name(message)
+        Shows 4-option menu with creator info as option 4.
         """
-        # FIXED: detect_name returns (name, confidence) - 2 values only
         name, confidence = detect_name(message)
         
         if name:
@@ -258,17 +182,10 @@ class ConversationManager:
             self.session.current_state = STATE_MENU
             self.session.save()
             
-            # Check for portfolio mode
-            try:
-                from assistant.portfolio_config import is_portfolio_mode, get_portfolio_menu
-                if is_portfolio_mode():
-                    response = get_portfolio_menu(name)
-                else:
-                    response, metadata = self.greeting_flow.handle_name_input(message)
-            except ImportError:
-                response, metadata = self.greeting_flow.handle_name_input(message)
+            # Get unified menu
+            response, metadata = self.greeting_flow.handle_name_input(message)
             
-            # Add to context manager for conversation tracking
+            # Add to context
             self.context_mgr.add_message(
                 role='user',
                 content=message,
@@ -285,7 +202,6 @@ class ConversationManager:
             return response
         
         else:
-            # Name not detected - ask again with helpful hint
             return (
                 "I didn't quite catch that. Could you please share your name? "
                 "(Just your first name is fine!)"
@@ -293,97 +209,142 @@ class ConversationManager:
     
     def _handle_menu_selection(self, message: str) -> str:
         """
-        Handle menu selection with SMART intent detection.
+        Handle menu selection with CREATOR INFO as option 4.
         
-        Logic: 
-        1. Check for creator questions FIRST (bypass intent classification)
-        2. Classify intent with emotion detection
-        3. Route to appropriate flow based on intent
-        
-        Keywords override numbers if present.
-        Example: "I have a problem with my order" → dispute flow (even if user typed "1")
-        
-        Args:
-            message: User's menu choice (number, keyword, or direct query)
-        
-        Returns:
-            str: Flow introduction message OR direct query response
-        
-        State transitions:
-        - MENU → FAQ_MODE (questions, "how do I", etc.)
-        - MENU → DISPUTE_MODE (complaints, issues)
-        - MENU → FEEDBACK_MODE (suggestions, praise)
-        - MENU → CHAT_MODE (creator questions, direct queries)
+        Menu options:
+        1. FAQ Questions
+        2. Report Dispute
+        3. Share Feedback
+        4. About My Creator (NEW!)
         """
-        # Check for creator/developer questions FIRST (before intent classification)
-        from assistant.ai.creator_info import should_mention_creator
-        if should_mention_creator(message):
-            self.session.current_state = STATE_CHAT_MODE
-            self.session.save()
-            return self._handle_chat_mode(message)
+        message_lower = message.lower().strip()
         
-        # Classify intent with emotion detection
-        intent, confidence, metadata = classify_intent(message, self.session.context)
-        emotion = metadata.get('emotion', 'neutral')
+        # Check for option 4 or creator keywords
+        creator_keywords = [
+            'creator', 'developer', 'wisdom', 'who made', 'who built',
+            'who created', 'about you', 'technology', 'ai behind',
+            'how do you work', 'who is your creator', 'who developed',
+            'made you', 'built you', 'created you', 'your creator'
+        ]
         
-        logger.info(f"Menu selection: intent={intent.value}, emotion={emotion}, confidence={confidence:.2f}")
-        
-        # Add user message to context for tracking
-        self.context_mgr.add_message(
-            role='user',
-            content=message,
-            intent=intent.value,
-            emotion=emotion
+        is_creator_query = (
+            message_lower == '4' or 
+            any(keyword in message_lower for keyword in creator_keywords)
         )
         
-        # Route based on intent
-        if intent.value in ['dispute', 'complaint', 'issue']:
-            intro = self.dispute_flow.enter_dispute_mode()
-            self.context_mgr.add_message('assistant', intro, confidence=1.0)
-            return intro
+        if is_creator_query:
+            # User selected creator option
+            logger.info(f"🎨 User selected creator option: {message[:30]}")
+            self.session.current_state = STATE_CHAT_MODE
+            self.session.context['mode'] = 'creator_info'
+            self.session.save()
+            
+            return self._get_creator_info()
         
-        elif intent.value in ['faq', 'question']:
+        # Check for other menu options (1, 2, 3)
+        if message_lower in ['1', 'faq', 'question', 'questions', 'ask']:
             intro = self.faq_flow.enter_faq_mode()
             self.context_mgr.add_message('assistant', intro, confidence=1.0)
             return intro
         
-        elif intent.value in ['feedback', 'suggestion', 'praise']:
+        elif message_lower in ['2', 'dispute', 'report', 'problem', 'issue']:
+            intro = self.dispute_flow.enter_dispute_mode()
+            self.context_mgr.add_message('assistant', intro, confidence=1.0)
+            return intro
+        
+        elif message_lower in ['3', 'feedback', 'suggest', 'suggestion']:
             intro = self.feedback_flow.enter_feedback_mode()
             self.context_mgr.add_message('assistant', intro, confidence=1.0)
             return intro
         
         else:
-            # User didn't select a menu option - treat as direct query
-            self.session.current_state = STATE_CHAT_MODE
-            self.session.save()
-            return self._handle_chat_mode(message)
+            # Not a menu selection - classify intent
+            intent, confidence, metadata = classify_intent(message, self.session.context)
+            emotion = metadata.get('emotion', 'neutral')
+            
+            logger.info(f"Menu selection: intent={intent.value}, emotion={emotion}")
+            
+            # Route based on intent
+            if intent.value in ['dispute', 'complaint', 'issue']:
+                intro = self.dispute_flow.enter_dispute_mode()
+                return intro
+            
+            elif intent.value in ['faq', 'question']:
+                intro = self.faq_flow.enter_faq_mode()
+                return intro
+            
+            elif intent.value in ['feedback', 'suggestion', 'praise']:
+                intro = self.feedback_flow.enter_feedback_mode()
+                return intro
+            
+            else:
+                # Direct query - go to chat mode
+                self.session.current_state = STATE_CHAT_MODE
+                self.session.save()
+                return self._handle_chat_mode(message)
+    
+    @lru_cache(maxsize=1)
+    def _get_cached_creator_info(self) -> str:
+        """
+        OPTIMIZED: Cached creator info (called frequently).
+        
+        LRU cache prevents repeated imports and string building.
+        Maxsize=1 because we only need one cached version.
+        """
+        from assistant.ai.creator_info import get_creator_bio, get_creator_achievements
+        
+        user_name = self.session.user_name or "there"
+        
+        response = (
+            f"### 🎨 About My Creator - Wisdom Ekwugha\n\n"
+            f"Great question, {user_name}! I was built by **Wisdom Ekwugha**, "
+            f"an AI Engineer and Full-Stack Developer passionate about creating "
+            f"intelligent, user-friendly systems.\n\n"
+            f"**🔧 Technologies Behind Me:**\n"
+            f"• **Django & Python** - Backend architecture\n"
+            f"• **NLP & Machine Learning** - Intent classification, sentiment analysis\n"
+            f"• **RAG (Retrieval-Augmented Generation)** - Fast FAQ retrieval (0.03s!)\n"
+            f"• **FAISS Vector Search** - Semantic similarity matching\n"
+            f"• **WebSockets & Real-time Processing** - Instant responses\n"
+            f"• **Context Management** - Tracks conversation history\n\n"
+            f"**💡 What Makes Me Special:**\n"
+            f"• Multi-turn conversation flow with state management\n"
+            f"• Emotion detection and personalized responses\n"
+            f"• Smart escalation for complex issues\n"
+            f"• 3-tier processing (Rules → RAG → LLM) for efficiency\n"
+            f"• Modular AI architecture for easy updates\n\n"
+            f"**👨‍💻 About Wisdom:**\n"
+            f"• LinkedIn: [linkedin.com/in/wisdom-ekwugha](https://linkedin.com/in/wisdom-ekwugha)\n"
+            f"• GitHub: [github.com/wisdomekwugha](https://github.com/wisdomekwugha)\n"
+            f"• Specializes in: AI/ML, NLP, Full-Stack Development\n"
+            f"• Location: Lagos, Nigeria\n\n"
+            f"---\n\n"
+            f"Want to know more? Ask me:\n"
+            f"• \"What projects has Wisdom worked on?\"\n"
+            f"• \"How do you process questions so fast?\"\n"
+            f"• \"What AI models do you use?\"\n\n"
+            f"Or type **'menu'** to go back to the main options!"
+        )
+        
+        return response
+    
+    def _get_creator_info(self) -> str:
+        """
+        Return creator information when user selects option 4.
+        
+        OPTIMIZED: Uses cached version for better performance.
+        """
+        # Mark that we're in creator info mode
+        self.session.context['last_topic'] = 'creator'
+        self.session.save()
+        
+        return self._get_cached_creator_info()
     
     def _handle_faq_mode(self, message: str) -> str:
-        """
-        Handle FAQ queries with 3-tier confidence system.
-        Uses FAQFlow with RAG integration (0.03s queries!).
-        
-        Confidence tiers:
-        - HIGH (0.8+): Direct answer with source
-        - MEDIUM (0.5-0.8): Answer + suggestion to contact support
-        - LOW (<0.5): "I don't know" + escalation offer
-        
-        Args:
-            message: User's FAQ question
-        
-        Returns:
-            str: Personalized answer + confidence-based additions
-        
-        Features:
-        - Semantic similarity search
-        - Multi-FAQ synthesis
-        - Smart escalation detection
-        """
-        # Classify intent for emotion tracking
+        """Handle FAQ queries with 3-tier confidence system."""
         intent, conf, metadata = classify_intent(message, self.session.context)
         emotion = metadata.get('emotion', 'neutral')
         
-        # Add user message to context
         self.context_mgr.add_message(
             role='user',
             content=message,
@@ -391,56 +352,27 @@ class ConversationManager:
             emotion=emotion
         )
         
-        # Process through FAQ flow
         reply, faq_metadata = self.faq_flow.handle_faq_query(message)
         
-        # Personalize response based on emotion and confidence
         final_reply = self.personalizer.personalize(
             base_response=reply,
             confidence=faq_metadata.get('confidence', 0.5),
             emotion=emotion
         )
         
-        # Add assistant response to context
         self.context_mgr.add_message(
             role='assistant',
             content=final_reply,
             confidence=faq_metadata.get('confidence', 0.5)
         )
         
-        # Check for escalation (repeated low-confidence queries)
-        if self.context_mgr.is_escalated():
-            logger.warning("🚨 User escalated in FAQ mode - consider human handoff")
-        
         return final_reply
     
     def _handle_dispute_mode(self, message: str) -> str:
-        """
-        Handle multi-step dispute reporting.
-        Uses DisputeFlow with AI draft generation.
-        
-        Multi-step flow:
-        1. Ask for order details
-        2. Ask for issue description
-        3. Generate professional email draft
-        4. Create dispute record
-        
-        Args:
-            message: User's input for current dispute step
-        
-        Returns:
-            str: Next question OR final draft + confirmation
-        
-        Features:
-        - AI-powered email drafting (using LocalModel)
-        - Formal tone adjustment
-        - Auto-save to database
-        """
-        # Classify intent for emotion tracking
+        """Handle multi-step dispute reporting with AI drafts."""
         intent, conf, metadata = classify_intent(message, self.session.context)
         emotion = metadata.get('emotion', 'neutral')
         
-        # Add user message to context
         self.context_mgr.add_message(
             role='user',
             content=message,
@@ -448,10 +380,8 @@ class ConversationManager:
             emotion=emotion
         )
         
-        # Process through dispute flow
         reply, dispute_metadata = self.dispute_flow.handle_dispute_message(message)
         
-        # Personalize response (tone: empathetic + formal for disputes)
         final_reply = self.personalizer.personalize(
             base_response=reply,
             confidence=0.9,
@@ -459,46 +389,22 @@ class ConversationManager:
             formality='formal'
         )
         
-        # Add assistant response to context
         self.context_mgr.add_message(
             role='assistant',
             content=final_reply,
             confidence=0.9
         )
         
-        # Mark resolution if complete
         if dispute_metadata.get('complete'):
             self.context_mgr.mark_resolution(success=True)
-            logger.info(f"Dispute completed: Report #{dispute_metadata.get('report_id')}")
         
         return final_reply
     
     def _handle_feedback_mode(self, message: str) -> str:
-        """
-        Handle feedback collection with sentiment analysis.
-        Uses FeedbackFlow with smart escalation.
-        
-        Sentiment detection:
-        - Positive → Thank + encourage more feedback
-        - Neutral → Thank + ask for details
-        - Negative → Empathize + offer dispute escalation
-        
-        Args:
-            message: User's feedback message
-        
-        Returns:
-            str: Acknowledgment + next action
-        
-        Features:
-        - Real-time sentiment analysis
-        - Auto-escalation to dispute if angry
-        - Feedback categorization (bug, feature, praise)
-        """
-        # Classify intent for emotion tracking
+        """Handle feedback collection with sentiment analysis."""
         intent, conf, metadata = classify_intent(message, self.session.context)
         emotion = metadata.get('emotion', 'neutral')
         
-        # Add user message to context
         self.context_mgr.add_message(
             role='user',
             content=message,
@@ -506,28 +412,20 @@ class ConversationManager:
             emotion=emotion
         )
         
-        # Process through feedback flow
         reply, feedback_metadata = self.feedback_flow.handle_feedback_message(message)
         
-        # Personalize response (match user's emotion)
         final_reply = self.personalizer.personalize(
             base_response=reply,
             confidence=0.85,
             emotion=emotion
         )
         
-        # Add assistant response to context
         self.context_mgr.add_message(
             role='assistant',
             content=final_reply,
             confidence=0.85
         )
         
-        # Handle escalation to dispute
-        if feedback_metadata.get('action') == 'escalated_to_dispute':
-            logger.info("Feedback escalated to dispute mode")
-        
-        # Mark resolution if complete
         if feedback_metadata.get('complete'):
             self.context_mgr.mark_resolution(
                 success=feedback_metadata.get('sentiment') != 'negative'
@@ -537,71 +435,28 @@ class ConversationManager:
     
     def _handle_chat_mode(self, message: str) -> str:
         """
-        Handle general chat/query mode.
-        Uses QueryProcessor with personalization.
-        
-        NEW: Enhanced creator detection with follow-up tracking.
-        
-        Args:
-            message: User's general question or chat
-        
-        Returns:
-            str: Personalized response with emoji + greeting (if appropriate)
-        
-        Features:
-        - Creator info detection (answers "who made this?")
-        - Follow-up question tracking
-        - RAG-based knowledge retrieval
-        - Confidence-based response styling
-        
-        Flow:
-        1. Check if asking about creator → special response
-        2. Classify intent + detect emotion
-        3. Query RAG system
-        4. Personalize based on conversation history
-        5. Track resolution for analytics
+        Handle general chat/query mode with creator detection.
         """
-        # Check for creator questions FIRST
-        from assistant.ai.creator_info import should_mention_creator, get_detailed_creator_response
+        message_lower = message.lower()
         
-        # Check if asking about creator OR following up on creator topic
-        is_creator_query = should_mention_creator(message)
+        # Check if user wants to go back to menu
+        if message_lower in ['menu', 'main menu', 'options', 'back', 'go back']:
+            self.session.current_state = STATE_MENU
+            self.session.save()
+            return self.greeting_flow._build_unified_menu(self.session.user_name)
+        
+        # Check if asking about creator (or following up)
+        is_creator_query = self._is_creator_related(message)
         is_followup = self._is_creator_followup(message)
         
         if is_creator_query or is_followup:
-            logger.info(f"🎨 Creator question detected! Responding with Wisdom's info...")
-            
-            # Determine detail level from query or followup context
-            if is_followup:
-                detail_level = 'detailed'  # Give more info on followup
-            else:
-                detail_level = 'balanced'
-            
-            # Get creator response
-            from assistant.ai.creator_info import get_creator_bio, format_creator_card, get_creator_achievements
-            
-            if 'more' in message.lower() or 'tell me about' in message.lower() or is_followup:
-                # Detailed response with achievements
-                response = get_creator_bio('detailed', self.session.user_name)
-                achievements = get_creator_achievements()
-                response += f"\n\n🏆 **Key Achievements:**\n" + "\n".join(f"• {a}" for a in achievements[:3])
-            elif 'brief' in message.lower() or 'quick' in message.lower():
-                response = get_creator_bio('brief', self.session.user_name)
-            else:
-                response = get_detailed_creator_response(message, self.session.user_name)
-            
-            # Mark that we talked about creator (for followup detection)
-            self.session.context['last_topic'] = 'creator'
-            self.session.context['creator_detail_level'] = detail_level
-            self.session.save()
-            
-            return response
+            logger.info(f"🎨 Creator question detected in chat mode")
+            return self._handle_creator_followup(message)
         
-        # Classify intent for context
+        # Regular query processing
         intent, conf, metadata = classify_intent(message, self.session.context)
         emotion = metadata.get('emotion', 'neutral')
         
-        # Add user message to context
         self.context_mgr.add_message(
             role='user',
             content=message,
@@ -609,13 +464,11 @@ class ConversationManager:
             emotion=emotion
         )
         
-        # Process through query processor WITH user_name for personalization
         result = self.query_processor.process(
             message=message,
             user_name=self.session.user_name or None
         )
         
-        # Personalize response
         hints = self.context_mgr.get_personalization_hints()
         formality = ResponsePersonalizer.detect_formality_preference(message)
         
@@ -628,187 +481,110 @@ class ConversationManager:
             add_emoji=True
         )
         
-        # Add assistant response to context
         self.context_mgr.add_message(
             role='assistant',
             content=final_reply,
             confidence=result['confidence']
         )
         
-        # Mark resolution based on confidence
         if result['confidence'] >= CONFIDENCE_HIGH:
             self.context_mgr.mark_resolution(success=True)
-        elif result['confidence'] < CONFIDENCE_MEDIUM:
-            self.context_mgr.mark_resolution(success=False)
         
-        # Clear last_topic if we moved to different topic
+        # Clear last_topic if moved to different topic
         if 'last_topic' in self.session.context:
             self.session.context['last_topic'] = None
             self.session.save()
         
         return final_reply
     
+    def _is_creator_related(self, message: str) -> bool:
+        """Check if message is about creator."""
+        creator_keywords = [
+            'creator', 'developer', 'wisdom', 'who made', 'who built',
+            'who created', 'technology', 'ai behind', 'how do you work',
+            'made you', 'built you', 'created you'
+        ]
+        message_lower = message.lower()
+        return any(keyword in message_lower for keyword in creator_keywords)
+    
     def _is_creator_followup(self, message: str) -> bool:
-        """
-        Detect if user is following up on creator conversation.
-        
-        Examples of followup questions:
-        - "tell me more"
-        - "what else"
-        - "his background"
-        - "his achievements"
-        - "more about him"
-        
-        Args:
-            message: User's message
-        
-        Returns:
-            bool: True if this is a followup on creator topic
-        
-        Logic:
-        - Only returns True if we JUST talked about creator
-        - Checks session.context['last_topic'] == 'creator'
-        - Matches common followup patterns
-        """
-        # Only consider followup if we just talked about creator
+        """Check if this is a followup on creator topic."""
         last_topic = self.session.context.get('last_topic')
         if last_topic != 'creator':
             return False
         
-        message_lower = message.lower()
-        
         followup_patterns = [
-            'tell me more',
-            'more about',
-            'what else',
-            'his background',
-            'his experience',
-            'his achievements',
-            'his projects',
-            'more info',
-            'continue',
-            'go on',
-            'elaborate',
-            'details',
-            'more details',
+            'tell me more', 'more about', 'what else', 'his background',
+            'his experience', 'his achievements', 'his projects',
+            'more info', 'continue', 'go on', 'elaborate', 'details'
         ]
         
+        message_lower = message.lower()
         return any(pattern in message_lower for pattern in followup_patterns)
     
-    def get_current_state(self) -> str:
-        """
-        Get current conversation state.
+    def _handle_creator_followup(self, message: str) -> str:
+        """Handle detailed creator questions."""
+        from assistant.ai.creator_info import (
+            get_creator_bio,
+            get_creator_achievements,
+            get_creator_projects
+        )
         
-        Returns:
-            str: One of STATE_* constants
-        """
+        user_name = self.session.user_name or "there"
+        message_lower = message.lower()
+        
+        # Determine what specific info they want
+        if any(word in message_lower for word in ['project', 'work', 'built', 'portfolio']):
+            projects = get_creator_projects()
+            response = f"**Wisdom's Recent Projects:**\n\n"
+            for proj in projects[:3]:
+                response += f"**{proj['name']}** - {proj['description']}\n"
+                response += f"*Tech:* {', '.join(proj['tech'])}\n\n"
+        
+        elif any(word in message_lower for word in ['achievement', 'accomplish', 'success']):
+            achievements = get_creator_achievements()
+            response = f"**Wisdom's Key Achievements:**\n\n"
+            response += "\n".join(f"• {a}" for a in achievements)
+        
+        elif any(word in message_lower for word in ['experience', 'background', 'skill']):
+            response = get_creator_bio('detailed', user_name)
+        
+        else:
+            # General followup
+            response = (
+                f"I'd be happy to tell you more about Wisdom, {user_name}!\n\n"
+                f"You can ask me:\n"
+                f"• \"What projects has he worked on?\"\n"
+                f"• \"What are his key achievements?\"\n"
+                f"• \"Tell me about his technical skills\"\n"
+                f"• \"How can I contact him?\"\n\n"
+                f"Or type **'menu'** to return to main options!"
+            )
+        
+        # Mark that we're still on creator topic
+        self.session.context['last_topic'] = 'creator'
+        self.session.save()
+        
+        return response
+    
+    def get_current_state(self) -> str:
+        """Get current conversation state."""
         return self.session.current_state
     
     def get_user_name(self) -> str:
-        """
-        Get user's name or default.
-        
-        Returns:
-            str: User's name or "there" if not collected yet
-        """
+        """Get user's name or default."""
         return self.session.user_name or "there"
     
     def get_conversation_summary(self) -> Dict:
-        """
-        Get conversation summary for analytics.
-        Uses ContextManager for rich insights.
-        
-        Returns:
-            Dict with keys:
-            - message_count: Total messages exchanged
-            - avg_confidence: Average response confidence
-            - emotions: List of detected emotions
-            - intents: List of detected intents
-            - escalated: Whether user needed escalation
-            - resolved: Whether query was resolved
-            - duration: Conversation duration in seconds
-        """
+        """Get conversation summary for analytics."""
         return self.context_mgr.get_conversation_summary()
     
     def reset_session(self):
-        """
-        Reset session to initial greeting state.
-        Clears all conversation history and context.
-        
-        Use cases:
-        - User wants to start over
-        - Testing/debugging
-        - Session timeout cleanup
-        """
+        """Reset session to initial greeting state."""
         self.session.current_state = STATE_GREETING
         self.session.user_name = ''
         self.session.context = {}
         self.session.save()
         
-        # Reset context manager
         self.context_mgr.reset()
-        
         logger.info(f"Session reset: {self.session_id}")
-
-
-# BACKWARD COMPATIBILITY: Keep old class structure for gradual migration
-class LegacyConversationManager(ConversationManager):
-    """
-    Legacy wrapper for backward compatibility.
-    Use ConversationManager directly for new code.
-    
-    This class exists to support old code that uses the legacy API:
-    - get_greeting()
-    - handle_name_input()
-    - handle_menu_selection()
-    
-    New code should use:
-    - process_message() for everything
-    """
-    
-    def get_greeting(self) -> Tuple[str, str]:
-        """
-        Legacy method - use process_message() instead.
-        
-        Returns:
-            Tuple[str, str]: (greeting_message, next_state)
-        """
-        message = self._handle_greeting()
-        return message, STATE_AWAITING_NAME
-    
-    def handle_name_input(self, message: str) -> Tuple[str, str]:
-        """
-        Legacy method - use process_message() instead.
-        
-        Args:
-            message: User's name input
-        
-        Returns:
-            Tuple[str, str]: (response_message, next_state)
-        """
-        response = self._handle_name_input(message)
-        return response, STATE_MENU
-    
-    def handle_menu_selection(self, message: str) -> Tuple[Optional[str], str, str]:
-        """
-        Legacy method - use process_message() instead.
-        
-        Args:
-            message: User's menu selection
-        
-        Returns:
-            Tuple[Optional[str], str, str]: (response, state, mode)
-        """
-        response = self._handle_menu_selection(message)
-        state = self.session.current_state
-        
-        # Determine mode from state
-        mode_map = {
-            STATE_FAQ_MODE: 'faq',
-            STATE_DISPUTE_MODE: 'dispute',
-            STATE_FEEDBACK_MODE: 'feedback',
-            STATE_CHAT_MODE: 'direct_query'
-        }
-        mode = mode_map.get(state, 'direct_query')
-        
-        return response, state, mode

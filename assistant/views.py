@@ -23,7 +23,9 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import render
+from django.http import HttpResponse
 
+from assistant.utils.tts_utils import get_tts_service
 from assistant.models import ConversationSession, ConversationLog, Report
 from assistant.processors.conversation_manager import ConversationManager
 from assistant.serializers import (
@@ -154,7 +156,7 @@ def chat_endpoint(request):
             }
         }
         
-        # Log conversation (legacy compatibility)
+        # Log conversation (legacy compatibility) - FIXED VERSION
         _log_conversation(
             user_id=user_id,
             session_id=session_id,
@@ -194,6 +196,173 @@ def chat_endpoint(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
+@csrf_exempt
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def tts_endpoint(request):
+    """
+    Text-to-Speech endpoint for assistant messages.
+    
+    POST /assistant/api/tts/
+    
+    Request body:
+    {
+        "text": str (required) - Text to convert to speech,
+        "voice": str (optional) - Voice: alloy, echo, fable, onyx, nova, shimmer,
+        "speed": float (optional) - Speed: 0.25 to 4.0 (default: 1.0),
+        "use_cache": bool (optional) - Use cached audio (default: true)
+    }
+    
+    Response:
+        - Success: audio/mpeg stream
+        - Error: JSON error message
+    """
+    start_time = time.time()
+    
+    try:
+        # Validate request
+        text = request.data.get('text', '').strip()
+        
+        if not text:
+            return Response(
+                {
+                    'error': 'Text is required',
+                    'reply': 'Please provide text to convert to speech'
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Get optional parameters
+        voice = request.data.get('voice')
+        speed = request.data.get('speed')
+        use_cache = request.data.get('use_cache', True)
+        
+        # Validate voice
+        valid_voices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
+        if voice and voice not in valid_voices:
+            return Response(
+                {
+                    'error': f'Invalid voice. Choose from: {", ".join(valid_voices)}',
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Validate speed
+        if speed is not None:
+            try:
+                speed = float(speed)
+                if not (0.25 <= speed <= 4.0):
+                    return Response(
+                        {'error': 'Speed must be between 0.25 and 4.0'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            except (ValueError, TypeError):
+                return Response(
+                    {'error': 'Speed must be a number'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Get TTS service
+        tts_service = get_tts_service()
+        
+        # Generate speech
+        success, audio_bytes, error_msg = tts_service.generate_speech(
+            text=text,
+            voice=voice,
+            speed=speed,
+            use_cache=use_cache
+        )
+        
+        if not success:
+            logger.error(f"TTS generation failed: {error_msg}")
+            return Response(
+                {
+                    'error': error_msg or 'Failed to generate speech',
+                    'reply': 'Sorry, I could not generate audio for this message'
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        # Calculate processing time
+        processing_time = int((time.time() - start_time) * 1000)
+        
+        logger.info(
+            f"TTS generated in {processing_time}ms "
+            f"({len(audio_bytes)} bytes, cached={use_cache})"
+        )
+        
+        # Return audio as HTTP response
+        response = HttpResponse(audio_bytes, content_type='audio/mpeg')
+        response['Content-Disposition'] = 'inline; filename="speech.mp3"'
+        response['X-Processing-Time-Ms'] = str(processing_time)
+        response['X-Audio-Size-Bytes'] = str(len(audio_bytes))
+        response['Cache-Control'] = 'public, max-age=604800'  # 7 days
+        
+        return response
+    
+    except Exception as e:
+        logger.error(f"TTS endpoint error: {e}", exc_info=True)
+        processing_time = int((time.time() - start_time) * 1000)
+        
+        return Response(
+            {
+                'error': 'An error occurred while generating speech',
+                'reply': 'Sorry, I could not generate audio at this time',
+                'metadata': {
+                    'processing_time_ms': processing_time,
+                    'error_type': type(e).__name__
+                }
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def tts_health(request):
+    """
+    TTS health check endpoint.
+    
+    GET /assistant/api/tts/health/
+    
+    Response:
+    {
+        "status": "healthy" | "unhealthy",
+        "api_key_configured": bool,
+        "cache_enabled": bool,
+        "model": str,
+        "default_voice": str
+    }
+    """
+    try:
+        tts_service = get_tts_service()
+        cache_stats = tts_service.get_cache_stats()
+        
+        is_healthy = bool(tts_service.api_key)
+        
+        return Response(
+            {
+                'status': 'healthy' if is_healthy else 'unhealthy',
+                'api_key_configured': is_healthy,
+                'cache_enabled': cache_stats['cache_enabled'],
+                'model': cache_stats['model'],
+                'default_voice': cache_stats['default_voice'],
+                'cache_timeout_seconds': cache_stats['cache_timeout_seconds']
+            },
+            status=status.HTTP_200_OK if is_healthy else status.HTTP_503_SERVICE_UNAVAILABLE
+        )
+    
+    except Exception as e:
+        logger.error(f"TTS health check error: {e}", exc_info=True)
+        return Response(
+            {
+                'status': 'unhealthy',
+                'error': str(e)
+            },
+            status=status.HTTP_503_SERVICE_UNAVAILABLE
+        )
+
+
 
 def _log_conversation(
     user_id: int,
@@ -206,11 +375,14 @@ def _log_conversation(
     """
     Log conversation to database for analytics.
     Legacy compatibility function.
+    
+    FIXED: Now handles UUID session_id correctly by using anonymous_session_id field.
     """
     try:
+        # FIXED: Use anonymous_session_id for UUID strings instead of session_id
         ConversationLog.objects.create(
             user_id=user_id,
-            session_id=session_id,
+            anonymous_session_id=session_id,  # Changed from session_id to anonymous_session_id
             message=message,
             final_reply=reply,
             confidence=confidence,
@@ -536,7 +708,7 @@ def ask_assistant(request):
         
         processing_time = int((time.time() - start_time) * 1000)
         
-        # Log for analytics
+        # Log for analytics - FIXED VERSION
         if user_id:
             _log_conversation(
                 user_id=user_id,

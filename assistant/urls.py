@@ -16,7 +16,7 @@ urlpatterns = [
     # This will be your main ngrok link for LinkedIn
     path('', views.chat_interface, name='home'),  # Main landing page
     path('demo/', views.chat_interface, name='demo'),
-    path('', views.chat_interface, name='chat_interface'),  # Alternative demo URL
+    path('chat/', views.chat_interface, name='chat_interface'),  # Alternative demo URL
     
     # ============================================================
     # PREMIUM CHAT API - NEW ENDPOINTS
@@ -26,6 +26,12 @@ urlpatterns = [
     path('api/chat/session/<str:session_id>/reset/', views.reset_session, name='reset_session'),
     path('api/chat/sessions/', views.list_sessions, name='list_sessions'),
     path('api/chat/health/', views.health_check, name='health_check'),
+    
+    # ============================================================
+    # TTS API - Text-to-Speech for Assistant (NEW!)
+    # ============================================================
+    path('api/tts/', views.tts_endpoint, name='tts'),
+    path('api/tts/health/', views.tts_health, name='tts_health'),
     
     # ============================================================
     # LEGACY ENDPOINTS - Backward Compatibility

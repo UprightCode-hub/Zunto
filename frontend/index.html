@@ -225,7 +225,6 @@
             border-bottom-right-radius: 6px;
         }
 
-        /* Markdown Formatting */
         .message-content strong {
             font-weight: 700;
             color: var(--primary);
@@ -268,7 +267,6 @@
             border-bottom-color: white;
         }
 
-        /* TTS Speaker Button */
         .speaker-btn {
             position: absolute;
             top: 1rem;
@@ -698,8 +696,30 @@
     </div>
 
     <script>
-        // Configuration
-        const API_BASE = 'http://127.0.0.1:8000'; // Change this to your production URL
+        // ============================================
+        // CONFIGURATION - FIXED FOR PRODUCTION
+        // ============================================
+        
+        // Automatically detect production vs local
+        const API_BASE = (() => {
+            const hostname = window.location.hostname;
+            
+            // Local development
+            if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                return 'http://127.0.0.1:8000';
+            }
+            
+            // Render.com production - Update this with your actual backend URL
+            if (hostname.includes('render.com') || hostname.includes('onrender.com')) {
+                return 'https://zunto-backend.onrender.com';
+            }
+            
+            // Fallback to same origin
+            return window.location.origin;
+        })();
+        
+        console.log('🚀 API_BASE:', API_BASE);
+        
         let sessionId = null;
         let currentAudio = null;
         let currentPlayingBtn = null;
@@ -711,34 +731,22 @@
 
         // Markdown Parser
         function parseMarkdown(text) {
-            // Split into lines for better paragraph/list handling
             let html = text
-                // Headers: ### Text → <h3>Text</h3>
                 .replace(/^### (.*$)/gm, '<h3>$1</h3>')
                 .replace(/^## (.*$)/gm, '<h3>$1</h3>')
-                // Bold: **text** → <strong>text</strong>
                 .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                // Italic: *text* → <em>text</em>
                 .replace(/(?<!\*)\*(?!\*)([^\*]+)\*/g, '<em>$1</em>')
-                // Code: `text` → <code>text</code>
                 .replace(/`([^`]+)`/g, '<code>$1</code>')
-                // Links: [text](url) → <a>text</a>
                 .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
-                // Bullet lists: • or - at start → <li>
                 .replace(/^[•\-]\s+(.+)$/gm, '<li>$1</li>')
-                // Numbered lists: 1. or 1️⃣ → <li>
                 .replace(/^\d+[\.\)]\s+(.+)$/gm, '<li>$1</li>')
                 .replace(/^\d+️⃣\s+(.+)$/gm, '<li>$1</li>')
-                // Paragraphs: double newline
                 .replace(/\n\n/g, '</p><p>')
-                // Single newlines
                 .replace(/\n/g, '<br>');
 
-            // Wrap consecutive <li> in <ul>
             html = html.replace(/(<li>.*?<\/li>)(?:\s*<br>)*(<li>)/g, '$1$2');
             html = html.replace(/(<li>.*?<\/li>)+/g, '<ul>$&</ul>');
 
-            // Wrap in paragraph if not already wrapped
             if (!html.startsWith('<')) {
                 html = '<p>' + html + '</p>';
             }
@@ -776,6 +784,7 @@
                 }
             } catch (error) {
                 hideSkeletonLoader();
+                console.error('Connection error:', error);
                 addMessage('assistant', 'Connection failed. Please check if the server is running and refresh the page.');
                 updateStatus('error');
             }
@@ -818,6 +827,7 @@
                 }
             } catch (error) {
                 hideSkeletonLoader();
+                console.error('Send error:', error);
                 addMessage('assistant', 'Sorry, something went wrong. Please try again.');
             } finally {
                 sendBtn.disabled = false;
@@ -835,7 +845,6 @@
             const contentDiv = document.createElement('div');
             contentDiv.className = 'message-content';
             
-            // Add speaker button for assistant
             if (role === 'assistant') {
                 const speakerBtn = document.createElement('button');
                 speakerBtn.className = 'speaker-btn';
@@ -852,7 +861,6 @@
             messagesDiv.appendChild(messageDiv);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
             
-            // Typewriter effect
             const words = content.split(' ');
             let currentText = '';
             
@@ -864,7 +872,7 @@
             }
         }
 
-        // Add message instantly (for user)
+        // Add message instantly
         function addMessage(role, content) {
             const messagesDiv = document.getElementById('chatMessages');
             const messageDiv = document.createElement('div');

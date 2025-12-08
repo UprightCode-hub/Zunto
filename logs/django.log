@@ -645,3 +645,27 @@ ERROR 2025-12-07 14:24:53,874 log 17816 19700 Internal Server Error: /assistant/
 ERROR 2025-12-07 14:24:53,876 runserver 17816 10992 [35;1mHTTP POST /assistant/api/chat/ 500 [0.57, 127.0.0.1:56122][0m
 ERROR 2025-12-07 21:32:47,660 log 19588 16448 Internal Server Error: /assistant/api/chat/
 ERROR 2025-12-07 21:32:47,676 runserver 19588 16968 [35;1mHTTP POST /assistant/api/chat/ 500 [33.53, 127.0.0.1:49264][0m
+ERROR 2025-12-08 01:39:40,715 log 22256 6360 Internal Server Error: /assistant/api/tts/
+ERROR 2025-12-08 01:39:40,757 runserver 22256 9844 [35;1mHTTP POST /assistant/api/tts/ 500 [0.06, 127.0.0.1:64351][0m
+ERROR 2025-12-08 01:39:56,647 log 22256 6360 Internal Server Error: /assistant/api/tts/
+ERROR 2025-12-08 01:39:56,648 runserver 22256 9844 [35;1mHTTP POST /assistant/api/tts/ 500 [0.22, 127.0.0.1:64351][0m
+ERROR 2025-12-08 01:50:22,417 log 21672 17012 Internal Server Error: /assistant/api/tts/
+ERROR 2025-12-08 01:50:22,453 runserver 21672 1360 [35;1mHTTP POST /assistant/api/tts/ 500 [0.48, 127.0.0.1:64702][0m
+ERROR 2025-12-08 01:55:54,330 log 15128 12516 Internal Server Error: /assistant/api/tts/
+ERROR 2025-12-08 01:55:54,331 runserver 15128 6028 [35;1mHTTP POST /assistant/api/tts/ 500 [0.77, 127.0.0.1:64869][0m
+ERROR 2025-12-08 01:56:03,447 log 15128 12516 Internal Server Error: /assistant/api/tts/
+ERROR 2025-12-08 01:56:03,447 runserver 15128 6028 [35;1mHTTP POST /assistant/api/tts/ 500 [0.59, 127.0.0.1:64869][0m
+ERROR 2025-12-08 02:24:28,906 log 15128 12516 Internal Server Error: /assistant/api/tts/
+ERROR 2025-12-08 02:24:28,907 runserver 15128 6028 [35;1mHTTP POST /assistant/api/tts/ 500 [0.59, 127.0.0.1:65364][0m
+ERROR 2025-12-08 02:25:00,650 log 15128 12516 Internal Server Error: /assistant/api/tts/
+ERROR 2025-12-08 02:25:00,650 runserver 15128 6028 [35;1mHTTP POST /assistant/api/tts/ 500 [0.48, 127.0.0.1:65364][0m
+ERROR 2025-12-08 02:25:14,644 log 15128 12516 Internal Server Error: /assistant/api/tts/
+ERROR 2025-12-08 02:25:14,644 runserver 15128 6028 [35;1mHTTP POST /assistant/api/tts/ 500 [0.48, 127.0.0.1:65364][0m
+ERROR 2025-12-08 02:25:19,801 log 15128 12516 Internal Server Error: /assistant/api/tts/
+ERROR 2025-12-08 02:25:19,801 runserver 15128 6028 [35;1mHTTP POST /assistant/api/tts/ 500 [0.48, 127.0.0.1:65364][0m
+ERROR 2025-12-08 09:54:43,438 log 5932 15268 Internal Server Error: /assistant/api/tts/
+ERROR 2025-12-08 09:54:43,463 runserver 5932 14868 [35;1mHTTP POST /assistant/api/tts/ 500 [0.19, 127.0.0.1:53539][0m
+ERROR 2025-12-08 10:12:45,664 log 5932 15268 Internal Server Error: /assistant/api/tts/
+ERROR 2025-12-08 10:12:45,666 runserver 5932 14868 [35;1mHTTP POST /assistant/api/tts/ 500 [0.04, 127.0.0.1:53590][0m
+ERROR 2025-12-08 10:12:48,264 log 5932 15268 Internal Server Error: /assistant/api/tts/
+ERROR 2025-12-08 10:12:48,265 runserver 5932 14868 [35;1mHTTP POST /assistant/api/tts/ 500 [0.03, 127.0.0.1:53590][0m

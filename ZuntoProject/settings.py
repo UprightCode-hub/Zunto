@@ -1,9 +1,8 @@
 """
-Django settings for ZuntoProject.
-
+Django settings for ZuntoProject - PRODUCTION READY
 Updated for Python 3.12 and Django 5.1.3
-Includes: Chat, Assistant (Groq AI), WebSockets, Channels
-Preserves all your features + adds stability improvements from other developer
+Fixed by: Wisdom Ekwugha
+Date: December 8, 2024
 """
 
 import os
@@ -15,36 +14,26 @@ import dj_database_url
 
 load_dotenv()
 
-
-import dj_database_url
 BASE_DIR = Path(__file__).resolve().parent.parent
-# Render.com deployment settings
-RENDER = os.environ.get('RENDER', False)
 
-if RENDER:
+# ============================================
+# ENVIRONMENT DETECTION - FIXED
+# ============================================
+
+IS_PRODUCTION = os.environ.get('RENDER', 'False') == 'True'
+
+if IS_PRODUCTION:
     DEBUG = False
-    ALLOWED_HOSTS = ['.onrender.com', 'localhost', '127.0.0.1']
-    
-    # Database from environment
-    DATABASES = {
-        'default': dj_database_url.config(
-            conn_max_age=600,
-            conn_health_checks=True,
-        )
-    }
-    
-    # Static files
-    STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-# ============================================
-# BASE & SECURITY
-# ============================================
-
-
-
-SECRET_KEY = config('SECRET_KEY', default='your-secret-key-change-in-production')
-DEBUG = config('DEBUG', default=True, cast=bool)
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,*,.herokuapp.com,unevinced-propraetorial-milda.ngrok-free.dev').split(',')
+    SECRET_KEY = os.environ.get('SECRET_KEY')
+    ALLOWED_HOSTS = [
+        '.onrender.com',
+        'zunto-backend.onrender.com',
+        'zunto-frontend.onrender.com',
+    ]
+else:
+    DEBUG = config('DEBUG', default=True, cast=bool)
+    SECRET_KEY = config('SECRET_KEY', default='dev-secret-key-change-me-in-production')
+    ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,*').split(',')
 
 # Production Security Settings
 if not DEBUG:
@@ -58,47 +47,39 @@ if not DEBUG:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_REFERRER_POLICY = 'same-origin'
+    SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
 
 # ============================================
 # APPLICATIONS
 # ============================================
 
 INSTALLED_APPS = [
-    # Channels (must be first for WebSocket support)
     'daphne',
-    
-    # Core Django Apps
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    
-    # Development Tools
     'django_extensions',
-
-    # Third-Party Apps
-    'channels',  # WebSockets for real-time chat
-    'rest_framework',  # API support
-    'corsheaders',  # CORS for API/frontend separation
+    'channels',
+    'rest_framework',
+    'corsheaders',
     'crispy_forms',
     'crispy_bootstrap5',
-    'rangefilter',  # Admin date range filter
-    'import_export',  # Import/Export data in admin
-
-    # Local Apps
+    'rangefilter',
+    'import_export',
     'accounts',
     'market',
     'reviews',
     'cart',
     'orders',
     'notifications',
-    'chat',  # Your WebSocket chat feature
-    'assistant',  # Your AI assistant with Groq + FAQ
+    'chat',
+    'assistant',
 ]
 
-# Crispy Forms Configuration
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 CRISPY_TEMPLATE_PACK = "bootstrap5"
 
@@ -110,9 +91,9 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',  # CORS (if using separate frontend)
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'assistant.middleware.DisableCSRFForAPIMiddleware',  # Custom CSRF disable for API during local testing
+    'assistant.middleware.DisableCSRFForAPIMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -125,7 +106,7 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'ZuntoProject.urls'
 WSGI_APPLICATION = 'ZuntoProject.wsgi.application'
-ASGI_APPLICATION = 'ZuntoProject.asgi.application'  # Required for Channels/WebSockets
+ASGI_APPLICATION = 'ZuntoProject.asgi.application'
 
 # ============================================
 # TEMPLATES
@@ -150,29 +131,39 @@ TEMPLATES = [
 ]
 
 # ============================================
-# DATABASE
+# DATABASE - FIXED
 # ============================================
 
-DATABASES = {
-    'default': dj_database_url.config(
-        default=config('DATABASE_URL', default='sqlite:///' + str(BASE_DIR / 'db.sqlite3')),
-        conn_max_age=600,
-        conn_health_checks=True,
-    )
-}
+if IS_PRODUCTION:
+    # Render PostgreSQL
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=os.environ.get('DATABASE_URL'),
+            conn_max_age=600,
+            conn_health_checks=True,
+            ssl_require=False,
+        )
+    }
+else:
+    # Local SQLite
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 # ============================================
-# CACHING (Redis for production performance)
+# CACHING
 # ============================================
 
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-        'LOCATION': config('REDIS_URL', default='redis://127.0.0.1:6379/1'),
+        'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
+        'LOCATION': os.path.join(BASE_DIR, 'django_cache'),
+        'TIMEOUT': 604800,
         'OPTIONS': {
-            'db': 1,
-            'parser_class': 'redis.connection.PythonParser',
-            'pool_class': 'redis.BlockingConnectionPool',
+            'MAX_ENTRIES': 10000
         }
     }
 }
@@ -183,7 +174,6 @@ CACHES = {
 
 CHANNEL_LAYERS = {
     'default': {
-        # Use Redis if REDIS_URL is provided (Heroku), otherwise in-memory
         'BACKEND': 'channels_redis.core.RedisChannelLayer' if config('REDIS_URL', default=None) else 'channels.layers.InMemoryChannelLayer',
         'CONFIG': {
             "hosts": [config('REDIS_URL', default='redis://127.0.0.1:6379')],
@@ -192,7 +182,7 @@ CHANNEL_LAYERS = {
 }
 
 # ============================================
-# REST FRAMEWORK (for API endpoints)
+# REST FRAMEWORK
 # ============================================
 
 REST_FRAMEWORK = {
@@ -219,8 +209,6 @@ AUTH_PASSWORD_VALIDATORS = [
 LOGIN_URL = 'accounts:login'
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'accounts:login'
-
-# Password Reset Timeout (1 hour)
 PASSWORD_RESET_TIMEOUT = 3600
 
 # ============================================
@@ -243,7 +231,6 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(os.path.dirname(BASE_DIR), "static_cdn", "media_root")
 
-# WhiteNoise Static Files Storage
 STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
@@ -253,9 +240,8 @@ STORAGES = {
     },
 }
 
-# Allowed file upload extensions
 ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
-MAX_UPLOAD_SIZE = 5242880  # 5MB
+MAX_UPLOAD_SIZE = 5242880
 
 # ============================================
 # EMAIL CONFIGURATION
@@ -270,7 +256,6 @@ EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='ZONTO <noreply@zonto.com>')
 ADMIN_EMAIL = config('ADMIN_EMAIL', default='admin@zonto.com')
 
-# For development - console backend
 if DEBUG:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
@@ -285,8 +270,8 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Africa/Lagos'
 CELERY_TASK_TRACK_STARTED = True
-CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
-CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60  # 25 minutes
+CELERY_TASK_TIME_LIMIT = 30 * 60
+CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60
 
 CELERY_BEAT_SCHEDULE = {
     'send-cart-abandonment-emails': {
@@ -316,35 +301,46 @@ PAYSTACK_BASE_URL = 'https://api.paystack.co'
 # ============================================
 
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
-SESSION_COOKIE_AGE = 1209600  # 2 weeks
+SESSION_COOKIE_AGE = 1209600
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_SAMESITE = 'Lax'
 
-# Use cache for sessions in production (optional)
-# SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
-# SESSION_CACHE_ALIAS = 'default'
-
-# Add this to your CORS configuration in settings.py
-# REPLACE the existing CORS_ALLOWED_ORIGINS section with this:
-
 # ============================================
-# CORS CONFIGURATION (for separate frontend)
+# CORS CONFIGURATION - FIXED
 # ============================================
 
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'http://localhost:5500',      # For Live Server
-    'http://127.0.0.1:5500',      # For Live Server
-    'http://localhost:8000',      # For Django served frontend
-    'http://127.0.0.1:8000',      # For Django served frontend (CRITICAL FOR LOCAL TESTING)
-    'https://unevinced-propraetorial-milda.ngrok-free.dev',  # Your ngrok
-]
+if IS_PRODUCTION:
+    CORS_ALLOWED_ORIGINS = [
+        'https://zunto-frontend.onrender.com',
+        'https://zunto-backend.onrender.com',
+    ]
+    CSRF_TRUSTED_ORIGINS = [
+        'https://zunto-frontend.onrender.com',
+        'https://zunto-backend.onrender.com',
+    ]
+    CORS_ALLOW_ALL_ORIGINS = False
+else:
+    CORS_ALLOWED_ORIGINS = [
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'http://localhost:5500',
+        'http://127.0.0.1:5500',
+        'http://localhost:8000',
+        'http://127.0.0.1:8000',
+    ]
+    CSRF_TRUSTED_ORIGINS = [
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'http://localhost:5500',
+        'http://127.0.0.1:5500',
+        'http://localhost:8000',
+        'http://127.0.0.1:8000',
+    ]
+    CORS_ALLOW_ALL_ORIGINS = True
 
 CORS_ALLOW_CREDENTIALS = True
-
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
@@ -357,29 +353,15 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 
-# Also update CSRF_TRUSTED_ORIGINS to match
-CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'http://localhost:5500',
-    'http://127.0.0.1:5500',
-    'http://localhost:8000',
-    'http://127.0.0.1:8000',       # CRITICAL FOR LOCAL TESTING
-    'https://unevinced-propraetorial-milda.ngrok-free.dev',
-]
-
-# For local testing only - allows all origins (DEVELOPMENT ONLY!)
-# Uncomment this line if you still have issues:
-# CORS_ALLOW_ALL_ORIGINS = True  # WARNING: Only for local testing!
 # ============================================
-# AI ASSISTANT CONFIGURATION
+# AI ASSISTANT CONFIGURATION - FIXED
 # ============================================
 
-# Groq AI Configuration (Cloud-based LLM)
-GROQ_API_KEY = config('GROQ_API_KEY', default='5GeKxEt9aGcsCHWJZj7GWGdyb3FYJigoux3eyKzOe0ZweIq21AUT')
-GROQ_MODEL = config('GROQ_MODEL', default='mixtral-8x7b-32768')
+# Groq AI Configuration - NO HARDCODED KEY!
+GROQ_API_KEY = config('GROQ_API_KEY', default='')
+GROQ_MODEL = config('GROQ_MODEL', default='llama-3.3-70b-versatile')
 
-# FAQ Matching Configuration (Local semantic search)
+# FAQ Matching Configuration
 FAQ_MATCH_THRESHOLD = config('FAQ_MATCH_THRESHOLD', default=0.7, cast=float)
 SENTENCE_TRANSFORMER_MODEL = config(
     'SENTENCE_TRANSFORMER_MODEL', 
@@ -419,7 +401,7 @@ LOGGING = {
             'level': 'ERROR',
             'class': 'logging.handlers.RotatingFileHandler',
             'filename': BASE_DIR / 'logs' / 'django.log',
-            'maxBytes': 1024 * 1024 * 5,  # 5MB
+            'maxBytes': 1024 * 1024 * 5,
             'backupCount': 5,
             'formatter': 'verbose',
         },
@@ -442,7 +424,6 @@ LOGGING = {
     },
 }
 
-# Create logs directory if it doesn't exist
 LOGS_DIR = BASE_DIR / 'logs'
 LOGS_DIR.mkdir(exist_ok=True)
 
@@ -450,8 +431,8 @@ LOGS_DIR.mkdir(exist_ok=True)
 # DATA UPLOAD SETTINGS
 # ============================================
 
-DATA_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
-FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 5242880
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880
 
 # ============================================
 # MISC
@@ -459,7 +440,6 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Message Framework Tags (for Bootstrap 5)
 from django.contrib.messages import constants as messages
 
 MESSAGE_TAGS = {
@@ -470,15 +450,9 @@ MESSAGE_TAGS = {
     messages.ERROR: 'danger',
 }
 
-# Admin Site Customization
 ADMIN_SITE_HEADER = "Zunto Administration"
 ADMIN_SITE_TITLE = "Zunto Admin Portal"
 ADMIN_INDEX_TITLE = "Welcome to Zunto Admin Portal"
 
-
-
-# Add this at the bottom of settings.py
-CORS_ALLOW_ALL_ORIGINS = True  # FOR LOCAL TESTING ONLY
-
 # Assistant Configuration
-ASSISTANT_PORTFOLIO_MODE = True  # Set False for production
+ASSISTANT_PORTFOLIO_MODE = True

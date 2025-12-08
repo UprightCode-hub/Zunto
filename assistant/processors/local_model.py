@@ -152,8 +152,9 @@ class LocalModelAdapter:
             logger.warning(f"⚠️ Groq rate limit exceeded: {e}")
             self.error_count += 1
             
+            # FIXED: Return proper error response that won't cause .split() errors
             return {
-                'response': '',
+                'response': 'ERROR: Rate limit exceeded. Please try again in a moment.',
                 'tokens_generated': 0,
                 'generation_time': time.time() - start_time,
                 'model': self.model_name,
@@ -164,12 +165,24 @@ class LocalModelAdapter:
             logger.error(f"❌ Groq generation failed: {e}")
             self.error_count += 1
             
+            # FIXED: Extract error message properly
+            error_message = str(e)
+            
+            # Check if error is a dict (from Groq API)
+            if isinstance(e, Exception) and hasattr(e, 'response'):
+                try:
+                    error_data = e.response.json()
+                    error_message = error_data.get('error', {}).get('message', str(e))
+                except:
+                    error_message = str(e)
+            
+            # FIXED: Always return a STRING in 'response' field, never empty
             return {
-                'response': '',
+                'response': f'ERROR: Unable to generate response. {error_message}',
                 'tokens_generated': 0,
                 'generation_time': time.time() - start_time,
                 'model': self.model_name,
-                'error': str(e)
+                'error': error_message
             }
     
     def get_model_info(self) -> Dict:
