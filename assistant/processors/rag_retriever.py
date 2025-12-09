@@ -1,28 +1,30 @@
 """
-RAG Retriever - Semantic search over FAQs using sentence-transformers + FAISS.
+RAG Retriever - Memory-efficient semantic search using lazy loading.
+Combines lazy loading for memory constraints with full functionality.
 """
 import json
 import logging
-import os
 import pickle
 from pathlib import Path
 from typing import Dict, List, Optional
 
 import numpy as np
-import faiss
-from sentence_transformers import SentenceTransformer
+from django.conf import settings
+
+# Import the lazy loader - NO heavy imports at module level!
+from .lazy_loader import get_ai_loader
 
 logger = logging.getLogger(__name__)
 
 # Configuration
-EMBEDDING_MODEL = "sentence-transformers/all-mpnet-base-v2"
-FAQ_MATCH_THRESHOLD = 0.55  
+FAQ_MATCH_THRESHOLD = getattr(settings, 'FAQ_MATCH_THRESHOLD', 0.55)
 TOP_K = 5
 
 
 class RAGRetriever:
     """
     Retrieval-Augmented Generation retriever using FAISS for semantic search.
+    Uses lazy loading for memory efficiency on free-tier hosting.
     """
     
     _instance = None
@@ -41,13 +43,14 @@ class RAGRetriever:
         self.index_dir = Path(index_dir)
         self.index_dir.mkdir(parents=True, exist_ok=True)
         
-        self.encoder = None
+        # Lazy loader for AI models
+        self.ai_loader = get_ai_loader()
+        
+        # Index data
         self.index = None
         self.faqs = []
+        self.embeddings = None
         self.dimension = 768  # all-mpnet-base-v2 dimension
-        
-        # Load encoder
-        self._load_encoder()
         
         # Try to load existing index
         self._load_index()
@@ -59,40 +62,56 @@ class RAGRetriever:
             cls._instance = cls(index_dir)
         return cls._instance
     
-    def _load_encoder(self):
-        """Load sentence transformer encoder."""
-        try:
-            logger.info(f"Loading embedding model: {EMBEDDING_MODEL}")
-            self.encoder = SentenceTransformer(EMBEDDING_MODEL)
-            self.dimension = self.encoder.get_sentence_embedding_dimension()
-            logger.info(f"Encoder loaded (dimension: {self.dimension})")
-        except Exception as e:
-            logger.error(f"Failed to load encoder: {e}")
-            raise RuntimeError(f"Cannot initialize RAG without encoder: {e}")
+    @property
+    def encoder(self):
+        """Lazy-load the sentence transformer encoder."""
+        return self.ai_loader.sentence_model
     
     def _load_index(self):
         """Load FAISS index and metadata from disk."""
         index_file = self.index_dir / 'faqs.index'
         metadata_file = self.index_dir / 'metadata.pkl'
+        embeddings_file = self.index_dir / 'embeddings.npy'
         
-        if not index_file.exists() or not metadata_file.exists():
+        if not metadata_file.exists():
             logger.warning("No pre-built index found. Please run build_rag_index.py first.")
             return
         
         try:
-            # Load FAISS index
-            self.index = faiss.read_index(str(index_file))
-            
-            # Load metadata
+            # Load metadata (lightweight)
             with open(metadata_file, 'rb') as f:
                 self.faqs = pickle.load(f)
             
-            logger.info(f"Loaded index with {len(self.faqs)} FAQs")
+            # Load embeddings if available
+            if embeddings_file.exists():
+                self.embeddings = np.load(embeddings_file)
+                logger.info(f"Loaded embeddings for {len(self.faqs)} FAQs")
+            
+            # FAISS index will be lazy-loaded when needed
+            logger.info(f"Loaded metadata with {len(self.faqs)} FAQs")
         
         except Exception as e:
             logger.error(f"Failed to load index: {e}")
-            self.index = None
             self.faqs = []
+            self.embeddings = None
+    
+    def _ensure_faiss_index(self):
+        """Lazy-load FAISS index only when needed."""
+        if self.index is not None:
+            return self.index
+        
+        if self.embeddings is None:
+            logger.warning("No embeddings available to create FAISS index")
+            return None
+        
+        try:
+            # Create FAISS index using lazy loader
+            self.index = self.ai_loader.create_faiss_index(self.embeddings)
+            logger.info("FAISS index created")
+            return self.index
+        except Exception as e:
+            logger.error(f"Failed to create FAISS index: {e}")
+            return None
     
     def build_index(self, faq_json_path: str):
         """
@@ -119,33 +138,80 @@ class RAGRetriever:
             text = f"{faq['question']} {faq['answer']}"
             texts.append(text)
         
-        # Generate embeddings
+        # Generate embeddings (model lazy-loads here)
         logger.info("Generating embeddings...")
-        embeddings = self.encoder.encode(
+        encoder = self.encoder  # Triggers lazy load
+        embeddings = encoder.encode(
             texts,
             show_progress_bar=True,
             convert_to_numpy=True,
             normalize_embeddings=True  # Normalize for cosine similarity
         )
         
+        self.embeddings = embeddings.astype('float32')
+        self.faqs = faqs
+        
         # Create FAISS index
         logger.info("Building FAISS index...")
-        self.index = faiss.IndexFlatIP(self.dimension)  # Inner product (cosine sim with normalized vectors)
-        self.index.add(embeddings.astype('float32'))
+        self.index = self.ai_loader.create_faiss_index(self.embeddings)
         
-        # Save index
-        index_file = self.index_dir / 'faqs.index'
-        faiss.write_index(self.index, str(index_file))
-        logger.info(f"Index saved to {index_file}")
-        
-        # Save metadata
-        self.faqs = faqs
-        metadata_file = self.index_dir / 'metadata.pkl'
-        with open(metadata_file, 'wb') as f:
-            pickle.dump(faqs, f)
-        logger.info(f"Metadata saved to {metadata_file}")
+        # Save everything to disk
+        self._save_index()
         
         logger.info(f"✅ Index built successfully: {len(faqs)} FAQs indexed")
+    
+    def _save_index(self):
+        """Save index, embeddings, and metadata to disk."""
+        try:
+            # Save embeddings
+            embeddings_file = self.index_dir / 'embeddings.npy'
+            np.save(embeddings_file, self.embeddings)
+            logger.info(f"Embeddings saved to {embeddings_file}")
+            
+            # Save metadata
+            metadata_file = self.index_dir / 'metadata.pkl'
+            with open(metadata_file, 'wb') as f:
+                pickle.dump(self.faqs, f)
+            logger.info(f"Metadata saved to {metadata_file}")
+            
+            # Save FAISS index if available
+            if self.index is not None:
+                import faiss
+                index_file = self.index_dir / 'faqs.index'
+                faiss.write_index(self.index, str(index_file))
+                logger.info(f"FAISS index saved to {index_file}")
+        
+        except Exception as e:
+            logger.error(f"Failed to save index: {e}")
+    
+    def load_faqs(self, faq_list):
+        """
+        Load FAQs and create embeddings (alternative to build_index).
+        
+        Args:
+            faq_list: List of FAQ dicts with 'question' and 'answer' keys
+        """
+        if not faq_list:
+            logger.warning("No FAQs provided")
+            return
+        
+        self.faqs = faq_list
+        
+        # Prepare texts
+        texts = [f"{faq['question']} {faq['answer']}" for faq in faq_list]
+        
+        # Get embeddings (lazy loads model)
+        logger.info(f"Creating embeddings for {len(texts)} FAQs...")
+        encoder = self.encoder
+        self.embeddings = encoder.encode(
+            texts,
+            convert_to_numpy=True,
+            normalize_embeddings=True
+        ).astype('float32')
+        
+        # Create FAISS index
+        self.index = self.ai_loader.create_faiss_index(self.embeddings)
+        logger.info("✅ FAQs loaded and indexed")
     
     def search(self, query: str, k: int = TOP_K) -> List[Dict]:
         """
@@ -156,34 +222,32 @@ class RAGRetriever:
             k: Number of results to return
         
         Returns:
-            List of dicts:
-            [
-                {
-                    'id': int,
-                    'question': str,
-                    'answer': str,
-                    'keywords': List[str],
-                    'score': float  # Cosine similarity (0-1)
-                },
-                ...
-            ]
+            List of dicts with 'id', 'question', 'answer', 'keywords', 'score'
         """
-        if not query or not self.index or not self.faqs:
-            logger.warning("Cannot search: index not loaded or query empty")
+        if not query or not self.faqs:
+            logger.warning("Cannot search: no FAQs loaded or query empty")
             return []
         
         try:
-            # Encode query
-            query_embedding = self.encoder.encode(
+            # Ensure FAISS index is loaded
+            index = self._ensure_faiss_index()
+            if index is None:
+                logger.error("FAISS index not available")
+                return self._fallback_search(query, k)
+            
+            # Encode query (lazy loads model)
+            encoder = self.encoder
+            query_embedding = encoder.encode(
                 [query],
                 convert_to_numpy=True,
                 normalize_embeddings=True
             ).astype('float32')
             
             # Search FAISS index
-            scores, indices = self.index.search(query_embedding, k)
+            # Using Inner Product = cosine similarity for normalized vectors
+            scores, indices = index.search(query_embedding, k)
             
-            # Debug logging - show what scores we're getting
+            # Debug logging
             if len(scores[0]) > 0:
                 top_scores = scores[0][:min(3, len(scores[0]))]
                 logger.info(f"Top {len(top_scores)} search scores: {[f'{s:.3f}' for s in top_scores]}")
@@ -202,8 +266,6 @@ class RAGRetriever:
                         'score': float(score)
                     }
                     results.append(result)
-                    
-                    # Log each result for debugging
                     logger.debug(f"  Match: {faq['question'][:60]}... (score: {score:.3f})")
             
             # Filter by threshold
@@ -211,24 +273,79 @@ class RAGRetriever:
             results = [r for r in results if r['score'] >= FAQ_MATCH_THRESHOLD]
             
             if results:
-                logger.info(f"Found {len(results)} relevant FAQs above threshold (top score: {results[0]['score']:.3f})")
+                logger.info(f"Found {len(results)} relevant FAQs above threshold "
+                          f"(top score: {results[0]['score']:.3f})")
             else:
                 best_score = scores[0][0] if len(scores[0]) > 0 else None
                 if best_score is not None:
                     logger.warning(f"No results above threshold {FAQ_MATCH_THRESHOLD}. "
-                                 f"Best match was {results_before_filter} result(s) with top score {best_score:.3f}")
-                else:
-                    logger.warning(f"No results above threshold {FAQ_MATCH_THRESHOLD}.")
+                                 f"Best match: {best_score:.3f}")
             
             return results
         
         except Exception as e:
             logger.error(f"Search failed: {e}", exc_info=True)
+            return self._fallback_search(query, k)
+    
+    def _fallback_search(self, query: str, k: int = TOP_K) -> List[Dict]:
+        """
+        Fallback to simple keyword matching if vector search fails.
+        Uses lightweight TF-IDF instead of heavy models.
+        """
+        try:
+            from sklearn.feature_extraction.text import TfidfVectorizer
+            from sklearn.metrics.pairwise import cosine_similarity
+            
+            logger.info("Using fallback TF-IDF search")
+            
+            questions = [faq['question'] for faq in self.faqs]
+            
+            # Create TF-IDF vectors
+            vectorizer = TfidfVectorizer()
+            vectors = vectorizer.fit_transform(questions + [query])
+            
+            # Calculate similarity
+            query_vector = vectors[-1]
+            question_vectors = vectors[:-1]
+            similarities = cosine_similarity(query_vector, question_vectors)[0]
+            
+            # Get top k results
+            top_indices = np.argsort(similarities)[::-1][:k]
+            
+            results = []
+            for idx in top_indices:
+                similarity = similarities[idx]
+                if similarity >= FAQ_MATCH_THRESHOLD:
+                    faq = self.faqs[idx]
+                    results.append({
+                        'id': faq.get('id', idx),
+                        'question': faq['question'],
+                        'answer': faq['answer'],
+                        'keywords': faq.get('keywords', []),
+                        'score': float(similarity)
+                    })
+            
+            logger.info(f"Fallback search found {len(results)} results")
+            return results
+        
+        except Exception as e:
+            logger.error(f"Fallback search failed: {e}")
             return []
+    
+    def retrieve(self, query: str, top_k: int = 3) -> List[Dict]:
+        """
+        Alias for search() for backward compatibility.
+        Returns results with 'similarity' key instead of 'score'.
+        """
+        results = self.search(query, k=top_k)
+        # Rename 'score' to 'similarity' for compatibility
+        for r in results:
+            r['similarity'] = r.pop('score', 0.0)
+        return results
     
     def is_ready(self) -> bool:
         """Check if index is loaded and ready."""
-        return self.index is not None and len(self.faqs) > 0
+        return len(self.faqs) > 0
     
     def get_stats(self) -> Dict:
         """Get retriever statistics."""
@@ -236,5 +353,15 @@ class RAGRetriever:
             'ready': self.is_ready(),
             'num_faqs': len(self.faqs),
             'dimension': self.dimension,
-            'model': EMBEDDING_MODEL
+            'embeddings_loaded': self.embeddings is not None,
+            'faiss_index_loaded': self.index is not None,
+            'model': 'sentence-transformers/all-mpnet-base-v2'
         }
+    
+    def clear_cache(self):
+        """Clear loaded models to free memory."""
+        logger.info("Clearing AI model cache")
+        self.ai_loader.clear_cache()
+        self.index = None
+        # Keep embeddings and FAQs in memory (lightweight)
+        # They can be used to rebuild index without re-encoding
