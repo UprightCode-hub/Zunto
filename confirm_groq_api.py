@@ -1,148 +1,162 @@
 """
-Groq API Diagnostic Script
-Tests if your Groq API key is working correctly
-
-Save this as: test_groq_api.py
-Run with: python test_groq_api.py
+Improved GROQ API Diagnostic Test
+Properly loads Django settings before testing
 """
 
 import os
 import sys
+from pathlib import Path
 
-# Add your Django project to path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add project to path
+project_root = Path(__file__).resolve().parent
+sys.path.insert(0, str(project_root))
 
-# Setup Django
+# Setup Django environment
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ZuntoProject.settings')
 import django
 django.setup()
 
+# Now import Django settings and other dependencies
 from django.conf import settings
 from groq import Groq
 
-print("=" * 60)
-print("🔍 GROQ API DIAGNOSTIC TEST")
-print("=" * 60)
+def mask_key(key):
+    """Mask API key for display"""
+    if not key or len(key) < 10:
+        return "***EMPTY***"
+    return f"{key[:10]}...{key[-4:]}"
 
-# Test 1: Check if API key exists in settings
-print("\n1️⃣ Checking Django Settings...")
-if hasattr(settings, 'GROQ_API_KEY'):
-    api_key = settings.GROQ_API_KEY
-    print(f"   ✅ GROQ_API_KEY found in settings")
-    print(f"   📝 Key starts with: {api_key[:10]}...")
-    print(f"   📏 Key length: {len(api_key)} characters")
+def test_groq_api():
+    """Test Groq API connection"""
+    print("=" * 60)
+    print("🔍 IMPROVED GROQ API DIAGNOSTIC TEST")
+    print("=" * 60)
     
-    # Check for common issues
-    if api_key.startswith(' ') or api_key.endswith(' '):
-        print("   ⚠️  WARNING: API key has leading/trailing spaces!")
-        api_key = api_key.strip()
-        print("   🔧 Trimmed spaces automatically")
+    # Step 1: Check Django Settings
+    print("\n1️⃣ Checking Django Settings...")
+    groq_key = getattr(settings, 'GROQ_API_KEY', '')
     
-    if not api_key.startswith('gsk_'):
-        print("   ⚠️  WARNING: Groq API keys usually start with 'gsk_'")
-else:
-    print("   ❌ GROQ_API_KEY NOT FOUND in settings!")
-    print("   💡 Check your settings.py or .env file")
-    sys.exit(1)
-
-# Test 2: Check .env file directly
-print("\n2️⃣ Checking .env file...")
-env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
-if os.path.exists(env_path):
-    print(f"   ✅ .env file exists at: {env_path}")
-    with open(env_path, 'r') as f:
-        env_content = f.read()
-        if 'GROQ_API_KEY' in env_content:
-            print("   ✅ GROQ_API_KEY found in .env")
-            # Extract the key from .env
-            for line in env_content.split('\n'):
-                if line.startswith('GROQ_API_KEY'):
-                    env_key = line.split('=', 1)[1].strip().strip('"').strip("'")
-                    print(f"   📝 .env key starts with: {env_key[:10]}...")
-                    if env_key != api_key:
-                        print("   ⚠️  WARNING: .env key differs from settings key!")
+    if groq_key:
+        print(f"   ✅ GROQ_API_KEY found in Django settings")
+        print(f"   📝 Key: {mask_key(groq_key)}")
+        print(f"   📏 Key length: {len(groq_key)} characters")
+        
+        if groq_key.startswith('gsk_'):
+            print(f"   ✅ Key format looks correct (starts with 'gsk_')")
         else:
-            print("   ⚠️  GROQ_API_KEY not found in .env")
-else:
-    print(f"   ⚠️  .env file not found at: {env_path}")
-
-# Test 3: Test actual Groq API connection
-print("\n3️⃣ Testing Groq API Connection...")
-try:
-    client = Groq(api_key=api_key)
-    print("   ✅ Groq client initialized successfully")
-    
-    # Make a simple test request
-    print("   🔄 Sending test request to Groq...")
-    
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[
-            {
-                "role": "user",
-                "content": "Say 'Hello' in exactly one word."
-            }
-        ],
-        max_tokens=10,
-        temperature=0.1
-    )
-    
-    result = response.choices[0].message.content
-    print(f"   ✅ API Response received: '{result}'")
-    print("   🎉 GROQ API IS WORKING PERFECTLY!")
-    
-except Exception as e:
-    print(f"   ❌ API Connection FAILED!")
-    print(f"   📋 Error Type: {type(e).__name__}")
-    print(f"   📋 Error Message: {str(e)}")
-    
-    # Check specific error types
-    if "401" in str(e) or "Unauthorized" in str(e):
-        print("\n   💡 DIAGNOSIS: API Key is Invalid or Expired")
-        print("   🔧 SOLUTIONS:")
-        print("      1. Go to https://console.groq.com/keys")
-        print("      2. Generate a NEW API key")
-        print("      3. Update both settings.py AND .env file")
-        print("      4. Restart your Django server")
-    elif "429" in str(e):
-        print("\n   💡 DIAGNOSIS: Rate limit exceeded")
-    elif "Connection" in str(e):
-        print("\n   💡 DIAGNOSIS: Network/Internet issue")
+            print(f"   ⚠️  WARNING: Key doesn't start with 'gsk_'")
     else:
-        print("\n   💡 DIAGNOSIS: Unknown error - see message above")
+        print(f"   ❌ GROQ_API_KEY is empty or not found!")
+        print(f"   💡 Check your .env file and python-decouple configuration")
+        return False
+    
+    # Step 2: Check .env file
+    print("\n2️⃣ Checking .env file...")
+    env_path = project_root / '.env'
+    
+    if env_path.exists():
+        print(f"   ✅ .env file exists at: {env_path}")
+        
+        # Read .env to verify
+        with open(env_path, 'r') as f:
+            env_contents = f.read()
+            if 'GROQ_API_KEY' in env_contents:
+                print(f"   ✅ GROQ_API_KEY found in .env")
+                
+                # Extract the key from .env
+                for line in env_contents.split('\n'):
+                    if line.startswith('GROQ_API_KEY='):
+                        env_key = line.split('=', 1)[1].strip()
+                        print(f"   📝 .env key: {mask_key(env_key)}")
+                        
+                        if env_key == groq_key:
+                            print(f"   ✅ .env key MATCHES Django settings key")
+                        else:
+                            print(f"   ⚠️  WARNING: .env key DIFFERS from Django settings key!")
+            else:
+                print(f"   ❌ GROQ_API_KEY not found in .env")
+    else:
+        print(f"   ❌ .env file not found at: {env_path}")
+    
+    # Step 3: Test API Connection
+    print("\n3️⃣ Testing Groq API Connection...")
+    
+    try:
+        print(f"   🔄 Initializing Groq client...")
+        client = Groq(api_key=groq_key)
+        print(f"   ✅ Groq client initialized")
+        
+        print(f"   🔄 Sending test request to Groq...")
+        
+        chat_completion = client.chat.completions.create(
+            messages=[
+                {
+                    "role": "user",
+                    "content": "Say 'API connection successful!' in exactly 5 words.",
+                }
+            ],
+            model="llama-3.3-70b-versatile",
+            temperature=0.5,
+            max_tokens=50,
+        )
+        
+        response = chat_completion.choices[0].message.content
+        print(f"   ✅ API Connection SUCCESSFUL!")
+        print(f"   📨 Response: {response}")
+        return True
+        
+    except Exception as e:
+        print(f"   ❌ API Connection FAILED!")
+        print(f"   📋 Error Type: {type(e).__name__}")
+        print(f"   📋 Error Message: {str(e)}")
+        
+        if "connection" in str(e).lower():
+            print(f"   💡 DIAGNOSIS: Network/Internet connectivity issue")
+            print(f"   💡 SUGGESTIONS:")
+            print(f"      - Check your internet connection")
+            print(f"      - Try a different network")
+            print(f"      - Check if a firewall is blocking the request")
+            print(f"      - Visit https://status.groq.com/ to check service status")
+        elif "authentication" in str(e).lower() or "401" in str(e):
+            print(f"   💡 DIAGNOSIS: Invalid API key")
+            print(f"   💡 SUGGESTIONS:")
+            print(f"      - Get a new key from https://console.groq.com/keys")
+            print(f"      - Update your .env file")
+        else:
+            print(f"   💡 DIAGNOSIS: Unknown error")
+            print(f"   💡 SUGGESTION: Check the full error message above")
+        
+        return False
+    
+    finally:
+        # Step 4: Environment Variables Check
+        print("\n4️⃣ Checking Environment Variables...")
+        env_groq_key = os.environ.get('GROQ_API_KEY', '')
+        
+        if env_groq_key:
+            print(f"   ✅ GROQ_API_KEY in environment variables")
+            print(f"   📝 Env var: {mask_key(env_groq_key)}")
+        else:
+            print(f"   ⚠️  GROQ_API_KEY not in environment variables")
+            print(f"   ℹ️  This is OK if using python-decouple")
 
-# Test 4: Check where Groq is being used in your code
-print("\n4️⃣ Checking Groq usage in your code...")
-search_dirs = ['assistant']
-groq_files = []
-
-for search_dir in search_dirs:
-    if os.path.exists(search_dir):
-        for root, dirs, files in os.walk(search_dir):
-            for file in files:
-                if file.endswith('.py'):
-                    filepath = os.path.join(root, file)
-                    try:
-                        with open(filepath, 'r', encoding='utf-8') as f:
-                            content = f.read()
-                            if 'Groq(' in content or 'groq' in content.lower():
-                                groq_files.append(filepath)
-                    except:
-                        pass
-
-if groq_files:
-    print(f"   📁 Found Groq usage in {len(groq_files)} files:")
-    for file in groq_files[:5]:  # Show first 5
-        print(f"      - {file}")
-else:
-    print("   ⚠️  No Groq usage found in code")
-
-print("\n" + "=" * 60)
-print("✅ DIAGNOSTIC COMPLETE")
-print("=" * 60)
-print("\n📋 SUMMARY:")
-print("   1. Check the test results above")
-print("   2. If API test failed, get a new key from Groq")
-print("   3. Update BOTH settings.py and .env")
-print("   4. Restart Django server")
-print("\n" + "=" * 60)
+if __name__ == "__main__":
+    success = test_groq_api()
+    
+    print("\n" + "=" * 60)
+    if success:
+        print("✅ ALL TESTS PASSED - GROQ API IS WORKING!")
+    else:
+        print("❌ TESTS FAILED - SEE ERRORS ABOVE")
+    print("=" * 60)
+    
+    print("\n📋 NEXT STEPS:")
+    if success:
+        print("   1. Your Groq API is configured correctly")
+        print("   2. You can now use the assistant features")
+        print("   3. Start your Django server: python manage.py runserver")
+    else:
+        print("   1. Review the error messages above")
+        print("   2. Fix the identified issues")
+        print("   3. Run this script again to verify")
+    print("=" * 60)

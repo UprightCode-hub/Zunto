@@ -1,21 +1,17 @@
-"""
-Django settings for ZuntoProject - PRODUCTION READY
-Updated for Python 3.12 and Django 5.1.3
-Fixed by: Wisdom Ekwugha
-Date: December 8, 2024
-"""
-
 import os
 from pathlib import Path
-from decouple import config
+from decouple import Config, RepositoryEnv
 from celery.schedules import crontab
-from dotenv import load_dotenv
 import dj_database_url
-
-load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Explicitly load .env from BASE_DIR
+ENV_FILE = BASE_DIR / '.env'
+if ENV_FILE.exists():
+    config = Config(RepositoryEnv(str(ENV_FILE)))
+else:
+    from decouple import config
 # ============================================
 # ENVIRONMENT DETECTION - FIXED
 # ============================================
@@ -456,3 +452,6 @@ ADMIN_INDEX_TITLE = "Welcome to Zunto Admin Portal"
 
 # Assistant Configuration
 ASSISTANT_PORTFOLIO_MODE = True
+
+os.environ['TRANSFORMERS_CACHE'] = '/opt/render/project/.cache'
+os.environ['HF_HOME'] = '/opt/render/project/.cache'
