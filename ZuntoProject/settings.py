@@ -453,5 +453,7 @@ ADMIN_INDEX_TITLE = "Welcome to Zunto Admin Portal"
 # Assistant Configuration
 ASSISTANT_PORTFOLIO_MODE = True
 
-os.environ['TRANSFORMERS_CACHE'] = '/opt/render/project/.cache'
-os.environ['HF_HOME'] = '/opt/render/project/.cache'
+os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
+os.environ['TRANSFORMERS_CACHE'] = '/tmp'
+os.environ['HF_HOME'] = '/tmp'
+os.environ['SENTENCE_TRANSFORMERS_HOME'] = '/tmp'
