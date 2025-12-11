@@ -14,6 +14,7 @@
     <meta property="og:description" content="Try a prompt-guided AI assistant that answers customers 24/7, speaks replies, and helps small businesses scale support.">
     <meta property="og:type" content="website">
     <meta property="og:image" content="https://via.placeholder.com/1200x630/4F46E5/FFFFFF?text=GigiAI">
+    <meta property="og:url" content="https://gigiai.app">
     <meta name="twitter:card" content="summary_large_image">
     
     <!-- Google Fonts -->
@@ -34,17 +35,11 @@
             --text: #111827;
             --muted: #6B7280;
             --danger: #EF4444;
-            --glass: rgba(255,255,255,0.6);
+            --glass: rgba(255,255,255,0.7);
             --radius: 12px;
             --shadow-soft: 0 6px 18px rgba(15,23,42,0.06);
             --shadow-medium: 0 10px 25px rgba(15,23,42,0.08);
-        }
-
-        [data-theme="dark"] {
-            --bg: #0B1220;
-            --card: #071022;
-            --text: #E6EEF7;
-            --muted: #94A3B8;
+            --shadow-strong: 0 20px 40px rgba(15,23,42,0.12);
         }
 
         * {
@@ -60,6 +55,7 @@
             font-size: 15px;
             line-height: 1.6;
             min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
         }
 
         .container {
@@ -102,6 +98,7 @@
         .hero-img {
             flex: 1;
             max-width: 560px;
+            min-width: 240px;
         }
 
         .hero-img img,
@@ -120,7 +117,7 @@
             font-weight: 600;
             font-size: 1rem;
             cursor: pointer;
-            transition: all 0.12s ease;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             box-shadow: var(--shadow-soft);
             text-decoration: none;
             display: inline-block;
@@ -129,6 +126,11 @@
         .btn-primary:hover {
             transform: translateY(-2px);
             box-shadow: var(--shadow-medium);
+            background: #4338CA;
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
         }
 
         /* Main Layout with Sidebar */
@@ -147,6 +149,19 @@
             margin-bottom: 2rem;
             color: white;
             box-shadow: var(--shadow-medium);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .demo-box::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            pointer-events: none;
         }
 
         .demo-box h3 {
@@ -156,6 +171,7 @@
             display: flex;
             align-items: center;
             gap: 0.5rem;
+            position: relative;
         }
 
         .demo-examples {
@@ -163,6 +179,7 @@
             flex-direction: column;
             gap: 0.75rem;
             margin-bottom: 1.25rem;
+            position: relative;
         }
 
         .demo-example {
@@ -171,6 +188,13 @@
             border-radius: 10px;
             font-size: 0.9375rem;
             backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: all 0.2s ease;
+        }
+
+        .demo-example:hover {
+            background: rgba(255,255,255,0.25);
+            transform: translateX(4px);
         }
 
         .btn-demo {
@@ -181,8 +205,9 @@
             padding: 0.75rem 1.5rem;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.12s ease;
+            transition: all 0.2s ease;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            position: relative;
         }
 
         .btn-demo:hover {
@@ -196,6 +221,57 @@
             border-radius: 20px;
             box-shadow: var(--shadow-soft);
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Top Toolbar */
+        .chat-toolbar {
+            background: var(--glass);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid #E5E7EB;
+            padding: 1rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .toolbar-title {
+            font-weight: 600;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .toolbar-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .toolbar-btn {
+            background: transparent;
+            border: 1px solid #E5E7EB;
+            border-radius: 8px;
+            padding: 0.5rem 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: var(--text);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .toolbar-btn:hover {
+            background: var(--bg);
+            border-color: var(--color-primary);
+            color: var(--color-primary);
+            transform: translateY(-1px);
         }
 
         /* Sidebar */
@@ -232,6 +308,19 @@
             padding: 1.25rem;
             border-radius: 10px;
             margin-bottom: 1rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .creator-info::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            pointer-events: none;
         }
 
         .creator-avatar {
@@ -252,19 +341,6 @@
             margin-bottom: 1rem;
         }
 
-        .sidebar-link {
-            color: var(--color-primary);
-            text-decoration: none;
-            font-weight: 500;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.25rem;
-        }
-
-        .sidebar-link:hover {
-            text-decoration: underline;
-        }
-
         .creator-info .sidebar-link {
             color: white;
             background: rgba(255,255,255,0.2);
@@ -274,6 +350,7 @@
             justify-content: center;
             text-decoration: none;
             transition: all 0.2s;
+            border: 1px solid rgba(255,255,255,0.3);
         }
 
         .creator-info .sidebar-link:hover {
@@ -342,6 +419,11 @@
             font-size: 1.25rem;
             padding: 0;
             line-height: 1;
+            transition: transform 0.2s;
+        }
+
+        .btn-dismiss:hover {
+            transform: scale(1.2);
         }
 
         /* Chat Header */
@@ -352,6 +434,19 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .chat-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at top right, rgba(255,255,255,0.1) 0%, transparent 70%);
+            pointer-events: none;
         }
 
         .chat-title {
@@ -361,6 +456,7 @@
             display: flex;
             align-items: center;
             gap: 0.5rem;
+            position: relative;
         }
 
         .status-indicator {
@@ -372,6 +468,7 @@
             padding: 0.375rem 0.875rem;
             border-radius: 999px;
             backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.3);
         }
 
         .status-dot {
@@ -383,27 +480,42 @@
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.95); }
         }
 
-        /* Chat Messages */
+        /* Chat Messages Container */
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 60vh;
+            max-height: 600px;
+            min-height: 400px;
+        }
+
         .chat-messages {
-            height: 500px;
+            flex: 1;
             overflow-y: auto;
             padding: 2rem;
             background: var(--bg);
             scroll-behavior: smooth;
-            position: relative;
         }
 
         .chat-messages::-webkit-scrollbar {
             width: 8px;
         }
 
+        .chat-messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
         .chat-messages::-webkit-scrollbar-thumb {
             background: var(--color-primary);
             border-radius: 10px;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb:hover {
+            background: #4338CA;
         }
 
         .message {
@@ -437,6 +549,7 @@
             border-radius: var(--radius);
             position: relative;
             word-wrap: break-word;
+            line-height: 1.6;
         }
 
         .message.assistant .message-content {
@@ -470,7 +583,7 @@
             padding: 0.5rem 0.75rem;
             font-size: 0.875rem;
             cursor: pointer;
-            transition: all 0.12s ease;
+            transition: all 0.2s ease;
             display: inline-flex;
             align-items: center;
             gap: 0.375rem;
@@ -478,7 +591,7 @@
 
         .btn-tts:hover {
             background: #4338CA;
-            transform: scale(1.03);
+            transform: scale(1.05);
         }
 
         .btn-tts.playing {
@@ -488,7 +601,7 @@
 
         @keyframes pulse-glow {
             0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
-            50% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+            50% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
         }
 
         /* Typing Indicator */
@@ -519,11 +632,14 @@
             30% { transform: translateY(-10px); opacity: 1; }
         }
 
-        /* Input Area */
+        /* Input Area - Sticky */
         .chat-input-area {
             padding: 1.5rem;
             background: var(--card);
             border-top: 1px solid #E5E7EB;
+            position: sticky;
+            bottom: 0;
+            z-index: 50;
         }
 
         .input-tip {
@@ -549,8 +665,9 @@
             padding: 0.5rem 1rem;
             font-size: 0.875rem;
             cursor: pointer;
-            transition: all 0.12s ease;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             color: var(--text);
+            font-weight: 500;
         }
 
         .suggestion-chip:hover {
@@ -558,12 +675,14 @@
             color: white;
             border-color: var(--color-primary);
             transform: translateY(-2px);
+            box-shadow: var(--shadow-soft);
         }
 
         .input-wrapper {
             position: relative;
             display: flex;
             gap: 0.5rem;
+            align-items: center;
         }
 
         .input-wrapper input {
@@ -574,6 +693,7 @@
             font-size: 0.9375rem;
             font-family: inherit;
             transition: all 0.2s;
+            background: var(--card);
         }
 
         .input-wrapper input:focus {
@@ -591,13 +711,19 @@
             font-weight: 600;
             font-size: 0.9375rem;
             cursor: pointer;
-            transition: all 0.12s ease;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             box-shadow: var(--shadow-soft);
+            min-width: 90px;
         }
 
         .btn-send:hover:not(:disabled) {
             transform: translateY(-2px);
             box-shadow: var(--shadow-medium);
+            background: #4338CA;
+        }
+
+        .btn-send:active:not(:disabled) {
+            transform: translateY(0);
         }
 
         .btn-send:disabled {
@@ -619,21 +745,23 @@
             padding: 0.5rem 1rem;
             font-size: 0.875rem;
             cursor: pointer;
-            transition: all 0.12s ease;
+            transition: all 0.2s ease;
             display: inline-flex;
             align-items: center;
             gap: 0.375rem;
             color: var(--text);
+            font-weight: 500;
         }
 
         .action-btn:hover {
             background: var(--card);
             border-color: var(--color-primary);
             color: var(--color-primary);
+            transform: translateY(-1px);
         }
 
         .action-btn i {
-            transition: color 0.12s;
+            transition: color 0.2s;
         }
 
         .action-btn:hover i {
@@ -646,7 +774,7 @@
             border: 2px solid #0EA5E9;
             border-radius: var(--radius);
             padding: 1.25rem;
-            margin-top: 1.5rem;
+            margin: 1.5rem;
             display: none;
             animation: fadeSlideUp 0.4s ease-out;
         }
@@ -678,7 +806,7 @@
             font-size: 0.875rem;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.12s ease;
+            transition: all 0.2s ease;
             display: inline-flex;
             align-items: center;
             gap: 0.5rem;
@@ -687,6 +815,7 @@
         .btn-linkedin:hover {
             background: #004182;
             transform: translateY(-2px);
+            box-shadow: var(--shadow-soft);
         }
 
         /* Help Button */
@@ -694,8 +823,8 @@
             position: fixed;
             bottom: 2rem;
             right: 2rem;
-            width: 48px;
-            height: 48px;
+            width: 52px;
+            height: 52px;
             background: var(--color-primary);
             color: white;
             border: none;
@@ -705,11 +834,13 @@
             box-shadow: 0 6px 20px rgba(79, 70, 229, 0.4);
             transition: all 0.2s;
             z-index: 1000;
+            font-weight: 600;
         }
 
         .help-btn:hover {
             transform: scale(1.1);
             box-shadow: 0 8px 24px rgba(79, 70, 229, 0.5);
+            background: #4338CA;
         }
 
         /* Toast */
@@ -722,12 +853,13 @@
             border: 1px solid #E5E7EB;
             border-radius: var(--radius);
             padding: 1rem 1.5rem;
-            box-shadow: var(--shadow-medium);
+            box-shadow: var(--shadow-strong);
             display: none;
             align-items: center;
             gap: 1rem;
-            z-index: 1000;
+            z-index: 1001;
             animation: slideUp 0.3s ease-out;
+            max-width: 90%;
         }
 
         .toast.visible {
@@ -787,6 +919,10 @@
         }
 
         @media (max-width: 768px) {
+            .container {
+                padding: 1.5rem 1rem;
+            }
+
             .hero {
                 flex-direction: column;
                 text-align: center;
@@ -794,8 +930,12 @@
                 gap: 2rem;
             }
 
+            .hero-text {
+                max-width: 100%;
+            }
+
             .hero-text h1 {
-                font-size: 2rem;
+                font-size: 2.25rem;
             }
 
             .hero-text p {
@@ -804,26 +944,103 @@
 
             .hero-img {
                 width: 80%;
-                max-width: 400px;
+                max-width: 320px;
+                min-width: 240px;
+            }
+
+            .chat-container {
+                height: 55vh;
+                max-height: 500px;
+                min-height: 350px;
             }
 
             .chat-messages {
-                height: 400px;
                 padding: 1.25rem;
             }
 
             .message-content {
-                max-width: 90%;
+                max-width: 92%;
+            }
+
+            .chat-toolbar {
+                padding: 0.875rem 1rem;
+            }
+
+            .toolbar-title {
+                font-size: 0.9375rem;
+            }
+
+            .toolbar-btn {
+                padding: 0.5rem;
+                font-size: 0;
+            }
+
+            .toolbar-btn i {
+                margin: 0;
             }
 
             .help-btn {
                 bottom: 1.5rem;
                 right: 1.5rem;
+                width: 48px;
+                height: 48px;
             }
 
             .sidebar {
                 display: none;
             }
+
+            .btn-send {
+                padding: 0.875rem 1.25rem;
+                min-width: 80px;
+            }
+
+            .quick-suggestions {
+                overflow-x: auto;
+                flex-wrap: nowrap;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .suggestion-chip {
+                flex-shrink: 0;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .hero-text h1 {
+                font-size: 1.875rem;
+            }
+
+            .hero-text p {
+                font-size: 1rem;
+            }
+
+            .hero-img {
+                max-width: 280px;
+            }
+
+            .demo-box {
+                padding: 1.25rem;
+            }
+
+            .input-wrapper input {
+                font-size: 16px; /* Prevents zoom on iOS */
+            }
+        }
+
+        /* Loading Spinner */
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
     </style>
 </head>
@@ -837,8 +1054,7 @@
                 <a href="#chat" class="btn-primary">Try Demo</a>
             </div>
             <div class="hero-img">
-                <svg viewBox="0 0 793 551.73152" xmlns="http://www.w3.org/2000/svg">
-                    <!-- AI Chat Illustration - Undraw Style -->
+                <svg viewBox="0 0 793 551.73152" xmlns="http://www.w3.org/2000/svg" aria-label="AI Chat Illustration">
                     <ellipse cx="158" cy="539.73152" rx="158" ry="12" fill="#e6e6e6"/>
                     <path d="M324.27227,296.55377c27.49676-11.6953,61.74442-4.28528,95.19092.85757.31124-6.228,4.08385-13.80782.132-18.15284-4.80115-5.2788-4.35917-10.82529-1.47008-16.40375,7.38788-14.265-3.1969-29.44375-13.88428-42.0647a23.66937,23.66937,0,0,0-19.75537-8.29179l-19.7975,1.41411A23.70939,23.70939,0,0,0,343.635,230.85851v0c-4.72724,6.42917-7.25736,12.84055-5.66438,19.21854-7.08065,4.83882-8.27029,10.67977-5.08851,17.2644,2.698,5.58385,6.79552,9.70858,11.09677,13.21585,3.38131,2.75765,6.91349,5.26924,10.29916,7.9274a54.50351,54.50351,0,0,1,10.97529,9.88515C368.77388,302.02607,365.28338,307.77264,324.27227,296.55377Z" transform="translate(-203.5 -174.13424)" fill="#2f2e41"/>
                     <path d="M977.70889,651.09727H417.29111A18.79111,18.79111,0,0,1,398.5,632.30616h0q304.727-35.41512,598,0h0A18.79111,18.79111,0,0,1,977.70889,651.09727Z" transform="translate(-203.5 -174.13424)" fill="#2f2e41"/>
@@ -846,12 +1062,10 @@
                     <path d="M651.94729,248.24853c-14.48117-18.19909-31.54743-32.17955-47.78644-41.89233a28.31523,28.31523,0,0,0-41.57233,12.27719,27.60934,27.60934,0,0,0-1.42553,22.92426c-8.36107,6.8876-14.35633,17.16162-16.31269,28.88837a40.13762,40.13762,0,0,0,8.44414,32.25724,127.84881,127.84881,0,0,1,27.57031,77.88773l91.78247-14.52563C673.03168,344.41884,667.90825,268.14261,651.94729,248.24853Z" transform="translate(-203.5 -174.13424)" fill="#2f2e41"/>
                     <path d="M502.93228,322.73947l-26.76346,12.41,23.39772,48.34937L526.321,368.562Z" transform="translate(-203.5 -174.13424)" fill="#ffb8b8"/>
                     <path d="M806.93228,375.73947l26.76346,12.41-23.39772,48.34937L783.521,421.562Z" transform="translate(-203.5 -174.13424)" fill="#ffb8b8"/>
-                    <!-- Chat Bubbles -->
                     <rect x="356.93228" y="210.73947" width="270" height="120" rx="20" fill="#4F46E5" opacity="0.1"/>
                     <rect x="380.93228" y="230.73947" width="220" height="25" rx="12" fill="#4F46E5"/>
                     <rect x="380.93228" y="270.73947" width="180" height="25" rx="12" fill="#10B981"/>
                     <rect x="380.93228" y="310.73947" width="200" height="25" rx="12" fill="#4F46E5"/>
-                    <!-- Dots -->
                     <circle cx="580" cy="470" r="12" fill="#4F46E5" opacity="0.3"/>
                     <circle cx="640" cy="440" r="8" fill="#10B981" opacity="0.3"/>
                     <circle cx="520" cy="490" r="10" fill="#4F46E5" opacity="0.2"/>
@@ -875,7 +1089,7 @@
             <!-- Main Chat -->
             <div class="chat-main">
                 <!-- Onboarding Banner -->
-                <div class="onboarding-banner" id="onboardingBanner">
+                <div class="onboarding-banner hidden" id="onboardingBanner">
                     <div class="onboarding-icon">👋</div>
                     <div class="onboarding-content">
                         <div class="onboarding-title">Welcome to GigiAI — a prompt-guided AI assistant</div>
@@ -895,43 +1109,63 @@
                     </div>
                 </div>
 
-                <!-- Chat Messages -->
-                <div class="chat-messages" id="chatMessages" role="log" aria-label="GigiAI chat">
-                    <!-- Messages appear here -->
+                <!-- Top Toolbar -->
+                <div class="chat-toolbar">
+                    <div class="toolbar-title">
+                        <i class="bi bi-chat-dots"></i> Main Menu — choose an option
+                    </div>
+                    <div class="toolbar-actions">
+                        <button class="toolbar-btn" onclick="showAbout()" title="About GigiAI">
+                            <i class="bi bi-info-circle"></i>
+                            <span>About</span>
+                        </button>
+                        <button class="toolbar-btn" onclick="showSettings()" title="Settings">
+                            <i class="bi bi-gear"></i>
+                            <span>Settings</span>
+                        </button>
+                    </div>
                 </div>
 
-                <!-- Input Area -->
-                <div class="chat-input-area">
-                    <div class="input-tip">
-                        <i class="bi bi-lightbulb"></i>
-                        <span>Tip: this assistant is prompt-guided — follow the menu options.</span>
-                    </div>
-                    
-                    <div class="quick-suggestions">
-                        <button class="suggestion-chip" onclick="fillInput('Track my order')">📦 Track order</button>
-                        <button class="suggestion-chip" onclick="fillInput('Shipping info')">🚚 Shipping info</button>
-                        <button class="suggestion-chip" onclick="fillInput('Request refund')">💰 Request refund</button>
+                <!-- Chat Container -->
+                <div class="chat-container">
+                    <!-- Chat Messages -->
+                    <div class="chat-messages" id="chatMessages" role="log" aria-label="GigiAI chat">
+                        <!-- Messages appear here -->
                     </div>
 
-                    <div class="input-wrapper">
-                        <input 
-                            type="text" 
-                            id="userInput" 
-                            placeholder="Try: 'Track my order #1234' or choose a menu option…"
-                            autocomplete="off"
-                        >
-                        <button id="sendBtn" class="btn-send" onclick="sendMessage()">
-                            <span id="sendBtnText">Send</span>
-                        </button>
-                    </div>
+                    <!-- Input Area - Sticky -->
+                    <div class="chat-input-area">
+                        <div class="input-tip">
+                            <i class="bi bi-lightbulb"></i>
+                            <span>Tip: this assistant is prompt-guided — follow the menu options.</span>
+                        </div>
+                        
+                        <div class="quick-suggestions">
+                            <button class="suggestion-chip" onclick="fillInput('Track my order')">📦 Track order</button>
+                            <button class="suggestion-chip" onclick="fillInput('Shipping info')">🚚 Shipping info</button>
+                            <button class="suggestion-chip" onclick="fillInput('Request refund')">💰 Request refund</button>
+                        </div>
 
-                    <div class="action-buttons">
-                        <button class="action-btn" onclick="resetChat()">
-                            <i class="bi bi-arrow-clockwise"></i> Menu
-                        </button>
-                        <button class="action-btn" onclick="toggleVoice()">
-                            <i class="bi bi-volume-up"></i> Voice: <span id="voiceStatus">On</span>
-                        </button>
+                        <div class="input-wrapper">
+                            <input 
+                                type="text" 
+                                id="userInput" 
+                                placeholder="Try: 'Track my order #1234' or choose a menu option…"
+                                autocomplete="off"
+                            >
+                            <button id="sendBtn" class="btn-send" onclick="sendMessage()">
+                                <span id="sendBtnText">Send</span>
+                            </button>
+                        </div>
+
+                        <div class="action-buttons">
+                            <button class="action-btn" onclick="resetChat()">
+                                <i class="bi bi-arrow-clockwise"></i> Menu
+                            </button>
+                            <button class="action-btn" onclick="toggleVoice()">
+                                <i class="bi bi-volume-up"></i> Voice: <span id="voiceStatus">On</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -939,7 +1173,7 @@
                 <div class="linkedin-cta" id="linkedinCta">
                     <div class="linkedin-cta-title">Like this tool?</div>
                     <div class="linkedin-cta-text">Connect with Wisdom on LinkedIn — I'm building more tools and want to learn from the community.</div>
-                    <button class="btn-linkedin" onclick="trackEvent('connect_click'); window.open('https://linkedin.com/in/wisdom-ekwugha', '_blank')">
+                    <button class="btn-linkedin" onclick="trackEvent('connect_click'); window.open('https://www.linkedin.com/in/wisdom-ekwugha-2b2887217?utm_source=share_via&utm_content=profile&utm_medium=member_android', '_blank')">
                         <i class="bi bi-linkedin"></i> Connect on LinkedIn
                     </button>
                 </div>
@@ -953,7 +1187,7 @@
                         <div class="creator-avatar">👨‍💻</div>
                         <div class="creator-name">Wisdom Ekwugha</div>
                         <div class="creator-title">Self-taught developer building AI tools</div>
-                        <a href="https://linkedin.com/in/wisdom-ekwugha" target="_blank" class="sidebar-link">
+                        <a href="https://www.linkedin.com/in/wisdom-ekwugha-2b2887217?utm_source=share_via&utm_content=profile&utm_medium=member_android" target="_blank" class="sidebar-link">
                             <i class="bi bi-linkedin"></i> Connect on LinkedIn
                         </a>
                     </div>
@@ -1005,8 +1239,7 @@
         // Analytics
         function trackEvent(eventName, data = {}) {
             console.log('Event:', eventName, data);
-            // Hook for GA4 or analytics platform:
-            // gtag('event', eventName, data);
+            // Hook for GA4 or analytics platform
         }
 
         // Initialize
@@ -1016,8 +1249,6 @@
             // Check onboarding
             if (!localStorage.getItem('gigi_onboard')) {
                 document.getElementById('onboardingBanner').classList.remove('hidden');
-            } else {
-                document.getElementById('onboardingBanner').classList.add('hidden');
             }
             
             await startConversation();
@@ -1036,7 +1267,6 @@
         // Demo
         function runDemo() {
             fillInput('Track my order #1234');
-            sendMessage();
         }
 
         function fillInput(text) {
@@ -1074,6 +1304,15 @@
             showToast(`Voice ${voiceEnabled ? 'enabled' : 'disabled'}`);
         }
 
+        // Settings & About
+        function showSettings() {
+            showToast('Settings: Toggle voice, adjust preferences, or reset chat using the buttons below.');
+        }
+
+        function showAbout() {
+            showToast('GigiAI is a prompt-guided AI assistant built by Wisdom Ekwugha for e-commerce support. Connect on LinkedIn!');
+        }
+
         // Start conversation
         async function startConversation() {
             sessionId = generateSessionId();
@@ -1095,7 +1334,7 @@
                 hideTypingIndicator();
 
                 if (data.reply) {
-                    await addMessage('assistant', data.reply);
+                    await addMessage('assistant', cleanText(data.reply));
                     updateStatus('connected');
                 } else if (data.error) {
                     addMessage('assistant', 'Sorry, I encountered an error. Please refresh the page.');
@@ -1114,6 +1353,22 @@
                     onClick: () => window.location.href = '#report'
                 });
             }
+        }
+
+        // Clean text - remove markdown asterisks and format properly
+        function cleanText(text) {
+            // Remove markdown bold (**text** or __text__)
+            text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            text = text.replace(/__(.*?)__/g, '<strong>$1</strong>');
+            
+            // Remove markdown italic (*text* or _text_)
+            text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
+            text = text.replace(/_(.*?)_/g, '<em>$1</em>');
+            
+            // Convert line breaks
+            text = text.replace(/\n/g, '<br>');
+            
+            return text;
         }
 
         // Send message
@@ -1135,7 +1390,7 @@
             const sendBtn = document.getElementById('sendBtn');
             const sendBtnText = document.getElementById('sendBtnText');
             sendBtn.disabled = true;
-            sendBtnText.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            sendBtnText.innerHTML = '<span class="spinner"></span>';
             
             showTypingIndicator();
             
@@ -1153,7 +1408,7 @@
                 hideTypingIndicator();
 
                 if (data.reply) {
-                    await addMessage('assistant', data.reply);
+                    await addMessage('assistant', cleanText(data.reply));
                 } else if (data.error) {
                     addMessage('assistant', 'Sorry, I encountered an error processing your message.');
                 }
@@ -1179,9 +1434,10 @@
             
             // Add TTS controls for assistant
             if (role === 'assistant' && voiceEnabled) {
+                const plainText = content.replace(/<[^>]*>/g, '').replace(/'/g, "\\'");
                 messageHTML += `
                     <div class="tts-controls">
-                        <button class="btn-tts" onclick="playTTS(this, '${content.replace(/'/g, "\\'")}'); trackEvent('tts_play');" 
+                        <button class="btn-tts" onclick="playTTS(this, '${plainText}'); trackEvent('tts_play');" 
                                 title="GigiAI can speak its replies — click to play" 
                                 aria-label="Play voice reply">
                             <i class="bi bi-play-fill"></i> Play
@@ -1310,7 +1566,7 @@
             if (status === 'connected') {
                 text.textContent = 'Connected';
             } else if (status === 'connecting') {
-                text.textContent = 'Connecting… Initializing GigiAI';
+                text.textContent = 'Initializing GigiAI';
             } else {
                 text.textContent = 'Connection Error';
             }
