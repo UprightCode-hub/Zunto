@@ -1,6 +1,8 @@
 /**
  * GigiAI - Complete Stylesheet with Theme System & Premium Motion
  * Supports Light/Dark/System modes with animated gradients
+ * 
+ * ANDROID FIX APPLIED: Proper bottom padding for message visibility
  */
 
 /* ============================================
@@ -376,7 +378,7 @@ html, body {
 }
 
 /* ============================================
-   CHAT WRAPPER
+   CHAT WRAPPER - CRITICAL ANDROID FIX
    ============================================ */
 .chat-wrapper {
     flex: 1;
@@ -393,6 +395,15 @@ html, body {
     overflow-y: auto;
     overflow-x: hidden;
     padding: 1.5rem 1rem;
+    /* 
+     * CRITICAL FIX FOR ANDROID MESSAGE CLIPPING:
+     * Add generous bottom padding to ensure messages are never hidden
+     * behind the fixed input bar. This accounts for:
+     * - Input wrapper height (~180-220px with quick actions)
+     * - Safe area insets (notches, home indicators)
+     * - Extra buffer for keyboard transitions
+     */
+    padding-bottom: calc(220px + env(safe-area-inset-bottom));
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
@@ -659,6 +670,8 @@ html, body {
     background: var(--card);
     border-top: 1px solid var(--border);
     padding: 1rem;
+    /* Add safe area inset for devices with notches/home indicators */
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
     box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.04);
     transition: background-color var(--motion-duration-base) var(--motion-easing),
                 border-color var(--motion-duration-base) var(--motion-easing);
@@ -1142,15 +1155,18 @@ html, body {
 }
 
 /* ============================================
-   RESPONSIVE
+   RESPONSIVE - MOBILE OPTIMIZATIONS
    ============================================ */
 @media (max-width: 640px) {
     .chat-container {
         padding: 1rem 0.75rem;
+        /* Slightly more padding on mobile for better visibility */
+        padding-bottom: calc(240px + env(safe-area-inset-bottom));
     }
     
     .chat-input-wrapper {
         padding: 0.75rem;
+        padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
     }
     
     .message-bubble {
@@ -1164,4 +1180,4 @@ html, body {
     .hero-subtitle {
         font-size: 1rem;
     }
-  }
+}
