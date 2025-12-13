@@ -1,10 +1,10 @@
 /**
- * GigiAI - Chat Module (MINIMAL FIX VERSION)
+ * GigiAI - Chat Module (with Auto-Play Support)
  * Handles messaging, skeleton loaders, retry, copy
  * API: POST ${API_BASE}/assistant/api/chat/
  * 
  * FIX: Uses Map to store message text (fixes long text bug)
- * Compatible with existing tts.js (keeps playTTS function as-is)
+ * FEATURE: Auto-play support for assistant messages
  */
 
 // ============================================
@@ -16,6 +16,13 @@
  * Key: messageId -> Value: plainText
  */
 const MESSAGE_TEXTS = new Map();
+
+/**
+ * Get text for a message ID
+ */
+function getMessageText(messageId) {
+    return MESSAGE_TEXTS.get(messageId);
+}
 
 /**
  * Play TTS by message ID (wrapper for existing playTTS function)
@@ -33,12 +40,33 @@ function playTTSById(messageId) {
         return;
     }
     
-    // Call the original playTTS function from tts.js
+    // Call the playTTS function from tts.js
     if (typeof playTTS === 'function') {
         playTTS(button, text, messageId);
     } else {
         console.error('[TTS] playTTS function not found');
     }
+}
+
+/**
+ * Auto-play TTS for a message
+ * @param {string} messageId - Message ID
+ */
+function autoPlayTTSForMessage(messageId) {
+    // Check if auto-play is enabled
+    if (typeof getTTSSettings === 'function') {
+        const settings = getTTSSettings();
+        if (!settings.autoPlay || !settings.enabled) {
+            return; // Auto-play disabled
+        }
+    } else if (!AppState.voiceEnabled) {
+        return; // Voice disabled
+    }
+    
+    // Small delay to ensure DOM is ready
+    setTimeout(() => {
+        playTTSById(messageId);
+    }, 500);
 }
 
 // ============================================
@@ -47,7 +75,7 @@ function playTTSById(messageId) {
 
 /**
  * Send message to AI
- * CRITICAL: Adds skeleton, handles retry
+ * CRITICAL: Adds skeleton, handles retry, auto-plays TTS
  */
 async function sendMessage() {
     const input = document.getElementById('userInput');
@@ -118,6 +146,10 @@ async function sendMessage() {
             const cleanReply = stripMarkdown(data.reply);
             const aiMessageId = `msg_${Date.now()}`;
             addMessage('assistant', cleanReply, aiMessageId);
+            
+            // ✅ Auto-play TTS if enabled
+            autoPlayTTSForMessage(aiMessageId);
+            
             updateStatus('connected', 'Connected');
             trackEvent('message_received', { length: data.reply.length });
         } else if (data.error) {
@@ -188,6 +220,10 @@ async function retryMessage(originalMessage, messageElement) {
             const cleanReply = stripMarkdown(data.reply);
             const aiMessageId = `msg_${Date.now()}`;
             addMessage('assistant', cleanReply, aiMessageId);
+            
+            // Auto-play TTS
+            autoPlayTTSForMessage(aiMessageId);
+            
             updateStatus('connected', 'Connected');
             showToast('Message sent successfully', 'success', 2000);
             trackEvent('message_retry_success');
@@ -309,7 +345,7 @@ function addMessage(role, content, messageId) {
     // Strip HTML tags for plain text copy
     const plainText = content.replace(/<[^>]*>/g, '');
     
-    // âœ… STORE TEXT IN MAP (fixes long text bug)
+    // ✅ STORE TEXT IN MAP (fixes long text bug)
     if (role === 'assistant') {
         MESSAGE_TEXTS.set(messageId, plainText);
     }
@@ -332,7 +368,7 @@ function addMessage(role, content, messageId) {
                     </button>
     `;
     
-    // âœ… TTS button for assistant messages (FIXED - uses message ID)
+    // ✅ TTS button for assistant messages (FIXED - uses message ID)
     if (role === 'assistant' && AppState.voiceEnabled) {
         messageHTML += `
                     <button class="btn-icon" 
@@ -444,13 +480,17 @@ async function startChat() {
             const cleanReply = stripMarkdown(data.reply);
             const messageId = `msg_${Date.now()}`;
             addMessage('assistant', cleanReply, messageId);
+            
+            // Auto-play greeting if enabled
+            autoPlayTTSForMessage(messageId);
+            
             updateStatus('connected', 'Connected');
             AppState.isConnected = true;
             trackEvent('chat_started');
         } else if (data.error) {
             addMessage('assistant', 'Sorry, I encountered an error. Please type your name and press Enter to continue.');
             updateStatus('error', 'Connection error');
-            showToast('Connection hiccup â€” type your name to continue', 'warning', 5000);
+            showToast('Connection hiccup — type your name to continue', 'warning', 5000);
         }
         
     } catch (error) {
@@ -458,7 +498,7 @@ async function startChat() {
         removeSkeletonLoader(skeletonId);
         addMessage('assistant', 'Connection failed. Please type your name and press Enter to retry.');
         updateStatus('error', 'Connection failed');
-        showToast('Failed to connect â€” type your name to continue', 'error', 5000);
+        showToast('Failed to connect — type your name to continue', 'error', 5000);
         trackEvent('chat_start_failed', { error: error.message });
     }
 }
