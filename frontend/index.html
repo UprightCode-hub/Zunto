@@ -3,1593 +3,239 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GigiAI — AI assistant for e-commerce</title>
+    <title>GigiAI — AI Assistant for E-Commerce</title>
     
-    <!-- SEO & OG Meta Tags -->
+    <!-- SEO & Meta -->
     <meta name="description" content="Try a prompt-guided AI assistant that answers customers 24/7, speaks replies, and helps small businesses scale support.">
     <meta name="author" content="Wisdom Ekwugha">
+    <meta name="keywords" content="AI, chatbot, e-commerce, customer support, text-to-speech">
+    <meta name="theme-color" content="#4F46E5">
     
-    <!-- Open Graph for LinkedIn -->
-    <meta property="og:title" content="GigiAI — AI assistant for e-commerce">
-    <meta property="og:description" content="Try a prompt-guided AI assistant that answers customers 24/7, speaks replies, and helps small businesses scale support.">
+    <!-- Open Graph -->
+    <meta property="og:title" content="GigiAI — AI Assistant for E-Commerce">
+    <meta property="og:description" content="24/7 customer support with voice replies and guided prompts">
     <meta property="og:type" content="website">
-    <meta property="og:image" content="https://via.placeholder.com/1200x630/4F46E5/FFFFFF?text=GigiAI">
+    <meta property="og:image" content="./og/gigi-og-1200x630.png">
     <meta property="og:url" content="https://gigiai.app">
     <meta name="twitter:card" content="summary_large_image">
     
-    <!-- Google Fonts -->
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet">
     
-    <!-- Bootstrap Icons -->
+    <!-- Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
     
+    <!-- Styles -->
+    <link rel="stylesheet" href="./assets/css/styles.css">
+    
     <style>
-        /* Design Tokens */
-        :root {
-            --color-primary: #4F46E5;
-            --color-accent: #10B981;
-            --bg: #F9FAFB;
-            --card: #FFFFFF;
-            --text: #111827;
-            --muted: #6B7280;
-            --danger: #EF4444;
-            --glass: rgba(255,255,255,0.7);
-            --radius: 12px;
-            --shadow-soft: 0 6px 18px rgba(15,23,42,0.06);
-            --shadow-medium: 0 10px 25px rgba(15,23,42,0.08);
-            --shadow-strong: 0 20px 40px rgba(15,23,42,0.12);
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            font-size: 15px;
-            line-height: 1.6;
-            min-height: 100vh;
-            -webkit-font-smoothing: antialiased;
-        }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 2rem 1.5rem;
-        }
-
-        /* Hero Section */
-        .hero {
-            display: flex;
-            flex-direction: row;
-            justify-content: space-between;
-            align-items: center;
-            padding: 3rem 0 4rem;
-            gap: 4rem;
-        }
-
-        .hero-text {
-            flex: 1;
-            max-width: 600px;
-        }
-
-        .hero-text h1 {
-            font-family: 'Poppins', sans-serif;
-            font-size: 3rem;
-            font-weight: 700;
-            color: var(--text);
-            margin-bottom: 1rem;
-            line-height: 1.2;
-        }
-
-        .hero-text p {
-            font-size: 1.25rem;
-            color: var(--muted);
-            margin-bottom: 2rem;
-            line-height: 1.6;
-        }
-
-        .hero-img {
-            flex: 1;
-            max-width: 560px;
-            min-width: 240px;
-        }
-
-        .hero-img img,
-        .hero-img svg {
-            width: 100%;
+            overflow: auto;
+            position: static;
             height: auto;
-            display: block;
         }
-
-        .btn-primary {
-            background: var(--color-primary);
-            color: white;
-            border: none;
-            border-radius: 999px;
-            padding: 1rem 2rem;
-            font-weight: 600;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: var(--shadow-soft);
-            text-decoration: none;
-            display: inline-block;
+        
+        html {
+            position: static;
+            overflow: auto;
         }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-medium);
-            background: #4338CA;
-        }
-
-        .btn-primary:active {
-            transform: translateY(0);
-        }
-
-        /* Main Layout with Sidebar */
-        .main-layout {
-            display: grid;
-            grid-template-columns: 1fr 280px;
-            gap: 2rem;
-            align-items: start;
-        }
-
-        /* Demo Section */
-        .demo-box {
-            background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);
-            border-radius: 16px;
-            padding: 1.75rem;
-            margin-bottom: 2rem;
-            color: white;
-            box-shadow: var(--shadow-medium);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .demo-box::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            right: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
-            pointer-events: none;
-        }
-
-        .demo-box h3 {
-            font-size: 1.125rem;
-            font-weight: 600;
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            position: relative;
-        }
-
-        .demo-examples {
-            display: flex;
-            flex-direction: column;
-            gap: 0.75rem;
-            margin-bottom: 1.25rem;
-            position: relative;
-        }
-
-        .demo-example {
-            background: rgba(255,255,255,0.15);
-            padding: 0.875rem 1rem;
-            border-radius: 10px;
-            font-size: 0.9375rem;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.2);
-            transition: all 0.2s ease;
-        }
-
-        .demo-example:hover {
-            background: rgba(255,255,255,0.25);
-            transform: translateX(4px);
-        }
-
-        .btn-demo {
-            background: white;
-            color: var(--color-primary);
-            border: none;
-            border-radius: 999px;
-            padding: 0.75rem 1.5rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            position: relative;
-        }
-
-        .btn-demo:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(0,0,0,0.15);
-        }
-
-        /* Chat Container */
-        .chat-main {
-            background: var(--card);
-            border-radius: 20px;
-            box-shadow: var(--shadow-soft);
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-        }
-
-        /* Top Toolbar */
-        .chat-toolbar {
-            background: var(--glass);
-            backdrop-filter: blur(10px);
-            border-bottom: 1px solid #E5E7EB;
-            padding: 1rem 1.5rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        .toolbar-title {
-            font-weight: 600;
-            color: var(--text);
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .toolbar-actions {
-            display: flex;
-            gap: 0.5rem;
-        }
-
-        .toolbar-btn {
-            background: transparent;
-            border: 1px solid #E5E7EB;
-            border-radius: 8px;
-            padding: 0.5rem 0.875rem;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            color: var(--text);
-            display: inline-flex;
-            align-items: center;
-            gap: 0.375rem;
-            font-size: 0.875rem;
-            font-weight: 500;
-        }
-
-        .toolbar-btn:hover {
+        
+        .features-section {
+            padding: 4rem 2rem;
             background: var(--bg);
-            border-color: var(--color-primary);
-            color: var(--color-primary);
-            transform: translateY(-1px);
         }
-
-        /* Sidebar */
-        .sidebar {
-            position: sticky;
-            top: 20px;
-            background: var(--card);
-            border-radius: var(--radius);
-            padding: 1.5rem;
-            box-shadow: var(--shadow-soft);
+        
+        .features-container {
+            max-width: 1200px;
+            margin: 0 auto;
         }
-
-        .sidebar h4 {
-            font-size: 1.125rem;
-            font-weight: 600;
-            margin-bottom: 1rem;
-            color: var(--text);
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .sidebar-section {
-            margin-bottom: 1.5rem;
-        }
-
-        .sidebar-section:last-child {
-            margin-bottom: 0;
-        }
-
-        .creator-info {
-            background: linear-gradient(135deg, var(--color-primary) 0%, #7C3AED 100%);
-            color: white;
-            padding: 1.25rem;
-            border-radius: 10px;
-            margin-bottom: 1rem;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .creator-info::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            right: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
-            pointer-events: none;
-        }
-
-        .creator-avatar {
-            font-size: 3rem;
-            text-align: center;
-            margin-bottom: 0.5rem;
-        }
-
-        .creator-name {
-            font-weight: 600;
-            font-size: 1.125rem;
-            margin-bottom: 0.25rem;
-        }
-
-        .creator-title {
-            font-size: 0.875rem;
-            opacity: 0.9;
-            margin-bottom: 1rem;
-        }
-
-        .creator-info .sidebar-link {
-            color: white;
-            background: rgba(255,255,255,0.2);
-            padding: 0.5rem 1rem;
-            border-radius: 999px;
-            display: inline-flex;
-            justify-content: center;
-            text-decoration: none;
-            transition: all 0.2s;
-            border: 1px solid rgba(255,255,255,0.3);
-        }
-
-        .creator-info .sidebar-link:hover {
-            background: rgba(255,255,255,0.3);
-            transform: translateY(-2px);
-            text-decoration: none;
-        }
-
-        .tip-box {
-            background: #FEF3C7;
-            border: 2px solid #F59E0B;
-            border-radius: 10px;
-            padding: 1rem;
-            font-size: 0.875rem;
-            color: #92400E;
-        }
-
-        .tip-box strong {
-            color: #78350F;
-            display: block;
-            margin-bottom: 0.5rem;
-        }
-
-        /* Onboarding Banner */
-        .onboarding-banner {
-            background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
-            border-bottom: 2px solid #F59E0B;
-            padding: 1rem 1.5rem;
-            display: flex;
-            align-items: start;
-            gap: 1rem;
-            animation: slideDown 0.4s ease-out;
-        }
-
-        .onboarding-banner.hidden {
-            display: none;
-        }
-
-        .onboarding-icon {
-            font-size: 1.5rem;
-            flex-shrink: 0;
-        }
-
-        .onboarding-content {
-            flex: 1;
-        }
-
-        .onboarding-title {
-            font-weight: 600;
-            color: #92400E;
-            margin-bottom: 0.25rem;
-            font-size: 0.9375rem;
-        }
-
-        .onboarding-text {
-            color: #78350F;
-            font-size: 0.875rem;
-            line-height: 1.5;
-        }
-
-        .btn-dismiss {
-            background: transparent;
-            border: none;
-            color: #92400E;
-            cursor: pointer;
-            font-size: 1.25rem;
-            padding: 0;
-            line-height: 1;
-            transition: transform 0.2s;
-        }
-
-        .btn-dismiss:hover {
-            transform: scale(1.2);
-        }
-
-        /* Chat Header */
-        .chat-header {
-            background: linear-gradient(135deg, var(--color-primary) 0%, #7C3AED 100%);
-            color: white;
-            padding: 1.5rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .chat-header::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: radial-gradient(circle at top right, rgba(255,255,255,0.1) 0%, transparent 70%);
-            pointer-events: none;
-        }
-
-        .chat-title {
+        
+        .features-title {
             font-family: 'Poppins', sans-serif;
-            font-size: 1.375rem;
+            font-size: 2.5rem;
             font-weight: 700;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            position: relative;
+            text-align: center;
+            margin-bottom: 3rem;
+            color: var(--text);
         }
-
-        .status-indicator {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-size: 0.875rem;
-            background: rgba(255,255,255,0.2);
-            padding: 0.375rem 0.875rem;
-            border-radius: 999px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.3);
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 2rem;
         }
-
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--color-accent);
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.5; transform: scale(0.95); }
-        }
-
-        /* Chat Messages Container */
-        .chat-container {
-            display: flex;
-            flex-direction: column;
-            height: 60vh;
-            max-height: 600px;
-            min-height: 400px;
-        }
-
-        .chat-messages {
-            flex: 1;
-            overflow-y: auto;
+        
+        .feature-card {
+            background: var(--card);
+            border-radius: var(--radius-lg);
             padding: 2rem;
-            background: var(--bg);
-            scroll-behavior: smooth;
+            text-align: center;
+            box-shadow: var(--shadow-sm);
+            transition: transform 0.3s, box-shadow 0.3s;
         }
-
-        .chat-messages::-webkit-scrollbar {
-            width: 8px;
+        
+        .feature-card:hover {
+            transform: translateY(-8px);
+            box-shadow: var(--shadow-lg);
         }
-
-        .chat-messages::-webkit-scrollbar-track {
-            background: transparent;
+        
+        .feature-icon {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
         }
-
-        .chat-messages::-webkit-scrollbar-thumb {
-            background: var(--color-primary);
-            border-radius: 10px;
+        
+        .feature-title {
+            font-family: 'Poppins', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: var(--text);
         }
-
-        .chat-messages::-webkit-scrollbar-thumb:hover {
-            background: #4338CA;
-        }
-
-        .message {
-            margin-bottom: 1.5rem;
-            display: flex;
-            animation: fadeSlideUp 0.3s ease-out;
-        }
-
-        @keyframes fadeSlideUp {
-            from {
-                opacity: 0;
-                transform: translateY(12px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .message.assistant {
-            justify-content: flex-start;
-        }
-
-        .message.user {
-            justify-content: flex-end;
-        }
-
-        .message-content {
-            max-width: 75%;
-            padding: 1rem 1.25rem;
-            border-radius: var(--radius);
-            position: relative;
-            word-wrap: break-word;
+        
+        .feature-text {
+            color: var(--text-secondary);
             line-height: 1.6;
         }
-
-        .message.assistant .message-content {
-            background: var(--card);
-            color: var(--text);
-            border: 1px solid #E5E7EB;
-            box-shadow: var(--shadow-soft);
-            border-bottom-left-radius: 4px;
-        }
-
-        .message.user .message-content {
-            background: var(--color-primary);
-            color: white;
-            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
-            border-bottom-right-radius: 4px;
-        }
-
-        /* TTS Controls */
-        .tts-controls {
-            display: flex;
-            gap: 0.5rem;
-            margin-top: 0.75rem;
-            align-items: center;
-        }
-
-        .btn-tts {
-            background: var(--color-primary);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            padding: 0.5rem 0.75rem;
-            font-size: 0.875rem;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.375rem;
-        }
-
-        .btn-tts:hover {
-            background: #4338CA;
-            transform: scale(1.05);
-        }
-
-        .btn-tts.playing {
-            background: var(--color-accent);
-            animation: pulse-glow 1.5s infinite;
-        }
-
-        @keyframes pulse-glow {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
-            50% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
-        }
-
-        /* Typing Indicator */
-        .typing-indicator {
-            display: flex;
-            gap: 0.375rem;
-            padding: 1rem 1.25rem;
-            background: var(--card);
-            border: 1px solid #E5E7EB;
-            border-radius: var(--radius);
-            width: fit-content;
-            box-shadow: var(--shadow-soft);
-        }
-
-        .typing-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--muted);
-            animation: typing 1.4s infinite;
-        }
-
-        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
-        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
-
-        @keyframes typing {
-            0%, 60%, 100% { transform: translateY(0); opacity: 0.7; }
-            30% { transform: translateY(-10px); opacity: 1; }
-        }
-
-        /* Input Area - Sticky */
-        .chat-input-area {
-            padding: 1.5rem;
-            background: var(--card);
-            border-top: 1px solid #E5E7EB;
-            position: sticky;
-            bottom: 0;
-            z-index: 50;
-        }
-
-        .input-tip {
-            font-size: 0.8125rem;
-            color: var(--muted);
-            margin-bottom: 0.75rem;
-            display: flex;
-            align-items: center;
-            gap: 0.375rem;
-        }
-
-        .quick-suggestions {
-            display: flex;
-            gap: 0.5rem;
-            margin-bottom: 0.875rem;
-            flex-wrap: wrap;
-        }
-
-        .suggestion-chip {
-            background: var(--bg);
-            border: 1px solid #E5E7EB;
-            border-radius: 999px;
-            padding: 0.5rem 1rem;
-            font-size: 0.875rem;
-            cursor: pointer;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            color: var(--text);
-            font-weight: 500;
-        }
-
-        .suggestion-chip:hover {
-            background: var(--color-primary);
-            color: white;
-            border-color: var(--color-primary);
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-soft);
-        }
-
-        .input-wrapper {
-            position: relative;
-            display: flex;
-            gap: 0.5rem;
-            align-items: center;
-        }
-
-        .input-wrapper input {
-            flex: 1;
-            border-radius: 999px;
-            border: 2px solid #E5E7EB;
-            padding: 0.875rem 1.25rem;
-            font-size: 0.9375rem;
-            font-family: inherit;
-            transition: all 0.2s;
-            background: var(--card);
-        }
-
-        .input-wrapper input:focus {
-            border-color: var(--color-primary);
-            outline: none;
-            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
-        }
-
-        .btn-send {
-            background: var(--color-primary);
-            color: white;
-            border: none;
-            border-radius: 999px;
-            padding: 0.875rem 1.75rem;
-            font-weight: 600;
-            font-size: 0.9375rem;
-            cursor: pointer;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: var(--shadow-soft);
-            min-width: 90px;
-        }
-
-        .btn-send:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-medium);
-            background: #4338CA;
-        }
-
-        .btn-send:active:not(:disabled) {
-            transform: translateY(0);
-        }
-
-        .btn-send:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-
-        .action-buttons {
-            display: flex;
-            gap: 0.625rem;
-            margin-top: 0.875rem;
-            flex-wrap: wrap;
-        }
-
-        .action-btn {
-            background: var(--bg);
-            border: 1px solid #E5E7EB;
-            border-radius: 999px;
-            padding: 0.5rem 1rem;
-            font-size: 0.875rem;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.375rem;
-            color: var(--text);
-            font-weight: 500;
-        }
-
-        .action-btn:hover {
-            background: var(--card);
-            border-color: var(--color-primary);
-            color: var(--color-primary);
-            transform: translateY(-1px);
-        }
-
-        .action-btn i {
-            transition: color 0.2s;
-        }
-
-        .action-btn:hover i {
-            color: var(--color-accent);
-        }
-
-        /* LinkedIn CTA */
-        .linkedin-cta {
-            background: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%);
-            border: 2px solid #0EA5E9;
-            border-radius: var(--radius);
-            padding: 1.25rem;
-            margin: 1.5rem;
-            display: none;
-            animation: fadeSlideUp 0.4s ease-out;
-        }
-
-        .linkedin-cta.visible {
-            display: block;
-        }
-
-        .linkedin-cta-title {
-            font-weight: 600;
-            color: #0C4A6E;
-            margin-bottom: 0.5rem;
-            font-size: 0.9375rem;
-        }
-
-        .linkedin-cta-text {
-            color: #075985;
-            font-size: 0.875rem;
-            line-height: 1.5;
-            margin-bottom: 0.875rem;
-        }
-
-        .btn-linkedin {
-            background: #0A66C2;
-            color: white;
-            border: none;
-            border-radius: 999px;
-            padding: 0.625rem 1.25rem;
-            font-size: 0.875rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .btn-linkedin:hover {
-            background: #004182;
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-soft);
-        }
-
-        /* Help Button */
-        .help-btn {
-            position: fixed;
-            bottom: 2rem;
-            right: 2rem;
-            width: 52px;
-            height: 52px;
-            background: var(--color-primary);
-            color: white;
-            border: none;
-            border-radius: 50%;
-            font-size: 1.5rem;
-            cursor: pointer;
-            box-shadow: 0 6px 20px rgba(79, 70, 229, 0.4);
-            transition: all 0.2s;
-            z-index: 1000;
-            font-weight: 600;
-        }
-
-        .help-btn:hover {
-            transform: scale(1.1);
-            box-shadow: 0 8px 24px rgba(79, 70, 229, 0.5);
-            background: #4338CA;
-        }
-
-        /* Toast */
-        .toast {
-            position: fixed;
-            bottom: 2rem;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--card);
-            border: 1px solid #E5E7EB;
-            border-radius: var(--radius);
-            padding: 1rem 1.5rem;
-            box-shadow: var(--shadow-strong);
-            display: none;
-            align-items: center;
-            gap: 1rem;
-            z-index: 1001;
-            animation: slideUp 0.3s ease-out;
-            max-width: 90%;
-        }
-
-        .toast.visible {
-            display: flex;
-        }
-
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translate(-50%, 20px);
-            }
-            to {
-                opacity: 1;
-                transform: translate(-50%, 0);
-            }
-        }
-
-        @keyframes slideDown {
-            from {
-                opacity: 0;
-                transform: translateY(-20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        /* Footer */
+        
         .footer {
             text-align: center;
-            padding: 2rem 1.5rem;
-            color: var(--muted);
-            font-size: 0.875rem;
+            padding: 3rem 1.5rem;
+            background: var(--card);
+            border-top: 1px solid var(--border);
+            color: var(--text-secondary);
         }
-
+        
         .footer a {
             color: var(--color-primary);
             text-decoration: none;
         }
-
+        
         .footer a:hover {
             text-decoration: underline;
         }
-
-        /* Responsive */
-        @media (max-width: 1024px) {
-            .main-layout {
-                grid-template-columns: 1fr;
-            }
-
-            .sidebar {
-                position: relative;
-                top: 0;
-                margin-top: 2rem;
-            }
-        }
-
+        
         @media (max-width: 768px) {
-            .container {
-                padding: 1.5rem 1rem;
-            }
-
-            .hero {
-                flex-direction: column;
-                text-align: center;
-                padding: 2rem 0 3rem;
-                gap: 2rem;
-            }
-
-            .hero-text {
-                max-width: 100%;
-            }
-
-            .hero-text h1 {
+            .hero-title {
                 font-size: 2.25rem;
             }
-
-            .hero-text p {
+            
+            .hero-subtitle {
                 font-size: 1.125rem;
             }
-
-            .hero-img {
-                width: 80%;
-                max-width: 320px;
-                min-width: 240px;
+            
+            .features-title {
+                font-size: 2rem;
             }
-
-            .chat-container {
-                height: 55vh;
-                max-height: 500px;
-                min-height: 350px;
+            
+            .features-section {
+                padding: 3rem 1rem;
             }
-
-            .chat-messages {
-                padding: 1.25rem;
-            }
-
-            .message-content {
-                max-width: 92%;
-            }
-
-            .chat-toolbar {
-                padding: 0.875rem 1rem;
-            }
-
-            .toolbar-title {
-                font-size: 0.9375rem;
-            }
-
-            .toolbar-btn {
-                padding: 0.5rem;
-                font-size: 0;
-            }
-
-            .toolbar-btn i {
-                margin: 0;
-            }
-
-            .help-btn {
-                bottom: 1.5rem;
-                right: 1.5rem;
-                width: 48px;
-                height: 48px;
-            }
-
-            .sidebar {
-                display: none;
-            }
-
-            .btn-send {
-                padding: 0.875rem 1.25rem;
-                min-width: 80px;
-            }
-
-            .quick-suggestions {
-                overflow-x: auto;
-                flex-wrap: nowrap;
-                -webkit-overflow-scrolling: touch;
-            }
-
-            .suggestion-chip {
-                flex-shrink: 0;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .hero-text h1 {
-                font-size: 1.875rem;
-            }
-
-            .hero-text p {
-                font-size: 1rem;
-            }
-
-            .hero-img {
-                max-width: 280px;
-            }
-
-            .demo-box {
-                padding: 1.25rem;
-            }
-
-            .input-wrapper input {
-                font-size: 16px; /* Prevents zoom on iOS */
-            }
-        }
-
-        /* Loading Spinner */
-        .spinner {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            border: 2px solid rgba(255,255,255,0.3);
-            border-top-color: white;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Hero Section -->
-        <section class="hero">
-            <div class="hero-text">
-                <h1>GigiAI — Your E-Commerce AI Assistant</h1>
-                <p>Instant responses, voice chat, and guided prompts for 24/7 support.</p>
-                <a href="#chat" class="btn-primary">Try Demo</a>
-            </div>
-            <div class="hero-img">
-                <svg viewBox="0 0 793 551.73152" xmlns="http://www.w3.org/2000/svg" aria-label="AI Chat Illustration">
-                    <ellipse cx="158" cy="539.73152" rx="158" ry="12" fill="#e6e6e6"/>
-                    <path d="M324.27227,296.55377c27.49676-11.6953,61.74442-4.28528,95.19092.85757.31124-6.228,4.08385-13.80782.132-18.15284-4.80115-5.2788-4.35917-10.82529-1.47008-16.40375,7.38788-14.265-3.1969-29.44375-13.88428-42.0647a23.66937,23.66937,0,0,0-19.75537-8.29179l-19.7975,1.41411A23.70939,23.70939,0,0,0,343.635,230.85851v0c-4.72724,6.42917-7.25736,12.84055-5.66438,19.21854-7.08065,4.83882-8.27029,10.67977-5.08851,17.2644,2.698,5.58385,6.79552,9.70858,11.09677,13.21585,3.38131,2.75765,6.91349,5.26924,10.29916,7.9274a54.50351,54.50351,0,0,1,10.97529,9.88515C368.77388,302.02607,365.28338,307.77264,324.27227,296.55377Z" transform="translate(-203.5 -174.13424)" fill="#2f2e41"/>
-                    <path d="M977.70889,651.09727H417.29111A18.79111,18.79111,0,0,1,398.5,632.30616h0q304.727-35.41512,598,0h0A18.79111,18.79111,0,0,1,977.70889,651.09727Z" transform="translate(-203.5 -174.13424)" fill="#2f2e41"/>
-                    <circle cx="492.34959" cy="67.97967" r="67.97967" fill="#ff6584"/>
-                    <path d="M651.94729,248.24853c-14.48117-18.19909-31.54743-32.17955-47.78644-41.89233a28.31523,28.31523,0,0,0-41.57233,12.27719,27.60934,27.60934,0,0,0-1.42553,22.92426c-8.36107,6.8876-14.35633,17.16162-16.31269,28.88837a40.13762,40.13762,0,0,0,8.44414,32.25724,127.84881,127.84881,0,0,1,27.57031,77.88773l91.78247-14.52563C673.03168,344.41884,667.90825,268.14261,651.94729,248.24853Z" transform="translate(-203.5 -174.13424)" fill="#2f2e41"/>
-                    <path d="M502.93228,322.73947l-26.76346,12.41,23.39772,48.34937L526.321,368.562Z" transform="translate(-203.5 -174.13424)" fill="#ffb8b8"/>
-                    <path d="M806.93228,375.73947l26.76346,12.41-23.39772,48.34937L783.521,421.562Z" transform="translate(-203.5 -174.13424)" fill="#ffb8b8"/>
-                    <rect x="356.93228" y="210.73947" width="270" height="120" rx="20" fill="#4F46E5" opacity="0.1"/>
-                    <rect x="380.93228" y="230.73947" width="220" height="25" rx="12" fill="#4F46E5"/>
+    <!-- Hero Section -->
+    <section class="hero-section">
+        <div class="hero-content">
+            <!-- Hero SVG Icon -->
+            <div style="max-width: 400px; margin: 0 auto 2rem;">
+                <svg viewBox="0 0 793 551.73152" xmlns="http://www.w3.org/2000/svg" aria-label="AI Chat Illustration" style="width: 100%; height: auto;">
+                    <ellipse cx="158" cy="539.73152" rx="158" ry="12" fill="#ffffff" opacity="0.3"/>
+                    <path d="M324.27227,296.55377c27.49676-11.6953,61.74442-4.28528,95.19092.85757.31124-6.228,4.08385-13.80782.132-18.15284-4.80115-5.2788-4.35917-10.82529-1.47008-16.40375,7.38788-14.265-3.1969-29.44375-13.88428-42.0647a23.66937,23.66937,0,0,0-19.75537-8.29179l-19.7975,1.41411A23.70939,23.70939,0,0,0,343.635,230.85851v0c-4.72724,6.42917-7.25736,12.84055-5.66438,19.21854-7.08065,4.83882-8.27029,10.67977-5.08851,17.2644,2.698,5.58385,6.79552,9.70858,11.09677,13.21585,3.38131,2.75765,6.91349,5.26924,10.29916,7.9274a54.50351,54.50351,0,0,1,10.97529,9.88515C368.77388,302.02607,365.28338,307.77264,324.27227,296.55377Z" transform="translate(-203.5 -174.13424)" fill="#ffffff" opacity="0.9"/>
+                    <circle cx="492.34959" cy="67.97967" r="67.97967" fill="#10B981"/>
+                    <rect x="356.93228" y="210.73947" width="270" height="120" rx="20" fill="#ffffff" opacity="0.2"/>
+                    <rect x="380.93228" y="230.73947" width="220" height="25" rx="12" fill="#ffffff" opacity="0.8"/>
                     <rect x="380.93228" y="270.73947" width="180" height="25" rx="12" fill="#10B981"/>
-                    <rect x="380.93228" y="310.73947" width="200" height="25" rx="12" fill="#4F46E5"/>
-                    <circle cx="580" cy="470" r="12" fill="#4F46E5" opacity="0.3"/>
-                    <circle cx="640" cy="440" r="8" fill="#10B981" opacity="0.3"/>
-                    <circle cx="520" cy="490" r="10" fill="#4F46E5" opacity="0.2"/>
+                    <rect x="380.93228" y="310.73947" width="200" height="25" rx="12" fill="#ffffff" opacity="0.8"/>
                 </svg>
             </div>
-        </section>
-
-        <!-- Demo Box -->
-        <div class="demo-box">
-            <h3>✨ Try me — Example queries</h3>
-            <div class="demo-examples">
-                <div class="demo-example">💬 "Track my order #1234"</div>
-                <div class="demo-example">📦 "What's your shipping policy?"</div>
-                <div class="demo-example">💰 "I'd like to request a refund"</div>
-            </div>
-            <button class="btn-demo" onclick="runDemo()">Try Demo</button>
+            
+            <h1 class="hero-title">GigiAI — Your E-Commerce AI Assistant</h1>
+            <p class="hero-subtitle">Instant responses, voice chat, and guided prompts for 24/7 customer support.</p>
+            <a href="./chat.html" class="hero-cta btn btn-primary">
+                <i class="bi bi-chat-dots-fill"></i>
+                Try Demo Now
+            </a>
         </div>
-
-        <!-- Main Layout with Sidebar -->
-        <div class="main-layout" id="chat">
-            <!-- Main Chat -->
-            <div class="chat-main">
-                <!-- Onboarding Banner -->
-                <div class="onboarding-banner hidden" id="onboardingBanner">
-                    <div class="onboarding-icon">👋</div>
-                    <div class="onboarding-content">
-                        <div class="onboarding-title">Welcome to GigiAI — a prompt-guided AI assistant</div>
-                        <div class="onboarding-text">If you see a small startup message or error, just type your name and press Enter. Follow the menu options for the best results.</div>
-                    </div>
-                    <button class="btn-dismiss" onclick="dismissOnboarding()" aria-label="Dismiss">×</button>
+    </section>
+    
+    <!-- Features Section -->
+    <section class="features-section">
+        <div class="features-container">
+            <h2 class="features-title">Why Choose GigiAI?</h2>
+            
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🤖</div>
+                    <h3 class="feature-title">Prompt-Guided AI</h3>
+                    <p class="feature-text">
+                        Follow intuitive menu options to get exactly what you need. No complex commands required.
+                    </p>
                 </div>
-
-                <!-- Chat Header -->
-                <div class="chat-header">
-                    <div class="chat-title">
-                        <i class="bi bi-robot"></i> GigiAI
-                    </div>
-                    <div class="status-indicator">
-                        <span class="status-dot" id="statusDot"></span>
-                        <span id="statusText">Connecting…</span>
-                    </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🎙️</div>
+                    <h3 class="feature-title">Voice Replies</h3>
+                    <p class="feature-text">
+                        Listen to responses with natural text-to-speech. Perfect for accessibility and multitasking.
+                    </p>
                 </div>
-
-                <!-- Top Toolbar -->
-                <div class="chat-toolbar">
-                    <div class="toolbar-title">
-                        <i class="bi bi-chat-dots"></i> Main Menu — choose an option
-                    </div>
-                    <div class="toolbar-actions">
-                        <button class="toolbar-btn" onclick="showAbout()" title="About GigiAI">
-                            <i class="bi bi-info-circle"></i>
-                            <span>About</span>
-                        </button>
-                        <button class="toolbar-btn" onclick="showSettings()" title="Settings">
-                            <i class="bi bi-gear"></i>
-                            <span>Settings</span>
-                        </button>
-                    </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">⚡</div>
+                    <h3 class="feature-title">24/7 Availability</h3>
+                    <p class="feature-text">
+                        Always online to help your customers track orders, get shipping info, and request refunds.
+                    </p>
                 </div>
-
-                <!-- Chat Container -->
-                <div class="chat-container">
-                    <!-- Chat Messages -->
-                    <div class="chat-messages" id="chatMessages" role="log" aria-label="GigiAI chat">
-                        <!-- Messages appear here -->
-                    </div>
-
-                    <!-- Input Area - Sticky -->
-                    <div class="chat-input-area">
-                        <div class="input-tip">
-                            <i class="bi bi-lightbulb"></i>
-                            <span>Tip: this assistant is prompt-guided — follow the menu options.</span>
-                        </div>
-                        
-                        <div class="quick-suggestions">
-                            <button class="suggestion-chip" onclick="fillInput('Track my order')">📦 Track order</button>
-                            <button class="suggestion-chip" onclick="fillInput('Shipping info')">🚚 Shipping info</button>
-                            <button class="suggestion-chip" onclick="fillInput('Request refund')">💰 Request refund</button>
-                        </div>
-
-                        <div class="input-wrapper">
-                            <input 
-                                type="text" 
-                                id="userInput" 
-                                placeholder="Try: 'Track my order #1234' or choose a menu option…"
-                                autocomplete="off"
-                            >
-                            <button id="sendBtn" class="btn-send" onclick="sendMessage()">
-                                <span id="sendBtnText">Send</span>
-                            </button>
-                        </div>
-
-                        <div class="action-buttons">
-                            <button class="action-btn" onclick="resetChat()">
-                                <i class="bi bi-arrow-clockwise"></i> Menu
-                            </button>
-                            <button class="action-btn" onclick="toggleVoice()">
-                                <i class="bi bi-volume-up"></i> Voice: <span id="voiceStatus">On</span>
-                            </button>
-                        </div>
-                    </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">💬</div>
+                    <h3 class="feature-title">Smart Conversations</h3>
+                    <p class="feature-text">
+                        Context-aware responses that understand your questions and provide relevant solutions.
+                    </p>
                 </div>
-
-                <!-- LinkedIn CTA -->
-                <div class="linkedin-cta" id="linkedinCta">
-                    <div class="linkedin-cta-title">Like this tool?</div>
-                    <div class="linkedin-cta-text">Connect with Wisdom on LinkedIn — I'm building more tools and want to learn from the community.</div>
-                    <button class="btn-linkedin" onclick="trackEvent('connect_click'); window.open('https://www.linkedin.com/in/wisdom-ekwugha-2b2887217?utm_source=share_via&utm_content=profile&utm_medium=member_android', '_blank')">
-                        <i class="bi bi-linkedin"></i> Connect on LinkedIn
-                    </button>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">📱</div>
+                    <h3 class="feature-title">Mobile-First Design</h3>
+                    <p class="feature-text">
+                        Optimized for Android and iOS with smooth scrolling and thumb-friendly controls.
+                    </p>
                 </div>
-            </div>
-
-            <!-- Right Sidebar -->
-            <div class="sidebar">
-                <div class="sidebar-section">
-                    <h4><i class="bi bi-person-circle"></i> About the Creator</h4>
-                    <div class="creator-info">
-                        <div class="creator-avatar">👨‍💻</div>
-                        <div class="creator-name">Wisdom Ekwugha</div>
-                        <div class="creator-title">Self-taught developer building AI tools</div>
-                        <a href="https://www.linkedin.com/in/wisdom-ekwugha-2b2887217?utm_source=share_via&utm_content=profile&utm_medium=member_android" target="_blank" class="sidebar-link">
-                            <i class="bi bi-linkedin"></i> Connect on LinkedIn
-                        </a>
-                    </div>
-                </div>
-
-                <div class="sidebar-section">
-                    <div class="tip-box">
-                        <strong>💡 Pro Tip</strong>
-                        Follow menu prompts for best results. GigiAI is prompt-guided and works best when you select from the available options.
-                    </div>
-                </div>
-
-                <div class="sidebar-section">
-                    <h4><i class="bi bi-stars"></i> Features</h4>
-                    <div style="font-size: 0.875rem; color: var(--muted); line-height: 1.8;">
-                        <p>✓ Voice replies (TTS)</p>
-                        <p>✓ 0.03s query speed</p>
-                        <p>✓ Context-aware</p>
-                        <p>✓ 24/7 availability</p>
-                    </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🔒</div>
+                    <h3 class="feature-title">Privacy Focused</h3>
+                    <p class="feature-text">
+                        We don't store personal data beyond your session. Your privacy is our priority.
+                    </p>
                 </div>
             </div>
         </div>
-    </div>
-
-    <!-- Help Button -->
-    <button class="help-btn" onclick="showOnboarding()" aria-label="Help" title="Show onboarding">?</button>
-
-    <!-- Toast -->
-    <div class="toast" id="toast">
-        <div id="toastMessage"></div>
-        <button class="btn-primary" id="toastAction" style="display:none;"></button>
-    </div>
-
+    </section>
+    
     <!-- Footer -->
-    <div class="footer">
-        <p>We don't store personal data beyond this session — <a href="#">contact for details</a></p>
-        <p style="margin-top: 0.5rem;">© 2024 Wisdom Ekwugha. Built with care.</p>
-    </div>
-
-    <script>
-        // Configuration
-        const API_BASE = 'https://zunto-backend.onrender.com';
-        let sessionId = null;
-        let currentAudio = null;
-        let voiceEnabled = true;
-        let messageCount = 0;
-
-        // Analytics
-        function trackEvent(eventName, data = {}) {
-            console.log('Event:', eventName, data);
-            // Hook for GA4 or analytics platform
-        }
-
-        // Initialize
-        window.onload = async () => {
-            trackEvent('page_view');
-            
-            // Check onboarding
-            if (!localStorage.getItem('gigi_onboard')) {
-                document.getElementById('onboardingBanner').classList.remove('hidden');
-            }
-            
-            await startConversation();
-        };
-
-        // Onboarding
-        function dismissOnboarding() {
-            document.getElementById('onboardingBanner').classList.add('hidden');
-            localStorage.setItem('gigi_onboard', '1');
-        }
-
-        function showOnboarding() {
-            document.getElementById('onboardingBanner').classList.remove('hidden');
-        }
-
-        // Demo
-        function runDemo() {
-            fillInput('Track my order #1234');
-        }
-
-        function fillInput(text) {
-            document.getElementById('userInput').value = text;
-            sendMessage();
-        }
-
-        // Toast
-        function showToast(message, action = null) {
-            const toast = document.getElementById('toast');
-            const messageEl = document.getElementById('toastMessage');
-            const actionBtn = document.getElementById('toastAction');
-            
-            messageEl.textContent = message;
-            
-            if (action) {
-                actionBtn.textContent = action.text;
-                actionBtn.onclick = action.onClick;
-                actionBtn.style.display = 'inline-flex';
-            } else {
-                actionBtn.style.display = 'none';
-            }
-            
-            toast.classList.add('visible');
-            
-            setTimeout(() => {
-                toast.classList.remove('visible');
-            }, 4000);
-        }
-
-        // Voice toggle
-        function toggleVoice() {
-            voiceEnabled = !voiceEnabled;
-            document.getElementById('voiceStatus').textContent = voiceEnabled ? 'On' : 'Off';
-            showToast(`Voice ${voiceEnabled ? 'enabled' : 'disabled'}`);
-        }
-
-        // Settings & About
-        function showSettings() {
-            showToast('Settings: Toggle voice, adjust preferences, or reset chat using the buttons below.');
-        }
-
-        function showAbout() {
-            showToast('GigiAI is a prompt-guided AI assistant built by Wisdom Ekwugha for e-commerce support. Connect on LinkedIn!');
-        }
-
-        // Start conversation
-        async function startConversation() {
-            sessionId = generateSessionId();
-            updateStatus('connecting');
-            
-            showTypingIndicator();
-            
-            try {
-                const response = await fetch(`${API_BASE}/assistant/api/chat/`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        session_id: sessionId,
-                        message: "Hello"
-                    })
-                });
-
-                const data = await response.json();
-                hideTypingIndicator();
-
-                if (data.reply) {
-                    await addMessage('assistant', cleanText(data.reply));
-                    updateStatus('connected');
-                } else if (data.error) {
-                    addMessage('assistant', 'Sorry, I encountered an error. Please refresh the page.');
-                    updateStatus('error');
-                    showToast('Initialisation hiccup — please type your name and press Enter to continue. If it persists, click Report.', {
-                        text: 'Report',
-                        onClick: () => window.location.href = '#report'
-                    });
-                }
-            } catch (error) {
-                hideTypingIndicator();
-                addMessage('assistant', 'Connection failed. Please type your name and press Enter.');
-                updateStatus('error');
-                showToast('Initialisation hiccup — please type your name and press Enter to continue. If it persists, click Report.', {
-                    text: 'Report',
-                    onClick: () => window.location.href = '#report'
-                });
-            }
-        }
-
-        // Clean text - remove markdown asterisks and format properly
-        function cleanText(text) {
-            // Remove markdown bold (**text** or __text__)
-            text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-            text = text.replace(/__(.*?)__/g, '<strong>$1</strong>');
-            
-            // Remove markdown italic (*text* or _text_)
-            text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
-            text = text.replace(/_(.*?)_/g, '<em>$1</em>');
-            
-            // Convert line breaks
-            text = text.replace(/\n/g, '<br>');
-            
-            return text;
-        }
-
-        // Send message
-        async function sendMessage() {
-            const input = document.getElementById('userInput');
-            const message = input.value.trim();
-            
-            if (!message) return;
-            
-            addMessage('user', message);
-            input.value = '';
-            messageCount++;
-            
-            // Show LinkedIn CTA after 3 messages
-            if (messageCount === 3) {
-                document.getElementById('linkedinCta').classList.add('visible');
-            }
-            
-            const sendBtn = document.getElementById('sendBtn');
-            const sendBtnText = document.getElementById('sendBtnText');
-            sendBtn.disabled = true;
-            sendBtnText.innerHTML = '<span class="spinner"></span>';
-            
-            showTypingIndicator();
-            
-            try {
-                const response = await fetch(`${API_BASE}/assistant/api/chat/`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        session_id: sessionId,
-                        message: message
-                    })
-                });
-
-                const data = await response.json();
-                hideTypingIndicator();
-
-                if (data.reply) {
-                    await addMessage('assistant', cleanText(data.reply));
-                } else if (data.error) {
-                    addMessage('assistant', 'Sorry, I encountered an error processing your message.');
-                }
-            } catch (error) {
-                hideTypingIndicator();
-                addMessage('assistant', 'Sorry, something went wrong. Please try again.');
-            } finally {
-                sendBtn.disabled = false;
-                sendBtnText.textContent = 'Send';
-                input.focus();
-            }
-        }
-
-        // Add message
-        async function addMessage(role, content) {
-            const messagesDiv = document.getElementById('chatMessages');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${role}`;
-            messageDiv.setAttribute('role', 'status');
-            messageDiv.setAttribute('aria-live', 'polite');
-            
-            let messageHTML = `<div class="message-content">${content}`;
-            
-            // Add TTS controls for assistant
-            if (role === 'assistant' && voiceEnabled) {
-                const plainText = content.replace(/<[^>]*>/g, '').replace(/'/g, "\\'");
-                messageHTML += `
-                    <div class="tts-controls">
-                        <button class="btn-tts" onclick="playTTS(this, '${plainText}'); trackEvent('tts_play');" 
-                                title="GigiAI can speak its replies — click to play" 
-                                aria-label="Play voice reply">
-                            <i class="bi bi-play-fill"></i> Play
-                        </button>
-                    </div>
-                `;
-            }
-            
-            messageHTML += '</div>';
-            messageDiv.innerHTML = messageHTML;
-            
-            messagesDiv.appendChild(messageDiv);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        }
-
-        // TTS
-        async function playTTS(button, text) {
-            if (currentAudio) {
-                currentAudio.pause();
-                currentAudio = null;
-                
-                // Reset all buttons
-                document.querySelectorAll('.btn-tts').forEach(btn => {
-                    btn.classList.remove('playing');
-                    btn.innerHTML = '<i class="bi bi-play-fill"></i> Play';
-                });
-                
-                if (button.classList.contains('playing')) {
-                    button.classList.remove('playing');
-                    return;
-                }
-            }
-
-            try {
-                button.classList.add('playing');
-                button.innerHTML = '<i class="bi bi-hourglass-split"></i> Loading...';
-
-                const response = await fetch(`${API_BASE}/assistant/api/tts/`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        text: text,
-                        voice: 'alloy',
-                        speed: 1.0,
-                        use_cache: true
-                    })
-                });
-
-                if (!response.ok) throw new Error('TTS failed');
-
-                const audioBlob = await response.blob();
-                const audioUrl = URL.createObjectURL(audioBlob);
-
-                currentAudio = new Audio(audioUrl);
-                button.innerHTML = '<i class="bi bi-pause-fill"></i> Pause';
-
-                currentAudio.onended = () => {
-                    button.classList.remove('playing');
-                    button.innerHTML = '<i class="bi bi-play-fill"></i> Play';
-                    currentAudio = null;
-                    URL.revokeObjectURL(audioUrl);
-                };
-
-                currentAudio.onerror = () => {
-                    button.classList.remove('playing');
-                    button.innerHTML = '<i class="bi bi-play-fill"></i> Play';
-                    currentAudio = null;
-                    URL.revokeObjectURL(audioUrl);
-                };
-
-                await currentAudio.play();
-
-            } catch (error) {
-                button.classList.remove('playing');
-                button.innerHTML = '<i class="bi bi-play-fill"></i> Play';
-                console.error('TTS Error:', error);
-            }
-        }
-
-        // Typing indicator
-        function showTypingIndicator() {
-            const messagesDiv = document.getElementById('chatMessages');
-            let indicator = document.getElementById('typingIndicator');
-            
-            if (!indicator) {
-                indicator = document.createElement('div');
-                indicator.id = 'typingIndicator';
-                indicator.className = 'typing-indicator';
-                indicator.innerHTML = `
-                    <div class="typing-dot"></div>
-                    <div class="typing-dot"></div>
-                    <div class="typing-dot"></div>
-                `;
-                messagesDiv.appendChild(indicator);
-            }
-            
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        }
-
-        function hideTypingIndicator() {
-            const indicator = document.getElementById('typingIndicator');
-            if (indicator) indicator.remove();
-        }
-
-        // Reset chat (Menu)
-        async function resetChat() {
-            trackEvent('menu_click');
-            showToast('Restarting menu — choose an option from the list.');
-            
-            document.getElementById('chatMessages').innerHTML = '';
-            messageCount = 0;
-            document.getElementById('linkedinCta').classList.remove('visible');
-            
-            if (currentAudio) {
-                currentAudio.pause();
-                currentAudio = null;
-            }
-            
-            await startConversation();
-        }
-
-        // Update status
-        function updateStatus(status) {
-            const text = document.getElementById('statusText');
-            
-            if (status === 'connected') {
-                text.textContent = 'Connected';
-            } else if (status === 'connecting') {
-                text.textContent = 'Initializing GigiAI';
-            } else {
-                text.textContent = 'Connection Error';
-            }
-        }
-
-        // Generate session ID
-        function generateSessionId() {
-            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-                const r = Math.random() * 16 | 0;
-                const v = c == 'x' ? r : (r & 0x3 | 0x8);
-                return v.toString(16);
-            });
-        }
-
-        // Event listeners
-        document.getElementById('userInput').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') sendMessage();
-        });
-
-        // Cleanup
-        window.addEventListener('beforeunload', () => {
-            if (currentAudio) currentAudio.pause();
-        });
-    </script>
+    <footer class="footer">
+        <p>
+            <strong>GigiAI</strong> — Built by <a href="./about.html">Wisdom Ekwugha</a>
+        </p>
+        <p style="margin-top: 0.5rem; font-size: 0.875rem;">
+            We don't store personal data beyond this session — 
+            <a href="#privacy">privacy details</a>
+        </p>
+        <p style="margin-top: 1.5rem;">
+            <a href="./chat.html" style="font-weight: 600;">Try Demo</a> · 
+            <a href="./about.html">About</a> · 
+            <a href="./report.html">Report Bug</a> · 
+            <a href="https://www.linkedin.com/in/wisdom-ekwugha-2b2887217" target="_blank" rel="noopener noreferrer">Connect</a>
+        </p>
+        <p style="margin-top: 1rem; font-size: 0.8125rem;">
+            © 2024 Wisdom Ekwugha. Built with care.
+        </p>
+    </footer>
 </body>
 </html>
