@@ -1,8 +1,74 @@
 /**
- * GigiAI - Chat Module
- * Handles messaging, skeleton loaders, retry, copy
+ * GigiAI - Chat Module (UPGRADED)
+ * Handles messaging, skeleton loaders, retry, copy, and TTS
  * API: POST ${API_BASE}/assistant/api/chat/
+ * 
+ * FIXES:
+ * - TTS button works with long/formatted text (data attributes)
+ * - Frontend audio caching (no regeneration on replay)
+ * - Auto-play TTS for assistant responses (optional)
  */
+
+// ============================================
+// AUDIO CACHE
+// ============================================
+
+/**
+ * Frontend audio cache to prevent regenerating TTS
+ * Key: messageId -> Value: { audioUrl, text }
+ */
+const AUDIO_CACHE = new Map();
+
+/**
+ * Maximum cached audio files (prevent memory leaks)
+ */
+const MAX_AUDIO_CACHE_SIZE = 50;
+
+/**
+ * Clear old cached audio when limit is reached
+ */
+function cleanAudioCache() {
+    if (AUDIO_CACHE.size > MAX_AUDIO_CACHE_SIZE) {
+        // Remove oldest 10 entries
+        const keysToDelete = Array.from(AUDIO_CACHE.keys()).slice(0, 10);
+        keysToDelete.forEach(key => {
+            const cached = AUDIO_CACHE.get(key);
+            if (cached && cached.audioUrl) {
+                URL.revokeObjectURL(cached.audioUrl);
+            }
+            AUDIO_CACHE.delete(key);
+        });
+        console.log('[AudioCache] Cleaned', keysToDelete.length, 'entries');
+    }
+}
+
+/**
+ * Get cached audio for a message
+ */
+function getCachedAudio(messageId) {
+    return AUDIO_CACHE.get(messageId);
+}
+
+/**
+ * Cache audio for a message
+ */
+function setCachedAudio(messageId, audioUrl, text) {
+    cleanAudioCache();
+    AUDIO_CACHE.set(messageId, { audioUrl, text });
+}
+
+/**
+ * Clear all cached audio (called on reset/cleanup)
+ */
+function clearAllAudioCache() {
+    AUDIO_CACHE.forEach((cached) => {
+        if (cached.audioUrl) {
+            URL.revokeObjectURL(cached.audioUrl);
+        }
+    });
+    AUDIO_CACHE.clear();
+    console.log('[AudioCache] Cleared all cached audio');
+}
 
 // ============================================
 // MESSAGE MANAGEMENT
@@ -10,7 +76,7 @@
 
 /**
  * Send message to AI
- * CRITICAL: Adds skeleton, handles retry
+ * CRITICAL: Adds skeleton, handles retry, auto-plays TTS
  */
 async function sendMessage() {
     const input = document.getElementById('userInput');
@@ -79,12 +145,23 @@ async function sendMessage() {
         
         if (data.reply) {
             const cleanReply = stripMarkdown(data.reply);
+            const plainText = cleanReply.replace(/<[^>]*>/g, ''); // Extract plain text for TTS
             const aiMessageId = `msg_${Date.now()}`;
-            addMessage('assistant', cleanReply, aiMessageId);
+            
+            // Add message to UI
+            addMessage('assistant', cleanReply, aiMessageId, plainText);
+            
+            // âœ… AUTO-PLAY TTS (optional - comment out if you don't want auto-play)
+            if (AppState.voiceEnabled) {
+                setTimeout(() => {
+                    autoPlayTTS(aiMessageId, plainText);
+                }, 500);
+            }
+            
             updateStatus('connected', 'Connected');
             trackEvent('message_received', { length: data.reply.length });
         } else if (data.error) {
-            addMessage('assistant', 'Sorry, I encountered an error processing your message.');
+            addMessage('assistant', 'Sorry, I encountered an error processing your message.', `msg_${Date.now()}`);
             updateStatus('error', 'Error occurred');
             trackEvent('message_error', { error: data.error });
         } else {
@@ -149,8 +226,17 @@ async function retryMessage(originalMessage, messageElement) {
             
             // Add successful message
             const cleanReply = stripMarkdown(data.reply);
+            const plainText = cleanReply.replace(/<[^>]*>/g, '');
             const aiMessageId = `msg_${Date.now()}`;
-            addMessage('assistant', cleanReply, aiMessageId);
+            addMessage('assistant', cleanReply, aiMessageId, plainText);
+            
+            // Auto-play TTS
+            if (AppState.voiceEnabled) {
+                setTimeout(() => {
+                    autoPlayTTS(aiMessageId, plainText);
+                }, 500);
+            }
+            
             updateStatus('connected', 'Connected');
             showToast('Message sent successfully', 'success', 2000);
             trackEvent('message_retry_success');
@@ -254,8 +340,9 @@ function removeSkeletonLoader(skeletonId) {
  * @param {string} role - 'user' or 'assistant'
  * @param {string} content - Message content (HTML after sanitization)
  * @param {string} messageId - Unique message ID
+ * @param {string} plainText - Plain text for TTS (optional, extracted if not provided)
  */
-function addMessage(role, content, messageId) {
+function addMessage(role, content, messageId, plainText = null) {
     const container = document.getElementById('chatMessages');
     if (!container) return;
     
@@ -269,8 +356,10 @@ function addMessage(role, content, messageId) {
     
     const timestamp = formatTime();
     
-    // Strip HTML tags for plain text copy
-    const plainText = content.replace(/<[^>]*>/g, '');
+    // Extract plain text if not provided
+    if (!plainText) {
+        plainText = content.replace(/<[^>]*>/g, '');
+    }
     
     let messageHTML = `
         <div class="message-bubble">
@@ -282,19 +371,20 @@ function addMessage(role, content, messageId) {
     
     // Copy button for all messages
     messageHTML += `
-                    <button class="btn-icon" 
-                            onclick="copyToClipboard('${escapeForJs(plainText)}')"
+                    <button class="btn-icon btn-copy" 
+                            data-text="${escapeForJs(plainText)}"
                             title="Copy message"
                             aria-label="Copy message">
                         <i class="bi bi-clipboard"></i>
                     </button>
     `;
     
-    // TTS button for assistant messages
+    // âœ… TTS button for assistant messages (FIXED with data attributes)
     if (role === 'assistant' && AppState.voiceEnabled) {
         messageHTML += `
-                    <button class="btn-icon" 
-                            onclick="playTTS(this, '${escapeForJs(plainText)}', '${messageId}')"
+                    <button class="btn-icon btn-tts" 
+                            data-message-id="${messageId}"
+                            data-text="${escapeForJs(plainText)}"
                             title="Play audio"
                             aria-label="Play audio">
                         <i class="bi bi-play-fill"></i>
@@ -314,6 +404,209 @@ function addMessage(role, content, messageId) {
     
     trackEvent('message_added', { role, length: content.length });
 }
+
+// ============================================
+// TTS FUNCTIONS
+// ============================================
+
+/**
+ * Auto-play TTS for assistant messages
+ * @param {string} messageId - Message ID
+ * @param {string} text - Text to speak
+ */
+async function autoPlayTTS(messageId, text) {
+    if (!AppState.voiceEnabled) return;
+    
+    const messageEl = document.getElementById(messageId);
+    if (!messageEl) return;
+    
+    const ttsButton = messageEl.querySelector('.btn-tts');
+    if (!ttsButton) return;
+    
+    // Small delay to ensure DOM is ready
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Trigger playback
+    playTTSForMessage(ttsButton, messageId, text);
+}
+
+/**
+ * Play TTS with caching support
+ * @param {HTMLElement} button - TTS button element
+ * @param {string} messageId - Message ID for caching
+ * @param {string} text - Text to speak
+ */
+async function playTTSForMessage(button, messageId, text) {
+    // Stop any currently playing audio
+    if (AppState.currentAudio) {
+        stopTTS();
+    }
+    
+    // If clicking same button that's playing, just stop
+    if (button.classList.contains('playing')) {
+        stopTTS();
+        return;
+    }
+    
+    // Check if we have cached audio
+    const cached = getCachedAudio(messageId);
+    if (cached && cached.audioUrl) {
+        console.log('[TTS] Using cached audio for message', messageId);
+        playAudioFromUrl(button, cached.audioUrl, messageId);
+        return;
+    }
+    
+    // No cache - fetch from API
+    try {
+        button.classList.add('playing');
+        button.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+        button.setAttribute('aria-label', 'Loading audio...');
+        
+        // API call - with caching enabled
+        const response = await fetch(`${API_BASE}/assistant/api/tts/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                text: text,
+                voice: 'alloy',
+                speed: 1.0,
+                use_cache: true  // Backend caching
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`TTS API error: ${response.status}`);
+        }
+        
+        // Get audio blob
+        const audioBlob = await response.blob();
+        const audioUrl = URL.createObjectURL(audioBlob);
+        
+        // âœ… Cache the audio URL
+        setCachedAudio(messageId, audioUrl, text);
+        
+        // Play the audio
+        playAudioFromUrl(button, audioUrl, messageId);
+        
+    } catch (error) {
+        console.error('[TTS] Error:', error);
+        resetTTSButton(button);
+        
+        if (typeof showToast === 'function') {
+            showToast('Voice unavailable right now', 'error', 2000);
+        }
+        if (typeof trackEvent === 'function') {
+            trackEvent('tts_failed', { error: error.message });
+        }
+    }
+}
+
+/**
+ * Play audio from cached or fresh URL
+ * @param {HTMLElement} button - TTS button
+ * @param {string} audioUrl - Blob URL
+ * @param {string} messageId - Message ID
+ */
+function playAudioFromUrl(button, audioUrl, messageId) {
+    // Create audio element
+    AppState.currentAudio = new Audio(audioUrl);
+    
+    // Update button
+    button.classList.add('playing');
+    button.innerHTML = '<i class="bi bi-pause-fill"></i>';
+    button.setAttribute('aria-label', 'Pause audio');
+    
+    // Handle audio end
+    AppState.currentAudio.onended = () => {
+        resetTTSButton(button);
+        AppState.currentAudio = null;
+        
+        if (typeof trackEvent === 'function') {
+            trackEvent('tts_completed', { messageId });
+        }
+    };
+    
+    // Handle audio error
+    AppState.currentAudio.onerror = () => {
+        resetTTSButton(button);
+        AppState.currentAudio = null;
+        
+        if (typeof showToast === 'function') {
+            showToast('Audio playback failed', 'error');
+        }
+        if (typeof trackEvent === 'function') {
+            trackEvent('tts_error', { messageId });
+        }
+    };
+    
+    // Start playback
+    AppState.currentAudio.play().catch(err => {
+        console.error('[TTS] Playback error:', err);
+        resetTTSButton(button);
+        AppState.currentAudio = null;
+    });
+    
+    if (typeof trackEvent === 'function') {
+        trackEvent('tts_played', { messageId, cached: true });
+    }
+}
+
+/**
+ * Stop currently playing TTS
+ */
+function stopTTS() {
+    if (AppState.currentAudio) {
+        AppState.currentAudio.pause();
+        AppState.currentAudio = null;
+    }
+    
+    // Reset all TTS buttons
+    document.querySelectorAll('.btn-tts.playing').forEach(btn => {
+        resetTTSButton(btn);
+    });
+}
+
+/**
+ * Reset TTS button to default state
+ * @param {HTMLElement} button - Button element
+ */
+function resetTTSButton(button) {
+    button.classList.remove('playing');
+    button.innerHTML = '<i class="bi bi-play-fill"></i>';
+    button.setAttribute('aria-label', 'Play audio');
+}
+
+// ============================================
+// EVENT DELEGATION FOR BUTTONS
+// ============================================
+
+/**
+ * Handle TTS button clicks via event delegation
+ * Fixes bug where inline onclick breaks with long/formatted text
+ */
+document.addEventListener('click', (e) => {
+    // TTS button
+    const ttsButton = e.target.closest('.btn-tts');
+    if (ttsButton) {
+        const messageId = ttsButton.getAttribute('data-message-id');
+        const text = ttsButton.getAttribute('data-text');
+        
+        if (text) {
+            playTTSForMessage(ttsButton, messageId, text);
+        }
+        return;
+    }
+    
+    // Copy button
+    const copyButton = e.target.closest('.btn-copy');
+    if (copyButton) {
+        const text = copyButton.getAttribute('data-text');
+        if (text && typeof copyToClipboard === 'function') {
+            copyToClipboard(text);
+        }
+        return;
+    }
+});
 
 // ============================================
 // TYPING INDICATOR (Optional)
@@ -400,23 +693,32 @@ async function startChat() {
         
         if (data.reply) {
             const cleanReply = stripMarkdown(data.reply);
+            const plainText = cleanReply.replace(/<[^>]*>/g, '');
             const messageId = `msg_${Date.now()}`;
-            addMessage('assistant', cleanReply, messageId);
+            addMessage('assistant', cleanReply, messageId, plainText);
+            
+            // Auto-play first message
+            if (AppState.voiceEnabled) {
+                setTimeout(() => {
+                    autoPlayTTS(messageId, plainText);
+                }, 500);
+            }
+            
             updateStatus('connected', 'Connected');
             AppState.isConnected = true;
             trackEvent('chat_started');
         } else if (data.error) {
-            addMessage('assistant', 'Sorry, I encountered an error. Please type your name and press Enter to continue.');
+            addMessage('assistant', 'Sorry, I encountered an error. Please type your name and press Enter to continue.', `msg_${Date.now()}`);
             updateStatus('error', 'Connection error');
-            showToast('Connection hiccup — type your name to continue', 'warning', 5000);
+            showToast('Connection hiccup â€” type your name to continue', 'warning', 5000);
         }
         
     } catch (error) {
         console.error('[Chat] Start error:', error);
         removeSkeletonLoader(skeletonId);
-        addMessage('assistant', 'Connection failed. Please type your name and press Enter to retry.');
+        addMessage('assistant', 'Connection failed. Please type your name and press Enter to retry.', `msg_${Date.now()}`);
         updateStatus('error', 'Connection failed');
-        showToast('Failed to connect — type your name to continue', 'error', 5000);
+        showToast('Failed to connect â€” type your name to continue', 'error', 5000);
         trackEvent('chat_start_failed', { error: error.message });
     }
 }
@@ -448,9 +750,11 @@ async function resetChat() {
         linkedinCta.style.display = 'none';
     }
     
-    if (typeof stopTTS === 'function') {
-        stopTTS();
-    }
+    // Stop any playing audio
+    stopTTS();
+    
+    // Clear audio cache
+    clearAllAudioCache();
     
     initSession();
     await startChat();
@@ -507,6 +811,21 @@ function setupChatListeners() {
         sendBtn.addEventListener('click', sendMessage);
     }
 }
+
+// ============================================
+// CLEANUP
+// ============================================
+
+window.addEventListener('beforeunload', () => {
+    stopTTS();
+    clearAllAudioCache();
+});
+
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden && AppState.currentAudio) {
+        stopTTS();
+    }
+});
 
 // ============================================
 // INITIALIZATION
