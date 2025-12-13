@@ -5,12 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Chat — GigiAI</title>
     
-    <!-- SEO & Meta -->
     <meta name="description" content="Chat with GigiAI - Your intelligent e-commerce assistant">
     <meta name="author" content="Wisdom Ekwugha">
     <meta name="theme-color" content="#4F46E5">
     
-    <!-- Open Graph -->
     <meta property="og:title" content="GigiAI — AI Assistant for E-Commerce">
     <meta property="og:description" content="24/7 customer support with voice replies and guided prompts">
     <meta property="og:type" content="website">
@@ -18,20 +16,16 @@
     <meta property="og:url" content="https://gigiai.app/chat">
     <meta name="twitter:card" content="summary_large_image">
     
-    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet">
     
-    <!-- Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
-    
-    <!-- Styles -->
     <link rel="stylesheet" href="./assets/css/styles.css">
 </head>
 <body>
     <div class="app-container">
-        <!-- Toolbar (Fixed Top) -->
+        <!-- Toolbar -->
         <div class="toolbar">
             <div class="toolbar-left">
                 <a href="./index.html" class="toolbar-logo" aria-label="GigiAI Home">
@@ -70,6 +64,13 @@
                     </button>
                     
                     <div class="dropdown-menu" id="moreMenu" role="menu">
+                        <button class="dropdown-item" 
+                                role="menuitem"
+                                onclick="toggleTheme(); closeAllDropdowns();"
+                                style="background: transparent; border: none; width: 100%; text-align: left; font-size: inherit; font-family: inherit;">
+                            <i class="bi bi-circle-half"></i>
+                            <span class="theme-text">System Mode</span>
+                        </button>
                         <a href="./about.html" 
                            class="dropdown-item" 
                            role="menuitem"
@@ -95,7 +96,8 @@
                         </a>
                         <button class="dropdown-item" 
                                 role="menuitem"
-                                onclick="resetOnboarding(); closeAllDropdowns();">
+                                onclick="resetOnboarding(); closeAllDropdowns();"
+                                style="background: transparent; border: none; width: 100%; text-align: left; font-size: inherit; font-family: inherit;">
                             <i class="bi bi-question-circle"></i>
                             Show Help
                         </button>
@@ -114,14 +116,14 @@
         
         <!-- Chat Wrapper -->
         <div class="chat-wrapper">
-            <!-- Chat Messages Container (Only this scrolls) -->
+            <!-- Chat Container (ONLY this scrolls) -->
             <div class="chat-container" 
                  id="chatMessages" 
                  role="log" 
                  aria-label="Chat messages" 
                  aria-live="polite">
                 <div class="messages-list">
-                    <!-- Messages will be added here dynamically -->
+                    <!-- Messages added dynamically -->
                 </div>
             </div>
             
@@ -154,14 +156,16 @@
                         </div>
                     </div>
                     
-                    <!-- Input Row -->
+                    <!-- Input Row with Animated Gradient Glow -->
                     <div class="input-row">
-                        <textarea class="input-field" 
-                                  id="userInput" 
-                                  rows="1"
-                                  placeholder="Type your message..."
-                                  aria-label="Message input"
-                                  maxlength="1000"></textarea>
+                        <div class="input-glow-wrapper">
+                            <textarea class="input-field" 
+                                      id="userInput" 
+                                      rows="1"
+                                      placeholder="Type your message..."
+                                      aria-label="Message input"
+                                      maxlength="1000"></textarea>
+                        </div>
                         
                         <button class="btn-send" 
                                 id="sendBtn"
@@ -184,7 +188,7 @@
                 </div>
             </div>
             
-            <!-- LinkedIn CTA (shows after 3 messages) -->
+            <!-- LinkedIn CTA -->
             <div id="linkedinCta" style="display: none; padding: 1rem; background: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%); border-top: 2px solid #0EA5E9; text-align: center;">
                 <p style="margin-bottom: 0.75rem; color: #0C4A6E; font-weight: 600;">
                     Enjoying GigiAI? Let's connect!
@@ -202,15 +206,15 @@
         </div>
     </div>
     
-    <!-- Toast Notification -->
+    <!-- Toast -->
     <div class="toast" id="toast" role="alert" aria-live="assertive">
         <span id="toastMessage"></span>
     </div>
     
-    <!-- Scripts (load in order) -->
-    <script src="./assets/js/app.js" defer></script>
-    <script src="./assets/js/onboarding.js" defer></script>
-    <script src="./assets/js/tts.js" defer></script>
-    <script src="./assets/js/chat.js" defer></script>
+    <!-- Scripts -->
+    <script src="./assets/js/app.js"></script>
+    <script src="./assets/js/onboarding.js"></script>
+    <script src="./assets/js/tts.js"></script>
+    <script src="./assets/js/chat.js"></script>
 </body>
 </html>
