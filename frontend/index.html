@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GigiAI — AI Assistant for E-Commerce</title>
+    
+    <!-- SEO & Meta -->
+    <meta name="description" content="Try a prompt-guided AI assistant that answers customers 24/7, speaks replies, and helps small businesses scale support.">
+    <meta name="author" content="Wisdom Ekwugha">
+    <meta name="keywords" content="AI, chatbot, e-commerce, customer support, text-to-speech">
+    <meta name="theme-color" content="#4F46E5">
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="GigiAI — AI Assistant for E-Commerce">
+    <meta property="og:description" content="24/7 customer support with voice replies and guided prompts">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="./og/gigi-og-1200x630.png">
+    <meta property="og:url" content="https://gigiai.app">
+    <meta name="twitter:card" content="summary_large_image">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="./assets/css/styles.css">
+    
+    <style>
+        body {
+            overflow: auto;
+            position: static;
+            height: auto;
+        }
+        
+        html {
+            position: static;
+            overflow: auto;
+        }
+        
+        .features-section {
+            padding: 4rem 2rem;
+            background: var(--bg);
+        }
+        
+        .features-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .features-title {
+            font-family: 'Poppins', sans-serif;
+            font-size: 2.5rem;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 3rem;
+            color: var(--text);
+        }
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 2rem;
+        }
+        
+        .feature-card {
+            background: var(--card);
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+            text-align: center;
+            box-shadow: var(--shadow-sm);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-8px);
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .feature-icon {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .feature-title {
+            font-family: 'Poppins', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: var(--text);
+        }
+        
+        .feature-text {
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 3rem 1.5rem;
+            background: var(--card);
+            border-top: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+        
+        .footer a {
+            color: var(--color-primary);
+            text-decoration: none;
+        }
+        
+        .footer a:hover {
+            text-decoration: underline;
+        }
+        
+        @media (max-width: 768px) {
+            .hero-title {
+                font-size: 2.25rem;
+            }
+            
+            .hero-subtitle {
+                font-size: 1.125rem;
+            }
+            
+            .features-title {
+                font-size: 2rem;
+            }
+            
+            .features-section {
+                padding: 3rem 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Hero Section -->
+    <section class="hero-section">
+        <div class="hero-content">
+            <!-- Hero SVG Icon -->
+            <div style="max-width: 400px; margin: 0 auto 2rem;">
+                <svg viewBox="0 0 793 551.73152" xmlns="http://www.w3.org/2000/svg" aria-label="AI Chat Illustration" style="width: 100%; height: auto;">
+                    <ellipse cx="158" cy="539.73152" rx="158" ry="12" fill="#ffffff" opacity="0.3"/>
+                    <path d="M324.27227,296.55377c27.49676-11.6953,61.74442-4.28528,95.19092.85757.31124-6.228,4.08385-13.80782.132-18.15284-4.80115-5.2788-4.35917-10.82529-1.47008-16.40375,7.38788-14.265-3.1969-29.44375-13.88428-42.0647a23.66937,23.66937,0,0,0-19.75537-8.29179l-19.7975,1.41411A23.70939,23.70939,0,0,0,343.635,230.85851v0c-4.72724,6.42917-7.25736,12.84055-5.66438,19.21854-7.08065,4.83882-8.27029,10.67977-5.08851,17.2644,2.698,5.58385,6.79552,9.70858,11.09677,13.21585,3.38131,2.75765,6.91349,5.26924,10.29916,7.9274a54.50351,54.50351,0,0,1,10.97529,9.88515C368.77388,302.02607,365.28338,307.77264,324.27227,296.55377Z" transform="translate(-203.5 -174.13424)" fill="#ffffff" opacity="0.9"/>
+                    <circle cx="492.34959" cy="67.97967" r="67.97967" fill="#10B981"/>
+                    <rect x="356.93228" y="210.73947" width="270" height="120" rx="20" fill="#ffffff" opacity="0.2"/>
+                    <rect x="380.93228" y="230.73947" width="220" height="25" rx="12" fill="#ffffff" opacity="0.8"/>
+                    <rect x="380.93228" y="270.73947" width="180" height="25" rx="12" fill="#10B981"/>
+                    <rect x="380.93228" y="310.73947" width="200" height="25" rx="12" fill="#ffffff" opacity="0.8"/>
+                </svg>
+            </div>
+            
+            <h1 class="hero-title">GigiAI — Your E-Commerce AI Assistant</h1>
+            <p class="hero-subtitle">Instant responses, voice chat, and guided prompts for 24/7 customer support.</p>
+            <a href="./chat.html" class="hero-cta btn btn-primary">
+                <i class="bi bi-chat-dots-fill"></i>
+                Try Demo Now
+            </a>
+        </div>
+    </section>
+    
+    <!-- Features Section -->
+    <section class="features-section">
+        <div class="features-container">
+            <h2 class="features-title">Why Choose GigiAI?</h2>
+            
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🤖</div>
+                    <h3 class="feature-title">Prompt-Guided AI</h3>
+                    <p class="feature-text">
+                        Follow intuitive menu options to get exactly what you need. No complex commands required.
+                    </p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🎙️</div>
+                    <h3 class="feature-title">Voice Replies</h3>
+                    <p class="feature-text">
+                        Listen to responses with natural text-to-speech. Perfect for accessibility and multitasking.
+                    </p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">⚡</div>
+                    <h3 class="feature-title">24/7 Availability</h3>
+                    <p class="feature-text">
+                        Always online to help your customers track orders, get shipping info, and request refunds.
+                    </p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">💬</div>
+                    <h3 class="feature-title">Smart Conversations</h3>
+                    <p class="feature-text">
+                        Context-aware responses that understand your questions and provide relevant solutions.
+                    </p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">📱</div>
+                    <h3 class="feature-title">Mobile-First Design</h3>
+                    <p class="feature-text">
+                        Optimized for Android and iOS with smooth scrolling and thumb-friendly controls.
+                    </p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">🔒</div>
+                    <h3 class="feature-title">Privacy Focused</h3>
+                    <p class="feature-text">
+                        We don't store personal data beyond your session. Your privacy is our priority.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Footer -->
+    <footer class="footer">
+        <p>
+            <strong>GigiAI</strong> — Built by <a href="./about.html">Wisdom Ekwugha</a>
+        </p>
+        <p style="margin-top: 0.5rem; font-size: 0.875rem;">
+            We don't store personal data beyond this session — 
+            <a href="#privacy">privacy details</a>
+        </p>
+        <p style="margin-top: 1.5rem;">
+            <a href="./chat.html" style="font-weight: 600;">Try Demo</a> · 
+            <a href="./about.html">About</a> · 
+            <a href="./report.html">Report Bug</a> · 
+            <a href="https://www.linkedin.com/in/wisdom-ekwugha-2b2887217" target="_blank" rel="noopener noreferrer">Connect</a>
+        </p>
+        <p style="margin-top: 1rem; font-size: 0.8125rem;">
+            © 2024 Wisdom Ekwugha. Built with care.
+        </p>
+    </footer>
+</body>
+</html>
