@@ -21,7 +21,9 @@ from .serializers import (
     PasswordResetConfirmSerializer,
     EmailVerificationSerializer
 )
+
 from .models import VerificationCode
+
 
 User = get_user_model()
 
@@ -304,3 +306,7 @@ class PasswordResetConfirmView(APIView):
                 }, status=status.HTTP_400_BAD_REQUEST)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+def home(request):
+    return render(request, "accounts/homepage.html") 

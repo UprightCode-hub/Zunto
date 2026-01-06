@@ -19,10 +19,13 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from core.views import health_check
+from accounts.views import home
 # from analytics.admin import admin_site
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+
+    path('', home, name='home'),
 
     path('health/', health_check, name='health_check'),
 
@@ -39,8 +42,15 @@ urlpatterns = [
     path('api/payments/', include('orders.payment_urls')),
     path('api/notifications/', include('notifications.urls')),
     # path('api/analytics/', include('analytics.urls')),
+    # path('dashboard/', include('dashboard.urls')), 
+    path('', include('dashboard.urls', namespace='dashboard')),
+    path('', include('Analytic.urls')),
+
+
+
 
 ]
+
 
 if settings.DEBUG:
     urlpatterns = urlpatterns + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
