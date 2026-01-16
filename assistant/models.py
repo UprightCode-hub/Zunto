@@ -9,15 +9,12 @@ User = get_user_model()
 
 class ConversationSession(models.Model):
     """
-    Tracks user conversation sessions for context management.
-    Each session maintains state and conversation history.
-    
-    CRITICAL FIELDS for AI modules:
-    - context: Used by ContextManager for storing conversation data
-    - context_data: Alias for compatibility
+    CRITICAL FIELDS:
+    - context: Primary field used by ContextManager for storing conversation data
+    - context_data: Legacy compatibility alias
     - conversation_history: Message history tracking
     """
-    
+
     STATE_CHOICES = [
         ('greeting', 'Greeting'),
         ('awaiting_name', 'Awaiting Name'),
@@ -32,7 +29,7 @@ class ConversationSession(models.Model):
         ('feedback', 'Feedback'),
         ('closed', 'Closed'),
     ]
-    
+
     session_id = models.CharField(
         max_length=100,
         unique=True,
@@ -58,28 +55,27 @@ class ConversationSession(models.Model):
         default='greeting',
         help_text="Current conversation state"
     )
-    
-    # CRITICAL: Main context field used by ContextManager
+
+    # Primary context field - used by ContextManager
     context = models.JSONField(
         default=dict,
         encoder=DjangoJSONEncoder,
         help_text="Complete session context: history, traits, sentiment, escalation, metadata"
     )
-    
-    # Conversation context (legacy compatibility)
+
+    # Legacy compatibility
     context_data = models.JSONField(
         default=dict,
         encoder=DjangoJSONEncoder,
         help_text="Session context: order_id, seller_name, issue_type, etc."
     )
-    
+
     conversation_history = models.JSONField(
         default=list,
         encoder=DjangoJSONEncoder,
         help_text="List of messages: [{role, content, timestamp}]"
     )
-    
-    # Analytics
+
     message_count = models.IntegerField(
         default=0,
         help_text="Number of messages in this session"
@@ -100,13 +96,12 @@ class ConversationSession(models.Model):
         default=False,
         help_text="Whether session has been escalated to human"
     )
-    
-    # Timestamps
+
     created_at = models.DateTimeField(auto_now_add=True)
     last_activity = models.DateTimeField(auto_now=True)
-    updated_at = models.DateTimeField(auto_now=True)  # CRITICAL: context_manager.py expects this
+    updated_at = models.DateTimeField(auto_now=True)  # Required by context_manager.py
     closed_at = models.DateTimeField(null=True, blank=True)
-    
+
     class Meta:
         ordering = ['-last_activity']
         indexes = [
@@ -115,19 +110,18 @@ class ConversationSession(models.Model):
             models.Index(fields=['user', '-last_activity']),
             models.Index(fields=['is_escalated', '-last_activity']),
         ]
-    
+
     def __str__(self):
         user_str = self.user.username if self.user else self.user_name or f"session:{self.session_id[:8]}"
         return f"Session {self.session_id[:8]} - {user_str} - {self.current_state}"
-    
+
     def is_active(self):
         """Check if session is still active (< 30 minutes since last activity)."""
         if self.closed_at:
             return False
         return timezone.now() - self.last_activity < timedelta(minutes=30)
-    
+
     def add_message(self, role, content):
-        """Add a message to conversation history."""
         self.conversation_history.append({
             'role': role,
             'content': content,
@@ -135,32 +129,28 @@ class ConversationSession(models.Model):
         })
         self.message_count += 1
         self.save()
-    
+
     def close_session(self):
-        """Mark session as closed."""
         self.current_state = 'closed'
         self.closed_at = timezone.now()
         self.save()
 
 
 class Report(models.Model):
-    """User-submitted reports for issues requiring human review."""
-    
     SEVERITY_CHOICES = [
         ('low', 'Low'),
         ('medium', 'Medium'),
         ('high', 'High'),
         ('critical', 'Critical'),
     ]
-    
+
     STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('reviewing', 'Reviewing'),
         ('resolved', 'Resolved'),
         ('closed', 'Closed'),
     ]
-    
-    # NEW: Report type choices for dispute_flow.py and feedback_flow.py
+
     REPORT_TYPE_CHOICES = [
         ('dispute', 'Dispute'),
         ('complaint', 'Complaint'),
@@ -170,8 +160,7 @@ class Report(models.Model):
         ('scam', 'Scam Report'),
         ('other', 'Other'),
     ]
-    
-    # NEW: Contact preference choices for dispute_flow.py
+
     CONTACT_PREFERENCE_CHOICES = [
         ('email', 'Email'),
         ('twitter', 'Twitter'),
@@ -179,7 +168,7 @@ class Report(models.Model):
         ('phone', 'Phone'),
         ('none', 'None'),
     ]
-    
+
     user = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -198,37 +187,32 @@ class Report(models.Model):
     message = models.TextField(
         help_text="Original user message that triggered the report"
     )
-    
-    # NEW FIELD #1: Report Type (Required by feedback_flow.py line 402)
+
     report_type = models.CharField(
         max_length=20,
         choices=REPORT_TYPE_CHOICES,
         default='other',
         help_text="Type of report (dispute, feedback, complaint, etc.)"
     )
-    
-    # NEW FIELD #2: Category (Required by feedback_flow.py line 402)
+
     category = models.CharField(
         max_length=100,
         blank=True,
         help_text="Report category (scam, payment, product, service, etc.)"
     )
-    
-    # NEW FIELD #3: AI Generated Draft (Required by dispute_flow.py line 524)
+
     ai_generated_draft = models.TextField(
         blank=True,
         help_text="AI-generated draft message for user to use when contacting seller/support"
     )
-    
-    # NEW FIELD #4: Contact Preference (Required by dispute_flow.py line 524)
+
     contact_preference = models.CharField(
         max_length=20,
         choices=CONTACT_PREFERENCE_CHOICES,
         default='none',
         help_text="User's preferred platform for contacting seller"
     )
-    
-    # Existing fields
+
     severity = models.CharField(
         max_length=20,
         choices=SEVERITY_CHOICES,
@@ -254,23 +238,20 @@ class Report(models.Model):
         related_name='resolved_reports'
     )
     admin_notes = models.TextField(blank=True)
-    
+
     class Meta:
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['-created_at']),
             models.Index(fields=['status', 'severity']),
-            models.Index(fields=['report_type', '-created_at']),  # NEW: Index for report type
+            models.Index(fields=['report_type', '-created_at']),
         ]
-    
+
     def __str__(self):
         return f"Report #{self.id} - {self.report_type} - {self.severity} - {self.status}"
 
 
-
 class ConversationLog(models.Model):
-    """Complete log of all assistant interactions for analysis and tuning."""
-    
     user = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -286,15 +267,14 @@ class ConversationLog(models.Model):
         related_name='logs',
         help_text="Associated conversation session"
     )
-    # FIXED: Renamed from session_id to anonymous_session_id to avoid clash
+    # Separate from session FK to avoid field name collision
     anonymous_session_id = models.CharField(
         max_length=100,
         blank=True,
         help_text="Anonymous session tracking for non-authenticated users"
     )
     message = models.TextField(help_text="User's original message")
-    
-    # Processing results
+
     rule_hit = models.JSONField(
         null=True,
         blank=True,
@@ -317,8 +297,7 @@ class ConversationLog(models.Model):
         encoder=DjangoJSONEncoder,
         help_text="LLM metadata: tokens, time_ms, model_name"
     )
-    
-    # Final output
+
     final_reply = models.TextField(help_text="Reply sent to user")
     confidence = models.FloatField(
         default=0.0,
@@ -328,22 +307,21 @@ class ConversationLog(models.Model):
         blank=True,
         help_text="Why this reply was chosen"
     )
-    
-    # Metadata
+
     processing_time_ms = models.IntegerField(
         default=0,
         help_text="Total processing time in milliseconds"
     )
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['-created_at']),
             models.Index(fields=['user', '-created_at']),
-            models.Index(fields=['anonymous_session_id', '-created_at']),  # FIXED: Updated index
+            models.Index(fields=['anonymous_session_id', '-created_at']),
         ]
-    
+
     def __str__(self):
         user_str = self.user.username if self.user else f"session:{self.anonymous_session_id[:8]}"
         return f"Conversation {self.id} - {user_str} - {self.created_at.strftime('%Y-%m-%d %H:%M')}"
