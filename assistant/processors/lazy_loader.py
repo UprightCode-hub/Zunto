@@ -1,19 +1,15 @@
 """
-Lazy loading for AI models - loads only when needed
-Place this in: assistant/processors/lazy_loader.py
+Lazy loading for AI models - loads only when needed.
 """
-
 class LazyAILoader:
     """
     Loads AI models only when first used, not at import time.
     This prevents memory usage at startup.
     """
-    
     def __init__(self):
         self._sentence_model = None
         self._faiss_index = None
         self._faiss_module = None
-    
     @property
     def sentence_model(self):
         """Load sentence transformer only when first accessed"""
@@ -27,7 +23,6 @@ class LazyAILoader:
             )
             print("✅ Model loaded successfully")
         return self._sentence_model
-    
     @property
     def faiss(self):
         """Load FAISS only when first accessed"""
@@ -37,7 +32,6 @@ class LazyAILoader:
             self._faiss_module = faiss
             print("✅ FAISS loaded successfully")
         return self._faiss_module
-    
     def create_faiss_index(self, embeddings):
         """Create FAISS index on-demand"""
         if self._faiss_index is None:
@@ -47,23 +41,17 @@ class LazyAILoader:
             self._faiss_index.add(embeddings)
             print("✅ FAISS index created")
         return self._faiss_index
-    
     def clear_cache(self):
         """Clear loaded models to free memory"""
         print("🧹 Clearing AI model cache...")
         self._sentence_model = None
         self._faiss_index = None
         self._faiss_module = None
-        
-        # Force garbage collection
         import gc
         gc.collect()
         print("✅ Cache cleared")
-
-
 # Global singleton instance
 _ai_loader = LazyAILoader()
-
 def get_ai_loader():
     """Get the global AI loader instance"""
     return _ai_loader
