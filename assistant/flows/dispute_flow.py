@@ -44,16 +44,20 @@ The more information you provide, the better we can assist you."""
 
     CONTACT_INFO = """Thank you for providing those details, {name}.
 
-📞 **Our Support Channels:**
+📞 **Zunto Project Support Channels:**
 
-🐦 **Twitter/X:** @ZuntoSupport
-📧 **Email:** support@zunto.com
-💬 **WhatsApp:** +234-XXX-XXX-XXXX
+🐦 **Twitter/X:** @ZuntoProject
+   https://x.com/ZuntoProject
+📧 **Email:** zuntoproject@gmail.com
+💬 **WhatsApp:** +234-708-359-4102
+   https://wa.me/message/PQP6RKHLCYEOJ1
+📱 **Instagram:** @zuntoproject
+   https://www.instagram.com/zuntoproject
 
 Our team typically responds within 24 hours.
 
 Would you like me to help you draft a professional message to send them?
-Type: **email**, **twitter**, **whatsapp**, or **no** if you prefer to write your own."""
+Type: **email**, **twitter**, **whatsapp**, **instagram**, or **no** if you prefer to write your own."""
 
     DRAFT_INTRO_TEMPLATE = """Here's a professional {platform} message you can use:
 
@@ -195,6 +199,8 @@ Type "menu" to see options or ask another question."""
             platform = 'twitter'
         elif 'whatsapp' in msg_lower or 'whats app' in msg_lower:
             platform = 'whatsapp'
+        elif 'instagram' in msg_lower or 'insta' in msg_lower or 'ig' in msg_lower:
+            platform = 'instagram'
 
         if platform:
             self.context['dispute']['platform'] = platform
@@ -209,7 +215,8 @@ Type "menu" to see options or ask another question."""
                 "I didn't catch that. Would you like a draft for:\n"
                 "- **email**\n"
                 "- **twitter**\n"
-                "- **whatsapp**\n\n"
+                "- **whatsapp**\n"
+                "- **instagram**\n\n"
                 "Or type **no** if you prefer to write your own message.",
                 {'step': self.STEP_SHOW_CONTACT, 'complete': False}
             )
@@ -249,19 +256,34 @@ Best regards,
 [User]"""
 
             elif platform == 'twitter':
-                prompt = f"""Write a professional tweet for @ZuntoSupport.
+                prompt = f"""Write a professional tweet for @ZuntoProject.
 
 Issue Category: {category}
 User's Description: {description}
 
 Write a concise, professional tweet (under 280 characters) that:
-- Tags @ZuntoSupport
+- Tags @ZuntoProject
 - States the issue briefly
 - Remains respectful
 - Requests help
 
 Format:
-@ZuntoSupport [Message]"""
+@ZuntoProject [Message]"""
+
+            elif platform == 'instagram':
+                prompt = f"""Write a professional Instagram DM to @zuntoproject.
+
+Issue Category: {category}
+User's Description: {description}
+
+Write a clear, friendly message (3-4 sentences) that:
+- States the problem clearly
+- Requests appropriate action
+- Remains professional but approachable
+- Uses a casual but respectful tone
+
+Format:
+[Message]"""
 
             else:  # whatsapp
                 prompt = f"""Write a professional WhatsApp message to Zunto support.
