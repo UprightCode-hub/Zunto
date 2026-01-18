@@ -1,14 +1,5 @@
 """
-Dispute Flow - Premium multi-step dispute reporting with AI draft generation.
-Handles issue collection, categorization, and professional message drafting.
-
-Features:
-- Multi-step guided flow (describe → categorize → contact → draft)
-- Groq-powered professional message generation
-- Email/Twitter/WhatsApp draft support
-- Dispute categorization (scam, payment, shipping, etc.)
-- Report model integration with draft storage
-- Context persistence across steps
+Dispute Flow - Multi-step dispute reporting with AI draft generation.
 """
 import logging
 from typing import Dict, Optional, Tuple
@@ -22,16 +13,14 @@ class DisputeFlow:
     Premium dispute reporting flow with AI-assisted message drafting.
     Integrates with Groq for professional communication generation.
     """
-    
-    # Step constants
+
     STEP_COLLECT_DESCRIPTION = 'collecting_details'
     STEP_CATEGORIZE = 'categorizing'
     STEP_SHOW_CONTACT = 'show_contact'
     STEP_GENERATE_DRAFT = 'generate_draft'
     STEP_DRAFT_SHOWN = 'draft_shown'
     STEP_COMPLETE = 'complete'
-    
-    # Category keywords for auto-detection
+
     CATEGORY_KEYWORDS = {
         'scam': ['scam', 'fraud', 'fake', 'cheat', 'lie', 'steal', 'stolen'],
         'payment': ['payment', 'paid', 'money', 'refund', 'charge', 'bank', 'transaction'],
@@ -42,8 +31,7 @@ class DisputeFlow:
         'communication': ['respond', 'reply', 'contact', 'message', 'communicate'],
         'other': []
     }
-    
-    # Message templates
+
     DISPUTE_INTRO = """I understand {name}. I'm here to help you report this issue. 🛡️
 
 Please describe what happened in detail. Include:
@@ -53,7 +41,7 @@ Please describe what happened in detail. Include:
 - Any relevant order numbers or details
 
 The more information you provide, the better we can assist you."""
-    
+
     CONTACT_INFO = """Thank you for providing those details, {name}.
 
 📞 **Our Support Channels:**
@@ -66,7 +54,7 @@ Our team typically responds within 24 hours.
 
 Would you like me to help you draft a professional message to send them?
 Type: **email**, **twitter**, **whatsapp**, or **no** if you prefer to write your own."""
-    
+
     DRAFT_INTRO_TEMPLATE = """Here's a professional {platform} message you can use:
 
 ---
@@ -81,7 +69,7 @@ Would you like me to:
 - **Done** - I'm satisfied with this
 
 Type your choice or "menu" to return to main menu."""
-    
+
     COMPLETION_MESSAGE = """Your dispute report has been logged successfully! ✅
 
 **Report ID:** #{report_id}
@@ -90,7 +78,7 @@ Our support team will review your case and reach out within 24 hours. You can al
 
 Is there anything else I can help you with today?
 Type "menu" to see options or ask another question."""
-    
+
     def __init__(self, session, local_model_adapter=None, context_manager=None):
         """
         Initialize dispute flow.
@@ -104,7 +92,7 @@ Type "menu" to see options or ask another question."""
         self.llm = local_model_adapter
         self.context_manager = context_manager
         self.name = session.user_name or "there"
-        
+
         # Get or initialize context
         self.context = session.context or {}
         if 'dispute' not in self.context:
@@ -116,7 +104,7 @@ Type "menu" to see options or ask another question."""
                 'draft_message': '',
                 'report_id': None
             }
-    
+
     def enter_dispute_mode(self) -> str:
         """
         Enter dispute mode and show intro.
@@ -124,20 +112,18 @@ Type "menu" to see options or ask another question."""
         Returns:
             Intro message
         """
-        # Update session state
         self.session.current_state = 'dispute_mode'
         self.context['dispute']['step'] = self.STEP_COLLECT_DESCRIPTION
         self._save_context()
-        
-        # Track mode usage
+
         if self.context_manager:
             self.context_manager.mark_mode_used('dispute_mode')
             self.context_manager.mark_topic_discussed('dispute')
-        
+
         logger.info(f"User {self.name} entered dispute mode")
-        
+
         return self.DISPUTE_INTRO.format(name=self.name)
-    
+
     def handle_dispute_message(self, message: str) -> Tuple[str, Dict]:
         """
         Handle message in dispute flow based on current step.
@@ -155,64 +141,53 @@ Type "menu" to see options or ask another question."""
         """
         current_step = self.context['dispute']['step']
         msg_lower = message.lower().strip()
-        
+
         # Check for exit command
         if msg_lower in ['menu', 'cancel', 'exit', 'back']:
             return self._exit_dispute_flow(), {'step': 'exit', 'complete': False}
-        
-        # Route to appropriate step handler
+
         if current_step == self.STEP_COLLECT_DESCRIPTION:
             return self._handle_description(message)
-        
+
         elif current_step == self.STEP_SHOW_CONTACT:
             return self._handle_contact_choice(message)
-        
+
         elif current_step == self.STEP_GENERATE_DRAFT:
             return self._handle_draft_generation(message)
-        
+
         elif current_step == self.STEP_DRAFT_SHOWN:
             return self._handle_draft_feedback(message)
-        
+
         else:
-            # Fallback
             return self._exit_dispute_flow(), {'step': 'error', 'complete': False}
-    
+
     def _handle_description(self, message: str) -> Tuple[str, Dict]:
-        """
-        Step 1: Collect dispute description.
-        """
-        # Save description
+        """Step 1: Collect dispute description."""
         self.context['dispute']['description'] = message
-        
-        # Auto-detect category
+
         category = self._detect_category(message)
         self.context['dispute']['category'] = category
-        
-        # Move to contact step
+
         self.context['dispute']['step'] = self.STEP_SHOW_CONTACT
         self._save_context()
-        
+
         logger.info(f"Dispute description collected (category: {category})")
-        
+
         reply = self.CONTACT_INFO.format(name=self.name)
-        
+
         return reply, {
             'step': self.STEP_SHOW_CONTACT,
             'complete': False,
             'category': category
         }
-    
+
     def _handle_contact_choice(self, message: str) -> Tuple[str, Dict]:
-        """
-        Step 2: Handle user's contact platform choice.
-        """
+        """Step 2: Handle user's contact platform choice."""
         msg_lower = message.lower().strip()
-        
-        # User declines draft generation
+
         if msg_lower in ['no', 'n', 'nope', 'skip', "i'll write my own"]:
             return self._save_dispute_without_draft()
-        
-        # Detect platform choice
+
         platform = None
         if 'email' in msg_lower:
             platform = 'email'
@@ -220,15 +195,14 @@ Type "menu" to see options or ask another question."""
             platform = 'twitter'
         elif 'whatsapp' in msg_lower or 'whats app' in msg_lower:
             platform = 'whatsapp'
-        
+
         if platform:
             self.context['dispute']['platform'] = platform
             self.context['dispute']['step'] = self.STEP_GENERATE_DRAFT
             self._save_context()
-            
-            # Generate draft
+
             return self._generate_draft(platform)
-        
+
         else:
             # Unclear choice - prompt again
             return (
@@ -239,21 +213,18 @@ Type "menu" to see options or ask another question."""
                 "Or type **no** if you prefer to write your own message.",
                 {'step': self.STEP_SHOW_CONTACT, 'complete': False}
             )
-    
+
     def _generate_draft(self, platform: str) -> Tuple[str, Dict]:
-        """
-        Generate professional message draft using Groq.
-        """
+        """Generate professional message draft using Groq."""
         description = self.context['dispute']['description']
         category = self.context['dispute']['category']
-        
+
         # Check if LLM is available
         if not self.llm or not self.llm.is_available():
             logger.warning("LLM unavailable for draft generation")
             return self._save_dispute_without_draft()
-        
+
         try:
-            # Build prompt based on platform
             if platform == 'email':
                 prompt = f"""Write a professional email to Zunto marketplace support.
 
@@ -276,7 +247,7 @@ Dear Zunto Support Team,
 
 Best regards,
 [User]"""
-            
+
             elif platform == 'twitter':
                 prompt = f"""Write a professional tweet for @ZuntoSupport.
 
@@ -291,7 +262,7 @@ Write a concise, professional tweet (under 280 characters) that:
 
 Format:
 @ZuntoSupport [Message]"""
-            
+
             else:  # whatsapp
                 prompt = f"""Write a professional WhatsApp message to Zunto support.
 
@@ -305,36 +276,33 @@ Write a clear, conversational message (3-4 sentences) that:
 
 Format:
 [Message]"""
-            
-            # Generate draft
+
             logger.info(f"Generating {platform} draft using Groq...")
             result = self.llm.generate(
                 prompt=prompt,
                 max_tokens=300,
                 temperature=0.3
             )
-            
+
             draft = result['response'].strip()
-            
-            # Save draft
+
             self.context['dispute']['draft_message'] = draft
             self.context['dispute']['step'] = self.STEP_DRAFT_SHOWN
             self._save_context()
-            
+
             logger.info(f"Draft generated successfully ({len(draft)} chars)")
-            
-            # Build response
+
             reply = self.DRAFT_INTRO_TEMPLATE.format(
                 platform=platform.title(),
                 draft=draft
             )
-            
+
             return reply, {
                 'step': self.STEP_DRAFT_SHOWN,
                 'complete': False,
                 'draft_generated': True
             }
-        
+
         except Exception as e:
             logger.error(f"Draft generation failed: {e}", exc_info=True)
             return (
@@ -345,23 +313,19 @@ Format:
                 "Is there anything else I can help with?",
                 {'step': 'error', 'complete': True}
             )
-    
+
     def _handle_draft_feedback(self, message: str) -> Tuple[str, Dict]:
-        """
-        Step 3: Handle feedback on generated draft.
-        """
+        """Step 3: Handle feedback on generated draft."""
         msg_lower = message.lower().strip()
-        
-        # User wants to regenerate
+
         if 'generate' in msg_lower or 'different' in msg_lower or 'another' in msg_lower:
             platform = self.context['dispute']['platform']
             self.context['dispute']['step'] = self.STEP_GENERATE_DRAFT
             self._save_context()
-            
+
             logger.info("Regenerating draft per user request")
             return self._generate_draft(platform)
-        
-        # User wants to edit
+
         elif 'edit' in msg_lower:
             return (
                 f"Please tell me what you'd like to change, {self.name}.\n\n"
@@ -372,31 +336,27 @@ Format:
                 "Or describe your changes:",
                 {'step': self.STEP_DRAFT_SHOWN, 'complete': False}
             )
-        
-        # User is satisfied
+
         elif 'done' in msg_lower or 'satisfied' in msg_lower or 'good' in msg_lower or 'ok' in msg_lower:
             return self._save_dispute_with_draft()
-        
-        # Unclear response - assume edit request
+
         else:
-            # Use user's message as edit instruction
+            # Unclear response - assume edit request
             return self._regenerate_with_edits(message)
-    
+
     def _regenerate_with_edits(self, edit_instruction: str) -> Tuple[str, Dict]:
-        """
-        Regenerate draft based on user's edit instructions.
-        """
+        """Regenerate draft based on user's edit instructions."""
         description = self.context['dispute']['description']
         current_draft = self.context['dispute']['draft_message']
         platform = self.context['dispute']['platform']
-        
+
         if not self.llm or not self.llm.is_available():
             return (
                 "I'm unable to edit the draft right now. You can copy and modify it manually.\n\n"
                 "Type 'done' when you're satisfied, or 'menu' to return to main menu.",
                 {'step': self.STEP_DRAFT_SHOWN, 'complete': False}
             )
-        
+
         try:
             prompt = f"""Edit this {platform} message based on the user's request.
 
@@ -412,13 +372,13 @@ User's Edit Request:
 Generate an improved version that incorporates the requested changes while maintaining professionalism.
 
 Improved Message:"""
-            
+
             result = self.llm.generate(prompt=prompt, max_tokens=300, temperature=0.3)
             new_draft = result['response'].strip()
-            
+
             self.context['dispute']['draft_message'] = new_draft
             self._save_context()
-            
+
             reply = f"""Here's the updated version:
 
 ---
@@ -429,9 +389,9 @@ How's this? Type:
 - **done** if you're satisfied
 - **edit** with more changes
 - **generate** for a completely different version"""
-            
+
             return reply, {'step': self.STEP_DRAFT_SHOWN, 'complete': False}
-        
+
         except Exception as e:
             logger.error(f"Draft editing failed: {e}")
             return (
@@ -439,27 +399,26 @@ How's this? Type:
                 "Type 'done' to proceed or 'menu' to return.",
                 {'step': self.STEP_DRAFT_SHOWN, 'complete': False}
             )
-    
+
     def _detect_category(self, message: str) -> str:
         """Auto-detect dispute category from keywords."""
         msg_lower = message.lower()
-        
-        # Count matches for each category
+
         category_scores = {}
         for category, keywords in self.CATEGORY_KEYWORDS.items():
             score = sum(1 for kw in keywords if kw in msg_lower)
             if score > 0:
                 category_scores[category] = score
-        
+
         # Return category with highest score, default to 'other'
         if category_scores:
             return max(category_scores, key=category_scores.get)
         return 'other'
-    
+
     def _save_dispute_with_draft(self) -> Tuple[str, Dict]:
         """Save dispute report with AI-generated draft to database."""
         dispute_data = self.context['dispute']
-        
+
         report = Report.objects.create(
             user=self.session.user,
             message=dispute_data['description'],
@@ -474,26 +433,26 @@ How's this? Type:
                 'platform': dispute_data['platform']
             }
         )
-        
+
         logger.info(f"Dispute report saved: Report #{report.id} with draft")
-        
+
         # Reset dispute context
         self.context['dispute'] = {'step': self.STEP_COMPLETE}
         self.session.current_state = 'menu'
         self._save_context()
-        
+
         reply = self.COMPLETION_MESSAGE.format(report_id=report.id)
-        
+
         return reply, {
             'step': 'complete',
             'complete': True,
             'report_id': report.id
         }
-    
+
     def _save_dispute_without_draft(self) -> Tuple[str, Dict]:
         """Save dispute report without draft generation."""
         dispute_data = self.context['dispute']
-        
+
         report = Report.objects.create(
             user=self.session.user,
             message=dispute_data['description'],
@@ -506,30 +465,30 @@ How's this? Type:
                 'user_name': self.name
             }
         )
-        
+
         logger.info(f"Dispute report saved: Report #{report.id} (no draft)")
-        
+
         # Reset context
         self.context['dispute'] = {'step': self.STEP_COMPLETE}
         self.session.current_state = 'menu'
         self._save_context()
-        
+
         reply = self.COMPLETION_MESSAGE.format(report_id=report.id)
-        
+
         return reply, {
             'step': 'complete',
             'complete': True,
             'report_id': report.id
         }
-    
+
     def _exit_dispute_flow(self) -> str:
         """Exit dispute mode and return to menu."""
         self.session.current_state = 'menu'
         self.context['dispute'] = {'step': self.STEP_COLLECT_DESCRIPTION}
         self._save_context()
-        
+
         logger.info(f"User {self.name} exited dispute mode")
-        
+
         return f"""No problem, {self.name}. Returning to main menu.
 
 What would you like to do?
@@ -539,38 +498,8 @@ What would you like to do?
 3️⃣ **Share Feedback** - Tell us what you think
 
 Type 1, 2, 3, or describe what you need!"""
-    
+
     def _save_context(self):
         """Persist context to session."""
         self.session.context = self.context
         self.session.save(update_fields=['context', 'current_state', 'updated_at'])
-
-
-# Integration example
-"""
-# In conversation_manager.py:
-
-from assistant.flows.dispute_flow import DisputeFlow
-from assistant.processors.local_model import LocalModelAdapter
-from assistant.ai.context_manager import ContextManager
-
-# Initialize
-llm = LocalModelAdapter.get_instance()
-context_mgr = ContextManager(session)
-dispute_flow = DisputeFlow(session, llm, context_mgr)
-
-# User selects dispute mode
-if menu_choice == '1' or 'dispute' in user_message.lower():
-    intro_message = dispute_flow.enter_dispute_mode()
-    return intro_message
-
-# Handle dispute messages
-if session.current_state == 'dispute_mode':
-    reply, metadata = dispute_flow.handle_dispute_message(user_message)
-    
-    # Track in context manager
-    if metadata.get('complete'):
-        context_mgr.mark_resolution(success=True)
-    
-    return reply
-"""
