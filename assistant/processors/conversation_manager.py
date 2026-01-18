@@ -1,17 +1,7 @@
 """
-Conversation Manager - UNIFIED PRODUCTION VERSION (CLEANED)
-assistant/processors/conversation_manager.py
-
-FINAL CLEANUP:
-✅ Removed all portfolio_config.py references (file deleted)
-✅ Removed all portfolio_greeting.py references (file deleted)
-✅ Single unified flow for all users
-✅ Creator info as menu option 4
-✅ Optimized with LRU cache + memory management
-✅ Production-ready, no legacy code
+Conversation Manager - Unified conversation orchestrator.
 
 Author: Wisdom Ekwugha
-Date: December 2024
 """
 import logging
 from typing import Dict, Tuple, Optional
@@ -22,7 +12,6 @@ from assistant.models import ConversationSession
 from assistant.processors.query_processor import QueryProcessor
 from assistant.processors.local_model import LocalModelAdapter
 
-# Import AI components
 from assistant.ai import (
     detect_name,
     classify_intent,
@@ -30,7 +19,6 @@ from assistant.ai import (
     ResponsePersonalizer
 )
 
-# Import flow handlers
 from assistant.flows import (
     GreetingFlow,
     FAQFlow,
@@ -38,7 +26,6 @@ from assistant.flows import (
     FeedbackFlow
 )
 
-# Import utils
 from assistant.utils.constants import (
     STATE_GREETING,
     STATE_AWAITING_NAME,
@@ -64,38 +51,31 @@ logger = logging.getLogger(__name__)
 
 class ConversationManager:
     """
-    Unified conversation orchestrator - production ready.
+    Unified conversation orchestrator.
     
     Flow: greeting → name → menu → [FAQ | Dispute | Feedback | Creator Info]
-    
-    Creator info is menu option 4 - accessible to all users.
     """
-    
+
     def __init__(self, session_id: str, user_id: int = None):
-        """Initialize conversation manager with unified flow."""
         self.session_id = session_id
         self.user_id = user_id
         self.session = self._get_or_create_session()
-        
-        # Initialize core processors
+
         self.query_processor = QueryProcessor()
         self.llm = LocalModelAdapter.get_instance()
-        
-        # Initialize AI components
+
         self.context_mgr = ContextManager(self.session)
         self.personalizer = ResponsePersonalizer(self.session)
-        
-        # Initialize flow handlers
+
         self.greeting_flow = GreetingFlow(self.session, self.context_mgr)
         self.faq_flow = FAQFlow(self.session, self.query_processor, self.context_mgr)
         self.dispute_flow = DisputeFlow(self.session, self.llm, self.context_mgr)
         self.feedback_flow = FeedbackFlow(self.session, self.context_mgr, intent_classifier=True)
-        
-        # OPTIMIZATION: Reduce memory footprint
+
         gc.collect()
-        
+
         logger.info(f"ConversationManager initialized for session {session_id[:8]}")
-    
+
     def _get_or_create_session(self) -> ConversationSession:
         """Get existing session or create new one."""
         session, created = ConversationSession.objects.get_or_create(
@@ -106,195 +86,161 @@ class ConversationManager:
                 'context': {}
             }
         )
-        
+
         if created:
             logger.info(f"New session created: {self.session_id}")
-        
+
         return session
-    
+
     def process_message(self, message: str) -> str:
-        """
-        Main entry point: process user message and return response.
-        """
-        # Validate and sanitize
+        """Main entry point: process user message and return response."""
         is_valid, error = validate_message(message)
         if not is_valid:
             logger.warning(f"Invalid message: {error}")
             return f"⚠️ {error}"
-        
-        # Check for spam
+
         if is_spam_message(message):
             logger.warning(f"Spam detected: {message[:50]}...")
             return "I'm sorry, but your message appears to be spam. Please try again with a genuine question."
-        
-        # Sanitize message
+
         message = sanitize_message(message)
         message = clean_message(message)
-        
+
         current_state = self.session.current_state
-        
+
         logger.info(f"Processing message in state '{current_state}': {message[:50]}...")
-        
-        # Route to appropriate handler
+
         if current_state == STATE_GREETING:
             return self._handle_greeting()
-        
+
         elif current_state == STATE_AWAITING_NAME:
             return self._handle_name_input(message)
-        
+
         elif current_state == STATE_MENU:
             return self._handle_menu_selection(message)
-        
+
         elif current_state == STATE_FAQ_MODE:
             return self._handle_faq_mode(message)
-        
+
         elif current_state == STATE_DISPUTE_MODE:
             return self._handle_dispute_mode(message)
-        
+
         elif current_state == STATE_FEEDBACK_MODE:
             return self._handle_feedback_mode(message)
-        
+
         elif current_state == STATE_CHAT_MODE:
             return self._handle_chat_mode(message)
-        
+
         else:
             logger.warning(f"Unknown state '{current_state}', falling back to query processor")
             return self._handle_chat_mode(message)
-    
+
     def _handle_greeting(self) -> str:
-        """
-        Handle initial greeting using unified flow.
-        
-        No portfolio mode checks - everyone gets the same great experience.
-        """
         return self.greeting_flow.start_conversation()
-    
+
     def _handle_name_input(self, message: str) -> str:
-        """
-        Handle name collection with unified menu.
-        
-        Shows 4-option menu with creator info as option 4.
-        """
         name, confidence = detect_name(message)
-        
+
         if name:
             self.session.user_name = name
             self.session.current_state = STATE_MENU
             self.session.save()
-            
-            # Get unified menu
+
             response, metadata = self.greeting_flow.handle_name_input(message)
-            
-            # Add to context
+
             self.context_mgr.add_message(
                 role='user',
                 content=message,
                 intent='greeting',
                 emotion='neutral'
             )
-            
+
             self.context_mgr.add_message(
                 role='assistant',
                 content=response,
                 confidence=confidence
             )
-            
+
             return response
-        
+
         else:
             return (
                 "I didn't quite catch that. Could you please share your name? "
                 "(Just your first name is fine!)"
             )
-    
+
     def _handle_menu_selection(self, message: str) -> str:
-        """
-        Handle menu selection with CREATOR INFO as option 4.
-        
-        Menu options:
-        1. FAQ Questions
-        2. Report Dispute
-        3. Share Feedback
-        4. About My Creator (NEW!)
-        """
+        """Handle menu selection including creator info option."""
         message_lower = message.lower().strip()
-        
-        # Check for option 4 or creator keywords
+
         creator_keywords = [
             'creator', 'developer', 'wisdom', 'who made', 'who built',
             'who created', 'about you', 'technology', 'ai behind',
             'how do you work', 'who is your creator', 'who developed',
             'made you', 'built you', 'created you', 'your creator'
         ]
-        
+
         is_creator_query = (
             message_lower == '4' or 
             any(keyword in message_lower for keyword in creator_keywords)
         )
-        
+
         if is_creator_query:
-            # User selected creator option
             logger.info(f"🎨 User selected creator option: {message[:30]}")
             self.session.current_state = STATE_CHAT_MODE
             self.session.context['mode'] = 'creator_info'
             self.session.save()
-            
+
             return self._get_creator_info()
-        
-        # Check for other menu options (1, 2, 3)
+
         if message_lower in ['1', 'faq', 'question', 'questions', 'ask']:
             intro = self.faq_flow.enter_faq_mode()
             self.context_mgr.add_message('assistant', intro, confidence=1.0)
             return intro
-        
+
         elif message_lower in ['2', 'dispute', 'report', 'problem', 'issue']:
             intro = self.dispute_flow.enter_dispute_mode()
             self.context_mgr.add_message('assistant', intro, confidence=1.0)
             return intro
-        
+
         elif message_lower in ['3', 'feedback', 'suggest', 'suggestion']:
             intro = self.feedback_flow.enter_feedback_mode()
             self.context_mgr.add_message('assistant', intro, confidence=1.0)
             return intro
-        
+
         else:
             # Not a menu selection - classify intent
             intent, confidence, metadata = classify_intent(message, self.session.context)
             emotion = metadata.get('emotion', 'neutral')
-            
+
             logger.info(f"Menu selection: intent={intent.value}, emotion={emotion}")
-            
-            # Route based on intent
+
             if intent.value in ['dispute', 'complaint', 'issue']:
                 intro = self.dispute_flow.enter_dispute_mode()
                 return intro
-            
+
             elif intent.value in ['faq', 'question']:
                 intro = self.faq_flow.enter_faq_mode()
                 return intro
-            
+
             elif intent.value in ['feedback', 'suggestion', 'praise']:
                 intro = self.feedback_flow.enter_feedback_mode()
                 return intro
-            
+
             else:
-                # Direct query - go to chat mode
                 self.session.current_state = STATE_CHAT_MODE
                 self.session.save()
                 return self._handle_chat_mode(message)
-    
+
     @lru_cache(maxsize=1)
     def _get_cached_creator_info(self) -> str:
         """
-        OPTIMIZED: Cached creator info (called frequently).
-        
-        LRU cache prevents repeated imports and string building.
-        Maxsize=1 because we only need one cached version.
+        Cached creator info to avoid repeated imports and string building.
         """
         from assistant.ai.creator_info import get_creator_bio, get_creator_achievements
-        
+
         user_name = self.session.user_name or "there"
-        
+
         response = (
             f"### 🎨 About My Creator - Wisdom Ekwugha\n\n"
             f"Great question, {user_name}! I was built by **Wisdom Ekwugha**, "
@@ -325,153 +271,143 @@ class ConversationManager:
             f"• \"What AI models do you use?\"\n\n"
             f"Or type **'menu'** to go back to the main options!"
         )
-        
+
         return response
-    
+
     def _get_creator_info(self) -> str:
-        """
-        Return creator information when user selects option 4.
-        
-        OPTIMIZED: Uses cached version for better performance.
-        """
-        # Mark that we're in creator info mode
+        """Return creator information when user selects option 4."""
         self.session.context['last_topic'] = 'creator'
         self.session.save()
-        
+
         return self._get_cached_creator_info()
-    
+
     def _handle_faq_mode(self, message: str) -> str:
         """Handle FAQ queries with 3-tier confidence system."""
         intent, conf, metadata = classify_intent(message, self.session.context)
         emotion = metadata.get('emotion', 'neutral')
-        
+
         self.context_mgr.add_message(
             role='user',
             content=message,
             intent=intent.value,
             emotion=emotion
         )
-        
+
         reply, faq_metadata = self.faq_flow.handle_faq_query(message)
-        
+
         final_reply = self.personalizer.personalize(
             base_response=reply,
             confidence=faq_metadata.get('confidence', 0.5),
             emotion=emotion
         )
-        
+
         self.context_mgr.add_message(
             role='assistant',
             content=final_reply,
             confidence=faq_metadata.get('confidence', 0.5)
         )
-        
+
         return final_reply
-    
+
     def _handle_dispute_mode(self, message: str) -> str:
         """Handle multi-step dispute reporting with AI drafts."""
         intent, conf, metadata = classify_intent(message, self.session.context)
         emotion = metadata.get('emotion', 'neutral')
-        
+
         self.context_mgr.add_message(
             role='user',
             content=message,
             intent=intent.value,
             emotion=emotion
         )
-        
+
         reply, dispute_metadata = self.dispute_flow.handle_dispute_message(message)
-        
+
         final_reply = self.personalizer.personalize(
             base_response=reply,
             confidence=0.9,
             emotion=emotion,
             formality='formal'
         )
-        
+
         self.context_mgr.add_message(
             role='assistant',
             content=final_reply,
             confidence=0.9
         )
-        
+
         if dispute_metadata.get('complete'):
             self.context_mgr.mark_resolution(success=True)
-        
+
         return final_reply
-    
+
     def _handle_feedback_mode(self, message: str) -> str:
         """Handle feedback collection with sentiment analysis."""
         intent, conf, metadata = classify_intent(message, self.session.context)
         emotion = metadata.get('emotion', 'neutral')
-        
+
         self.context_mgr.add_message(
             role='user',
             content=message,
             intent=intent.value,
             emotion=emotion
         )
-        
+
         reply, feedback_metadata = self.feedback_flow.handle_feedback_message(message)
-        
+
         final_reply = self.personalizer.personalize(
             base_response=reply,
             confidence=0.85,
             emotion=emotion
         )
-        
+
         self.context_mgr.add_message(
             role='assistant',
             content=final_reply,
             confidence=0.85
         )
-        
+
         if feedback_metadata.get('complete'):
             self.context_mgr.mark_resolution(
                 success=feedback_metadata.get('sentiment') != 'negative'
             )
-        
+
         return final_reply
-    
+
     def _handle_chat_mode(self, message: str) -> str:
-        """
-        Handle general chat/query mode with creator detection.
-        """
+        """Handle general chat/query mode with creator detection."""
         message_lower = message.lower()
-        
-        # Check if user wants to go back to menu
+
         if message_lower in ['menu', 'main menu', 'options', 'back', 'go back']:
             self.session.current_state = STATE_MENU
             self.session.save()
             return self.greeting_flow._build_unified_menu(self.session.user_name)
-        
-        # Check if asking about creator (or following up)
+
         is_creator_query = self._is_creator_related(message)
         is_followup = self._is_creator_followup(message)
-        
+
         if is_creator_query or is_followup:
             logger.info(f"🎨 Creator question detected in chat mode")
             return self._handle_creator_followup(message)
-        
-        # Regular query processing
+
         intent, conf, metadata = classify_intent(message, self.session.context)
         emotion = metadata.get('emotion', 'neutral')
-        
+
         self.context_mgr.add_message(
             role='user',
             content=message,
             intent=intent.value,
             emotion=emotion
         )
-        
+
         result = self.query_processor.process(
             message=message,
             user_name=self.session.user_name or None
         )
-        
+
         hints = self.context_mgr.get_personalization_hints()
         formality = ResponsePersonalizer.detect_formality_preference(message)
-        
+
         final_reply = self.personalizer.personalize(
             base_response=result['reply'],
             confidence=result['confidence'],
@@ -480,23 +416,23 @@ class ConversationManager:
             add_greeting=True,
             add_emoji=True
         )
-        
+
         self.context_mgr.add_message(
             role='assistant',
             content=final_reply,
             confidence=result['confidence']
         )
-        
+
         if result['confidence'] >= CONFIDENCE_HIGH:
             self.context_mgr.mark_resolution(success=True)
-        
+
         # Clear last_topic if moved to different topic
         if 'last_topic' in self.session.context:
             self.session.context['last_topic'] = None
             self.session.save()
-        
+
         return final_reply
-    
+
     def _is_creator_related(self, message: str) -> bool:
         """Check if message is about creator."""
         creator_keywords = [
@@ -506,22 +442,22 @@ class ConversationManager:
         ]
         message_lower = message.lower()
         return any(keyword in message_lower for keyword in creator_keywords)
-    
+
     def _is_creator_followup(self, message: str) -> bool:
         """Check if this is a followup on creator topic."""
         last_topic = self.session.context.get('last_topic')
         if last_topic != 'creator':
             return False
-        
+
         followup_patterns = [
             'tell me more', 'more about', 'what else', 'his background',
             'his experience', 'his achievements', 'his projects',
             'more info', 'continue', 'go on', 'elaborate', 'details'
         ]
-        
+
         message_lower = message.lower()
         return any(pattern in message_lower for pattern in followup_patterns)
-    
+
     def _handle_creator_followup(self, message: str) -> str:
         """Handle detailed creator questions."""
         from assistant.ai.creator_info import (
@@ -529,28 +465,26 @@ class ConversationManager:
             get_creator_achievements,
             get_creator_projects
         )
-        
+
         user_name = self.session.user_name or "there"
         message_lower = message.lower()
-        
-        # Determine what specific info they want
+
         if any(word in message_lower for word in ['project', 'work', 'built', 'portfolio']):
             projects = get_creator_projects()
             response = f"**Wisdom's Recent Projects:**\n\n"
             for proj in projects[:3]:
                 response += f"**{proj['name']}** - {proj['description']}\n"
                 response += f"*Tech:* {', '.join(proj['tech'])}\n\n"
-        
+
         elif any(word in message_lower for word in ['achievement', 'accomplish', 'success']):
             achievements = get_creator_achievements()
             response = f"**Wisdom's Key Achievements:**\n\n"
             response += "\n".join(f"• {a}" for a in achievements)
-        
+
         elif any(word in message_lower for word in ['experience', 'background', 'skill']):
             response = get_creator_bio('detailed', user_name)
-        
+
         else:
-            # General followup
             response = (
                 f"I'd be happy to tell you more about Wisdom, {user_name}!\n\n"
                 f"You can ask me:\n"
@@ -560,31 +494,30 @@ class ConversationManager:
                 f"• \"How can I contact him?\"\n\n"
                 f"Or type **'menu'** to return to main options!"
             )
-        
-        # Mark that we're still on creator topic
+
         self.session.context['last_topic'] = 'creator'
         self.session.save()
-        
+
         return response
-    
+
     def get_current_state(self) -> str:
         """Get current conversation state."""
         return self.session.current_state
-    
+
     def get_user_name(self) -> str:
         """Get user's name or default."""
         return self.session.user_name or "there"
-    
+
     def get_conversation_summary(self) -> Dict:
         """Get conversation summary for analytics."""
         return self.context_mgr.get_conversation_summary()
-    
+
     def reset_session(self):
         """Reset session to initial greeting state."""
         self.session.current_state = STATE_GREETING
         self.session.user_name = ''
         self.session.context = {}
         self.session.save()
-        
+
         self.context_mgr.reset()
         logger.info(f"Session reset: {self.session_id}")
