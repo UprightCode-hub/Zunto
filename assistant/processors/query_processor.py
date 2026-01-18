@@ -1,13 +1,6 @@
 """
-Query Processor - 3-Tier Confidence System
+Query Processor - 3-Tier Confidence System.
 Handles all user queries with rule engine, RAG, and LLM fallback.
-
-MINIMAL FIX (Dec 7, 2024):
-✅ Line 130: check_message() → match()
-✅ Line 186: retrieve() → search()
-✅ Line 370: session_id= → anonymous_session_id=
-
-ONLY 3 LINES CHANGED - Rest is identical to your original!
 """
 import logging
 import time
@@ -30,20 +23,18 @@ class QueryProcessor:
     
     Cost optimization: Saves 65% on API calls by using local processing first.
     """
-    
-    # Confidence thresholds
+
     HIGH_CONFIDENCE = 0.85
     MEDIUM_CONFIDENCE = 0.60
     LOW_CONFIDENCE = 0.40
-    
+
     def __init__(self):
-        """Initialize all processing components."""
         self.rule_engine = RuleEngine()
         self.rag_retriever = RAGRetriever()
         self.llm = LocalModelAdapter.get_instance()
-        
+
         logger.info("QueryProcessor initialized with 3-tier system")
-    
+
     def process(
         self,
         message: str,
@@ -68,10 +59,9 @@ class QueryProcessor:
                 - metadata: Additional processing info
         """
         start_time = time.time()
-        
+
         logger.info(f"Processing query: {message[:50]}...")
-        
-        # Initialize result structure
+
         result = {
             'reply': '',
             'confidence': 0.0,
@@ -81,9 +71,8 @@ class QueryProcessor:
             'faq_hit': None,
             'llm_response': None
         }
-        
+
         try:
-            # TIER 1: Rule Engine (Instant checks)
             rule_result = self._check_rules(message, context or {})
             if rule_result['matched']:
                 result['reply'] = rule_result['response']
@@ -94,12 +83,11 @@ class QueryProcessor:
                     'rule_id': rule_result['rule']['id'],
                     'severity': rule_result['rule']['severity']
                 }
-                
+
                 logger.info(f"✅ Rule matched: {rule_result['rule']['id']}")
                 self._log_conversation(session_id, message, result)
                 return result
-            
-            # TIER 2: RAG Retriever (Fast semantic search)
+
             rag_result = self._search_faqs(message, user_name)
             if rag_result['confidence'] >= self.MEDIUM_CONFIDENCE:
                 result['reply'] = rag_result['answer']
@@ -115,12 +103,11 @@ class QueryProcessor:
                     'matched_question': rag_result['question'],
                     'search_method': rag_result['method']
                 }
-                
+
                 logger.info(f"✅ FAQ matched with {rag_result['confidence']:.2f} confidence")
                 self._log_conversation(session_id, message, result)
                 return result
-            
-            # TIER 3: LLM Fallback (Comprehensive but slower)
+
             llm_result = self._query_llm(message, context or {}, user_name)
             result['reply'] = llm_result['response']
             result['confidence'] = llm_result['confidence']
@@ -131,15 +118,14 @@ class QueryProcessor:
                 'time_ms': llm_result.get('time_ms', 0),
                 'model': llm_result.get('model', 'unknown')
             }
-            
+
             logger.info(f"✅ LLM response with {llm_result['confidence']:.2f} confidence")
             self._log_conversation(session_id, message, result)
             return result
-        
+
         except Exception as e:
             logger.error(f"Error processing query: {e}", exc_info=True)
-            
-            # Fallback response
+
             result['reply'] = (
                 "I apologize, but I encountered an error processing your request. "
                 "Please try rephrasing your question or contact our support team for assistance."
@@ -147,14 +133,14 @@ class QueryProcessor:
             result['confidence'] = 0.0
             result['source'] = 'error_fallback'
             result['metadata'] = {'error': str(e)}
-            
+
             return result
-        
+
         finally:
             processing_time = (time.time() - start_time) * 1000  # Convert to ms
             result['metadata']['processing_time_ms'] = int(processing_time)
             logger.info(f"Query processed in {processing_time:.0f}ms")
-    
+
     def _check_rules(self, message: str, context: Dict) -> Dict:
         """
         Check message against rule engine.
@@ -163,16 +149,14 @@ class QueryProcessor:
             Dict with 'matched', 'response', 'rule' keys
         """
         try:
-            # FIXED: Use correct method name - match() not check_message()
             rule_match = self.rule_engine.match(message)
-            
+
             if rule_match:
-                # Check if this is a blocking rule
                 if self.rule_engine.should_block(rule_match):
                     response = self.rule_engine.get_blocked_response(rule_match)
                 else:
                     response = rule_match.get('description', 'Your message has been flagged for review.')
-                
+
                 return {
                     'matched': True,
                     'response': response,
@@ -183,13 +167,13 @@ class QueryProcessor:
                         'matched_phrase': rule_match.get('matched_phrase', '')
                     }
                 }
-            
+
             return {'matched': False}
-        
+
         except Exception as e:
             logger.error(f"Rule engine error: {e}")
             return {'matched': False}
-    
+
     def _search_faqs(self, query: str, user_name: Optional[str] = None) -> Dict:
         """
         Search FAQs using RAG retriever.
@@ -198,35 +182,32 @@ class QueryProcessor:
             Dict with 'question', 'answer', 'confidence', 'method' keys
         """
         try:
-            # FIXED: Use correct method name - search() not retrieve()
             results = self.rag_retriever.search(query, k=1)
-            
+
             if results:
                 top_match = results[0]
-                
-                # Personalize answer if user name provided
+
                 answer = top_match['answer']
                 if user_name and '{user_name}' not in answer:
-                    # Add user name to greeting if not already personalized
                     if not any(greeting in answer.lower() for greeting in ['hi', 'hello', 'hey']):
                         answer = f"Hi {user_name}! {answer}"
                 elif user_name:
                     answer = answer.replace('{user_name}', user_name)
-                
+
                 return {
                     'question': top_match['question'],
                     'answer': answer,
                     'confidence': top_match['score'],
                     'method': 'faiss_semantic_search'
                 }
-            
+
             return {
                 'question': '',
                 'answer': '',
                 'confidence': 0.0,
                 'method': 'none'
             }
-        
+
         except Exception as e:
             logger.error(f"RAG retriever error: {e}")
             return {
@@ -235,7 +216,7 @@ class QueryProcessor:
                 'confidence': 0.0,
                 'method': 'error'
             }
-    
+
     def _query_llm(
         self,
         message: str,
@@ -249,10 +230,8 @@ class QueryProcessor:
             Dict with 'response', 'confidence', 'tokens', 'time_ms', 'model' keys
         """
         try:
-            # Build context-aware prompt
             system_prompt = self._build_system_prompt(context, user_name)
-            
-            # Query LLM
+
             start_time = time.time()
             response = self.llm.generate(
                 prompt=message,
@@ -261,18 +240,17 @@ class QueryProcessor:
                 temperature=0.7
             )
             time_ms = int((time.time() - start_time) * 1000)
-            
-            # Estimate confidence based on response quality
+
             confidence = self._estimate_llm_confidence(response, message)
-            
+
             return {
                 'response': response,
                 'confidence': confidence,
-                'tokens': len(response.split()),  # Rough estimate
+                'tokens': len(response.split()),
                 'time_ms': time_ms,
                 'model': self.llm.model_name
             }
-        
+
         except Exception as e:
             logger.error(f"LLM error: {e}")
             return {
@@ -285,7 +263,7 @@ class QueryProcessor:
                 'time_ms': 0,
                 'model': 'error'
             }
-    
+
     def _build_system_prompt(self, context: Dict, user_name: Optional[str] = None) -> str:
         """Build context-aware system prompt for LLM."""
         base_prompt = (
@@ -293,18 +271,18 @@ class QueryProcessor:
             "Provide clear, concise, and friendly responses to user queries. "
             "Focus on e-commerce topics like orders, payments, shipping, and refunds."
         )
-        
+
         if user_name:
             base_prompt += f" The user's name is {user_name}."
-        
+
         if context.get('order_id'):
             base_prompt += f" The user is asking about order #{context['order_id']}."
-        
+
         if context.get('issue_type'):
             base_prompt += f" The issue type is: {context['issue_type']}."
-        
+
         return base_prompt
-    
+
     def _estimate_llm_confidence(self, response: str, query: str) -> float:
         """
         Estimate confidence in LLM response.
@@ -314,58 +292,49 @@ class QueryProcessor:
         - Contains key terms from query
         - Starts with hedging phrases ("I think", "Maybe") = lower confidence
         """
-        confidence = 0.7  # Base confidence for LLM
-        
-        # Length check
+        confidence = 0.7
+
         word_count = len(response.split())
         if word_count < 10:
             confidence -= 0.2
         elif word_count > 200:
             confidence -= 0.1
-        
-        # Hedging phrases reduce confidence
+
         hedging_phrases = [
             "i think", "maybe", "probably", "i'm not sure",
             "it seems", "perhaps", "might be"
         ]
         if any(phrase in response.lower() for phrase in hedging_phrases):
             confidence -= 0.15
-        
-        # Query term overlap increases confidence
+
         query_terms = set(query.lower().split())
         response_terms = set(response.lower().split())
         overlap = len(query_terms.intersection(response_terms))
         if overlap >= 2:
             confidence += 0.1
-        
+
         return max(0.0, min(1.0, confidence))
-    
+
     def _log_conversation(
         self,
         session_id: Optional[str],
         message: str,
         result: Dict
     ):
-        """
-        Log conversation to database.
-        
-        FIXED: Uses anonymous_session_id instead of session_id to avoid UUID error.
-        """
+        """Log conversation to database."""
         if not session_id:
-            return  # Can't log without session ID
-        
+            return
+
         try:
-            # Try to get session object
             session_obj = None
             try:
                 session_obj = ConversationSession.objects.get(session_id=session_id)
             except ConversationSession.DoesNotExist:
                 logger.warning(f"Session not found: {session_id}")
-            
-            # FIXED: Create log entry with correct field name
+
             ConversationLog.objects.create(
                 session=session_obj,
-                anonymous_session_id=session_id,  # FIXED: Use anonymous_session_id not session_id
+                anonymous_session_id=session_id,
                 message=message,
                 rule_hit=result.get('rule_hit'),
                 faq_hit=result.get('faq_hit'),
@@ -376,12 +345,12 @@ class QueryProcessor:
                 explanation=f"Source: {result['source']}",
                 processing_time_ms=result['metadata'].get('processing_time_ms', 0)
             )
-            
+
             logger.debug(f"Conversation logged for session {session_id[:8]}")
-        
+
         except Exception as e:
             logger.error(f"Failed to log conversation: {e}", exc_info=True)
-    
+
     def get_stats(self) -> Dict:
         """
         Get query processor statistics.
@@ -392,14 +361,13 @@ class QueryProcessor:
             from django.db.models import Count, Avg
             from django.utils import timezone
             from datetime import timedelta
-            
-            # Stats for last 24 hours
+
             since = timezone.now() - timedelta(hours=24)
-            
+
             logs = ConversationLog.objects.filter(created_at__gte=since)
-            
+
             total_queries = logs.count()
-            
+
             if total_queries == 0:
                 return {
                     'total_queries': 0,
@@ -407,16 +375,14 @@ class QueryProcessor:
                     'avg_processing_time_ms': 0,
                     'source_distribution': {}
                 }
-            
-            # Calculate averages
+
             avg_confidence = logs.aggregate(Avg('confidence'))['confidence__avg'] or 0.0
             avg_time = logs.aggregate(Avg('processing_time_ms'))['processing_time_ms__avg'] or 0
-            
-            # Source distribution (estimate from metadata)
+
             rule_hits = logs.exclude(rule_hit__isnull=True).count()
             faq_hits = logs.exclude(faq_hit__isnull=True).count()
             llm_hits = logs.exclude(llm_response__isnull=True).count()
-            
+
             return {
                 'total_queries': total_queries,
                 'avg_confidence': round(avg_confidence, 2),
@@ -428,7 +394,7 @@ class QueryProcessor:
                 },
                 'period': '24h'
             }
-        
+
         except Exception as e:
             logger.error(f"Error getting stats: {e}")
             return {
@@ -436,7 +402,6 @@ class QueryProcessor:
             }
 
 
-# Convenience function for quick queries
 def process_query(message: str, session_id: Optional[str] = None, **kwargs) -> Dict:
     """
     Quick query processing without instantiating QueryProcessor.
