@@ -1,0 +1,112 @@
+# ============================================
+# ZUNTO PROJECT - FREE TIER OPTIMIZED
+# Memory-Efficient Configuration
+# ============================================
+
+# ============================================
+# CORE DJANGO
+# ============================================
+Django==5.1.3
+djangorestframework==3.15.2
+djangorestframework-simplejwt==5.3.1
+django-cors-headers==4.6.0
+django-filter==24.3
+python-decouple==3.8
+python-dotenv==1.0.1
+
+# ============================================
+# FORMS & UI
+# ============================================
+django-crispy-forms==2.3
+crispy-bootstrap5==2024.10
+
+# ============================================
+# MEDIA & FILES
+# ============================================
+Pillow==11.0.0
+
+# ============================================
+# DATABASE
+# ============================================
+psycopg[binary]==3.2.3
+
+# ============================================
+# CACHING & SESSIONS
+# ============================================
+redis==5.2.0
+django-redis==5.4.0
+
+# ============================================
+# TASK QUEUE (Celery)
+# ============================================
+celery==5.4.0
+
+# ============================================
+# ASGI/WSGI SERVERS
+# ============================================
+gunicorn==23.0.0
+daphne==4.1.2
+
+# ============================================
+# WEBSOCKETS & REAL-TIME (Channels)
+# ============================================
+channels==4.2.0
+channels-redis==4.2.1
+
+# ============================================
+# AI/ML - MEMORY OPTIMIZED FOR FREE TIER
+# ============================================
+# CRITICAL: Don't install full torch - let sentence-transformers handle it
+# sentence-transformers will auto-install torch with minimal dependencies
+
+# Lightweight sentence embeddings (will install minimal torch automatically)
+sentence-transformers==3.3.1
+
+# Lightweight ML
+scikit-learn>=1.3.0
+numpy>=1.24.0
+pyyaml>=6.0
+
+# Vector similarity (CPU-only, lighter)
+faiss-cpu
+
+# ============================================
+# AI API - GROQ CLOUD (Primary AI Engine)
+# ============================================
+groq==0.36.0
+
+# ============================================
+# SECURITY & RATE LIMITING
+# ============================================
+django-ratelimit==4.1.0
+
+# ============================================
+# HTTP REQUESTS
+# ============================================
+requests==2.32.3
+
+# ============================================
+# ADMIN ENHANCEMENTS
+# ============================================
+django-import-export==4.3.3
+django-admin-rangefilter==0.13.3
+tablib==3.7.0
+
+# ============================================
+# DEVELOPMENT TOOLS (Minimal for production)
+# ============================================
+django-extensions==3.2.3
+
+# ============================================
+# CORE DEPENDENCIES
+# ============================================
+asgiref==3.8.1
+sqlparse==0.5.1
+tzdata==2024.2
+
+# ============================================
+# DEPLOYMENT DEPENDENCIES
+# ============================================
+dj-database-url==2.1.0
+whitenoise==6.6.0
+rapidfuzz==3.10.1

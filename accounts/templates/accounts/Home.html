@@ -1,0 +1,82 @@
+
+
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zunto Project - Home</title>
+    <!-- Bootstrap CSS (from CDN) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Optional Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="#">Zunto Project</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="{% url 'health_check' %}">Health</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/admin/">Admin</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{% url 'assistant:home' %}">AI Assistant</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/chat/">Chat</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="bg-light text-center py-5">
+        <div class="container">
+            <h1 class="display-4">Welcome to Zunto Project</h1>
+            <p class="lead">Memory-efficient, AI-powered backend for modern applications</p>
+            <a href="{% url 'assistant:home' %}" class="btn btn-primary btn-lg mt-3">
+                Try AI Assistant <i class="bi bi-robot"></i>
+            </a>
+        </div>
+    </header>
+
+    <!-- Features Section -->
+    <section class="py-5">
+        <div class="container">
+            <div class="row text-center g-4">
+                <div class="col-md-4">
+                    <i class="bi bi-chat-dots-fill display-1 text-primary"></i>
+                    <h3 class="mt-3">Live Chat</h3>
+                    <p>Real-time chat powered by Django Channels and WebSockets.</p>
+                </div>
+                <div class="col-md-4">
+                    <i class="bi bi-cpu-fill display-1 text-primary"></i>
+                    <h3 class="mt-3">AI Assistant</h3>
+                    <p>FAQ and LLM support via Groq or local models for intelligent responses.</p>
+                </div>
+                <div class="col-md-4">
+                    <i class="bi bi-shop-window display-1 text-primary"></i>
+                    <h3 class="mt-3">E-commerce APIs</h3>
+                    <p>Market, cart, and order APIs ready for frontend integration.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-primary text-white text-center py-4">
+        <p class="mb-0">&copy; {{ now|date:"Y" }} Zunto Project. All rights reserved.</p>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Optional JS -->
+    <script>
+        const API_BASE = 'http://127.0.0.1:8000';  // Use local backend for testing
+    </script>
+</body>
+</html>
