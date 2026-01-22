@@ -3,7 +3,11 @@
  * Supports Light/Dark/System modes
  */
 
+<<<<<<< HEAD
 const API_BASE = 'https://http://127.0.0.1:8000';
+=======
+const API_BASE = 'https://zunto-backend.onrender.com';
+>>>>>>> a5ade3bd7a489e85ab22281fa44c197fd299c00c
 const APP_CONFIG = {
     version: '2.2.0',
     maxMessageLength: 1000,
