@@ -669,3 +669,5 @@ ERROR 2025-12-08 10:12:45,664 log 5932 15268 Internal Server Error: /assistant/a
 ERROR 2025-12-08 10:12:45,666 runserver 5932 14868 [35;1mHTTP POST /assistant/api/tts/ 500 [0.04, 127.0.0.1:53590][0m
 ERROR 2025-12-08 10:12:48,264 log 5932 15268 Internal Server Error: /assistant/api/tts/
 ERROR 2025-12-08 10:12:48,265 runserver 5932 14868 [35;1mHTTP POST /assistant/api/tts/ 500 [0.03, 127.0.0.1:53590][0m
+ERROR 2026-01-23 13:12:24,415 runserver 20832 12516 [35;1mHTTP GET / 500 [0.22, 127.0.0.1:64731][0m
+ERROR 2026-01-23 13:12:25,441 runserver 20832 12516 [35;1mHTTP GET /favicon.ico 500 [0.98, 127.0.0.1:64731][0m
