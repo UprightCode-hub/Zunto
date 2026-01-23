@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CreditCard, Truck, MapPin, Lock } from 'lucide-react';
 import { useCart } from '../context/CartContext';
-import { createOrder } from '../services/api';
+import { checkout } from '../services/api';
 
 export default function Checkout() {
   const navigate = useNavigate();
@@ -44,33 +44,19 @@ export default function Checkout() {
     try {
       setLoading(true);
       
-      const orderData = {
-        shipping_info: {
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          email: formData.email,
-          phone: formData.phone,
-          address: formData.address,
-          city: formData.city,
-          state: formData.state,
-          zip_code: formData.zipCode,
-          country: formData.country,
-        },
-        payment_info: {
-          card_number: formData.cardNumber,
-          card_name: formData.cardName,
-          expiry_date: formData.expiryDate,
-        },
+      const payload = {
+        shipping_address: formData.address,
+        shipping_city: formData.city,
+        shipping_state: formData.state,
+        shipping_country: formData.country || 'Nigeria',
+        shipping_phone: formData.phone,
+        shipping_email: formData.email,
+        payment_method: 'cash_on_delivery',
         notes: formData.notes,
-        items: cart.map(item => ({
-          product_id: item.product_id,
-          quantity: item.quantity,
-          price: item.price,
-        })),
-        total: cartTotal * 1.1, // Including tax
+        save_address: false,
       };
 
-      const result = await createOrder(orderData);
+      const result = await checkout(payload);
       
       alert('Order placed successfully!');
       navigate('/profile?tab=orders');
@@ -301,16 +287,16 @@ export default function Checkout() {
                     <div key={item.id} className="flex gap-3">
                       <div className="w-16 h-16 bg-gradient-to-br from-[#2c77d1]/20 to-[#9426f4]/20 rounded-lg overflow-hidden shrink-0">
                         <img
-                          src={item.product_image || '/placeholder.png'}
-                          alt={item.product_name}
+                          src={item.product?.primary_image || '/placeholder.png'}
+                          alt={item.product?.title || 'Product'}
                           className="w-full h-full object-cover"
                         />
                       </div>
                       <div className="flex-1">
-                        <p className="font-medium text-sm">{item.product_name}</p>
+                        <p className="font-medium text-sm">{item.product?.title}</p>
                         <p className="text-xs text-gray-400">Qty: {item.quantity}</p>
                         <p className="text-sm text-[#2c77d1] font-semibold">
-                          ${(item.price * item.quantity).toFixed(2)}
+                          ${(Number(item.price_at_addition) * item.quantity).toFixed(2)}
                         </p>
                       </div>
                     </div>

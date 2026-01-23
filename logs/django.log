@@ -1,0 +1,673 @@
+import os
+LOG_DIR = os.path.join(BASE_DIR, 'logs')
+os.makedirs(LOG_DIR, exist_ok=True)
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': BASE_DIR / 'logs' / 'django.log',
+            'maxBytes': 1024 * 1024 * 10,  # 10MB
+            'backupCount': 5,
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+        },
+        'orders': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+        },
+        'notifications': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+        },
+    },
+}ERROR 2025-12-03 00:29:04,590 log 916 18776 Internal Server Error: /assistant/api/analytics/queries/
+Traceback (most recent call last):
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 518, in thread_handler
+    raise exc_info[1]
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\core\handlers\exception.py", line 42, in inner
+    response = await get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 518, in thread_handler
+    raise exc_info[1]
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\core\handlers\base.py", line 253, in _get_response_async
+    response = await wrapped_callback(
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 468, in __call__
+    ret = await asyncio.shield(exec_coro)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 522, in thread_handler
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\views\decorators\http.py", line 64, in inner
+    return func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\Zunto-main\assistant\analytics_views.py", line 125, in analytics_queries
+    faq_logs = ConversationLog.objects.filter(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\query.py", line 1476, in filter
+    return self._filter_or_exclude(False, args, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\query.py", line 1494, in _filter_or_exclude
+    clone._filter_or_exclude_inplace(negate, args, kwargs)
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\query.py", line 1501, in _filter_or_exclude_inplace
+    self._query.add_q(Q(*args, **kwargs))
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 1609, in add_q
+    clause, _ = self._add_q(q_object, self.used_aliases)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 1641, in _add_q
+    child_clause, needed_inner = self.build_filter(
+                                 ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 1491, in build_filter
+    lookups, parts, reffed_expression = self.solve_lookup_type(arg, summarize)
+                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 1303, in solve_lookup_type
+    _, field, _, lookup_parts = self.names_to_path(lookup_splitted, self.get_meta())
+                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 1768, in names_to_path
+    raise FieldError(
+django.core.exceptions.FieldError: Cannot resolve keyword 'role' into field. Choices are: confidence, created_at, explanation, faq_hit, final_reply, id, llm_meta, llm_response, message, processing_time_ms, rule_hit, session_id, user, user_id
+ERROR 2025-12-03 00:29:04,607 log 916 30028 Internal Server Error: /assistant/api/analytics/dashboard/
+Traceback (most recent call last):
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 518, in thread_handler
+    raise exc_info[1]
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\core\handlers\exception.py", line 42, in inner
+    response = await get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 518, in thread_handler
+    raise exc_info[1]
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\core\handlers\base.py", line 253, in _get_response_async
+    response = await wrapped_callback(
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 468, in __call__
+    ret = await asyncio.shield(exec_coro)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 522, in thread_handler
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\views\decorators\http.py", line 64, in inner
+    return func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\Zunto-main\assistant\analytics_views.py", line 76, in analytics_dashboard
+    .values('context_data__user_name')
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\query.py", line 1360, in values
+    clone = self._values(*fields, **expressions)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\query.py", line 1355, in _values
+    clone.query.set_values(fields)
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 2500, in set_values
+    self.add_fields(field_names, True)
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 2195, in add_fields
+    join_info = self.setup_joins(
+                ^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 1863, in setup_joins
+    path, final_field, targets, rest = self.names_to_path(
+                                       ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 1768, in names_to_path
+    raise FieldError(
+django.core.exceptions.FieldError: Cannot resolve keyword 'context_data' into field. Choices are: context, created_at, current_state, id, last_activity, session_id, updated_at, user, user_id, user_name
+ERROR 2025-12-03 00:29:05,643 runserver 916 32248 [35;1mHTTP GET /assistant/api/analytics/queries/?days=30 500 [114.13, 127.0.0.1:59915][0m
+ERROR 2025-12-03 00:29:05,648 runserver 916 32248 [35;1mHTTP GET /assistant/api/analytics/dashboard/?days=30 500 [114.13, 127.0.0.1:59914][0m
+ERROR 2025-12-03 15:45:16,174 log 21680 31204 Internal Server Error: /assistant/api/analytics/queries/
+Traceback (most recent call last):
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 518, in thread_handler
+    raise exc_info[1]
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\core\handlers\exception.py", line 42, in inner
+    response = await get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 518, in thread_handler
+    raise exc_info[1]
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\core\handlers\base.py", line 253, in _get_response_async
+    response = await wrapped_callback(
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 468, in __call__
+    ret = await asyncio.shield(exec_coro)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 522, in thread_handler
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\views\decorators\http.py", line 64, in inner
+    return func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\Zunto-main\assistant\analytics_views.py", line 125, in analytics_queries
+    faq_logs = ConversationLog.objects.filter(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\query.py", line 1476, in filter
+    return self._filter_or_exclude(False, args, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\query.py", line 1494, in _filter_or_exclude
+    clone._filter_or_exclude_inplace(negate, args, kwargs)
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\query.py", line 1501, in _filter_or_exclude_inplace
+    self._query.add_q(Q(*args, **kwargs))
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 1609, in add_q
+    clause, _ = self._add_q(q_object, self.used_aliases)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 1641, in _add_q
+    child_clause, needed_inner = self.build_filter(
+                                 ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 1491, in build_filter
+    lookups, parts, reffed_expression = self.solve_lookup_type(arg, summarize)
+                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 1303, in solve_lookup_type
+    _, field, _, lookup_parts = self.names_to_path(lookup_splitted, self.get_meta())
+                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 1768, in names_to_path
+    raise FieldError(
+django.core.exceptions.FieldError: Cannot resolve keyword 'role' into field. Choices are: confidence, created_at, explanation, faq_hit, final_reply, id, llm_meta, llm_response, message, processing_time_ms, rule_hit, session_id, user, user_id
+ERROR 2025-12-03 15:45:16,183 log 21680 22756 Internal Server Error: /assistant/api/analytics/dashboard/
+Traceback (most recent call last):
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 518, in thread_handler
+    raise exc_info[1]
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\core\handlers\exception.py", line 42, in inner
+    response = await get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 518, in thread_handler
+    raise exc_info[1]
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\core\handlers\base.py", line 253, in _get_response_async
+    response = await wrapped_callback(
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 468, in __call__
+    ret = await asyncio.shield(exec_coro)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 522, in thread_handler
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\views\decorators\http.py", line 64, in inner
+    return func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\Zunto-main\assistant\analytics_views.py", line 76, in analytics_dashboard
+    .values('context_data__user_name')
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\query.py", line 1360, in values
+    clone = self._values(*fields, **expressions)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\query.py", line 1355, in _values
+    clone.query.set_values(fields)
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 2500, in set_values
+    self.add_fields(field_names, True)
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 2195, in add_fields
+    join_info = self.setup_joins(
+                ^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 1863, in setup_joins
+    path, final_field, targets, rest = self.names_to_path(
+                                       ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 1768, in names_to_path
+    raise FieldError(
+django.core.exceptions.FieldError: Cannot resolve keyword 'context_data' into field. Choices are: context, created_at, current_state, id, last_activity, session_id, updated_at, user, user_id, user_name
+ERROR 2025-12-03 15:45:16,237 runserver 21680 26084 [35;1mHTTP GET /assistant/api/analytics/queries/?days=30 500 [2.09, 127.0.0.1:62266][0m
+ERROR 2025-12-03 15:45:16,241 runserver 21680 26084 [35;1mHTTP GET /assistant/api/analytics/dashboard/?days=30 500 [2.09, 127.0.0.1:62263][0m
+ERROR 2025-12-03 16:10:47,582 log 21680 31204 Internal Server Error: /assistant/api/analytics/queries/
+Traceback (most recent call last):
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 518, in thread_handler
+    raise exc_info[1]
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\core\handlers\exception.py", line 42, in inner
+    response = await get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 518, in thread_handler
+    raise exc_info[1]
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\core\handlers\base.py", line 253, in _get_response_async
+    response = await wrapped_callback(
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 468, in __call__
+    ret = await asyncio.shield(exec_coro)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 522, in thread_handler
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\views\decorators\http.py", line 64, in inner
+    return func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\Zunto-main\assistant\analytics_views.py", line 125, in analytics_queries
+    faq_logs = ConversationLog.objects.filter(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\query.py", line 1476, in filter
+    return self._filter_or_exclude(False, args, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\query.py", line 1494, in _filter_or_exclude
+    clone._filter_or_exclude_inplace(negate, args, kwargs)
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\query.py", line 1501, in _filter_or_exclude_inplace
+    self._query.add_q(Q(*args, **kwargs))
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 1609, in add_q
+    clause, _ = self._add_q(q_object, self.used_aliases)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 1641, in _add_q
+    child_clause, needed_inner = self.build_filter(
+                                 ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 1491, in build_filter
+    lookups, parts, reffed_expression = self.solve_lookup_type(arg, summarize)
+                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 1303, in solve_lookup_type
+    _, field, _, lookup_parts = self.names_to_path(lookup_splitted, self.get_meta())
+                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 1768, in names_to_path
+    raise FieldError(
+django.core.exceptions.FieldError: Cannot resolve keyword 'role' into field. Choices are: confidence, created_at, explanation, faq_hit, final_reply, id, llm_meta, llm_response, message, processing_time_ms, rule_hit, session_id, user, user_id
+ERROR 2025-12-03 16:10:47,766 log 21680 15368 Internal Server Error: /assistant/api/analytics/dashboard/
+Traceback (most recent call last):
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 518, in thread_handler
+    raise exc_info[1]
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\core\handlers\exception.py", line 42, in inner
+    response = await get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 518, in thread_handler
+    raise exc_info[1]
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\core\handlers\base.py", line 253, in _get_response_async
+    response = await wrapped_callback(
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 468, in __call__
+    ret = await asyncio.shield(exec_coro)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 522, in thread_handler
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\views\decorators\http.py", line 64, in inner
+    return func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\Zunto-main\assistant\analytics_views.py", line 76, in analytics_dashboard
+    .values('context_data__user_name')
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\query.py", line 1360, in values
+    clone = self._values(*fields, **expressions)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\query.py", line 1355, in _values
+    clone.query.set_values(fields)
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 2500, in set_values
+    self.add_fields(field_names, True)
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 2195, in add_fields
+    join_info = self.setup_joins(
+                ^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 1863, in setup_joins
+    path, final_field, targets, rest = self.names_to_path(
+                                       ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 1768, in names_to_path
+    raise FieldError(
+django.core.exceptions.FieldError: Cannot resolve keyword 'context_data' into field. Choices are: context, created_at, current_state, id, last_activity, session_id, updated_at, user, user_id, user_name
+ERROR 2025-12-03 16:10:47,830 runserver 21680 26084 [35;1mHTTP GET /assistant/api/analytics/queries/?days=30 500 [3.92, 127.0.0.1:63474][0m
+ERROR 2025-12-03 16:10:47,834 runserver 21680 26084 [35;1mHTTP GET /assistant/api/analytics/dashboard/?days=30 500 [4.10, 127.0.0.1:63473][0m
+ERROR 2025-12-04 10:33:10,422 log 9360 18136 Internal Server Error: /assistant/api/chat/
+ERROR 2025-12-04 10:33:10,438 runserver 9360 15940 [35;1mHTTP POST /assistant/api/chat/ 500 [0.71, 127.0.0.1:53955][0m
+ERROR 2025-12-04 10:33:17,710 log 9360 18136 Internal Server Error: /assistant/api/chat/
+ERROR 2025-12-04 10:33:17,711 runserver 9360 15940 [35;1mHTTP POST /assistant/api/chat/ 500 [0.02, 127.0.0.1:53955][0m
+ERROR 2025-12-04 10:40:10,095 log 9360 18136 Internal Server Error: /assistant/api/chat/
+ERROR 2025-12-04 10:40:10,096 runserver 9360 15940 [35;1mHTTP POST /assistant/api/chat/ 500 [0.01, 127.0.0.1:54528][0m
+ERROR 2025-12-04 11:16:03,820 log 15600 10828 Internal Server Error: /assistant/api/chat/
+ERROR 2025-12-04 11:16:03,835 runserver 15600 21672 [35;1mHTTP POST /assistant/api/chat/ 500 [0.49, 127.0.0.1:52800][0m
+ERROR 2025-12-04 11:16:10,108 log 15600 10828 Internal Server Error: /assistant/api/chat/
+ERROR 2025-12-04 11:16:10,109 runserver 15600 21672 [35;1mHTTP POST /assistant/api/chat/ 500 [0.02, 127.0.0.1:52800][0m
+ERROR 2025-12-04 11:16:18,169 log 15600 10828 Internal Server Error: /assistant/api/chat/
+ERROR 2025-12-04 11:16:18,170 runserver 15600 21672 [35;1mHTTP POST /assistant/api/chat/ 500 [0.02, 127.0.0.1:52800][0m
+ERROR 2025-12-04 11:22:38,364 log 15600 10828 Internal Server Error: /assistant/api/chat/
+ERROR 2025-12-04 11:22:38,365 runserver 15600 21672 [35;1mHTTP POST /assistant/api/chat/ 500 [0.03, 127.0.0.1:53398][0m
+ERROR 2025-12-04 11:22:51,883 log 15600 10828 Internal Server Error: /assistant/api/chat/
+ERROR 2025-12-04 11:22:51,884 runserver 15600 21672 [35;1mHTTP POST /assistant/api/chat/ 500 [0.02, 127.0.0.1:53398][0m
+ERROR 2025-12-04 11:23:03,513 log 15600 10828 Internal Server Error: /assistant/api/chat/
+ERROR 2025-12-04 11:23:03,514 runserver 15600 21672 [35;1mHTTP POST /assistant/api/chat/ 500 [0.03, 127.0.0.1:53398][0m
+ERROR 2025-12-04 11:51:34,036 log 21748 25496 Internal Server Error: /assistant/api/analytics/dashboard/
+Traceback (most recent call last):
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 518, in thread_handler
+    raise exc_info[1]
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\core\handlers\exception.py", line 42, in inner
+    response = await get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 518, in thread_handler
+    raise exc_info[1]
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\core\handlers\base.py", line 253, in _get_response_async
+    response = await wrapped_callback(
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 468, in __call__
+    ret = await asyncio.shield(exec_coro)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 522, in thread_handler
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\views\decorators\http.py", line 64, in inner
+    return func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\Zunto-main\assistant\analytics_views.py", line 76, in analytics_dashboard
+    .values('context_data__user_name')
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\query.py", line 1360, in values
+    clone = self._values(*fields, **expressions)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\query.py", line 1355, in _values
+    clone.query.set_values(fields)
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 2500, in set_values
+    self.add_fields(field_names, True)
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 2195, in add_fields
+    join_info = self.setup_joins(
+                ^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 1863, in setup_joins
+    path, final_field, targets, rest = self.names_to_path(
+                                       ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 1768, in names_to_path
+    raise FieldError(
+django.core.exceptions.FieldError: Cannot resolve keyword 'context_data' into field. Choices are: context, created_at, current_state, id, last_activity, session_id, updated_at, user, user_id, user_name
+ERROR 2025-12-04 11:51:34,121 log 21748 25444 Internal Server Error: /assistant/api/analytics/queries/
+Traceback (most recent call last):
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 518, in thread_handler
+    raise exc_info[1]
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\core\handlers\exception.py", line 42, in inner
+    response = await get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 518, in thread_handler
+    raise exc_info[1]
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\core\handlers\base.py", line 253, in _get_response_async
+    response = await wrapped_callback(
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 468, in __call__
+    ret = await asyncio.shield(exec_coro)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\AppData\Local\Programs\Python\Python312\Lib\concurrent\futures\thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 522, in thread_handler
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\views\decorators\http.py", line 64, in inner
+    return func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\Zunto-main\assistant\analytics_views.py", line 125, in analytics_queries
+    faq_logs = ConversationLog.objects.filter(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\query.py", line 1476, in filter
+    return self._filter_or_exclude(False, args, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\query.py", line 1494, in _filter_or_exclude
+    clone._filter_or_exclude_inplace(negate, args, kwargs)
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\query.py", line 1501, in _filter_or_exclude_inplace
+    self._query.add_q(Q(*args, **kwargs))
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 1609, in add_q
+    clause, _ = self._add_q(q_object, self.used_aliases)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 1641, in _add_q
+    child_clause, needed_inner = self.build_filter(
+                                 ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 1491, in build_filter
+    lookups, parts, reffed_expression = self.solve_lookup_type(arg, summarize)
+                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 1303, in solve_lookup_type
+    _, field, _, lookup_parts = self.names_to_path(lookup_splitted, self.get_meta())
+                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\query.py", line 1768, in names_to_path
+    raise FieldError(
+django.core.exceptions.FieldError: Cannot resolve keyword 'role' into field. Choices are: confidence, created_at, explanation, faq_hit, final_reply, id, llm_meta, llm_response, message, processing_time_ms, rule_hit, session_id, user, user_id
+ERROR 2025-12-04 11:51:34,141 runserver 21748 392 [35;1mHTTP GET /assistant/api/analytics/dashboard/?days=30 500 [5.72, 127.0.0.1:58592][0m
+ERROR 2025-12-04 11:51:34,147 runserver 21748 392 [35;1mHTTP GET /assistant/api/analytics/queries/?days=30 500 [5.72, 127.0.0.1:58593][0m
+ERROR 2025-12-04 11:51:44,557 log 21748 25444 Internal Server Error: /assistant/api/chat/
+ERROR 2025-12-04 11:51:44,559 runserver 21748 392 [35;1mHTTP POST /assistant/api/chat/ 500 [0.37, 127.0.0.1:58593][0m
+ERROR 2025-12-04 11:51:47,772 log 21748 25496 Internal Server Error: /assistant/api/chat/
+ERROR 2025-12-04 11:51:47,774 runserver 21748 392 [35;1mHTTP POST /assistant/api/chat/ 500 [0.24, 127.0.0.1:58593][0m
+ERROR 2025-12-04 11:57:38,912 log 8156 21184 Internal Server Error: /assistant/api/chat/
+ERROR 2025-12-04 11:57:38,914 runserver 8156 10732 [35;1mHTTP POST /assistant/api/chat/ 500 [0.06, 127.0.0.1:59219][0m
+ERROR 2025-12-04 12:01:59,648 log 20576 20984 Internal Server Error: /assistant/api/chat/
+ERROR 2025-12-04 12:01:59,651 runserver 20576 14152 [35;1mHTTP POST /assistant/api/chat/ 500 [0.21, 127.0.0.1:59718][0m
+ERROR 2025-12-04 12:09:24,978 log 2188 18908 Internal Server Error: /assistant/api/chat/
+ERROR 2025-12-04 12:09:24,979 runserver 2188 11944 [35;1mHTTP POST /assistant/api/chat/ 500 [13.85, 127.0.0.1:60465][0m
+ERROR 2025-12-07 13:47:54,144 log 5148 8700 Internal Server Error: /admin/assistant/report/
+Traceback (most recent call last):
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\backends\sqlite3\base.py", line 354, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: no such column: assistant_report.session_id
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 518, in thread_handler
+    raise exc_info[1]
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\core\handlers\exception.py", line 42, in inner
+    response = await get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 518, in thread_handler
+    raise exc_info[1]
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\core\handlers\base.py", line 253, in _get_response_async
+    response = await wrapped_callback(
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 468, in __call__
+    ret = await asyncio.shield(exec_coro)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\current_thread_executor.py", line 40, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 522, in thread_handler
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\contrib\admin\options.py", line 718, in wrapper
+    return self.admin_site.admin_view(view)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\utils\decorators.py", line 188, in _view_wrapper
+    result = _process_exception(request, e)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\utils\decorators.py", line 186, in _view_wrapper
+    response = view_func(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\views\decorators\cache.py", line 80, in _view_wrapper
+    response = view_func(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\contrib\admin\sites.py", line 241, in inner
+    return view(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\utils\decorators.py", line 48, in _wrapper
+    return bound_method(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\utils\decorators.py", line 188, in _view_wrapper
+    result = _process_exception(request, e)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\utils\decorators.py", line 186, in _view_wrapper
+    response = view_func(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\contrib\admin\options.py", line 2140, in changelist_view
+    "selection_note": _("0 of %(cnt)s selected") % {"cnt": len(cl.result_list)},
+                                                           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\query.py", line 382, in __len__
+    self._fetch_all()
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\query.py", line 1928, in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\query.py", line 91, in __iter__
+    results = compiler.execute_sql(
+              ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\compiler.py", line 1574, in execute_sql
+    cursor.execute(sql, params)
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\backends\utils.py", line 122, in execute
+    return super().execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\backends\utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\backends\utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\backends\utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\backends\sqlite3\base.py", line 354, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+django.db.utils.OperationalError: no such column: assistant_report.session_id
+ERROR 2025-12-07 13:47:54,159 log 5148 17568 Internal Server Error: /admin/assistant/report/
+Traceback (most recent call last):
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\backends\sqlite3\base.py", line 354, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: no such column: assistant_report.session_id
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 518, in thread_handler
+    raise exc_info[1]
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\core\handlers\exception.py", line 42, in inner
+    response = await get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 518, in thread_handler
+    raise exc_info[1]
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\core\handlers\base.py", line 253, in _get_response_async
+    response = await wrapped_callback(
+               ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 468, in __call__
+    ret = await asyncio.shield(exec_coro)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\current_thread_executor.py", line 40, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\asgiref\sync.py", line 522, in thread_handler
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\contrib\admin\options.py", line 718, in wrapper
+    return self.admin_site.admin_view(view)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\utils\decorators.py", line 188, in _view_wrapper
+    result = _process_exception(request, e)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\utils\decorators.py", line 186, in _view_wrapper
+    response = view_func(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\views\decorators\cache.py", line 80, in _view_wrapper
+    response = view_func(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\contrib\admin\sites.py", line 241, in inner
+    return view(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\utils\decorators.py", line 48, in _wrapper
+    return bound_method(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\utils\decorators.py", line 188, in _view_wrapper
+    result = _process_exception(request, e)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\utils\decorators.py", line 186, in _view_wrapper
+    response = view_func(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\contrib\admin\options.py", line 2140, in changelist_view
+    "selection_note": _("0 of %(cnt)s selected") % {"cnt": len(cl.result_list)},
+                                                           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\query.py", line 382, in __len__
+    self._fetch_all()
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\query.py", line 1928, in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\query.py", line 91, in __iter__
+    results = compiler.execute_sql(
+              ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\models\sql\compiler.py", line 1574, in execute_sql
+    cursor.execute(sql, params)
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\backends\utils.py", line 122, in execute
+    return super().execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\backends\utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\backends\utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\backends\utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\FaithLink\Desktop\Zunto-pure\venv\Lib\site-packages\django\db\backends\sqlite3\base.py", line 354, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+django.db.utils.OperationalError: no such column: assistant_report.session_id
+ERROR 2025-12-07 13:47:54,232 runserver 5148 12692 [35;1mHTTP GET /admin/assistant/report/ 500 [0.36, 127.0.0.1:54583][0m
+ERROR 2025-12-07 13:48:29,561 log 5148 8700 Internal Server Error: /assistant/api/chat/
+ERROR 2025-12-07 13:48:29,564 runserver 5148 12692 [35;1mHTTP POST /assistant/api/chat/ 500 [0.13, 127.0.0.1:54583][0m
+ERROR 2025-12-07 13:48:41,448 log 5148 17568 Internal Server Error: /assistant/api/chat/
+ERROR 2025-12-07 13:48:41,451 runserver 5148 12692 [35;1mHTTP POST /assistant/api/chat/ 500 [0.06, 127.0.0.1:54583][0m
+ERROR 2025-12-07 14:11:07,875 log 10768 14196 Internal Server Error: /assistant/api/chat/
+ERROR 2025-12-07 14:11:07,878 runserver 10768 1880 [35;1mHTTP POST /assistant/api/chat/ 500 [0.60, 127.0.0.1:55577][0m
+ERROR 2025-12-07 14:24:53,874 log 17816 19700 Internal Server Error: /assistant/api/chat/
+ERROR 2025-12-07 14:24:53,876 runserver 17816 10992 [35;1mHTTP POST /assistant/api/chat/ 500 [0.57, 127.0.0.1:56122][0m
+ERROR 2025-12-07 21:32:47,660 log 19588 16448 Internal Server Error: /assistant/api/chat/
+ERROR 2025-12-07 21:32:47,676 runserver 19588 16968 [35;1mHTTP POST /assistant/api/chat/ 500 [33.53, 127.0.0.1:49264][0m
+ERROR 2025-12-08 01:39:40,715 log 22256 6360 Internal Server Error: /assistant/api/tts/
+ERROR 2025-12-08 01:39:40,757 runserver 22256 9844 [35;1mHTTP POST /assistant/api/tts/ 500 [0.06, 127.0.0.1:64351][0m
+ERROR 2025-12-08 01:39:56,647 log 22256 6360 Internal Server Error: /assistant/api/tts/
+ERROR 2025-12-08 01:39:56,648 runserver 22256 9844 [35;1mHTTP POST /assistant/api/tts/ 500 [0.22, 127.0.0.1:64351][0m
+ERROR 2025-12-08 01:50:22,417 log 21672 17012 Internal Server Error: /assistant/api/tts/
+ERROR 2025-12-08 01:50:22,453 runserver 21672 1360 [35;1mHTTP POST /assistant/api/tts/ 500 [0.48, 127.0.0.1:64702][0m
+ERROR 2025-12-08 01:55:54,330 log 15128 12516 Internal Server Error: /assistant/api/tts/
+ERROR 2025-12-08 01:55:54,331 runserver 15128 6028 [35;1mHTTP POST /assistant/api/tts/ 500 [0.77, 127.0.0.1:64869][0m
+ERROR 2025-12-08 01:56:03,447 log 15128 12516 Internal Server Error: /assistant/api/tts/
+ERROR 2025-12-08 01:56:03,447 runserver 15128 6028 [35;1mHTTP POST /assistant/api/tts/ 500 [0.59, 127.0.0.1:64869][0m
+ERROR 2025-12-08 02:24:28,906 log 15128 12516 Internal Server Error: /assistant/api/tts/
+ERROR 2025-12-08 02:24:28,907 runserver 15128 6028 [35;1mHTTP POST /assistant/api/tts/ 500 [0.59, 127.0.0.1:65364][0m
+ERROR 2025-12-08 02:25:00,650 log 15128 12516 Internal Server Error: /assistant/api/tts/
+ERROR 2025-12-08 02:25:00,650 runserver 15128 6028 [35;1mHTTP POST /assistant/api/tts/ 500 [0.48, 127.0.0.1:65364][0m
+ERROR 2025-12-08 02:25:14,644 log 15128 12516 Internal Server Error: /assistant/api/tts/
+ERROR 2025-12-08 02:25:14,644 runserver 15128 6028 [35;1mHTTP POST /assistant/api/tts/ 500 [0.48, 127.0.0.1:65364][0m
+ERROR 2025-12-08 02:25:19,801 log 15128 12516 Internal Server Error: /assistant/api/tts/
+ERROR 2025-12-08 02:25:19,801 runserver 15128 6028 [35;1mHTTP POST /assistant/api/tts/ 500 [0.48, 127.0.0.1:65364][0m
+ERROR 2025-12-08 09:54:43,438 log 5932 15268 Internal Server Error: /assistant/api/tts/
+ERROR 2025-12-08 09:54:43,463 runserver 5932 14868 [35;1mHTTP POST /assistant/api/tts/ 500 [0.19, 127.0.0.1:53539][0m
+ERROR 2025-12-08 10:12:45,664 log 5932 15268 Internal Server Error: /assistant/api/tts/
+ERROR 2025-12-08 10:12:45,666 runserver 5932 14868 [35;1mHTTP POST /assistant/api/tts/ 500 [0.04, 127.0.0.1:53590][0m
+ERROR 2025-12-08 10:12:48,264 log 5932 15268 Internal Server Error: /assistant/api/tts/
+ERROR 2025-12-08 10:12:48,265 runserver 5932 14868 [35;1mHTTP POST /assistant/api/tts/ 500 [0.03, 127.0.0.1:53590][0m
+ERROR 2026-01-23 13:12:24,415 runserver 20832 12516 [35;1mHTTP GET / 500 [0.22, 127.0.0.1:64731][0m
+ERROR 2026-01-23 13:12:25,441 runserver 20832 12516 [35;1mHTTP GET /favicon.ico 500 [0.98, 127.0.0.1:64731][0m
