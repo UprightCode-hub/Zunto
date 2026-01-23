@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { login as loginAPI, signup as signupAPI, logout as logoutAPI } from '../services/api';
+import { login as loginAPI, register as registerAPI, logout as logoutAPI, getUserProfile } from '../services/api';
 
 const AuthContext = createContext();
 
@@ -14,50 +14,107 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [token, setToken] = useState(null);
 
+  // Initialize from localStorage on mount
   useEffect(() => {
-    // Check if user is logged in
-    const token = localStorage.getItem('token');
+    const accessToken = localStorage.getItem('access_token');
+    const refreshToken = localStorage.getItem('refresh_token');
     const userData = localStorage.getItem('user');
     
-    if (token && userData) {
-      setUser(JSON.parse(userData));
+    if (accessToken) {
+      setToken(accessToken);
+      if (userData) {
+        setUser(JSON.parse(userData));
+      } else {
+        // Try to fetch user profile if we have token but no user data
+        fetchUserProfile(accessToken);
+      }
     }
     setLoading(false);
   }, []);
 
+  const fetchUserProfile = async (accessToken) => {
+    try {
+      const data = await getUserProfile();
+      localStorage.setItem('user', JSON.stringify(data));
+      setUser(data);
+    } catch (error) {
+      console.error('Failed to fetch user profile:', error);
+      logout();
+    }
+  };
+
   const login = async (email, password) => {
     try {
       const data = await loginAPI(email, password);
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      setUser(data.user);
-      return { success: true };
+      
+      // Save tokens (JWT format: {access, refresh})
+      localStorage.setItem('access_token', data.access);
+      localStorage.setItem('refresh_token', data.refresh);
+      localStorage.setItem('token', data.access); // For backwards compatibility
+      
+      // Save user data
+      const userData = data.user || { email };
+      localStorage.setItem('user', JSON.stringify(userData));
+      
+      setToken(data.access);
+      setUser(userData);
+      
+      return { success: true, data };
     } catch (error) {
       return { success: false, error: error.message };
     }
   };
 
-  const signup = async (userData) => {
+  const register = async (userData) => {
     try {
-      const data = await signupAPI(userData);
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      setUser(data.user);
-      return { success: true };
+      const data = await registerAPI(userData);
+      
+      // Save tokens
+      localStorage.setItem('access_token', data.access);
+      localStorage.setItem('refresh_token', data.refresh);
+      localStorage.setItem('token', data.access);
+      
+      // Save user data
+      const userInfo = data.user || userData;
+      localStorage.setItem('user', JSON.stringify(userInfo));
+      
+      setToken(data.access);
+      setUser(userInfo);
+      
+      return { success: true, data };
     } catch (error) {
       return { success: false, error: error.message };
     }
   };
 
-  const logout = () => {
-    logoutAPI();
-    setUser(null);
+  const logout = async () => {
+    try {
+      await logoutAPI();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      // Clear local storage
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      
+      setUser(null);
+      setToken(null);
+    }
   };
 
-  return (
-    <AuthContext.Provider value={{ user, login, signup, logout, loading }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  const value = {
+    user,
+    token,
+    loading,
+    login,
+    register,
+    logout,
+    isAuthenticated: !!token,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
