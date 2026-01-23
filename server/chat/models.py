@@ -58,12 +58,12 @@ class Conversation(models.Model):
         ]
         
         # Database constraint: buyer cannot equal seller
-        constraints = [
-            models.CheckConstraint(
-                check=~models.Q(buyer=models.F('seller')),
-                name='different_users_in_conversation'
-            )
-        ]
+        # constraints = [
+        #    models.CheckConstraint(
+        #        check=~models.Q(buyer=models.F('seller')),
+        #        name='different_users_in_conversation'
+        #    )
+        # ]
     
     def __str__(self):
         return f"Conversation: {self.buyer.get_full_name()} <-> {self.seller.get_full_name()} (Product: {self.product.title})"
@@ -181,15 +181,15 @@ class Message(models.Model):
         ]
         
         # Ensure either content or attachment exists
-        constraints = [
-            models.CheckConstraint(
-                check=(
-                    models.Q(content__isnull=False, content__gt='') |
-                    models.Q(attachment_url__isnull=False)
-                ),
-                name='message_has_content_or_attachment'
-            )
-        ]
+        # constraints = [
+        #    models.CheckConstraint(
+        #        check=(
+        #            models.Q(content__isnull=False, content__gt='') |
+        #            models.Q(attachment_url__isnull=False)
+        #        ),
+        #        name='message_has_content_or_attachment'
+        #    )
+        # ]
     
     def __str__(self):
         sender_name = self.sender.get_full_name()

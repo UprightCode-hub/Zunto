@@ -6,12 +6,12 @@ export default function CartItem({ item, onUpdateQuantity, onRemove }) {
   return (
     <div className="bg-[#050d1b] border border-[#2c77d1]/20 rounded-2xl p-6 flex gap-6">
       <Link 
-        to={`/product/${item.product_id}`}
+        to={`/product/${item.product.slug}`}
         className="w-32 h-32 bg-gradient-to-br from-[#2c77d1]/20 to-[#9426f4]/20 rounded-lg overflow-hidden shrink-0"
       >
         <img
-          src={item.product_image || '/placeholder.png'}
-          alt={item.product_name}
+          src={item.product.primary_image || '/placeholder.png'}
+          alt={item.product.title}
           className="w-full h-full object-cover"
         />
       </Link>
@@ -19,10 +19,10 @@ export default function CartItem({ item, onUpdateQuantity, onRemove }) {
       <div className="flex-1">
         <div className="flex justify-between items-start mb-2">
           <Link
-            to={`/product/${item.product_id}`}
+            to={`/product/${item.product.slug}`}
             className="text-xl font-semibold hover:text-[#2c77d1] transition"
           >
-            {item.product_name}
+            {item.product.title}
           </Link>
           <button
             onClick={() => onRemove(item.id)}
@@ -33,7 +33,7 @@ export default function CartItem({ item, onUpdateQuantity, onRemove }) {
         </div>
 
         <p className="text-gray-400 text-sm mb-4 line-clamp-2">
-          {item.product_description}
+          {item.product.description}
         </p>
 
         <div className="flex items-center justify-between">
@@ -56,10 +56,10 @@ export default function CartItem({ item, onUpdateQuantity, onRemove }) {
 
           <div className="text-right">
             <div className="text-2xl font-bold text-[#2c77d1]">
-              ${(item.price * item.quantity).toFixed(2)}
+            ${(Number(item.price_at_addition) * item.quantity).toFixed(2)}
             </div>
             <div className="text-sm text-gray-400">
-              ${item.price} each
+            ${Number(item.price_at_addition)} each
             </div>
           </div>
         </div>

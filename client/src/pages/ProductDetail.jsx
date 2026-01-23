@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Star, ShoppingCart, Heart, Truck, Shield, RefreshCw, Plus, Minus } from 'lucide-react';
-import { getProductById } from '../services/api';
+import { getProductDetail } from '../services/api';
 import { useCart } from '../context/CartContext';
 
 export default function ProductDetail() {
-  const { id } = useParams();
+  const { slug } = useParams();
   const { addToCart } = useCart();
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -15,12 +15,12 @@ export default function ProductDetail() {
 
   useEffect(() => {
     fetchProduct();
-  }, [id]);
+  }, [slug]);
 
   const fetchProduct = async () => {
     try {
       setLoading(true);
-      const data = await getProductById(id);
+      const data = await getProductDetail(slug);
       setProduct(data);
     } catch (error) {
       console.error('Error fetching product:', error);

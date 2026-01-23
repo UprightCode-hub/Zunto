@@ -32,7 +32,9 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         return value.lower()
     
     def validate_phone(self, value):
-        if value and User.objects.filter(phone=value).exists():
+        if not value:
+            return None
+        if User.objects.filter(phone=value).exists():
             raise serializers.ValidationError("A user with this phone number already exists.")
         return value
     

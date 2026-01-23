@@ -13,6 +13,7 @@ import Signup from './pages/Signup';
 import Profile from './pages/Profile';
 import AdminDashboard from './pages/AdminDashboard';
 import SellerDashboard from './pages/SellerDashboard';
+import AssistantChat from './components/common/AssistantChat';
 
 function App() {
   return (
@@ -24,7 +25,7 @@ function App() {
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/shop" element={<Shop />} />
-              <Route path="/product/:id" element={<ProductDetail />} />
+              <Route path="/product/:slug" element={<ProductDetail />} />
               <Route path="/cart" element={<Cart />} />
               <Route path="/checkout" element={<Checkout />} />
               <Route path="/login" element={<Login />} />
@@ -34,6 +35,7 @@ function App() {
               <Route path="/seller" element={<SellerDashboard />} />
             </Routes>
           </main>
+          <AssistantChat />
           <Footer />
         </div>
       </Router>

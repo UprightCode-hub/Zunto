@@ -113,10 +113,10 @@ export default function Cart() {
 
                     <div className="text-right">
                       <div className="text-2xl font-bold text-[#2c77d1]">
-                        ${(item.price * item.quantity).toFixed(2)}
+                      ${(Number(item.price_at_addition) * item.quantity).toFixed(2)}
                       </div>
                       <div className="text-sm text-gray-400">
-                        ${item.price} each
+                      ${Number(item.price_at_addition)} each
                       </div>
                     </div>
                   </div>

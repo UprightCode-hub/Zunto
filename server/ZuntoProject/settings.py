@@ -80,6 +80,12 @@ INSTALLED_APPS = [
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 CRISPY_TEMPLATE_PACK = "bootstrap5"
 
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:3000",
+]
+
 # ============================================
 # MIDDLEWARE
 # ============================================
@@ -269,6 +275,7 @@ CELERY_TIMEZONE = 'Africa/Lagos'
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60
 CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60
+CELERY_TASK_ALWAYS_EAGER = True # Run tasks synchronously locally (no Redis needed)
 
 CELERY_BEAT_SCHEDULE = {
     'send-cart-abandonment-emails': {

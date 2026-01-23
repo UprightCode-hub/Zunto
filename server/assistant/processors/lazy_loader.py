@@ -15,25 +15,44 @@ class LazyAILoader:
         """Load sentence transformer only when first accessed"""
         if self._sentence_model is None:
             print("🔄 Loading sentence transformer model...")
-            from sentence_transformers import SentenceTransformer
-            # Use smallest model possible
-            self._sentence_model = SentenceTransformer(
-                'paraphrase-MiniLM-L3-v2',  # Smallest model (~60MB)
-                device='cpu'  # Force CPU to avoid GPU memory
-            )
-            print("✅ Model loaded successfully")
+            try:
+                from sentence_transformers import SentenceTransformer
+                # Use smallest model possible
+                self._sentence_model = SentenceTransformer(
+                    'paraphrase-MiniLM-L3-v2',  # Smallest model (~60MB)
+                    device='cpu'  # Force CPU to avoid GPU memory
+                )
+                print("✅ Model loaded successfully")
+            except ImportError:
+                print("❌ sentence_transformers not installed. RAG features will be disabled.")
+                return None
+            except Exception as e:
+                print(f"❌ Error loading model: {e}")
+                return None
         return self._sentence_model
+
     @property
     def faiss(self):
         """Load FAISS only when first accessed"""
         if self._faiss_module is None:
             print("🔄 Loading FAISS...")
-            import faiss
-            self._faiss_module = faiss
-            print("✅ FAISS loaded successfully")
+            try:
+                import faiss
+                self._faiss_module = faiss
+                print("✅ FAISS loaded successfully")
+            except ImportError:
+                print("❌ faiss not installed. RAG features will be disabled.")
+                return None
+            except Exception as e:
+                print(f"❌ Error loading FAISS: {e}")
+                return None
         return self._faiss_module
     def create_faiss_index(self, embeddings):
         """Create FAISS index on-demand"""
+        if self.faiss is None:
+            print("❌ FAISS not available. Cannot create index.")
+            return None
+
         if self._faiss_index is None:
             print("🔄 Creating FAISS index...")
             dimension = embeddings.shape[1]

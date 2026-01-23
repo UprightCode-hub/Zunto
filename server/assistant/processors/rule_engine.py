@@ -6,9 +6,15 @@ import logging
 import yaml
 from pathlib import Path
 from typing import Dict, Optional, List
-from rapidfuzz import fuzz, process
 
 logger = logging.getLogger(__name__)
+
+try:
+    from rapidfuzz import fuzz, process
+    HAS_RAPIDFUZZ = True
+except ImportError:
+    logger.warning("rapidfuzz not installed. Falling back to simple string matching.")
+    HAS_RAPIDFUZZ = False
 
 RULE_MATCH_THRESHOLD = 0.75
 BLOCK_THRESHOLD = 0.90
@@ -72,6 +78,9 @@ class RuleEngine:
         # Direct substring match = perfect score
         if phrase_lower in message_lower:
             return 1.0
+
+        if not HAS_RAPIDFUZZ:
+            return 0.0
 
         # Partial ratio for subsequence matching
         partial_score = fuzz.partial_ratio(phrase_lower, message_lower) / 100.0

@@ -91,7 +91,8 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await logoutAPI();
+      const refresh = localStorage.getItem('refresh_token');
+      await logoutAPI(refresh);
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
