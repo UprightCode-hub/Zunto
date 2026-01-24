@@ -12,8 +12,9 @@ if ENV_FILE.exists():
     config = Config(RepositoryEnv(str(ENV_FILE)))
 else:
     from decouple import config
+
 # ============================================
-# ENVIRONMENT DETECTION - FIXED
+# ENVIRONMENT DETECTION
 # ============================================
 
 IS_PRODUCTION = os.environ.get('RENDER', 'False') == 'True'
@@ -22,17 +23,15 @@ if IS_PRODUCTION:
     DEBUG = False
     SECRET_KEY = os.environ.get('SECRET_KEY')
     ALLOWED_HOSTS = [
-       # '.onrender.com',
-        #'http://127.0.0.1:8000',
-        #'zunto-frontend.onrender.com',
+        '.onrender.com',
+        'zunto-backend.onrender.com',  # Add your actual backend domain
     ]
 else:
     DEBUG = config('DEBUG', default=True, cast=bool)
     SECRET_KEY = config('SECRET_KEY', default='dev-secret-key-change-me-in-production')
-    ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,*').split(',')
+    ALLOWED_HOSTS = ['*']  # Allow all for local testing
 
 # Production Security Settings
-
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
@@ -79,12 +78,6 @@ INSTALLED_APPS = [
 
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 CRISPY_TEMPLATE_PACK = "bootstrap5"
-
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "http://localhost:3000",
-]
 
 # ============================================
 # MIDDLEWARE
@@ -134,7 +127,7 @@ TEMPLATES = [
 ]
 
 # ============================================
-# DATABASE - FIXED
+# DATABASE
 # ============================================
 
 if IS_PRODUCTION:
@@ -157,32 +150,90 @@ else:
     }
 
 # ============================================
+# REDIS CONFIGURATION
+# ============================================
+
+REDIS_HOST = config('REDIS_HOST', default='localhost')
+REDIS_PORT = config('REDIS_PORT', default=6379, cast=int)
+REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}'
+
+# ============================================
 # CACHING
 # ============================================
 
-CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
-        'LOCATION': os.path.join(BASE_DIR, 'django_cache'),
-        'TIMEOUT': 604800,
-        'OPTIONS': {
-            'MAX_ENTRIES': 10000
+if IS_PRODUCTION:
+    # Use Redis in production
+    CACHES = {
+        'default': {
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': config('REDIS_URL', default=REDIS_URL + '/0'),
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                'SOCKET_CONNECT_TIMEOUT': 5,
+                'SOCKET_TIMEOUT': 5,
+                'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
+                'IGNORE_EXCEPTIONS': True,
+            },
+            'KEY_PREFIX': 'zunto',
+            'TIMEOUT': 300,
         }
     }
-}
+else:
+    # Use Redis locally (you have it installed now!)
+    CACHES = {
+        'default': {
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': REDIS_URL + '/0',
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                'SOCKET_CONNECT_TIMEOUT': 5,
+                'SOCKET_TIMEOUT': 5,
+                'IGNORE_EXCEPTIONS': True,  # Fail gracefully if Redis is down
+            },
+            'KEY_PREFIX': 'zunto',
+            'TIMEOUT': 300,
+        }
+    }
+
+# ============================================
+# SESSION CONFIGURATION
+# ============================================
+
+SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+SESSION_CACHE_ALIAS = 'default'
+SESSION_COOKIE_AGE = 1209600
+SESSION_SAVE_EVERY_REQUEST = True
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SAMESITE = 'Lax'
 
 # ============================================
 # CHANNELS & WEBSOCKETS
 # ============================================
 
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer' if config('REDIS_URL', default=None) else 'channels.layers.InMemoryChannelLayer',
-        'CONFIG': {
-            "hosts": [config('REDIS_URL', default='redis://127.0.0.1:6379')],
-        } if config('REDIS_URL', default=None) else {},
-    },
-}
+if IS_PRODUCTION:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                'hosts': [config('REDIS_URL', default=REDIS_URL)],
+                'capacity': 1500,
+                'expiry': 10,
+            },
+        },
+    }
+else:
+    # Local Redis for Channels
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                'hosts': [(REDIS_HOST, REDIS_PORT)],
+                'capacity': 1500,
+                'expiry': 10,
+            },
+        },
+    }
 
 # ============================================
 # REST FRAMEWORK
@@ -266,8 +317,15 @@ if DEBUG:
 # CELERY CONFIGURATION
 # ============================================
 
-CELERY_BROKER_URL = config('CELERY_BROKER_URL', default='redis://localhost:6379/0')
-CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND', default='redis://localhost:6379/0')
+if IS_PRODUCTION:
+    CELERY_BROKER_URL = config('REDIS_URL', default=REDIS_URL + '/1')
+    CELERY_RESULT_BACKEND = config('REDIS_URL', default=REDIS_URL + '/2')
+    CELERY_TASK_ALWAYS_EAGER = False  # Run async in production
+else:
+    CELERY_BROKER_URL = REDIS_URL + '/1'
+    CELERY_RESULT_BACKEND = REDIS_URL + '/2'
+    CELERY_TASK_ALWAYS_EAGER = True  # Run synchronously in development (easier debugging)
+
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
@@ -275,7 +333,6 @@ CELERY_TIMEZONE = 'Africa/Lagos'
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60
 CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60
-CELERY_TASK_ALWAYS_EAGER = True # Run tasks synchronously locally (no Redis needed)
 
 CELERY_BEAT_SCHEDULE = {
     'send-cart-abandonment-emails': {
@@ -301,31 +358,20 @@ PAYSTACK_PUBLIC_KEY = config('PAYSTACK_PUBLIC_KEY', default='')
 PAYSTACK_BASE_URL = 'https://api.paystack.co'
 
 # ============================================
-# SESSIONS
-# ============================================
-
-SESSION_ENGINE = 'django.contrib.sessions.backends.db'
-SESSION_COOKIE_AGE = 1209600
-SESSION_SAVE_EVERY_REQUEST = True
-SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SECURE = not DEBUG
-SESSION_COOKIE_SAMESITE = 'Lax'
-
-# ============================================
-# CORS CONFIGURATION - FIXED
+# CORS CONFIGURATION
 # ============================================
 
 if IS_PRODUCTION:
     CORS_ALLOWED_ORIGINS = [
         'https://zunto-frontend.onrender.com',
-        'https://http://127.0.0.1:8000',
     ]
     CSRF_TRUSTED_ORIGINS = [
         'https://zunto-frontend.onrender.com',
-        'https://http://127.0.0.1:8000',
     ]
     CORS_ALLOW_ALL_ORIGINS = False
 else:
+    # Allow all origins for local testing
+    CORS_ALLOW_ALL_ORIGINS = True
     CORS_ALLOWED_ORIGINS = [
         'http://localhost:3000',
         'http://127.0.0.1:3000',
@@ -350,7 +396,6 @@ else:
         'http://localhost:8000',
         'http://127.0.0.1:8000',
     ]
-    CORS_ALLOW_ALL_ORIGINS = True
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
@@ -366,10 +411,10 @@ CORS_ALLOW_HEADERS = [
 ]
 
 # ============================================
-# AI ASSISTANT CONFIGURATION - FIXED
+# AI ASSISTANT CONFIGURATION
 # ============================================
 
-# Groq AI Configuration - NO HARDCODED KEY!
+# Groq AI Configuration
 GROQ_API_KEY = config('GROQ_API_KEY', default='')
 GROQ_MODEL = config('GROQ_MODEL', default='llama-3.3-70b-versatile')
 
@@ -469,6 +514,7 @@ ADMIN_INDEX_TITLE = "Welcome to Zunto Admin Portal"
 # Assistant Configuration
 ASSISTANT_PORTFOLIO_MODE = True
 
+# Environment variables for AI models
 os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
 os.environ['TRANSFORMERS_CACHE'] = '/tmp'
 os.environ['HF_HOME'] = '/tmp'
