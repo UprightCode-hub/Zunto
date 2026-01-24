@@ -1,4 +1,6 @@
-const API_BASE_URL = 'http://localhost:8000'; // Django backend URL
+// Use Vite environment variables when available for flexibility in dev/prod
+// Accept either VITE_API_BASE or VITE_API_BASE_URL to match .env.example
+const API_BASE_URL = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'; // Django backend URL
 
 // Helper function for API calls
 const apiCall = async (endpoint, options = {}) => {

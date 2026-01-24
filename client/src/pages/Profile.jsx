@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { User, Package, MapPin, Heart, Settings, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { getOrders } from '../services/api';
+import { getMyOrders } from '../services/api';
 
 export default function Profile() {
   const [searchParams] = useSearchParams();
@@ -21,7 +21,7 @@ export default function Profile() {
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const data = await getOrders();
+      const data = await getMyOrders();
       setOrders(data.results || data);
     } catch (error) {
       console.error('Error fetching orders:', error);
