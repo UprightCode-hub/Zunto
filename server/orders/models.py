@@ -3,6 +3,8 @@ from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator
 from django.db.models import Sum, F
+from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
 from django.utils import timezone
 import uuid
 
@@ -40,7 +42,7 @@ class Order(models.Model):
         default='unpaid'
     )
 
-
+    # KEPT AS FIELD - This is the stored database value
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     shipping_fee = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -57,14 +59,13 @@ class Order(models.Model):
         help_text="Shipping tracking number for the order"
     )
 
-
     shipping_address_ref = models.ForeignKey(
-    'orders.ShippingAddress',
-    null=True,
-    blank=True,
-    on_delete=models.SET_NULL,
-    related_name='orders'
-)
+        'orders.ShippingAddress',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='orders'
+    )
     shipping_address = models.TextField(blank=True)
     shipping_city = models.CharField(max_length=100, blank=True)
     shipping_state = models.CharField(max_length=100, blank=True)
@@ -74,8 +75,6 @@ class Order(models.Model):
     shipping_full_name = models.CharField(max_length=255, blank=True)
     shipping_postal_code = models.CharField(max_length=20, blank=True)
     notes = models.TextField(blank=True)
-
-
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -89,7 +88,7 @@ class Order(models.Model):
             models.Index(fields=['order_number']),
             models.Index(fields=['status', '-created_at']),
             models.Index(fields=['payment_reference']),
-            models.Index(fields=['payment_status']),  # ADD THIS
+            models.Index(fields=['payment_status']),
         ]
 
     def __str__(self):
@@ -103,6 +102,7 @@ class Order(models.Model):
         super().save(*args, **kwargs)
 
     def update_totals(self):
+        """Update subtotal and total_amount based on order items"""
         subtotal = self.items.aggregate(
             total=Sum(F('unit_price') * F('quantity'))
         )['total'] or 0
@@ -112,6 +112,7 @@ class Order(models.Model):
 
     @property
     def total_items(self):
+        """Calculate total quantity of items in order"""
         return self.items.aggregate(total=Sum('quantity'))['total'] or 0
 
     @property
@@ -121,11 +122,8 @@ class Order(models.Model):
         """
         return self.status in ['pending', 'processing']
 
-    @property
-    def subtotal(self):
-        """Calculate cart subtotal"""
-        return sum(item.total_price for item in self.items.all())
-    
+    # REMOVED - The @property version of subtotal has been deleted to prevent conflict
+    # The subtotal field above (line 43) is now the single source of truth
 
 
 class OrderItem(models.Model):
@@ -402,3 +400,17 @@ class OrderNote(models.Model):
     
     def __str__(self):
         return f"Note for {self.order.order_number}"
+
+
+# ============================================================================
+# SIGNALS - Automatically update order totals when items change
+# ============================================================================
+
+@receiver([post_save, post_delete], sender=OrderItem)
+def update_order_totals(sender, instance, **kwargs):
+    """
+    Automatically recalculate order subtotal and total_amount 
+    whenever an OrderItem is created, updated, or deleted.
+    """
+    if instance.order:
+        instance.order.update_totals()
