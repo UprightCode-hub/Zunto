@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cart - Zunto</title>
+    <style>
+        :root {
+            --black: #000000;
+            --white: #FFFFFF;
+            --gray-100: #F5F5F5;
+            --gray-200: #E0E0E0;
+            --gray-300: #BDBDBD;
+            --gray-500: #757575;
+            --gray-600: #616161;
+            --gray-800: #212121;
+            --space-4: 4px;
+            --space-8: 8px;
+            --space-16: 16px;
+            --space-24: 24px;
+            --space-32: 32px;
+            --space-48: 48px;
+            --border: 1px solid var(--gray-300);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--white);
+            color: var(--black);
+            line-height: 1.5;
+            font-size: 15px;
+        }
+        
+        .header {
+            border-bottom: var(--border);
+            background: var(--white);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .header-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: var(--space-16) var(--space-24);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .logo {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--black);
+            text-decoration: none;
+            letter-spacing: -0.02em;
+        }
+        
+        .nav {
+            display: flex;
+            gap: var(--space-32);
+        }
+        
+        .nav-link {
+            color: var(--gray-600);
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 150ms;
+        }
+        
+        .nav-link:hover {
+            color: var(--black);
+        }
+        
+        .nav-link.active {
+            color: var(--black);
+        }
+        
+        .btn {
+            border: var(--border);
+            background: var(--white);
+            color: var(--black);
+            padding: var(--space-8) var(--space-16);
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 150ms;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn:hover {
+            background: var(--gray-100);
+        }
+        
+        .btn-primary {
+            background: var(--black);
+            color: var(--white);
+            border-color: var(--black);
+        }
+        
+        .btn-primary:hover {
+            background: var(--gray-800);
+        }
+        
+        .btn:disabled {
+            background: var(--gray-200);
+            color: var(--gray-500);
+            cursor: not-allowed;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: var(--space-48) var(--space-24);
+        }
+        
+        h1 {
+            font-size: 28px;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            margin-bottom: var(--space-48);
+        }
+        
+        .cart-layout {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: var(--space-32);
+        }
+        
+        .cart-item {
+            border: var(--border);
+            padding: var(--space-16);
+            margin-bottom: var(--space-16);
+            display: grid;
+            grid-template-columns: 100px 1fr auto;
+            gap: var(--space-16);
+        }
+        
+        .item-image {
+            width: 100px;
+            height: 100px;
+            border: var(--border);
+            background: var(--gray-100);
+        }
+        
+        .item-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .item-details {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        
+        .item-title {
+            font-size: 15px;
+            font-weight: 500;
+            margin-bottom: var(--space-4);
+        }
+        
+        .item-seller {
+            font-size: 13px;
+            color: var(--gray-600);
+            margin-bottom: var(--space-8);
+        }
+        
+        .item-price {
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .item-actions {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+        
+        .quantity-control {
+            display: flex;
+            border: var(--border);
+        }
+        
+        .quantity-btn {
+            border: none;
+            background: var(--white);
+            color: var(--black);
+            padding: var(--space-4) var(--space-8);
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 150ms;
+        }
+        
+        .quantity-btn:hover {
+            background: var(--gray-100);
+        }
+        
+        .quantity-value {
+            padding: var(--space-4) var(--space-16);
+            min-width: 40px;
+            text-align: center;
+            border-left: var(--border);
+            border-right: var(--border);
+        }
+        
+        .remove-btn {
+            color: var(--gray-600);
+            font-size: 13px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: var(--space-4);
+        }
+        
+        .remove-btn:hover {
+            color: var(--black);
+        }
+        
+        .cart-summary {
+            border: var(--border);
+            padding: var(--space-24);
+            height: fit-content;
+            position: sticky;
+            top: 80px;
+        }
+        
+        .summary-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: var(--space-24);
+        }
+        
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: var(--space-16);
+            font-size: 14px;
+        }
+        
+        .summary-row.total {
+            font-size: 18px;
+            font-weight: 600;
+            padding-top: var(--space-16);
+            border-top: var(--border);
+            margin-top: var(--space-16);
+        }
+        
+        .empty-cart {
+            text-align: center;
+            padding: var(--space-48);
+            color: var(--gray-600);
+        }
+        
+        .loading {
+            text-align: center;
+            padding: var(--space-48);
+            color: var(--gray-600);
+        }
+        
+        @media (max-width: 768px) {
+            .cart-layout {
+                grid-template-columns: 1fr;
+            }
+            
+            .cart-summary {
+                position: static;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-container">
+            <a href="index.html" class="logo">Zunto</a>
+            
+            <nav class="nav">
+                <a href="index.html" class="nav-link">Products</a>
+                <a href="cart.html" class="nav-link active">Cart</a>
+                <a href="my-orders.html" class="nav-link">Orders</a>
+                <a href="profile.html" class="nav-link">Profile</a>
+            </nav>
+            
+            <div>
+                <button class="btn" id="logoutBtn">Logout</button>
+            </div>
+        </div>
+    </header>
+    
+    <main class="container">
+        <h1>Shopping Cart</h1>
+        
+        <div id="cartContainer">
+            <div class="loading">Loading cart...</div>
+        </div>
+    </main>
+    
+    <script src="config.js"></script>
+    <script>
+        const cartContainer = document.getElementById('cartContainer');
+        const logoutBtn = document.getElementById('logoutBtn');
+        
+        let cartData = null;
+        
+        logoutBtn.addEventListener('click', () => {
+            clearAuth();
+            window.location.href = 'login.html';
+        });
+        
+        async function loadCart() {
+            try {
+                const response = await apiRequest(API_CONFIG.CART.GET);
+                
+                if (!response.ok) throw new Error('Failed to load cart');
+                
+                cartData = await response.json();
+                renderCart(cartData);
+            } catch (error) {
+                cartContainer.innerHTML = '<div class="loading">Failed to load cart</div>';
+            }
+        }
+        
+        function renderCart(cart) {
+            if (!cart.items || cart.items.length === 0) {
+                cartContainer.innerHTML = `
+                    <div class="empty-cart">
+                        Your cart is empty
+                        <br><br>
+                        <a href="index.html" class="btn btn-primary">Browse Products</a>
+                    </div>
+                `;
+                return;
+            }
+            
+            cartContainer.innerHTML = `
+                <div class="cart-layout">
+                    <div class="cart-items">
+                        ${cart.items.map(item => `
+                            <div class="cart-item" data-item-id="${item.id}">
+                                <div class="item-image">
+                                    ${item.product_image 
+                                        ? `<img src="${item.product_image}" alt="${item.product_name}">`
+                                        : ''
+                                    }
+                                </div>
+                                
+                                <div class="item-details">
+                                    <div>
+                                        <div class="item-title">${item.product_name}</div>
+                                        <div class="item-seller">${item.seller_name || 'Seller'}</div>
+                                    </div>
+                                    <div class="item-price">₦${item.unit_price.toLocaleString()}</div>
+                                </div>
+                                
+                                <div class="item-actions">
+                                    <div class="quantity-control">
+                                        <button class="quantity-btn" onclick="updateQuantity('${item.id}', ${item.quantity - 1})">-</button>
+                                        <div class="quantity-value">${item.quantity}</div>
+                                        <button class="quantity-btn" onclick="updateQuantity('${item.id}', ${item.quantity + 1})">+</button>
+                                    </div>
+                                    
+                                    <button class="remove-btn" onclick="removeItem('${item.id}')">Remove</button>
+                                </div>
+                            </div>
+                        `).join('')}
+                        
+                        <button class="btn" onclick="clearCart()" style="margin-top: var(--space-16);">Clear Cart</button>
+                    </div>
+                    
+                    <div class="cart-summary">
+                        <div class="summary-title">Order Summary</div>
+                        
+                        <div class="summary-row">
+                            <span>Subtotal</span>
+                            <span>₦${cart.total_price.toLocaleString()}</span>
+                        </div>
+                        
+                        <div class="summary-row total">
+                            <span>Total</span>
+                            <span>₦${cart.total_price.toLocaleString()}</span>
+                        </div>
+                        
+                        <a href="checkout.html" class="btn btn-primary" style="width: 100%; text-align: center; margin-top: var(--space-24);">
+                            Proceed to Checkout
+                        </a>
+                    </div>
+                </div>
+            `;
+        }
+        
+        async function updateQuantity(itemId, newQuantity) {
+            if (newQuantity < 1) return;
+            
+            try {
+                const response = await apiRequest(API_CONFIG.CART.UPDATE(itemId), {
+                    method: 'PATCH',
+                    body: JSON.stringify({ quantity: newQuantity })
+                });
+                
+                if (!response.ok) throw new Error('Failed to update quantity');
+                
+                await loadCart();
+            } catch (error) {
+                alert('Failed to update quantity');
+            }
+        }
+        
+        async function removeItem(itemId) {
+            if (!confirm('Remove this item from cart?')) return;
+            
+            try {
+                const response = await apiRequest(API_CONFIG.CART.REMOVE(itemId), {
+                    method: 'DELETE'
+                });
+                
+                if (!response.ok) throw new Error('Failed to remove item');
+                
+                await loadCart();
+            } catch (error) {
+                alert('Failed to remove item');
+            }
+        }
+        
+        async function clearCart() {
+            if (!confirm('Remove all items from cart?')) return;
+            
+            try {
+                const response = await apiRequest(API_CONFIG.CART.CLEAR, {
+                    method: 'DELETE'
+                });
+                
+                if (!response.ok) throw new Error('Failed to clear cart');
+                
+                await loadCart();
+            } catch (error) {
+                alert('Failed to clear cart');
+            }
+        }
+        
+        if (!isAuthenticated()) {
+            window.location.href = 'login.html';
+        } else {
+            loadCart();
+        }
+    </script>
+</body>
+</html>
