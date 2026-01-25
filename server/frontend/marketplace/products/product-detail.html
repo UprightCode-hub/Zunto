@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product - Zunto</title>
+    <style>
+        :root {
+            --black: #000000;
+            --white: #FFFFFF;
+            --gray-100: #F5F5F5;
+            --gray-200: #E0E0E0;
+            --gray-300: #BDBDBD;
+            --gray-500: #757575;
+            --gray-600: #616161;
+            --gray-800: #212121;
+            --space-4: 4px;
+            --space-8: 8px;
+            --space-16: 16px;
+            --space-24: 24px;
+            --space-32: 32px;
+            --space-48: 48px;
+            --border: 1px solid var(--gray-300);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--white);
+            color: var(--black);
+            line-height: 1.5;
+            font-size: 15px;
+        }
+        
+        .header {
+            border-bottom: var(--border);
+            background: var(--white);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .header-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: var(--space-16) var(--space-24);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .logo {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--black);
+            text-decoration: none;
+            letter-spacing: -0.02em;
+        }
+        
+        .nav {
+            display: flex;
+            gap: var(--space-32);
+        }
+        
+        .nav-link {
+            color: var(--gray-600);
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 150ms;
+        }
+        
+        .nav-link:hover {
+            color: var(--black);
+        }
+        
+        .auth-section {
+            display: flex;
+            gap: var(--space-16);
+            align-items: center;
+        }
+        
+        .btn {
+            border: var(--border);
+            background: var(--white);
+            color: var(--black);
+            padding: var(--space-8) var(--space-16);
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 150ms;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn:hover {
+            background: var(--gray-100);
+        }
+        
+        .btn-primary {
+            background: var(--black);
+            color: var(--white);
+            border-color: var(--black);
+        }
+        
+        .btn-primary:hover {
+            background: var(--gray-800);
+            border-color: var(--gray-800);
+        }
+        
+        .btn:disabled {
+            background: var(--gray-200);
+            color: var(--gray-500);
+            cursor: not-allowed;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: var(--space-48) var(--space-24);
+        }
+        
+        .breadcrumb {
+            display: flex;
+            gap: var(--space-8);
+            font-size: 13px;
+            color: var(--gray-600);
+            margin-bottom: var(--space-24);
+        }
+        
+        .breadcrumb a {
+            color: var(--gray-600);
+            text-decoration: none;
+        }
+        
+        .breadcrumb a:hover {
+            color: var(--black);
+        }
+        
+        .product-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-48);
+            margin-bottom: var(--space-48);
+        }
+        
+        .image-gallery {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-16);
+        }
+        
+        .main-image {
+            border: var(--border);
+            aspect-ratio: 1;
+            background: var(--gray-100);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            cursor: zoom-in;
+        }
+        
+        .main-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .thumbnail-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: var(--space-8);
+        }
+        
+        .thumbnail {
+            border: var(--border);
+            aspect-ratio: 1;
+            background: var(--gray-100);
+            cursor: pointer;
+            overflow: hidden;
+            transition: border-color 150ms;
+        }
+        
+        .thumbnail:hover, .thumbnail.active {
+            border-color: var(--black);
+        }
+        
+        .thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .product-details h1 {
+            font-size: 28px;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            margin-bottom: var(--space-8);
+        }
+        
+        .product-meta {
+            display: flex;
+            align-items: center;
+            gap: var(--space-16);
+            margin-bottom: var(--space-24);
+            font-size: 13px;
+            color: var(--gray-600);
+        }
+        
+        .rating {
+            display: flex;
+            align-items: center;
+            gap: var(--space-4);
+        }
+        
+        .stars {
+            color: var(--black);
+        }
+        
+        .product-price {
+            font-size: 32px;
+            font-weight: 600;
+            margin-bottom: var(--space-8);
+        }
+        
+        .negotiable-tag {
+            font-size: 13px;
+            color: var(--gray-600);
+            margin-bottom: var(--space-32);
+        }
+        
+        .product-info-group {
+            margin-bottom: var(--space-24);
+            padding-bottom: var(--space-24);
+            border-bottom: var(--border);
+        }
+        
+        .info-label {
+            font-size: 13px;
+            color: var(--gray-600);
+            margin-bottom: var(--space-4);
+        }
+        
+        .info-value {
+            font-size: 15px;
+            color: var(--black);
+        }
+        
+        .product-description {
+            line-height: 1.6;
+            color: var(--gray-600);
+            margin-bottom: var(--space-32);
+            white-space: pre-wrap;
+        }
+        
+        .seller-info {
+            border: var(--border);
+            padding: var(--space-16);
+            margin-bottom: var(--space-24);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .seller-details {
+            flex: 1;
+        }
+        
+        .seller-name {
+            font-size: 15px;
+            font-weight: 500;
+            margin-bottom: var(--space-4);
+        }
+        
+        .seller-email {
+            font-size: 14px;
+            color: var(--gray-600);
+        }
+        
+        .seller-rating {
+            font-size: 13px;
+            color: var(--gray-600);
+        }
+        
+        .actions {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-16);
+        }
+        
+        .action-row {
+            display: flex;
+            gap: var(--space-8);
+        }
+        
+        .action-row .btn {
+            flex: 1;
+        }
+        
+        .icon-btn {
+            width: 40px;
+            padding: var(--space-8);
+            font-size: 18px;
+        }
+        
+        .favorite-btn.active {
+            background: var(--black);
+            color: var(--white);
+        }
+        
+        .tabs {
+            border-bottom: var(--border);
+            margin-bottom: var(--space-32);
+            display: flex;
+            gap: var(--space-32);
+        }
+        
+        .tab {
+            padding: var(--space-16) 0;
+            border-bottom: 2px solid transparent;
+            cursor: pointer;
+            font-size: 15px;
+            color: var(--gray-600);
+            transition: all 150ms;
+        }
+        
+        .tab:hover {
+            color: var(--black);
+        }
+        
+        .tab.active {
+            color: var(--black);
+            border-bottom-color: var(--black);
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .review-summary {
+            border: var(--border);
+            padding: var(--space-24);
+            margin-bottom: var(--space-24);
+            display: grid;
+            grid-template-columns: 200px 1fr;
+            gap: var(--space-32);
+        }
+        
+        .overall-rating {
+            text-align: center;
+        }
+        
+        .rating-number {
+            font-size: 48px;
+            font-weight: 600;
+            margin-bottom: var(--space-8);
+        }
+        
+        .rating-stars {
+            font-size: 20px;
+            margin-bottom: var(--space-8);
+        }
+        
+        .rating-count {
+            font-size: 13px;
+            color: var(--gray-600);
+        }
+        
+        .rating-breakdown {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-8);
+        }
+        
+        .rating-bar {
+            display: flex;
+            align-items: center;
+            gap: var(--space-8);
+            font-size: 13px;
+        }
+        
+        .rating-label {
+            width: 60px;
+        }
+        
+        .bar-container {
+            flex: 1;
+            height: 8px;
+            background: var(--gray-200);
+            border: var(--border);
+        }
+        
+        .bar-fill {
+            height: 100%;
+            background: var(--black);
+        }
+        
+        .rating-percentage {
+            width: 40px;
+            text-align: right;
+            color: var(--gray-600);
+        }
+        
+        .review-card {
+            border: var(--border);
+            padding: var(--space-24);
+            margin-bottom: var(--space-16);
+        }
+        
+        .review-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: var(--space-16);
+        }
+        
+        .reviewer-info {
+            display: flex;
+            align-items: center;
+            gap: var(--space-8);
+        }
+        
+        .reviewer-name {
+            font-weight: 500;
+        }
+        
+        .review-date {
+            font-size: 13px;
+            color: var(--gray-600);
+        }
+        
+        .review-rating {
+            font-size: 14px;
+        }
+        
+        .review-title {
+            font-weight: 500;
+            margin-bottom: var(--space-8);
+        }
+        
+        .review-content {
+            color: var(--gray-600);
+            line-height: 1.6;
+            margin-bottom: var(--space-16);
+        }
+        
+        .review-images {
+            display: flex;
+            gap: var(--space-8);
+            margin-bottom: var(--space-16);
+        }
+        
+        .review-image {
+            width: 80px;
+            height: 80px;
+            border: var(--border);
+            cursor: pointer;
+        }
+        
+        .review-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .review-helpful {
+            font-size: 13px;
+            color: var(--gray-600);
+        }
+        
+        .share-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .share-modal.show {
+            display: flex;
+        }
+        
+        .share-content {
+            background: var(--white);
+            border: var(--border);
+            padding: var(--space-32);
+            max-width: 400px;
+            width: 90%;
+        }
+        
+        .share-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: var(--space-24);
+        }
+        
+        .share-options {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--space-16);
+            margin-bottom: var(--space-24);
+        }
+        
+        .share-option {
+            border: var(--border);
+            padding: var(--space-16);
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 150ms;
+        }
+        
+        .share-option:hover {
+            border-color: var(--black);
+        }
+        
+        .share-icon {
+            font-size: 24px;
+            margin-bottom: var(--space-8);
+        }
+        
+        .share-label {
+            font-size: 13px;
+        }
+        
+        .share-link {
+            display: flex;
+            gap: var(--space-8);
+        }
+        
+        .share-link input {
+            flex: 1;
+            border: var(--border);
+            padding: var(--space-8) var(--space-16);
+            font-size: 14px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: var(--space-48);
+            color: var(--gray-600);
+        }
+        
+        @media (max-width: 768px) {
+            .product-layout {
+                grid-template-columns: 1fr;
+            }
+            
+            .review-summary {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-container">
+            <a href="index.html" class="logo">Zunto</a>
+            
+            <nav class="nav">
+                <a href="index.html" class="nav-link">Products</a>
+                <a href="cart.html" class="nav-link">Cart</a>
+                <a href="wishlist.html" class="nav-link">Wishlist</a>
+            </nav>
+            
+            <div class="auth-section">
+                <a href="login.html" class="btn" id="loginBtn">Login</a>
+                <button class="btn" id="logoutBtn" style="display: none;">Logout</button>
+            </div>
+        </div>
+    </header>
+    
+    <main class="container">
+        <div id="productContainer">
+            <div class="loading">Loading product...</div>
+        </div>
+    </main>
+    
+    <div class="share-modal" id="shareModal">
+        <div class="share-content">
+            <div class="share-title">Share this product</div>
+            
+            <div class="share-options">
+                <div class="share-option" onclick="shareVia('whatsapp')">
+                    <div class="share-icon">💬</div>
+                    <div class="share-label">WhatsApp</div>
+                </div>
+                <div class="share-option" onclick="shareVia('twitter')">
+                    <div class="share-icon">🐦</div>
+                    <div class="share-label">Twitter</div>
+                </div>
+                <div class="share-option" onclick="shareVia('facebook')">
+                    <div class="share-icon">📘</div>
+                    <div class="share-label">Facebook</div>
+                </div>
+            </div>
+            
+            <div class="share-link">
+                <input type="text" id="shareUrl" readonly>
+                <button class="btn" onclick="copyShareLink()">Copy</button>
+            </div>
+            
+            <button class="btn" onclick="closeShareModal()" style="margin-top: var(--space-16); width: 100%;">Close</button>
+        </div>
+    </div>
+    
+    <script src="config.js"></script>
+    <script>
+        const productContainer = document.getElementById('productContainer');
+        const loginBtn = document.getElementById('loginBtn');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const shareModal = document.getElementById('shareModal');
+        const shareUrl = document.getElementById('shareUrl');
+        
+        let currentProduct = null;
+        let currentImageIndex = 0;
+        let isFavorited = false;
+        
+        function updateAuthUI() {
+            const user = getUserData();
+            if (user) {
+                loginBtn.style.display = 'none';
+                logoutBtn.style.display = 'block';
+            }
+        }
+        
+        logoutBtn.addEventListener('click', () => {
+            clearAuth();
+            window.location.reload();
+        });
+        
+        function getSlugFromURL() {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('slug');
+        }
+        
+        async function loadProduct() {
+            const slug = getSlugFromURL();
+            if (!slug) {
+                productContainer.innerHTML = '<div class="loading">Product not found</div>';
+                return;
+            }
+            
+            try {
+                const response = await apiRequest(API_CONFIG.PRODUCTS.DETAIL(slug), {
+                    skipAuth: true
+                });
+                
+                if (!response.ok) throw new Error('Product not found');
+                
+                currentProduct = await response.json();
+                isFavorited = currentProduct.is_favorited || false;
+                
+                await loadReviews();
+                renderProduct(currentProduct);
+            } catch (error) {
+                productContainer.innerHTML = '<div class="loading">Failed to load product</div>';
+            }
+        }
+        
+        let reviews = [];
+        
+        async function loadReviews() {
+            try {
+                const response = await apiRequest(`/api/reviews/products/${currentProduct.slug}/reviews/`, {
+                    skipAuth: true
+                });
+                
+                if (response.ok) {
+                    reviews = await response.json();
+                }
+            } catch (error) {
+                reviews = [];
+            }
+        }
+        
+        function calculateRatingStats() {
+            if (reviews.length === 0) {
+                return {
+                    average: 0,
+                    count: 0,
+                    distribution: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }
+                };
+            }
+            
+            const distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+            let sum = 0;
+            
+            reviews.forEach(review => {
+                const rating = Math.round(review.rating);
+                distribution[rating]++;
+                sum += review.rating;
+            });
+            
+            return {
+                average: sum / reviews.length,
+                count: reviews.length,
+                distribution
+            };
+        }
+        
+        function renderStars(rating) {
+            const fullStars = Math.floor(rating);
+            const hasHalf = rating % 1 >= 0.5;
+            let stars = '★'.repeat(fullStars);
+            if (hasHalf) stars += '☆';
+            stars += '☆'.repeat(5 - Math.ceil(rating));
+            return stars;
+        }
+        
+        function renderProduct(product) {
+            const user = getUserData();
+            const isSeller = user && user.id === product.seller.id;
+            const stats = calculateRatingStats();
+            
+            const images = product.images && product.images.length > 0 
+                ? product.images 
+                : [{ image: null }];
+            
+            productContainer.innerHTML = `
+                <div class="breadcrumb">
+                    <a href="index.html">Products</a>
+                    <span>/</span>
+                    <span>${product.category?.name || 'Uncategorized'}</span>
+                    <span>/</span>
+                    <span>${product.title}</span>
+                </div>
+                
+                <div class="product-layout">
+                    <div class="image-gallery">
+                        <div class="main-image" id="mainImage">
+                            ${images[0].image 
+                                ? `<img src="${images[0].image}" alt="${product.title}" onclick="openImageModal(0)">`
+                                : '<div style="color: var(--gray-400)">No image</div>'
+                            }
+                        </div>
+                        
+                        ${images.length > 1 ? `
+                            <div class="thumbnail-grid">
+                                ${images.map((img, index) => `
+                                    <div class="thumbnail ${index === 0 ? 'active' : ''}" onclick="changeImage(${index})">
+                                        ${img.image ? `<img src="${img.image}" alt="${product.title}">` : ''}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                    
+                    <div class="product-details">
+                        <h1>${product.title}</h1>
+                        
+                        <div class="product-meta">
+                            <div class="rating">
+                                <span class="stars">${renderStars(stats.average)}</span>
+                                <span>(${stats.count} reviews)</span>
+                            </div>
+                            <span>•</span>
+                            <span>${product.views_count || 0} views</span>
+                            <span>•</span>
+                            <span>${product.favorites_count || 0} favorites</span>
+                        </div>
+                        
+                        <div class="product-price">₦${product.price.toLocaleString()}</div>
+                        ${product.negotiable ? '<div class="negotiable-tag">Price is negotiable</div>' : ''}
+                        
+                        <div class="product-info-group">
+                            <div class="info-label">Condition</div>
+                            <div class="info-value">${product.condition || 'N/A'}</div>
+                        </div>
+                        
+                        <div class="product-info-group">
+                            <div class="info-label">Location</div>
+                            <div class="info-value">${product.location?.city || 'N/A'}, ${product.location?.state || 'N/A'}</div>
+                        </div>
+                        
+                        ${product.brand ? `
+                            <div class="product-info-group">
+                                <div class="info-label">Brand</div>
+                                <div class="info-value">${product.brand}</div>
+                            </div>
+                        ` : ''}
+                        
+                        <div class="product-description">${product.description}</div>
+                        
+                        <div class="seller-info">
+                            <div class="seller-details">
+                                <div class="info-label">Seller</div>
+                                <div class="seller-name">${product.seller.full_name}</div>
+                                <div class="seller-email">${product.seller.email}</div>
+                            </div>
+                            <a href="seller-profile.html?id=${product.seller.id}" class="btn">View Profile</a>
+                        </div>
+                        
+                        <div class="actions">
+                            ${!isSeller ? `
+                                <div class="action-row">
+                                    <button class="btn btn-primary" onclick="addToCart()" ${!user ? 'disabled' : ''}>
+                                        ${!user ? 'Login to add to cart' : 'Add to Cart'}
+                                    </button>
+                                    <button class="btn icon-btn favorite-btn ${isFavorited ? 'active' : ''}" 
+                                            onclick="toggleFavorite()" 
+                                            id="favoriteBtn"
+                                            ${!user ? 'disabled' : ''}>
+                                        ${isFavorited ? '❤️' : '🤍'}
+                                    </button>
+                                    <button class="btn icon-btn" onclick="openShareModal()">🔗</button>
+                                </div>
+                                
+                                <button class="btn" id="chatBtn" ${!user ? 'disabled' : ''}>
+                                    ${!user ? 'Login to chat' : 'Chat with seller'}
+                                </button>
+                            ` : `
+                                <div style="color: var(--gray-600); font-size: 14px; padding: var(--space-16); border: var(--border); text-align: center;">
+                                    This is your product
+                                </div>
+                                <a href="edit-product.html?slug=${product.slug}" class="btn btn-primary">Edit Product</a>
+                            `}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="tabs">
+                    <div class="tab active" onclick="switchTab('reviews')">Reviews (${stats.count})</div>
+                    <div class="tab" onclick="switchTab('specifications')">Specifications</div>
+                </div>
+                
+                <div class="tab-content active" id="reviewsTab">
+                    ${renderReviewsTab(stats)}
+                </div>
+                
+                <div class="tab-content" id="specificationsTab">
+                    ${renderSpecificationsTab(product)}
+                </div>
+            `;
+            
+            if (!isSeller && user) {
+                document.getElementById('chatBtn').addEventListener('click', startChat);
+            }
+        }
+        
+        function renderReviewsTab(stats) {
+            if (stats.count === 0) {
+                return `
+                    <div style="text-align: center; padding: var(--space-48); color: var(--gray-600);">
+                        No reviews yet. Be the first to review this product!
+                        <br><br>
+                        <a href="write-review.html?product=${currentProduct.slug}" class="btn btn-primary">Write a Review</a>
+                    </div>
+                `;
+            }
+            
+            return `
+                <div class="review-summary">
+                    <div class="overall-rating">
+                        <div class="rating-number">${stats.average.toFixed(1)}</div>
+                        <div class="rating-stars">${renderStars(stats.average)}</div>
+                        <div class="rating-count">${stats.count} reviews</div>
+                    </div>
+                    
+                    <div class="rating-breakdown">
+                        ${[5, 4, 3, 2, 1].map(rating => {
+                            const count = stats.distribution[rating];
+                            const percentage = stats.count > 0 ? (count / stats.count * 100) : 0;
+                            return `
+                                <div class="rating-bar">
+                                    <span class="rating-label">${rating} stars</span>
+                                    <div class="bar-container">
+                                        <div class="bar-fill" style="width: ${percentage}%"></div>
+                                    </div>
+                                    <span class="rating-percentage">${percentage.toFixed(0)}%</span>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+                
+                <a href="write-review.html?product=${currentProduct.slug}" class="btn btn-primary" style="margin-bottom: var(--space-24);">
+                    Write a Review
+                </a>
+                
+                ${reviews.map(review => `
+                    <div class="review-card">
+                        <div class="review-header">
+                            <div class="reviewer-info">
+                                <div>
+                                    <div class="reviewer-name">${review.reviewer_name || 'Anonymous'}</div>
+                                    <div class="review-date">${new Date(review.created_at).toLocaleDateString()}</div>
+                                </div>
+                            </div>
+                            <div class="review-rating">${renderStars(review.rating)}</div>
+                        </div>
+                        
+                        ${review.title ? `<div class="review-title">${review.title}</div>` : ''}
+                        <div class="review-content">${review.comment}</div>
+                        
+                        ${review.images && review.images.length > 0 ? `
+                            <div class="review-images">
+                                ${review.images.map(img => `
+                                    <div class="review-image">
+                                        <img src="${img.image}" alt="Review">
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+                        
+                        <div class="review-helpful">
+                            ${review.helpful_count || 0} people found this helpful
+                        </div>
+                    </div>
+                `).join('')}
+            `;
+        }
+        
+        function renderSpecificationsTab(product) {
+            return `
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-24);">
+                    <div class="product-info-group">
+                        <div class="info-label">Category</div>
+                        <div class="info-value">${product.category?.name || 'N/A'}</div>
+                    </div>
+                    
+                    <div class="product-info-group">
+                        <div class="info-label">Condition</div>
+                        <div class="info-value">${product.condition || 'N/A'}</div>
+                    </div>
+                    
+                    ${product.brand ? `
+                        <div class="product-info-group">
+                            <div class="info-label">Brand</div>
+                            <div class="info-value">${product.brand}</div>
+                        </div>
+                    ` : ''}
+                    
+                    <div class="product-info-group">
+                        <div class="info-label">Listing Type</div>
+                        <div class="info-value">${product.listing_type || 'Product'}</div>
+                    </div>
+                    
+                    <div class="product-info-group">
+                        <div class="info-label">Quantity Available</div>
+                        <div class="info-value">${product.quantity || 'N/A'}</div>
+                    </div>
+                    
+                    <div class="product-info-group">
+                        <div class="info-label">Posted</div>
+                        <div class="info-value">${new Date(product.created_at).toLocaleDateString()}</div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(`${tabName}Tab`).classList.add('active');
+        }
+        
+        function changeImage(index) {
+            currentImageIndex = index;
+            const images = currentProduct.images;
+            const mainImage = document.getElementById('mainImage');
+            
+            mainImage.innerHTML = images[index].image 
+                ? `<img src="${images[index].image}" alt="${currentProduct.title}" onclick="openImageModal(${index})">`
+                : '<div style="color: var(--gray-400)">No image</div>';
+            
+            document.querySelectorAll('.thumbnail').forEach((thumb, i) => {
+                thumb.classList.toggle('active', i === index);
+            });
+        }
+        
+        async function toggleFavorite() {
+            const favoriteBtn = document.getElementById('favoriteBtn');
+            favoriteBtn.disabled = true;
+            
+            try {
+                const response = await apiRequest(API_CONFIG.PRODUCTS.FAVORITE(currentProduct.slug), {
+                    method: 'POST'
+                });
+                
+                if (!response.ok) throw new Error('Failed to update favorite');
+                
+                const data = await response.json();
+                isFavorited = data.favorited;
+                
+                favoriteBtn.classList.toggle('active', isFavorited);
+                favoriteBtn.textContent = isFavorited ? '❤️' : '🤍';
+            } catch (error) {
+                alert('Failed to update favorite');
+            } finally {
+                favoriteBtn.disabled = false;
+            }
+        }
+        
+        async function addToCart() {
+            try {
+                const response = await apiRequest(API_CONFIG.CART.ADD, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        product_id: currentProduct.id,
+                        quantity: 1
+                    })
+                });
+                
+                if (!response.ok) throw new Error('Failed to add to cart');
+                
+                alert('Added to cart!');
+            } catch (error) {
+                alert('Failed to add to cart');
+            }
+        }
+        
+        async function startChat() {
+            const chatBtn = document.getElementById('chatBtn');
+            chatBtn.disabled = true;
+            chatBtn.textContent = 'Creating conversation...';
+            
+            try {
+                const response = await apiRequest(API_CONFIG.CHAT.GET_OR_CREATE_CONVERSATION, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        product_id: currentProduct.id
+                    })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to create conversation');
+                }
+                
+                const data = await response.json();
+                window.location.href = `chat-enhanced.html?conversation=${data.conversation.id}&token=${data.ws_token}`;
+            } catch (error) {
+                alert(error.message);
+                chatBtn.disabled = false;
+                chatBtn.textContent = 'Chat with seller';
+            }
+        }
+        
+        function openShareModal() {
+            shareUrl.value = window.location.href;
+            shareModal.classList.add('show');
+        }
+        
+        function closeShareModal() {
+            shareModal.classList.remove('show');
+        }
+        
+        function copyShareLink() {
+            shareUrl.select();
+            document.execCommand('copy');
+            alert('Link copied to clipboard!');
+        }
+        
+        function shareVia(platform) {
+            const url = encodeURIComponent(window.location.href);
+            const text = encodeURIComponent(`Check out ${currentProduct.title} on Zunto!`);
+            
+            let shareUrl;
+            if (platform === 'whatsapp') {
+                shareUrl = `https://wa.me/?text=${text} ${url}`;
+            } else if (platform === 'twitter') {
+                shareUrl = `https://twitter.com/intent/tweet?text=${text}&url=${url}`;
+            } else if (platform === 'facebook') {
+                shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${url}`;
+            }
+            
+            window.open(shareUrl, '_blank');
+        }
+        
+        updateAuthUI();
+        loadProduct();
+    </script>
+</body>
+</html>

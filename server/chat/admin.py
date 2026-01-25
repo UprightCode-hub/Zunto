@@ -22,7 +22,8 @@ class ConversationAdmin(admin.ModelAdmin):
     list_filter = [
         'created_at',
         'updated_at',
-        ('product__status', admin.FieldListFilter),
+        ('product__status' ),
+        # ('product__status', admin.FieldListFilter),
     ]
     search_fields = [
         'id',

@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compare Products - Zunto</title>
+    <style>
+        :root {
+            --black: #000000;
+            --white: #FFFFFF;
+            --gray-100: #F5F5F5;
+            --gray-200: #E0E0E0;
+            --gray-300: #BDBDBD;
+            --gray-500: #757575;
+            --gray-600: #616161;
+            --gray-800: #212121;
+            --space-4: 4px;
+            --space-8: 8px;
+            --space-16: 16px;
+            --space-24: 24px;
+            --space-32: 32px;
+            --space-48: 48px;
+            --border: 1px solid var(--gray-300);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--white);
+            color: var(--black);
+            line-height: 1.5;
+            font-size: 15px;
+        }
+        
+        .header {
+            border-bottom: var(--border);
+            background: var(--white);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .header-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: var(--space-16) var(--space-24);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .logo {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--black);
+            text-decoration: none;
+            letter-spacing: -0.02em;
+        }
+        
+        .btn {
+            border: var(--border);
+            background: var(--white);
+            color: var(--black);
+            padding: var(--space-8) var(--space-16);
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 150ms;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn:hover {
+            background: var(--gray-100);
+        }
+        
+        .btn-primary {
+            background: var(--black);
+            color: var(--white);
+            border-color: var(--black);
+        }
+        
+        .btn-primary:hover {
+            background: var(--gray-800);
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: var(--space-48) var(--space-24);
+        }
+        
+        h1 {
+            font-size: 28px;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            margin-bottom: var(--space-48);
+        }
+        
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: var(--border);
+        }
+        
+        .comparison-table th,
+        .comparison-table td {
+            border: var(--border);
+            padding: var(--space-16);
+            text-align: left;
+        }
+        
+        .comparison-table th {
+            background: var(--gray-100);
+            font-weight: 500;
+            width: 200px;
+        }
+        
+        .product-column {
+            vertical-align: top;
+        }
+        
+        .product-header {
+            padding: var(--space-24);
+            text-align: center;
+        }
+        
+        .product-image {
+            width: 100%;
+            aspect-ratio: 1;
+            background: var(--gray-100);
+            border: var(--border);
+            margin-bottom: var(--space-16);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        
+        .product-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .product-title {
+            font-size: 15px;
+            font-weight: 500;
+            margin-bottom: var(--space-8);
+        }
+        
+        .product-price {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: var(--space-16);
+        }
+        
+        .highlight-best {
+            background: var(--gray-100);
+            font-weight: 600;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: var(--space-48);
+            color: var(--gray-600);
+        }
+        
+        @media print {
+            .header, .btn {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-container">
+            <a href="index.html" class="logo">Zunto</a>
+            
+            <div style="display: flex; gap: var(--space-16);">
+                <button class="btn" onclick="window.print()">Print</button>
+                <a href="wishlist.html" class="btn">Back to Wishlist</a>
+            </div>
+        </div>
+    </header>
+    
+    <main class="container">
+        <h1>Compare Products</h1>
+        
+        <div id="comparisonContainer">
+            <div class="loading">Loading comparison...</div>
+        </div>
+    </main>
+    
+    <script src="config.js"></script>
+    <script>
+        const comparisonContainer = document.getElementById('comparisonContainer');
+        
+        let products = [];
+        
+        function getProductIds() {
+            const params = new URLSearchParams(window.location.search);
+            const ids = params.get('products');
+            return ids ? ids.split(',') : [];
+        }
+        
+        async function loadProducts() {
+            const productIds = getProductIds();
+            
+            if (productIds.length < 2) {
+                comparisonContainer.innerHTML = '<div class="loading">Please select at least 2 products to compare</div>';
+                return;
+            }
+            
+            try {
+                const responses = await Promise.all(
+                    productIds.map(id => 
+                        apiRequest(`/api/market/products/${id}/`, { skipAuth: true })
+                    )
+                );
+                
+                products = await Promise.all(
+                    responses.map(r => r.ok ? r.json() : null)
+                );
+                
+                products = products.filter(p => p !== null);
+                
+                if (products.length < 2) {
+                    throw new Error('Could not load products');
+                }
+                
+                renderComparison(products);
+            } catch (error) {
+                comparisonContainer.innerHTML = '<div class="loading">Failed to load products</div>';
+            }
+        }
+        
+        function renderComparison(products) {
+            const prices = products.map(p => p.price);
+            const lowestPrice = Math.min(...prices);
+            
+            comparisonContainer.innerHTML = `
+                <table class="comparison-table">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            ${products.map(product => `
+                                <th class="product-column">
+                                    <div class="product-header">
+                                        <div class="product-image">
+                                            ${product.images?.[0]?.image 
+                                                ? `<img src="${product.images[0].image}" alt="${product.title}">`
+                                                : '<div style="color: var(--gray-400)">No image</div>'
+                                            }
+                                        </div>
+                                        <div class="product-title">${product.title}</div>
+                                        <div class="product-price ${product.price === lowestPrice ? 'highlight-best' : ''}">
+                                            ₦${product.price.toLocaleString()}
+                                        </div>
+                                        <a href="product-detail-enhanced.html?slug=${product.slug}" class="btn btn-primary" style="width: 100%;">
+                                            View Product
+                                        </a>
+                                    </div>
+                                </th>
+                            `).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <th>Condition</th>
+                            ${products.map(p => `<td>${p.condition || 'N/A'}</td>`).join('')}
+                        </tr>
+                        <tr>
+                            <th>Brand</th>
+                            ${products.map(p => `<td>${p.brand || 'N/A'}</td>`).join('')}
+                        </tr>
+                        <tr>
+                            <th>Category</th>
+                            ${products.map(p => `<td>${p.category?.name || 'N/A'}</td>`).join('')}
+                        </tr>
+                        <tr>
+                            <th>Location</th>
+                            ${products.map(p => `<td>${p.location?.city || 'N/A'}, ${p.location?.state || 'N/A'}</td>`).join('')}
+                        </tr>
+                        <tr>
+                            <th>Seller</th>
+                            ${products.map(p => `<td>${p.seller?.full_name || 'N/A'}</td>`).join('')}
+                        </tr>
+                        <tr>
+                            <th>Negotiable</th>
+                            ${products.map(p => `<td>${p.negotiable ? 'Yes' : 'No'}</td>`).join('')}
+                        </tr>
+                        <tr>
+                            <th>Views</th>
+                            ${products.map(p => `<td>${p.views_count || 0}</td>`).join('')}
+                        </tr>
+                        <tr>
+                            <th>Favorites</th>
+                            ${products.map(p => `<td>${p.favorites_count || 0}</td>`).join('')}
+                        </tr>
+                        <tr>
+                            <th>Posted</th>
+                            ${products.map(p => `<td>${new Date(p.created_at).toLocaleDateString()}</td>`).join('')}
+                        </tr>
+                        <tr>
+                            <th>Description</th>
+                            ${products.map(p => `<td style="white-space: pre-wrap; max-width: 300px;">${p.description}</td>`).join('')}
+                        </tr>
+                    </tbody>
+                </table>
+            `;
+        }
+        
+        loadProducts();
+    </script>
+</body>
+</html>

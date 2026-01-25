@@ -112,6 +112,8 @@ TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
         'DIRS': [BASE_DIR / 'templates'],
+                [BASE_DIR / 'frontend'],
+
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -519,3 +521,5 @@ os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
 os.environ['TRANSFORMERS_CACHE'] = '/tmp'
 os.environ['HF_HOME'] = '/tmp'
 os.environ['SENTENCE_TRANSFORMERS_HOME'] = '/tmp'
+
+CHAT_HMAC_SECRET = config('CHAT_HMAC_SECRET', default='change-me-in-production')
