@@ -6,7 +6,6 @@ import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Explicitly load .env from BASE_DIR
 ENV_FILE = BASE_DIR / '.env'
 if ENV_FILE.exists():
     config = Config(RepositoryEnv(str(ENV_FILE)))
@@ -24,14 +23,13 @@ if IS_PRODUCTION:
     SECRET_KEY = os.environ.get('SECRET_KEY')
     ALLOWED_HOSTS = [
         '.onrender.com',
-        'zunto-backend.onrender.com',  # Add your actual backend domain
+        'zunto-backend.onrender.com',
     ]
 else:
     DEBUG = config('DEBUG', default=True, cast=bool)
     SECRET_KEY = config('SECRET_KEY', default='dev-secret-key-change-me-in-production')
-    ALLOWED_HOSTS = ['*']  # Allow all for local testing
+    ALLOWED_HOSTS = ['*']
 
-# Production Security Settings
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
@@ -111,9 +109,7 @@ ASGI_APPLICATION = 'ZuntoProject.asgi.application'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates'],
-                [BASE_DIR / 'frontend'],
-
+        'DIRS': [BASE_DIR / 'templates', BASE_DIR / 'frontend'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -133,7 +129,6 @@ TEMPLATES = [
 # ============================================
 
 if IS_PRODUCTION:
-    # Render PostgreSQL
     DATABASES = {
         'default': dj_database_url.config(
             default=os.environ.get('DATABASE_URL'),
@@ -143,7 +138,6 @@ if IS_PRODUCTION:
         )
     }
 else:
-    # Local SQLite
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
@@ -164,7 +158,6 @@ REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}'
 # ============================================
 
 if IS_PRODUCTION:
-    # Use Redis in production
     CACHES = {
         'default': {
             'BACKEND': 'django_redis.cache.RedisCache',
@@ -181,7 +174,6 @@ if IS_PRODUCTION:
         }
     }
 else:
-    # Use Redis locally (you have it installed now!)
     CACHES = {
         'default': {
             'BACKEND': 'django_redis.cache.RedisCache',
@@ -190,7 +182,7 @@ else:
                 'CLIENT_CLASS': 'django_redis.client.DefaultClient',
                 'SOCKET_CONNECT_TIMEOUT': 5,
                 'SOCKET_TIMEOUT': 5,
-                'IGNORE_EXCEPTIONS': True,  # Fail gracefully if Redis is down
+                'IGNORE_EXCEPTIONS': True,
             },
             'KEY_PREFIX': 'zunto',
             'TIMEOUT': 300,
@@ -225,7 +217,6 @@ if IS_PRODUCTION:
         },
     }
 else:
-    # Local Redis for Channels
     CHANNEL_LAYERS = {
         'default': {
             'BACKEND': 'channels_redis.core.RedisChannelLayer',
@@ -281,7 +272,10 @@ USE_TZ = True
 # ============================================
 
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [BASE_DIR / "static_my_project"]
+STATICFILES_DIRS = [
+    BASE_DIR / "static_my_project",
+    BASE_DIR / "frontend",
+]
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 MEDIA_URL = '/media/'
@@ -322,11 +316,11 @@ if DEBUG:
 if IS_PRODUCTION:
     CELERY_BROKER_URL = config('REDIS_URL', default=REDIS_URL + '/1')
     CELERY_RESULT_BACKEND = config('REDIS_URL', default=REDIS_URL + '/2')
-    CELERY_TASK_ALWAYS_EAGER = False  # Run async in production
+    CELERY_TASK_ALWAYS_EAGER = False
 else:
     CELERY_BROKER_URL = REDIS_URL + '/1'
     CELERY_RESULT_BACKEND = REDIS_URL + '/2'
-    CELERY_TASK_ALWAYS_EAGER = True  # Run synchronously in development (easier debugging)
+    CELERY_TASK_ALWAYS_EAGER = True
 
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
@@ -372,7 +366,6 @@ if IS_PRODUCTION:
     ]
     CORS_ALLOW_ALL_ORIGINS = False
 else:
-    # Allow all origins for local testing
     CORS_ALLOW_ALL_ORIGINS = True
     CORS_ALLOWED_ORIGINS = [
         'http://localhost:3000',
@@ -416,11 +409,9 @@ CORS_ALLOW_HEADERS = [
 # AI ASSISTANT CONFIGURATION
 # ============================================
 
-# Groq AI Configuration
 GROQ_API_KEY = config('GROQ_API_KEY', default='')
 GROQ_MODEL = config('GROQ_MODEL', default='llama-3.3-70b-versatile')
 
-# FAQ Matching Configuration
 FAQ_MATCH_THRESHOLD = config('FAQ_MATCH_THRESHOLD', default=0.7, cast=float)
 SENTENCE_TRANSFORMER_MODEL = config(
     'SENTENCE_TRANSFORMER_MODEL', 
@@ -513,10 +504,8 @@ ADMIN_SITE_HEADER = "Zunto Administration"
 ADMIN_SITE_TITLE = "Zunto Admin Portal"
 ADMIN_INDEX_TITLE = "Welcome to Zunto Admin Portal"
 
-# Assistant Configuration
 ASSISTANT_PORTFOLIO_MODE = True
 
-# Environment variables for AI models
 os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
 os.environ['TRANSFORMERS_CACHE'] = '/tmp'
 os.environ['HF_HOME'] = '/tmp'
