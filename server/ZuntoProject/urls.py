@@ -1,55 +1,44 @@
-"""
-URL configuration for ZuntoProject project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/5.2/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from core.views import health_check
-# from analytics.admin import admin_site
 from django.http import JsonResponse
+from django.views.generic import RedirectView
+from core.views import health_check, assistant_view, marketplace_view
 
-
-def health_check(request):
-    return JsonResponse({'status': 'ok'})
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-
     path('health/', health_check, name='health_check'),
-
-    # path('api/accounts/', include('accounts.urls')),
-
+    
+    # Root redirect to marketplace
+    path('', RedirectView.as_view(url='/marketplace/products/', permanent=False)),
+    
+    # Frontend: Assistant AI (your existing frontend)
+    path('assistant/', assistant_view, {'page': 'index'}, name='assistant_home'),
+    path('assistant/<str:page>/', assistant_view, name='assistant_page'),
+    
+    # Frontend: Marketplace (new)
+    path('marketplace/', marketplace_view, {'section': 'products', 'page': 'index'}, name='marketplace_home'),
+    path('marketplace/auth/<str:page>/', marketplace_view, {'section': 'auth'}, name='marketplace_auth'),
+    path('marketplace/account/<str:page>/', marketplace_view, {'section': 'account'}, name='marketplace_account'),
+    path('marketplace/products/', marketplace_view, {'section': 'products', 'page': 'index'}, name='marketplace_products'),
+    path('marketplace/products/<str:page>/', marketplace_view, {'section': 'products'}, name='marketplace_product_page'),
+    path('marketplace/seller/<str:page>/', marketplace_view, {'section': 'seller'}, name='marketplace_seller'),
+    path('marketplace/shopping/<str:page>/', marketplace_view, {'section': 'shopping'}, name='marketplace_shopping'),
+    path('marketplace/chat/<str:page>/', marketplace_view, {'section': 'chat'}, name='marketplace_chat'),
+    path('marketplace/reviews/<str:page>/', marketplace_view, {'section': 'reviews'}, name='marketplace_reviews'),
+    
+    # API Routes (your existing backend)
     path('', include('accounts.urls')),
-
-    # path('api/admin/', include('accounts.admin_urls')),
-    # path('api/admin/', include('market.admin_urls')),
-    # path('api/admin/', include('orders.admin_urls')),
-
     path('api/market/', include('market.urls')),
     path('api/reviews/', include('reviews.urls')),
     path('api/cart/', include('cart.urls')),
     path('api/orders/', include('orders.urls')),
     path('api/payments/', include('orders.payment_urls')),
     path('api/notifications/', include('notifications.urls')),
-    # path('api/analytics/', include('analytics.urls')),
     path('assistant/', include('assistant.urls')),
-    path('chat/', include ('chat.urls')),
-    path('health/', health_check),
-
+    path('chat/', include('chat.urls')),
 ]
 
 if settings.DEBUG:
