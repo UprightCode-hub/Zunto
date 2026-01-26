@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bulk Upload Products - Zunto</title>
+    <style>
+        :root {
+            --black: #000000;
+            --white: #FFFFFF;
+            --gray-100: #F5F5F5;
+            --gray-200: #E0E0E0;
+            --gray-300: #BDBDBD;
+            --gray-500: #757575;
+            --gray-600: #616161;
+            --gray-800: #212121;
+            --space-4: 4px;
+            --space-8: 8px;
+            --space-16: 16px;
+            --space-24: 24px;
+            --space-32: 32px;
+            --space-48: 48px;
+            --border: 1px solid var(--gray-300);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--white);
+            color: var(--black);
+            line-height: 1.5;
+            font-size: 15px;
+        }
+        
+        .header {
+            border-bottom: var(--border);
+            background: var(--white);
+        }
+        
+        .header-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: var(--space-16) var(--space-24);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .logo {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--black);
+            text-decoration: none;
+            letter-spacing: -0.02em;
+        }
+        
+        .btn {
+            border: var(--border);
+            background: var(--white);
+            color: var(--black);
+            padding: var(--space-8) var(--space-16);
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 150ms;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn:hover {
+            background: var(--gray-100);
+        }
+        
+        .btn-primary {
+            background: var(--black);
+            color: var(--white);
+            border-color: var(--black);
+        }
+        
+        .btn-primary:hover {
+            background: var(--gray-800);
+        }
+        
+        .btn:disabled {
+            background: var(--gray-200);
+            color: var(--gray-500);
+            cursor: not-allowed;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: var(--space-48) var(--space-24);
+        }
+        
+        h1 {
+            font-size: 28px;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            margin-bottom: var(--space-16);
+        }
+        
+        .subtitle {
+            color: var(--gray-600);
+            margin-bottom: var(--space-48);
+        }
+        
+        .card {
+            border: var(--border);
+            padding: var(--space-32);
+            margin-bottom: var(--space-24);
+        }
+        
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: var(--space-24);
+        }
+        
+        .upload-area {
+            border: 2px dashed var(--gray-300);
+            padding: var(--space-48);
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 150ms;
+        }
+        
+        .upload-area:hover {
+            border-color: var(--black);
+        }
+        
+        .upload-area.dragover {
+            border-color: var(--black);
+            background: var(--gray-100);
+        }
+        
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: var(--space-16);
+        }
+        
+        .upload-text {
+            margin-bottom: var(--space-8);
+        }
+        
+        .upload-hint {
+            font-size: 13px;
+            color: var(--gray-600);
+        }
+        
+        .progress-container {
+            margin-top: var(--space-24);
+            display: none;
+        }
+        
+        .progress-container.show {
+            display: block;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: var(--gray-200);
+            border: var(--border);
+            margin-bottom: var(--space-8);
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: var(--black);
+            width: 0%;
+            transition: width 300ms;
+        }
+        
+        .progress-text {
+            font-size: 13px;
+            color: var(--gray-600);
+        }
+        
+        .results {
+            margin-top: var(--space-24);
+            display: none;
+        }
+        
+        .results.show {
+            display: block;
+        }
+        
+        .result-item {
+            padding: var(--space-16);
+            border: var(--border);
+            margin-bottom: var(--space-8);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .result-item.success {
+            background: var(--gray-100);
+        }
+        
+        .result-item.error {
+            background: #fff5f5;
+            border-color: #ff0000;
+        }
+        
+        .result-status {
+            font-size: 13px;
+        }
+        
+        .result-status.success {
+            color: var(--black);
+        }
+        
+        .result-status.error {
+            color: #ff0000;
+        }
+        
+        .template-section {
+            background: var(--gray-100);
+            padding: var(--space-16);
+            margin-bottom: var(--space-24);
+        }
+        
+        .template-title {
+            font-weight: 500;
+            margin-bottom: var(--space-8);
+        }
+        
+        .template-description {
+            font-size: 13px;
+            color: var(--gray-600);
+            margin-bottom: var(--space-16);
+        }
+        
+        .instructions {
+            font-size: 14px;
+            line-height: 1.8;
+            margin-bottom: var(--space-16);
+        }
+        
+        .instructions li {
+            margin-bottom: var(--space-8);
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-container">
+            <a href="index.html" class="logo">Zunto</a>
+            <a href="my-products.html" class="btn">Back to Products</a>
+        </div>
+    </header>
+    
+    <main class="container">
+        <h1>Bulk Upload Products</h1>
+        <p class="subtitle">Upload multiple products at once using a CSV or Excel file</p>
+        
+        <div class="card">
+            <div class="template-section">
+                <div class="template-title">Download Template</div>
+                <div class="template-description">
+                    Start by downloading our template file. Fill it out with your product information and upload it below.
+                </div>
+                <button class="btn btn-primary" onclick="downloadTemplate()">Download CSV Template</button>
+            </div>
+            
+            <div class="card-title">Instructions</div>
+            <ol class="instructions">
+                <li>Download the template file above</li>
+                <li>Fill in your product details (title, description, price, category, etc.)</li>
+                <li>Save the file in CSV or Excel format</li>
+                <li>Upload the file using the area below</li>
+                <li>Review the results and fix any errors</li>
+            </ol>
+            
+            <div class="card-title">Upload File</div>
+            
+            <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" class="hidden">
+            
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📄</div>
+                <div class="upload-text">Click to select file or drag and drop</div>
+                <div class="upload-hint">Supports CSV and Excel files (.csv, .xlsx, .xls)</div>
+            </div>
+            
+            <div class="progress-container" id="progressContainer">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-text" id="progressText">Uploading...</div>
+            </div>
+            
+            <div class="results" id="results">
+                <div class="card-title">Upload Results</div>
+                <div id="resultsContainer"></div>
+            </div>
+        </div>
+    </main>
+    
+    <script src="config.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const uploadArea = document.getElementById('uploadArea');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const results = document.getElementById('results');
+        const resultsContainer = document.getElementById('resultsContainer');
+        
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+        
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            
+            const file = e.dataTransfer.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        });
+        
+        function downloadTemplate() {
+            const csvContent = `title,description,price,category,condition,brand,location_city,location_state,quantity,negotiable
+iPhone 13,Excellent condition iPhone 13,500000,Electronics,like_new,Apple,Lagos,Lagos,1,true
+Samsung Galaxy S21,Brand new Samsung phone,450000,Electronics,new,Samsung,Abuja,FCT,2,false`;
+            
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'zunto_bulk_upload_template.csv';
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+        
+        async function handleFile(file) {
+            progressContainer.classList.add('show');
+            results.classList.remove('show');
+            
+            try {
+                if (file.name.endsWith('.csv')) {
+                    await processCSV(file);
+                } else {
+                    alert('Excel files require server-side processing. Please use CSV format for now.');
+                    progressContainer.classList.remove('show');
+                }
+            } catch (error) {
+                alert('Failed to process file: ' + error.message);
+                progressContainer.classList.remove('show');
+            }
+        }
+        
+        async function processCSV(file) {
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: async (results) => {
+                    const products = results.data;
+                    await uploadProducts(products);
+                },
+                error: (error) => {
+                    alert('Failed to parse CSV: ' + error.message);
+                    progressContainer.classList.remove('show');
+                }
+            });
+        }
+        
+        async function uploadProducts(products) {
+            const uploadResults = [];
+            
+            for (let i = 0; i < products.length; i++) {
+                const product = products[i];
+                const progress = ((i + 1) / products.length) * 100;
+                
+                progressFill.style.width = progress + '%';
+                progressText.textContent = `Uploading ${i + 1} of ${products.length}...`;
+                
+                try {
+                    const productData = {
+                        title: product.title,
+                        description: product.description,
+                        price: parseFloat(product.price),
+                        category: product.category,
+                        condition: product.condition,
+                        brand: product.brand,
+                        quantity: parseInt(product.quantity) || 1,
+                        negotiable: product.negotiable === 'true',
+                        status: 'active'
+                    };
+                    
+                    const response = await apiRequest(API_CONFIG.PRODUCTS.CREATE, {
+                        method: 'POST',
+                        body: JSON.stringify(productData)
+                    });
+                    
+                    if (response.ok) {
+                        uploadResults.push({
+                            title: product.title,
+                            status: 'success',
+                            message: 'Product created successfully'
+                        });
+                    } else {
+                        const error = await response.json();
+                        uploadResults.push({
+                            title: product.title,
+                            status: 'error',
+                            message: error.title?.[0] || error.price?.[0] || 'Failed to create product'
+                        });
+                    }
+                } catch (error) {
+                    uploadResults.push({
+                        title: product.title,
+                        status: 'error',
+                        message: error.message
+                    });
+                }
+                
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+            
+            displayResults(uploadResults);
+        }
+        
+        function displayResults(uploadResults) {
+            progressContainer.classList.remove('show');
+            results.classList.add('show');
+            
+            const successCount = uploadResults.filter(r => r.status === 'success').length;
+            const errorCount = uploadResults.filter(r => r.status === 'error').length;
+            
+            resultsContainer.innerHTML = `
+                <div style="margin-bottom: var(--space-24); padding: var(--space-16); border: var(--border); background: var(--gray-100);">
+                    <strong>Summary:</strong> ${successCount} successful, ${errorCount} failed
+                </div>
+                
+                ${uploadResults.map(result => `
+                    <div class="result-item ${result.status}">
+                        <div>
+                            <strong>${result.title}</strong><br>
+                            <span class="result-status ${result.status}">${result.message}</span>
+                        </div>
+                        <span style="font-size: 20px;">${result.status === 'success' ? '✓' : '✗'}</span>
+                    </div>
+                `).join('')}
+                
+                <div style="margin-top: var(--space-24); text-align: center;">
+                    <a href="my-products.html" class="btn btn-primary">View Products</a>
+                    <button class="btn" onclick="location.reload()">Upload More</button>
+                </div>
+            `;
+        }
+        
+        if (!isAuthenticated()) {
+            window.location.href = 'login.html';
+        }
+    </script>
+</body>
+</html>
