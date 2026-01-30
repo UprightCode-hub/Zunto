@@ -1,17 +1,30 @@
-# cart/api_views.py (COMPLETE FILE)
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from django.shortcuts import get_object_or_404
 from market.models import Product
 from .models import Cart, CartItem
-from .serializers import CartSerializer, CartItemSerializer
+from .serializers import (
+    CartSerializer, 
+    CartItemSerializer,
+    UserScoreSerializer,
+    ScoreAnalyticsSummarySerializer,
+    ValueByTierSerializer
+)
+from .analytics import (
+    get_score_analytics_summary,
+    get_value_by_tier,
+    get_top_users_by_score,
+    get_recovery_targets,
+    get_abandonment_summary_with_scores
+)
 from .utils import log_cart_event
 import uuid
 
 
 def get_or_create_cart(request):
+    """Get or create cart for authenticated or guest user"""
     if request.user.is_authenticated:
         cart, _ = Cart.objects.get_or_create(user=request.user)
         session_id = request.session.get('cart_session_id')
@@ -42,6 +55,7 @@ def get_or_create_cart(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def get_cart(request):
+    """Get current user's cart"""
     cart = get_or_create_cart(request)
     serializer = CartSerializer(cart)
     return Response(serializer.data)
@@ -50,6 +64,7 @@ def get_cart(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def add_to_cart(request):
+    """Add item to cart"""
     cart = get_or_create_cart(request)
 
     product_id = request.data.get('product_id') or request.data.get('product')
@@ -100,6 +115,7 @@ def add_to_cart(request):
 @api_view(['PUT', 'PATCH'])
 @permission_classes([AllowAny])
 def update_cart_item(request, item_id):
+    """Update cart item quantity"""
     cart = get_or_create_cart(request)
     item = get_object_or_404(CartItem, id=item_id, cart=cart)
     quantity = request.data.get('quantity')
@@ -131,6 +147,7 @@ def update_cart_item(request, item_id):
 @api_view(['DELETE'])
 @permission_classes([AllowAny])
 def remove_from_cart(request, item_id):
+    """Remove item from cart"""
     cart = get_or_create_cart(request)
     try:
         item = CartItem.objects.get(id=item_id, cart=cart)
@@ -148,6 +165,54 @@ def remove_from_cart(request, item_id):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def clear_cart(request):
+    """Clear all items from cart"""
     cart = get_or_create_cart(request)
     cart.clear()
     return Response(CartSerializer(cart).data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAdminUser])
+def score_analytics_summary(request):
+    """Get comprehensive scoring analytics (admin only)"""
+    summary = get_score_analytics_summary()
+    serializer = ScoreAnalyticsSummarySerializer(summary)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAdminUser])
+def value_by_tier(request):
+    """Get abandoned cart value by user tier (admin only)"""
+    data = get_value_by_tier()
+    serializer = ValueByTierSerializer(data)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAdminUser])
+def top_users(request):
+    """Get top users by score (admin only)"""
+    limit = int(request.query_params.get('limit', 10))
+    users = get_top_users_by_score(limit=limit)
+    serializer = UserScoreSerializer(users, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAdminUser])
+def recovery_targets(request):
+    """Get high-value users for recovery campaigns (admin only)"""
+    min_score = int(request.query_params.get('min_score', 50))
+    limit = int(request.query_params.get('limit', 50))
+    targets = get_recovery_targets(min_score=min_score, limit=limit)
+    serializer = UserScoreSerializer(targets, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAdminUser])
+def enhanced_abandonment_summary(request):
+    """Get abandonment summary with scoring data (admin only)"""
+    summary = get_abandonment_summary_with_scores()
+    return Response(summary)
