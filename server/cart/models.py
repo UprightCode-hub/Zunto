@@ -1,4 +1,4 @@
-# cart/models.py
+# cart/models.py (COMPLETE FILE)
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator
@@ -199,3 +199,38 @@ class CartAbandonment(models.Model):
 
     def __str__(self):
         return f"Abandoned cart - {self.total_items} items (₦{self.total_value})"
+
+
+class CartEvent(models.Model):
+    """Log cart-related user events"""
+    
+    EVENT_TYPES = [
+        ('cart_item_added', 'Item Added'),
+        ('cart_item_updated', 'Item Updated'),
+        ('cart_item_removed', 'Item Removed'),
+        ('cart_item_saved', 'Item Saved for Later'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    event_type = models.CharField(max_length=50, choices=EVENT_TYPES, db_index=True)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='cart_events'
+    )
+    cart_id = models.UUIDField(db_index=True)
+    data = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    
+    class Meta:
+        db_table = 'cart_events'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['event_type', '-created_at']),
+            models.Index(fields=['user', '-created_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.event_type} - {self.created_at}"
