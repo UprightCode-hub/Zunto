@@ -1,4 +1,4 @@
-# cart/utils.py (NEW FILE)
+# cart/utils.py 
 from django.db import transaction
 from .models import CartEvent
 import logging
