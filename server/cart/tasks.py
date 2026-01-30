@@ -152,3 +152,28 @@ def calculate_user_scores_bulk():
     )
     
     return f"Scores calculated: {created_count} new, {updated_count} updated"
+
+
+@shared_task
+def cleanup_old_guest_carts(days=30):
+    """Delete old guest carts without abandonment records (automated)"""
+    cutoff_date = timezone.now() - timedelta(days=days)
+    
+    carts_with_abandonments = CartAbandonment.objects.values_list('cart_id', flat=True)
+    
+    old_guest_carts = Cart.objects.filter(
+        user=None,
+        updated_at__lt=cutoff_date
+    ).exclude(
+        id__in=carts_with_abandonments
+    )
+    
+    count = old_guest_carts.count()
+    
+    if count > 0:
+        old_guest_carts.delete()
+        logger.info(f"Cleaned up {count} old guest carts (preserved carts with abandonment records)")
+    else:
+        logger.info("No old guest carts to clean up")
+    
+    return f"Deleted {count} old guest carts"
