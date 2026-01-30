@@ -1,4 +1,3 @@
-# cart/models.py (COMPLETE FILE)
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator
@@ -203,14 +202,14 @@ class CartAbandonment(models.Model):
 
 class CartEvent(models.Model):
     """Log cart-related user events"""
-    
+
     EVENT_TYPES = [
         ('cart_item_added', 'Item Added'),
         ('cart_item_updated', 'Item Updated'),
         ('cart_item_removed', 'Item Removed'),
         ('cart_item_saved', 'Item Saved for Later'),
     ]
-    
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     event_type = models.CharField(max_length=50, choices=EVENT_TYPES, db_index=True)
     user = models.ForeignKey(
@@ -223,7 +222,7 @@ class CartEvent(models.Model):
     cart_id = models.UUIDField(db_index=True)
     data = models.JSONField(default=dict)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
-    
+
     class Meta:
         db_table = 'cart_events'
         ordering = ['-created_at']
@@ -231,6 +230,94 @@ class CartEvent(models.Model):
             models.Index(fields=['event_type', '-created_at']),
             models.Index(fields=['user', '-created_at']),
         ]
-    
+
     def __str__(self):
         return f"{self.event_type} - {self.created_at}"
+
+
+class UserScore(models.Model):
+    """Track user cart behavior scores for targeting and analytics"""
+    
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='cart_score',
+        primary_key=True
+    )
+    
+    abandonment_score = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        help_text="Score based on abandonment frequency"
+    )
+    value_score = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        help_text="Score based on average cart value"
+    )
+    conversion_score = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        help_text="Score based on recovery/conversion rate"
+    )
+    hesitation_score = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        help_text="Score based on time-to-abandon and save-for-later behavior"
+    )
+    
+    composite_score = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        help_text="Weighted composite score (0-100)"
+    )
+    
+    discount_eligibility = models.BooleanField(
+        default=False,
+        help_text="Whether user qualifies for targeted discounts"
+    )
+    recommended_discount = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        null=True,
+        blank=True,
+        help_text="Recommended discount percentage"
+    )
+    promo_code = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text="Assigned promo code for this user"
+    )
+    
+    last_calculated = models.DateTimeField(auto_now=True, db_index=True)
+    
+    class Meta:
+        db_table = 'user_scores'
+        ordering = ['-composite_score']
+        indexes = [
+            models.Index(fields=['-composite_score']),
+            models.Index(fields=['-value_score']),
+            models.Index(fields=['last_calculated']),
+            models.Index(fields=['discount_eligibility']),
+        ]
+    
+    def __str__(self):
+        return f"{self.user.email} - Score: {self.composite_score}"
+    
+    @property
+    def score_tier(self):
+        """Categorize users by composite score"""
+        if self.composite_score >= 75:
+            return 'high_value'
+        elif self.composite_score >= 50:
+            return 'medium_value'
+        elif self.composite_score >= 25:
+            return 'low_value'
+        return 'at_risk'
