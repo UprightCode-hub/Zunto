@@ -1,4 +1,4 @@
-# dashboard/views.py (UPDATED - replace DashboardView class only)
+# dashboard/views.py
 
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
@@ -8,10 +8,11 @@ from datetime import timedelta
 import json
 from django.views.generic import TemplateView
 from django.contrib.auth.mixins import LoginRequiredMixin
-from cart.analytics import get_abandonment_summary_with_scores  # Updated import
+from cart.analytics import get_abandonment_summary_with_scores
 
 
 class DashboardView(LoginRequiredMixin, TemplateView):
+    """Main dashboard overview with high-level metrics"""
     template_name = 'dashboard/dashboard.html'
     
     def get_context_data(self, **kwargs):
@@ -28,29 +29,17 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         else:
             start_date = today - timedelta(days=365)
         
-        # Enhanced abandonment data with scoring
         abandonment_data = get_abandonment_summary_with_scores()
-        
-        # Extract scoring data
         scoring_data = abandonment_data.get('scoring', {})
         score_averages = scoring_data.get('averages', {})
-        score_distribution = scoring_data.get('distribution', {})
-        value_by_tier = abandonment_data.get('value_by_tier', {})
         
         context.update({
-            # Existing abandonment metrics (backward compatible)
             'total_abandoned_carts': abandonment_data['total_abandoned'],
             'total_recovered_carts': abandonment_data['total_recovered'],
             'abandonment_rate': f"{abandonment_data['abandonment_rate']}%",
             'recovery_rate': f"{abandonment_data['recovery_rate']}%",
             'avg_abandoned_value': f"₦{abandonment_data['avg_abandoned_value']:,.2f}",
-            
-            # New scoring metrics
-            'score_distribution': score_distribution,
-            'value_by_tier': value_by_tier,
             'avg_composite_score': score_averages.get('composite', 0),
-            
-            # Existing chart data (unchanged)
             'sales_labels': json.dumps(['Mon','Tue','Wed','Thu','Fri','Sat','Sun']),
             'sales_data': json.dumps([4200,3800,5200,4600,6800,7200,5900]),
             'category_labels': json.dumps(['Electronics', 'Clothing', 'Home & Garden', 'Sports']),
@@ -70,8 +59,32 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         return context
 
 
-# Keep all other functions unchanged (sales_report, products_list, etc.)
+class AnalyticsDashboardView(LoginRequiredMixin, TemplateView):
+    """Deep analytics dashboard with user scoring and cart abandonment insights"""
+    template_name = 'dashboard/analytics.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        abandonment_data = get_abandonment_summary_with_scores()
+        scoring_data = abandonment_data.get('scoring', {})
+        
+        context.update({
+            'score_distribution': scoring_data.get('distribution', {}),
+            'value_by_tier': abandonment_data.get('value_by_tier', {}),
+            'avg_composite_score': scoring_data.get('averages', {}).get('composite', 0),
+            'total_abandoned_carts': abandonment_data['total_abandoned'],
+            'total_recovered_carts': abandonment_data['total_recovered'],
+            'abandonment_rate': f"{abandonment_data['abandonment_rate']}%",
+            'recovery_rate': f"{abandonment_data['recovery_rate']}%",
+            'avg_abandoned_value': f"₦{abandonment_data['avg_abandoned_value']:,.2f}",
+        })
+        
+        return context
+
+
 def sales_report(request):
+    """Sales report view"""
     context = {
         'page_title': 'Sales Report'
     }
@@ -79,6 +92,7 @@ def sales_report(request):
 
 
 def products_list(request):
+    """Products listing view"""
     context = {
         'page_title': 'Products',
     }
@@ -86,6 +100,7 @@ def products_list(request):
 
 
 def orders_list(request):
+    """Orders listing view"""
     context = {
         'page_title': 'Orders',
     }
@@ -93,6 +108,7 @@ def orders_list(request):
 
 
 def customers_list(request):
+    """Customers listing view"""
     context = {
         'page_title': 'Customers',
     }
@@ -100,6 +116,7 @@ def customers_list(request):
 
 
 def analytics(request):
+    """Legacy analytics view"""
     context = {
         'page_title': 'Analytics'
     }
