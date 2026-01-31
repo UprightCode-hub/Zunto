@@ -8,11 +8,9 @@ from .views import (
     customers_list,
 )
 
-app_name = 'dashboard'
-
 urlpatterns = [
     path('', DashboardView.as_view(), name='dashboard'),
-    path('analytics/', AnalyticsDashboardView.as_view(), name='analytics'),
+    path('analytics/', AnalyticsDashboardView.as_view(), name='analytics_dashboard'),
     path('sales/', sales_report, name='sales_report'),
     path('products/', products_list, name='products_list'),
     path('orders/', orders_list, name='orders_list'),
