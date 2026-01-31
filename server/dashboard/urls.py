@@ -1,8 +1,21 @@
-from django.urls import path
-from .views import DashboardView
+# dashboard/urls.py
 
-app_name = 'dashboard'   # 👈 THIS LINE IS REQUIRED
+from django.urls import path
+from .views import (
+    DashboardView,
+    AnalyticsDashboardView,
+    sales_report,
+    products_list,
+    orders_list,
+    customers_list,
+    analytics
+)
 
 urlpatterns = [
-    path('dashboard/', DashboardView.as_view(), name='dashboard'),
+    path('', DashboardView.as_view(), name='dashboard'),
+    path('analytics/', AnalyticsDashboardView.as_view(), name='analytics_dashboard'),
+    path('sales/', sales_report, name='sales_report'),
+    path('products/', products_list, name='products_list'),
+    path('orders/', orders_list, name='orders_list'),
+    path('customers/', customers_list, name='customers_list'),
 ]
