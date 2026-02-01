@@ -312,3 +312,11 @@ def Home(request):
         "personnal":"Personnal Information"
     }
     return render(request,'accounts/Home.html', context)
+
+from django.views import View
+
+class LoginPageView(View):
+    """Render the login HTML page"""
+    
+    def get(self, request):
+        return render(request, 'accounts/login.html')

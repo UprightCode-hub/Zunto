@@ -1,16 +1,10 @@
 import os
 from pathlib import Path
-from decouple import Config, RepositoryEnv
+from decouple import config
 from celery.schedules import crontab
 import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-
-ENV_FILE = BASE_DIR / '.env'
-if ENV_FILE.exists():
-    config = Config(RepositoryEnv(str(ENV_FILE)))
-else:
-    from decouple import config
 
 # ============================================
 # ENVIRONMENT DETECTION
