@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cart - Zunto</title>
+    <title>Shopping Cart - Zunto</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -15,6 +15,94 @@
         .card-bg {
             background-color: #0a1628;
             border: 1px solid #1a2d4a;
+        }
+        
+        /* Floating Gigi Assistant Button */
+        #gigiAssistant {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 1000;
+            cursor: move;
+            user-select: none;
+        }
+        
+        .gigi-button {
+            width: 70px;
+            height: 70px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, #2c77d1 0%, #9426f4 100%);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(44, 119, 209, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            animation: gigiFloat 3s ease-in-out infinite, gigiShine 2s linear infinite;
+        }
+        
+        .gigi-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 12px 40px rgba(148, 38, 244, 0.6);
+        }
+        
+        .gigi-icon {
+            font-size: 32px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        @keyframes gigiFloat {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            25% { transform: translateY(-5px) rotate(2deg); }
+            50% { transform: translateY(0px) rotate(0deg); }
+            75% { transform: translateY(-3px) rotate(-2deg); }
+        }
+        
+        @keyframes gigiShine {
+            0% { filter: brightness(1); }
+            50% { filter: brightness(1.2); }
+            100% { filter: brightness(1); }
+        }
+        
+        .gigi-tooltip {
+            position: absolute;
+            bottom: 80px;
+            right: 0;
+            background: #0a1628;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 12px;
+            border: 1px solid #1a2d4a;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+        }
+        
+        .gigi-button:hover + .gigi-tooltip {
+            opacity: 1;
+        }
+        
+        /* Mobile responsiveness */
+        @media (max-width: 768px) {
+            #gigiAssistant {
+                bottom: 16px;
+                right: 16px;
+            }
+            
+            .gigi-button {
+                width: 60px;
+                height: 60px;
+                border-radius: 16px;
+            }
+            
+            .gigi-icon {
+                font-size: 28px;
+            }
         }
     </style>
 </head>
@@ -30,6 +118,7 @@
                 <nav class="hidden md:flex items-center gap-8">
                     <a href="{% url 'product_list' %}" class="text-gray-400 hover:text-white transition-colors duration-200">Products</a>
                     <a href="{% url 'cart' %}" class="text-white font-medium">Cart</a>
+                    <a href="{% url 'wishlist' %}" class="text-gray-400 hover:text-white transition-colors duration-200">Wishlist</a>
                     <a href="{% url 'my_orders' %}" class="text-gray-400 hover:text-white transition-colors duration-200">Orders</a>
                     <a href="{% url 'profile' %}" class="text-gray-400 hover:text-white transition-colors duration-200">Profile</a>
                 </nav>
@@ -60,7 +149,15 @@
         </div>
     </main>
 
-    <script src="{% static 'js/config.js' %}"></script>
+    <!-- Floating Gigi Assistant Button -->
+    <div id="gigiAssistant">
+        <div class="gigi-button" onclick="openGigiChat()">
+            <div class="gigi-icon">G</div>
+        </div>
+        <div class="gigi-tooltip">Need help? Chat with Gigi!</div>
+    </div>
+
+    <script src="{% static 'marketplace/assets/js/config.js' %}"></script>
     <script>
         const cartContainer = document.getElementById('cartContainer');
         const logoutBtn = document.getElementById('logoutBtn');
@@ -88,6 +185,9 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                             </svg>
                             <p class="text-gray-400">Failed to load cart</p>
+                            <button onclick="loadCart()" class="mt-4 px-4 py-2 gradient-bg rounded-lg text-white hover:opacity-90 transition-opacity duration-200">
+                                Retry
+                            </button>
                         </div>
                     </div>
                 `;
@@ -192,7 +292,7 @@
                             
                             <div class="space-y-4 mb-6">
                                 <div class="flex justify-between text-gray-400">
-                                    <span>Subtotal</span>
+                                    <span>Subtotal (${cart.items.length} items)</span>
                                     <span class="text-white font-semibold">₦${cart.total_price.toLocaleString()}</span>
                                 </div>
                                 
@@ -269,6 +369,71 @@
             } catch (error) {
                 alert('Failed to clear cart');
             }
+        }
+
+        // Gigi Assistant Functions
+        function openGigiChat() {
+            window.location.href = '/assistant/chat/';
+        }
+
+        // Make Gigi draggable
+        const gigi = document.getElementById('gigiAssistant');
+        let isDragging = false;
+        let currentX;
+        let currentY;
+        let initialX;
+        let initialY;
+        let xOffset = 0;
+        let yOffset = 0;
+
+        gigi.addEventListener('mousedown', dragStart);
+        gigi.addEventListener('touchstart', dragStart);
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('touchmove', drag);
+        document.addEventListener('mouseup', dragEnd);
+        document.addEventListener('touchend', dragEnd);
+
+        function dragStart(e) {
+            if (e.type === 'touchstart') {
+                initialX = e.touches[0].clientX - xOffset;
+                initialY = e.touches[0].clientY - yOffset;
+            } else {
+                initialX = e.clientX - xOffset;
+                initialY = e.clientY - yOffset;
+            }
+
+            if (e.target === gigi || e.target.closest('#gigiAssistant')) {
+                isDragging = true;
+            }
+        }
+
+        function drag(e) {
+            if (isDragging) {
+                e.preventDefault();
+                
+                if (e.type === 'touchmove') {
+                    currentX = e.touches[0].clientX - initialX;
+                    currentY = e.touches[0].clientY - initialY;
+                } else {
+                    currentX = e.clientX - initialX;
+                    currentY = e.clientY - initialY;
+                }
+
+                xOffset = currentX;
+                yOffset = currentY;
+
+                setTranslate(currentX, currentY, gigi);
+            }
+        }
+
+        function dragEnd(e) {
+            initialX = currentX;
+            initialY = currentY;
+            isDragging = false;
+        }
+
+        function setTranslate(xPos, yPos, el) {
+            el.style.transform = `translate3d(${xPos}px, ${yPos}px, 0)`;
         }
 
         if (!isAuthenticated()) {
