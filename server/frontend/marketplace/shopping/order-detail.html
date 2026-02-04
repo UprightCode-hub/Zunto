@@ -4,396 +4,460 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Order Details - Zunto</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        :root {
-            --black: #000000;
-            --white: #FFFFFF;
-            --gray-100: #F5F5F5;
-            --gray-200: #E0E0E0;
-            --gray-300: #BDBDBD;
-            --gray-500: #757575;
-            --gray-600: #616161;
-            --gray-800: #212121;
-            --space-4: 4px;
-            --space-8: 8px;
-            --space-16: 16px;
-            --space-24: 24px;
-            --space-32: 32px;
-            --space-48: 48px;
-            --border: 1px solid var(--gray-300);
-        }
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-            background: var(--white);
-            color: var(--black);
-            line-height: 1.5;
-            font-size: 15px;
+            background-color: #050d1b;
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #2c77d1 0%, #9426f4 100%);
+        }
+        .card-bg {
+            background-color: #0a1628;
+            border: 1px solid #1a2d4a;
         }
         
-        .header {
-            border-bottom: var(--border);
-            background: var(--white);
+        #gigiAssistant {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 1000;
+            cursor: move;
+            user-select: none;
         }
         
-        .header-container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: var(--space-16) var(--space-24);
+        .gigi-button {
+            width: 70px;
+            height: 70px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, #2c77d1 0%, #9426f4 100%);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(44, 119, 209, 0.4);
             display: flex;
             align-items: center;
-            justify-content: space-between;
-        }
-        
-        .logo {
-            font-size: 18px;
-            font-weight: 600;
-            color: var(--black);
-            text-decoration: none;
-            letter-spacing: -0.02em;
-        }
-        
-        .btn {
-            border: var(--border);
-            background: var(--white);
-            color: var(--black);
-            padding: var(--space-8) var(--space-16);
-            font-size: 14px;
-            cursor: pointer;
-            transition: all 150ms;
-            text-decoration: none;
-            display: inline-block;
-        }
-        
-        .btn:hover {
-            background: var(--gray-100);
-        }
-        
-        .btn-primary {
-            background: var(--black);
-            color: var(--white);
-            border-color: var(--black);
-        }
-        
-        .btn-primary:hover {
-            background: var(--gray-800);
-        }
-        
-        .btn:disabled {
-            background: var(--gray-200);
-            color: var(--gray-500);
-            cursor: not-allowed;
-        }
-        
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-            padding: var(--space-48) var(--space-24);
-        }
-        
-        h1 {
-            font-size: 28px;
-            font-weight: 600;
-            letter-spacing: -0.02em;
-            margin-bottom: var(--space-8);
-        }
-        
-        .order-status {
-            font-size: 14px;
-            padding: var(--space-4) var(--space-8);
-            border: var(--border);
-            display: inline-block;
-            margin-bottom: var(--space-48);
-        }
-        
-        .card {
-            border: var(--border);
-            padding: var(--space-24);
-            margin-bottom: var(--space-24);
-        }
-        
-        .card-title {
-            font-size: 16px;
-            font-weight: 600;
-            margin-bottom: var(--space-24);
-        }
-        
-        .info-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: var(--space-8);
-            font-size: 14px;
-        }
-        
-        .info-label {
-            color: var(--gray-600);
-        }
-        
-        .order-item {
-            display: grid;
-            grid-template-columns: 80px 1fr auto;
-            gap: var(--space-16);
-            padding: var(--space-16);
-            border-bottom: var(--border);
-        }
-        
-        .order-item:last-child {
-            border-bottom: none;
-        }
-        
-        .item-image {
-            width: 80px;
-            height: 80px;
-            border: var(--border);
-            background: var(--gray-100);
-        }
-        
-        .item-image img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        
-        .item-details {
-            display: flex;
-            flex-direction: column;
             justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            animation: gigiFloat 3s ease-in-out infinite, gigiShine 2s linear infinite;
         }
         
-        .item-name {
-            font-size: 15px;
+        .gigi-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 12px 40px rgba(148, 38, 244, 0.6);
+        }
+        
+        .gigi-icon {
+            font-size: 32px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        @keyframes gigiFloat {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            25% { transform: translateY(-5px) rotate(2deg); }
+            50% { transform: translateY(0px) rotate(0deg); }
+            75% { transform: translateY(-3px) rotate(-2deg); }
+        }
+        
+        @keyframes gigiShine {
+            0% { filter: brightness(1); }
+            50% { filter: brightness(1.2); }
+            100% { filter: brightness(1); }
+        }
+        
+        .gigi-tooltip {
+            position: absolute;
+            bottom: 80px;
+            right: 0;
+            background: #0a1628;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 12px;
+            border: 1px solid #1a2d4a;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+        }
+        
+        .gigi-button:hover + .gigi-tooltip {
+            opacity: 1;
+        }
+        
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.875rem;
             font-weight: 500;
-            margin-bottom: var(--space-4);
+            display: inline-block;
         }
         
-        .item-meta {
-            font-size: 13px;
-            color: var(--gray-600);
+        .status-pending {
+            background: rgba(234, 179, 8, 0.2);
+            color: #eab308;
         }
         
-        .item-price {
-            text-align: right;
+        .status-processing {
+            background: rgba(59, 130, 246, 0.2);
+            color: #3b82f6;
         }
         
-        .item-unit-price {
-            font-size: 14px;
-            color: var(--gray-600);
-            margin-bottom: var(--space-4);
+        .status-shipped {
+            background: rgba(139, 92, 246, 0.2);
+            color: #8b5cf6;
         }
         
-        .item-total {
-            font-size: 16px;
-            font-weight: 600;
+        .status-delivered {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
         }
         
-        .summary-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: var(--space-16);
-            font-size: 14px;
+        .status-cancelled {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
         }
         
-        .summary-row.total {
-            font-size: 18px;
-            font-weight: 600;
-            padding-top: var(--space-16);
-            border-top: var(--border);
-            margin-top: var(--space-16);
-        }
-        
-        .actions {
-            display: flex;
-            gap: var(--space-16);
-        }
-        
-        .loading {
-            text-align: center;
-            padding: var(--space-48);
-            color: var(--gray-600);
+        @media (max-width: 768px) {
+            #gigiAssistant {
+                bottom: 16px;
+                right: 16px;
+            }
+            
+            .gigi-button {
+                width: 60px;
+                height: 60px;
+                border-radius: 16px;
+            }
+            
+            .gigi-icon {
+                font-size: 28px;
+            }
         }
     </style>
 </head>
-<body>
-    <header class="header">
-        <div class="header-container">
-            <a href="index.html" class="logo">Zunto</a>
-            <a href="my-orders.html" class="btn">Back to Orders</a>
+<body class="min-h-screen text-white">
+    <header class="card-bg sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div class="flex items-center justify-between">
+                <a href="{% url 'product_list' %}" class="text-2xl font-bold gradient-bg bg-clip-text text-transparent">
+                    Zunto
+                </a>
+                <a href="{% url 'my_orders' %}" class="px-4 py-2 card-bg rounded-lg text-gray-400 hover:text-white hover:bg-[#1a2d4a] transition-all duration-200">
+                    Back to Orders
+                </a>
+            </div>
         </div>
     </header>
-    
-    <main class="container">
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
         <div id="orderContainer">
-            <div class="loading">Loading order details...</div>
+            <div class="flex items-center justify-center py-24">
+                <div class="text-center">
+                    <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#2c77d1] mb-4"></div>
+                    <p class="text-gray-400">Loading order details...</p>
+                </div>
+            </div>
         </div>
     </main>
-    
-    <script src="config.js"></script>
+
+    <div id="gigiAssistant">
+        <div class="gigi-button" onclick="openGigiChat()">
+            <div class="gigi-icon">G</div>
+        </div>
+        <div class="gigi-tooltip">Need help? Chat with Gigi!</div>
+    </div>
+
+    <script src="{% static 'marketplace/assets/js/config.js' %}"></script>
     <script>
         const orderContainer = document.getElementById('orderContainer');
-        
         let orderData = null;
-        
+
         function getOrderNumber() {
             const params = new URLSearchParams(window.location.search);
             return params.get('order');
         }
-        
+
+        function getStatusClass(status) {
+            const statusMap = {
+                'pending': 'status-pending',
+                'processing': 'status-processing',
+                'shipped': 'status-shipped',
+                'delivered': 'status-delivered',
+                'cancelled': 'status-cancelled'
+            };
+            return statusMap[status.toLowerCase()] || 'status-pending';
+        }
+
+        function formatStatus(status) {
+            return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+
         async function loadOrder() {
             const orderNumber = getOrderNumber();
             if (!orderNumber) {
-                window.location.href = 'my-orders.html';
+                window.location.href = '{% url "my_orders" %}';
                 return;
             }
-            
+
             try {
                 const response = await apiRequest(API_CONFIG.ORDERS.DETAIL(orderNumber));
-                
+
                 if (!response.ok) throw new Error('Failed to load order');
-                
+
                 orderData = await response.json();
                 renderOrder(orderData);
             } catch (error) {
-                orderContainer.innerHTML = '<div class="loading">Failed to load order</div>';
+                orderContainer.innerHTML = `
+                    <div class="flex items-center justify-center py-24">
+                        <div class="text-center">
+                            <svg class="w-16 h-16 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <p class="text-gray-400 mb-4">Failed to load order</p>
+                            <button onclick="loadOrder()" class="px-4 py-2 gradient-bg rounded-lg text-white hover:opacity-90">Retry</button>
+                        </div>
+                    </div>
+                `;
             }
         }
-        
+
         function renderOrder(order) {
             orderContainer.innerHTML = `
-                <h1>Order #${order.order_number}</h1>
-                <div class="order-status">${order.status.replace('_', ' ')}</div>
-                
-                <div class="card">
-                    <div class="card-title">Order Information</div>
-                    
-                    <div class="info-row">
-                        <span class="info-label">Order Date</span>
-                        <span>${new Date(order.created_at).toLocaleDateString()}</span>
-                    </div>
-                    
-                    <div class="info-row">
-                        <span class="info-label">Payment Method</span>
-                        <span>${order.payment_method.replace('_', ' ')}</span>
-                    </div>
-                    
-                    <div class="info-row">
-                        <span class="info-label">Payment Status</span>
-                        <span>${order.payment_status}</span>
-                    </div>
-                    
-                    ${order.tracking_number ? `
-                        <div class="info-row">
-                            <span class="info-label">Tracking Number</span>
-                            <span>${order.tracking_number}</span>
+                <div class="mb-8">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between mb-4">
+                        <div>
+                            <h1 class="text-3xl md:text-4xl font-bold mb-2">Order #${order.order_number}</h1>
+                            <p class="text-gray-400">
+                                Placed on ${new Date(order.created_at).toLocaleDateString('en-US', { 
+                                    year: 'numeric', 
+                                    month: 'long', 
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                })}
+                            </p>
                         </div>
-                    ` : ''}
-                </div>
-                
-                <div class="card">
-                    <div class="card-title">Shipping Address</div>
-                    
-                    <div style="font-size: 14px; line-height: 1.6;">
-                        ${order.shipping_address}<br>
-                        ${order.shipping_city}, ${order.shipping_state}<br>
-                        ${order.shipping_country}<br>
-                        ${order.shipping_phone}
+                        <span class="status-badge ${getStatusClass(order.status)} mt-4 md:mt-0">
+                            ${formatStatus(order.status)}
+                        </span>
                     </div>
                 </div>
-                
-                <div class="card">
-                    <div class="card-title">Order Items</div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2 space-y-6">
+                        <div class="card-bg rounded-lg p-6">
+                            <h2 class="text-xl font-bold mb-6">Order Information</h2>
+                            
+                            <div class="space-y-4">
+                                <div class="flex justify-between pb-4 border-b border-[#1a2d4a]">
+                                    <span class="text-gray-400">Order Date</span>
+                                    <span class="font-semibold">${new Date(order.created_at).toLocaleDateString()}</span>
+                                </div>
+                                
+                                <div class="flex justify-between pb-4 border-b border-[#1a2d4a]">
+                                    <span class="text-gray-400">Payment Method</span>
+                                    <span class="font-semibold">${formatStatus(order.payment_method)}</span>
+                                </div>
+                                
+                                <div class="flex justify-between pb-4 border-b border-[#1a2d4a]">
+                                    <span class="text-gray-400">Payment Status</span>
+                                    <span class="font-semibold">${formatStatus(order.payment_status)}</span>
+                                </div>
+                                
+                                ${order.tracking_number ? `
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-400">Tracking Number</span>
+                                        <span class="font-semibold">${order.tracking_number}</span>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                        
+                        <div class="card-bg rounded-lg p-6">
+                            <h2 class="text-xl font-bold mb-6">Shipping Address</h2>
+                            
+                            <div class="text-gray-400 leading-relaxed">
+                                ${order.shipping_address}<br>
+                                ${order.shipping_city}, ${order.shipping_state}<br>
+                                ${order.shipping_country}<br>
+                                <span class="text-white font-semibold mt-2 inline-block">${order.shipping_phone}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="card-bg rounded-lg p-6">
+                            <h2 class="text-xl font-bold mb-6">Order Items</h2>
+                            
+                            <div class="space-y-4">
+                                ${order.items.map(item => `
+                                    <div class="flex gap-4 pb-4 border-b border-[#1a2d4a] last:border-0 last:pb-0">
+                                        <div class="w-20 h-20 bg-[#1a2d4a] rounded-lg overflow-hidden flex-shrink-0">
+                                            ${item.product_image 
+                                                ? `<img src="${item.product_image}" alt="${item.product_name}" class="w-full h-full object-cover">`
+                                                : `<div class="w-full h-full flex items-center justify-center">
+                                                    <svg class="w-8 h-8 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                                    </svg>
+                                                </div>`
+                                            }
+                                        </div>
+                                        
+                                        <div class="flex-1 min-w-0">
+                                            <h3 class="font-semibold mb-1 truncate">${item.product_name}</h3>
+                                            <p class="text-sm text-gray-400 mb-2">Qty: ${item.quantity} × ₦${item.unit_price.toLocaleString()}</p>
+                                            <p class="text-sm text-gray-400">Seller: ${item.seller_name || 'N/A'}</p>
+                                        </div>
+                                        
+                                        <div class="text-right">
+                                            <p class="text-lg font-bold text-[#2c77d1]">₦${item.total_price.toLocaleString()}</p>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
                     
-                    ${order.items.map(item => `
-                        <div class="order-item">
-                            <div class="item-image">
-                                ${item.product_image 
-                                    ? `<img src="${item.product_image}" alt="${item.product_name}">`
-                                    : ''
-                                }
+                    <div class="lg:col-span-1">
+                        <div class="card-bg rounded-lg p-6 sticky top-24">
+                            <h2 class="text-xl font-bold mb-6">Order Summary</h2>
+                            
+                            <div class="space-y-4 mb-6">
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-gray-400">Subtotal</span>
+                                    <span class="font-semibold">₦${order.subtotal.toLocaleString()}</span>
+                                </div>
+                                
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-gray-400">Shipping</span>
+                                    <span class="font-semibold">₦${order.shipping_fee.toLocaleString()}</span>
+                                </div>
+                                
+                                ${order.tax_amount > 0 ? `
+                                    <div class="flex justify-between text-sm">
+                                        <span class="text-gray-400">Tax</span>
+                                        <span class="font-semibold">₦${order.tax_amount.toLocaleString()}</span>
+                                    </div>
+                                ` : ''}
+                                
+                                ${order.discount_amount > 0 ? `
+                                    <div class="flex justify-between text-sm text-green-400">
+                                        <span>Discount</span>
+                                        <span class="font-semibold">-₦${order.discount_amount.toLocaleString()}</span>
+                                    </div>
+                                ` : ''}
                             </div>
                             
-                            <div class="item-details">
-                                <div class="item-name">${item.product_name}</div>
-                                <div class="item-meta">Qty: ${item.quantity} × ₦${item.unit_price.toLocaleString()}</div>
-                                <div class="item-meta">Seller: ${item.seller_name || 'N/A'}</div>
+                            <div class="pt-4 mb-6 border-t border-[#1a2d4a]">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-lg font-semibold">Total</span>
+                                    <span class="text-2xl font-bold">₦${order.total_amount.toLocaleString()}</span>
+                                </div>
                             </div>
                             
-                            <div class="item-price">
-                                <div class="item-total">₦${item.total_price.toLocaleString()}</div>
+                            <div class="space-y-3">
+                                <a href="/marketplace/shopping/order-invoice/?order=${order.order_number}" class="block w-full py-3 gradient-bg rounded-lg text-white font-semibold text-center hover:opacity-90 transition-opacity duration-200">
+                                    View Invoice
+                                </a>
+                                
+                                ${order.can_cancel ? `
+                                    <button onclick="cancelOrder()" class="w-full py-3 card-bg rounded-lg text-gray-400 hover:text-red-400 hover:bg-[#1a2d4a] text-center transition-all duration-200">
+                                        Cancel Order
+                                    </button>
+                                ` : ''}
                             </div>
                         </div>
-                    `).join('')}
-                </div>
-                
-                <div class="card">
-                    <div class="card-title">Order Summary</div>
-                    
-                    <div class="summary-row">
-                        <span>Subtotal</span>
-                        <span>₦${order.subtotal.toLocaleString()}</span>
-                    </div>
-                    
-                    <div class="summary-row">
-                        <span>Shipping</span>
-                        <span>₦${order.shipping_fee.toLocaleString()}</span>
-                    </div>
-                    
-                    ${order.tax_amount > 0 ? `
-                        <div class="summary-row">
-                            <span>Tax</span>
-                            <span>₦${order.tax_amount.toLocaleString()}</span>
-                        </div>
-                    ` : ''}
-                    
-                    ${order.discount_amount > 0 ? `
-                        <div class="summary-row">
-                            <span>Discount</span>
-                            <span>-₦${order.discount_amount.toLocaleString()}</span>
-                        </div>
-                    ` : ''}
-                    
-                    <div class="summary-row total">
-                        <span>Total</span>
-                        <span>₦${order.total_amount.toLocaleString()}</span>
                     </div>
                 </div>
-                
-                ${order.can_cancel ? `
-                    <div class="actions">
-                        <button class="btn" onclick="cancelOrder()">Cancel Order</button>
-                    </div>
-                ` : ''}
             `;
         }
-        
+
         async function cancelOrder() {
             if (!confirm('Are you sure you want to cancel this order?')) return;
-            
+
             const reason = prompt('Please provide a reason for cancellation:');
             if (!reason) return;
-            
+
             try {
                 const response = await apiRequest(API_CONFIG.ORDERS.CANCEL(orderData.order_number), {
                     method: 'POST',
                     body: JSON.stringify({ reason })
                 });
-                
+
                 if (!response.ok) throw new Error('Failed to cancel order');
-                
+
                 alert('Order cancelled successfully');
                 window.location.reload();
             } catch (error) {
                 alert('Failed to cancel order');
             }
         }
-        
+
+        function openGigiChat() {
+            window.location.href = '/assistant/chat/';
+        }
+
+        const gigi = document.getElementById('gigiAssistant');
+        let isDragging = false;
+        let currentX;
+        let currentY;
+        let initialX;
+        let initialY;
+        let xOffset = 0;
+        let yOffset = 0;
+
+        gigi.addEventListener('mousedown', dragStart);
+        gigi.addEventListener('touchstart', dragStart);
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('touchmove', drag);
+        document.addEventListener('mouseup', dragEnd);
+        document.addEventListener('touchend', dragEnd);
+
+        function dragStart(e) {
+            if (e.type === 'touchstart') {
+                initialX = e.touches[0].clientX - xOffset;
+                initialY = e.touches[0].clientY - yOffset;
+            } else {
+                initialX = e.clientX - xOffset;
+                initialY = e.clientY - yOffset;
+            }
+
+            if (e.target === gigi || e.target.closest('#gigiAssistant')) {
+                isDragging = true;
+            }
+        }
+
+        function drag(e) {
+            if (isDragging) {
+                e.preventDefault();
+                
+                if (e.type === 'touchmove') {
+                    currentX = e.touches[0].clientX - initialX;
+                    currentY = e.touches[0].clientY - initialY;
+                } else {
+                    currentX = e.clientX - initialX;
+                    currentY = e.clientY - initialY;
+                }
+
+                xOffset = currentX;
+                yOffset = currentY;
+
+                setTranslate(currentX, currentY, gigi);
+            }
+        }
+
+        function dragEnd(e) {
+            initialX = currentX;
+            initialY = currentY;
+            isDragging = false;
+        }
+
+        function setTranslate(xPos, yPos, el) {
+            el.style.transform = `translate3d(${xPos}px, ${yPos}px, 0)`;
+        }
+
         if (!isAuthenticated()) {
-            window.location.href = 'login.html';
+            window.location.href = '{% url "login" %}';
         } else {
             loadOrder();
         }
