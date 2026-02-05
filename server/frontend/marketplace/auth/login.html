@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -181,12 +182,12 @@
             </form>
             
             <div class="footer-links">
-                Don't have an account? <a href="register.html">Register</a>
+                Don't have an account? <a href="{% url 'marketplace_auth' 'register' %}">Register</a>
             </div>
         </div>
     </div>
     
-    <script src="config.js"></script>
+    <script src="{% static 'marketplace/assets/js/config.js' %}"></script>
     <script>
         const loginForm = document.getElementById('loginForm');
         const errorMessage = document.getElementById('errorMessage');
@@ -220,7 +221,8 @@
                 setAuthToken(data.access, data.refresh);
                 setUserData(data.user);
                 
-                window.location.href = 'index.html';
+                // Use Django URL for redirection
+                window.location.href = "{% url 'marketplace_products' %}";
             } catch (error) {
                 errorMessage.textContent = error.message;
                 errorMessage.classList.add('show');
