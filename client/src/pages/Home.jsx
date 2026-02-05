@@ -64,6 +64,12 @@ export default function Home() {
                   Shop Now <ArrowRight className="w-5 h-5" />
                 </Link>
                 <Link
+                  to="/dashboard"
+                  className="inline-flex items-center gap-2 bg-gray-900 dark:bg-gray-700 text-white font-bold px-8 py-4 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-600 transition-all"
+                >
+                  Dashboard
+                </Link>
+                <Link
                   to="/seller"
                   className="inline-flex items-center gap-2 border-2 border-blue-600 dark:border-purple-600 text-blue-600 dark:text-purple-400 font-bold px-8 py-4 rounded-lg hover:bg-blue-50 dark:hover:bg-gray-800 transition-colors"
                 >

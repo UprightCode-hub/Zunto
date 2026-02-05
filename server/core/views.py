@@ -100,4 +100,4 @@ class MarketplaceView:
 
 
 assistant_view = AssistantView()
-marketplace_view = MarketplaceView(
+marketplace_view = MarketplaceView()

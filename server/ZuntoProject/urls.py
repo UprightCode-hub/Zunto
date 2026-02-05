@@ -7,10 +7,11 @@ from django.views.generic import RedirectView
 from core.views import health_check, assistant_view, marketplace_view
 
 
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('health/', health_check, name='health_check'),
-    
+ 
     # Root redirect to marketplace
     path('', RedirectView.as_view(url='/marketplace/products/', permanent=False)),
     
