@@ -1,20 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Star, ShoppingCart, Heart, Truck, Shield, RefreshCw, Plus, Minus } from 'lucide-react';
-import { getProductDetail } from '../services/api';
+import { getProductDetail, getProductReviews, toggleFavorite, createProductReview } from '../services/api';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
 
 export default function ProductDetail() {
   const { slug } = useParams();
   const { addToCart } = useCart();
+  const { user } = useAuth();
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [reviews, setReviews] = useState([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
   const [addingToCart, setAddingToCart] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewText, setReviewText] = useState('');
+  const [reviewRating, setReviewRating] = useState(5);
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   useEffect(() => {
     fetchProduct();
+    fetchReviews();
   }, [slug]);
 
   const fetchProduct = async () => {
@@ -22,10 +32,23 @@ export default function ProductDetail() {
       setLoading(true);
       const data = await getProductDetail(slug);
       setProduct(data);
+      setIsFavorite(data.is_favorited || false);
     } catch (error) {
       console.error('Error fetching product:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchReviews = async () => {
+    try {
+      setLoadingReviews(true);
+      const data = await getProductReviews(slug);
+      setReviews(Array.isArray(data) ? data : data.results || []);
+    } catch (error) {
+      console.error('Error fetching reviews:', error);
+    } finally {
+      setLoadingReviews(false);
     }
   };
 
@@ -38,6 +61,43 @@ export default function ProductDetail() {
       alert('Failed to add to cart');
     } finally {
       setAddingToCart(false);
+    }
+  };
+
+  const handleToggleFavorite = async () => {
+    try {
+      await toggleFavorite(slug);
+      setIsFavorite(!isFavorite);
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+    }
+  };
+
+  const handleSubmitReview = async () => {
+    if (!user) {
+      alert('Please login to submit a review');
+      return;
+    }
+    if (!reviewText.trim()) {
+      alert('Review text is required');
+      return;
+    }
+    
+    try {
+      setSubmittingReview(true);
+      await createProductReview(slug, {
+        rating: reviewRating,
+        comment: reviewText,
+      });
+      setReviewText('');
+      setReviewRating(5);
+      setShowReviewForm(false);
+      fetchReviews();
+      alert('Review submitted successfully!');
+    } catch (error) {
+      alert('Failed to submit review');
+    } finally {
+      setSubmittingReview(false);
     }
   };
 
@@ -208,8 +268,13 @@ export default function ProductDetail() {
                 <ShoppingCart className="w-5 h-5" />
                 {addingToCart ? 'Adding...' : 'Add to Cart'}
               </button>
-              <button className="p-4 border-2 border-[#2c77d1] rounded-full hover:bg-[#2c77d1]/10 transition">
-                <Heart className="w-6 h-6" />
+              <button
+                onClick={handleToggleFavorite}
+                className={`p-4 border-2 rounded-full hover:bg-[#2c77d1]/10 transition ${
+                  isFavorite ? 'border-red-500 bg-red-500/10' : 'border-[#2c77d1]'
+                }`}
+              >
+                <Heart className={`w-6 h-6 ${isFavorite ? 'fill-red-500 text-red-500' : ''}`} />
               </button>
             </div>
 
@@ -257,6 +322,105 @@ export default function ProductDetail() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Reviews Section */}
+        <div className="mt-16 border-t border-[#2c77d1]/20 pt-12">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h2 className="text-3xl font-bold mb-2">Customer Reviews</h2>
+              <p className="text-gray-400">{reviews.length} reviews</p>
+            </div>
+            <button
+              onClick={() => setShowReviewForm(!showReviewForm)}
+              className="px-6 py-3 bg-gradient-to-r from-[#2c77d1] to-[#9426f4] rounded-full font-semibold hover:opacity-90 transition"
+            >
+              {showReviewForm ? 'Cancel' : 'Write Review'}
+            </button>
+          </div>
+
+          {showReviewForm && (
+            <div className="bg-[#1a1a1a] border border-[#2c77d1]/20 rounded-2xl p-6 mb-8">
+              <h3 className="text-xl font-semibold mb-4">Write Your Review</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Rating</label>
+                  <div className="flex gap-2">
+                    {[1, 2, 3, 4, 5].map(star => (
+                      <button
+                        key={star}
+                        onClick={() => setReviewRating(star)}
+                        className="transition"
+                      >
+                        <Star
+                          className={`w-8 h-8 ${
+                            star <= reviewRating
+                              ? 'text-yellow-400 fill-current'
+                              : 'text-gray-600'
+                          }`}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Review</label>
+                  <textarea
+                    value={reviewText}
+                    onChange={(e) => setReviewText(e.target.value)}
+                    placeholder="Share your experience with this product..."
+                    className="w-full bg-[#2a2a2a] border border-[#2c77d1]/20 rounded-lg p-4 focus:outline-none focus:border-[#2c77d1] text-white placeholder-gray-500 resize-none h-32"
+                  />
+                </div>
+                <button
+                  onClick={handleSubmitReview}
+                  disabled={submittingReview}
+                  className="w-full bg-gradient-to-r from-[#2c77d1] to-[#9426f4] py-3 rounded-lg font-semibold hover:opacity-90 transition disabled:opacity-50"
+                >
+                  {submittingReview ? 'Submitting...' : 'Submit Review'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {loadingReviews ? (
+            <div className="text-center py-8">
+              <div className="w-8 h-8 border-2 border-[#2c77d1] border-t-transparent rounded-full animate-spin mx-auto"></div>
+            </div>
+          ) : reviews.length === 0 ? (
+            <div className="text-center py-8 text-gray-400">
+              No reviews yet. Be the first to review this product!
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {reviews.map((review) => (
+                <div key={review.id} className="border-b border-[#2c77d1]/20 pb-6 last:border-0">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="font-semibold">{review.reviewer_name || 'Anonymous'}</p>
+                      <p className="text-sm text-gray-400">
+                        {new Date(review.created_at || review.date).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="flex">
+                      {[...Array(5)].map((_, i) => (
+                        <Star
+                          key={i}
+                          className={`w-4 h-4 ${
+                            i < (review.rating || 0)
+                              ? 'text-yellow-400 fill-current'
+                              : 'text-gray-600'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  {review.title && <h4 className="font-semibold mb-2">{review.title}</h4>}
+                  <p className="text-gray-300">{review.comment || review.text}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

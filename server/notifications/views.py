@@ -1,16 +1,40 @@
 # notifications/views.py
-from rest_framework import generics, status, permissions
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework import generics, status, permissions, viewsets
+from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 
-from .models import EmailTemplate, EmailLog, NotificationPreference
+from .models import EmailTemplate, EmailLog, NotificationPreference, Notification
 from .serializers import (
     EmailTemplateSerializer, EmailLogSerializer,
-    NotificationPreferenceSerializer
+    NotificationPreferenceSerializer, NotificationSerializer
 )
 from .email_service import EmailService
+
+
+class NotificationViewSet(viewsets.ModelViewSet):
+    """ViewSet for user notifications"""
+    
+    serializer_class = NotificationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        return Notification.objects.filter(user=self.request.user).order_by('-created_at')
+    
+    @action(detail=True, methods=['post'])
+    def mark_read(self, request, pk=None):
+        """Mark a notification as read"""
+        notification = self.get_object()
+        notification.is_read = True
+        notification.save()
+        return Response({'status': 'marked as read'})
+    
+    @action(detail=False, methods=['post'])
+    def mark_all_read(self, request):
+        """Mark all notifications as read"""
+        Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
+        return Response({'status': 'all marked as read'})
 
 
 class NotificationPreferenceView(generics.RetrieveUpdateAPIView):

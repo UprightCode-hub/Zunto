@@ -13,7 +13,7 @@ const SellerDashboard = () => {
       stock: 45,
       sales: 234,
       rating: 4.8,
-      image: 'https://via.placeholder.com/100',
+      image: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22 viewBox=%220 0 100 100%22%3E%3Crect fill=%22%23e5e7eb%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-family=%22sans-serif%22 font-size=%227%22 fill=%22%239ca3af%22%3EImage%3C/text%3E%3C/svg%3E',
       status: 'Active',
     },
     {
@@ -24,7 +24,7 @@ const SellerDashboard = () => {
       stock: 120,
       sales: 567,
       rating: 4.6,
-      image: 'https://via.placeholder.com/100',
+      image: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22 viewBox=%220 0 100 100%22%3E%3Crect fill=%22%23e5e7eb%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-family=%22sans-serif%22 font-size=%227%22 fill=%22%239ca3af%22%3EImage%3C/text%3E%3C/svg%3E',
       status: 'Active',
     },
     {
@@ -35,7 +35,7 @@ const SellerDashboard = () => {
       stock: 500,
       sales: 1203,
       rating: 4.9,
-      image: 'https://via.placeholder.com/100',
+      image: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22 viewBox=%220 0 100 100%22%3E%3Crect fill=%22%23e5e7eb%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-family=%22sans-serif%22 font-size=%227%22 fill=%22%239ca3af%22%3EImage%3C/text%3E%3C/svg%3E',
       status: 'Active',
     },
   ]);
@@ -62,7 +62,7 @@ const SellerDashboard = () => {
       ...formData,
       sales: Math.floor(Math.random() * 1000),
       rating: (Math.random() * 1 + 4).toFixed(1),
-      image: 'https://via.placeholder.com/100',
+      image: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22 viewBox=%220 0 100 100%22%3E%3Crect fill=%22%23e5e7eb%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-family=%22sans-serif%22 font-size=%227%22 fill=%22%239ca3af%22%3EImage%3C/text%3E%3C/svg%3E',
       stock: parseInt(formData.stock),
       status: 'Active',
     };

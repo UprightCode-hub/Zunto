@@ -44,7 +44,7 @@ class Conversation(models.Model):
 
         constraints = [
             models.CheckConstraint(
-                check=~models.Q(buyer=models.F('seller')),
+                condition=~models.Q(buyer=models.F('seller')),
                 name='different_users_in_conversation'
             )
         ]

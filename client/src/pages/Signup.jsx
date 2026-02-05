@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 
 export default function Signup() {
   const navigate = useNavigate();
-  const { signup } = useAuth();
+  const { register } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -17,7 +17,8 @@ export default function Signup() {
     email: '',
     phone: '',
     password: '',
-    confirmPassword: '',
+    passwordConfirm: '',
+    role: 'buyer',
   });
 
   const handleChange = (e) => {
@@ -33,7 +34,7 @@ export default function Signup() {
     setError('');
 
     // Validation
-    if (formData.password !== formData.confirmPassword) {
+    if (formData.password !== formData.passwordConfirm) {
       setError('Passwords do not match');
       return;
     }
@@ -42,15 +43,22 @@ export default function Signup() {
       setError('Password must be at least 8 characters long');
       return;
     }
+
+    if (!formData.firstName.trim() || !formData.lastName.trim()) {
+      setError('First and last name are required');
+      return;
+    }
     
     try {
       setLoading(true);
-      const result = await signup({
+      const result = await register({
         first_name: formData.firstName,
         last_name: formData.lastName,
         email: formData.email,
-        phone: formData.phone,
+        phone: formData.phone || '',
         password: formData.password,
+        password_confirm: formData.passwordConfirm,
+        role: formData.role,
       });
       
       if (result.success) {
@@ -155,19 +163,31 @@ export default function Signup() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-300 ml-1">Phone Number</label>
+              <label className="text-sm font-medium text-gray-300 ml-1">Phone Number (Optional)</label>
               <div className="relative group">
                 <input
                   type="tel"
                   name="phone"
                   value={formData.phone}
                   onChange={handleChange}
-                  required
                   placeholder="+1 (555) 000-0000"
                   className="w-full bg-[#0f172a] border border-gray-800 rounded-xl pl-12 pr-4 py-3.5 text-white placeholder-gray-500 focus:outline-none focus:border-[#2c77d1] focus:ring-1 focus:ring-[#2c77d1] transition-all duration-200"
                 />
                 <Phone className="absolute left-4 top-3.5 w-5 h-5 text-gray-500 group-focus-within:text-[#2c77d1] transition-colors" />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300 ml-1">Account Type</label>
+              <select
+                name="role"
+                value={formData.role}
+                onChange={handleChange}
+                className="w-full bg-[#0f172a] border border-gray-800 rounded-xl px-4 py-3.5 text-white placeholder-gray-500 focus:outline-none focus:border-[#2c77d1] focus:ring-1 focus:ring-[#2c77d1] transition-all duration-200"
+              >
+                <option value="buyer">Buyer</option>
+                <option value="seller">Seller</option>
+              </select>
             </div>
 
             <div className="space-y-2">
@@ -198,8 +218,8 @@ export default function Signup() {
               <div className="relative group">
                 <input
                   type={showConfirmPassword ? 'text' : 'password'}
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
+                  name="passwordConfirm"
+                  value={formData.passwordConfirm}
                   onChange={handleChange}
                   required
                   placeholder="Confirm your password"

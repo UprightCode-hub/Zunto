@@ -1,6 +1,6 @@
 # notifications/serializers.py
 from rest_framework import serializers
-from .models import EmailTemplate, EmailLog, NotificationPreference
+from .models import EmailTemplate, EmailLog, NotificationPreference, Notification
 
 
 class EmailTemplateSerializer(serializers.ModelSerializer):
@@ -42,5 +42,19 @@ class NotificationPreferenceSerializer(serializers.ModelSerializer):
             'email_review_reminders', 'email_cart_abandonment',
             'email_seller_new_orders', 'email_seller_reviews',
             'email_seller_messages', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    """Serializer for user notifications"""
+    
+    type_display = serializers.CharField(source='get_type_display', read_only=True)
+    
+    class Meta:
+        model = Notification
+        fields = [
+            'id', 'title', 'message', 'type', 'type_display',
+            'is_read', 'related_url', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']

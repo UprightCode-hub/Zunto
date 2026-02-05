@@ -42,12 +42,16 @@ export default function Navbar() {
             <Link to="/shop" className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition">
               Shop
             </Link>
-            <Link to="/admin" className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition">
-              Admin
-            </Link>
-            <Link to="/seller" className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition">
-              Seller
-            </Link>
+            {user && user.role === 'admin' && (
+              <Link to="/admin" className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition">
+                Admin
+              </Link>
+            )}
+            {user && user.role === 'seller' && (
+              <Link to="/seller" className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition">
+                Seller
+              </Link>
+            )}
           </div>
 
           {/* Desktop Search & Actions */}
@@ -152,20 +156,24 @@ export default function Navbar() {
               >
                 Shop
               </Link>
-              <Link 
-                to="/admin" 
-                className="py-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Admin
-              </Link>
-              <Link 
-                to="/seller" 
-                className="py-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Seller
-              </Link>
+              {user && user.role === 'admin' && (
+                <Link 
+                  to="/admin" 
+                  className="py-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Admin
+                </Link>
+              )}
+              {user && user.role === 'seller' && (
+                <Link 
+                  to="/seller" 
+                  className="py-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Seller
+                </Link>
+              )}
               {user ? (
                 <>
                   <Link 

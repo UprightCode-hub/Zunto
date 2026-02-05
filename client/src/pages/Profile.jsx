@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { User, Package, MapPin, Heart, Settings, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { getMyOrders } from '../services/api';
+import { getMyProducts } from '../services/api';
+import { updateUserProfile } from '../services/api';
 
 export default function Profile() {
   const [searchParams] = useSearchParams();
@@ -51,25 +52,28 @@ export default function Profile() {
   }
 
   return (
-    <div className="min-h-screen pt-20 pb-12">
+    <div className="min-h-screen pt-20 pb-12 bg-gray-50 dark:bg-gray-900 transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h1 className="text-4xl font-bold mb-8">My Account</h1>
+        <h1 className="text-4xl font-bold mb-8 text-gray-900 dark:text-white">My Account</h1>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Sidebar */}
           <div className="lg:col-span-1">
-            <div className="bg-[#050d1b] border border-[#2c77d1]/20 rounded-2xl p-6">
+            <div className="bg-white dark:bg-[#050d1b] border border-gray-200 dark:border-[#2c77d1]/20 rounded-2xl p-6 shadow-md dark:shadow-lg">
               {/* User Info */}
-              <div className="text-center mb-6 pb-6 border-b border-[#2c77d1]/20">
-                <div className="w-20 h-20 bg-gradient-to-r from-[#2c77d1] to-[#9426f4] rounded-full flex items-center justify-center mx-auto mb-3">
-                  <span className="text-3xl font-bold">
+              <div className="text-center mb-6 pb-6 border-b border-gray-200 dark:border-[#2c77d1]/20">
+                <div className="w-20 h-20 bg-gradient-to-r from-[#2c77d1] to-[#9426f4] rounded-full flex items-center justify-center mx-auto mb-3 shadow-lg">
+                  <span className="text-3xl font-bold text-white">
                     {user.first_name?.[0]}{user.last_name?.[0]}
                   </span>
                 </div>
-                <h3 className="font-semibold text-lg">
+                <h3 className="font-semibold text-lg text-gray-900 dark:text-white">
                   {user.first_name} {user.last_name}
                 </h3>
-                <p className="text-sm text-gray-400">{user.email}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{user.email}</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 capitalize">
+                  {user.role || 'buyer'}
+                </p>
               </div>
 
               {/* Navigation */}
@@ -82,8 +86,8 @@ export default function Profile() {
                       onClick={() => setActiveTab(tab.id)}
                       className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition ${
                         activeTab === tab.id
-                          ? 'bg-gradient-to-r from-[#2c77d1] to-[#9426f4]'
-                          : 'hover:bg-[#2c77d1]/10'
+                          ? 'bg-gradient-to-r from-[#2c77d1] to-[#9426f4] text-white shadow-lg'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#2c77d1]/10'
                       }`}
                     >
                       <Icon className="w-5 h-5" />
@@ -93,7 +97,7 @@ export default function Profile() {
                 })}
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-red-500/10 text-red-400 transition"
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition"
                 >
                   <LogOut className="w-5 h-5" />
                   <span>Logout</span>
@@ -104,49 +108,50 @@ export default function Profile() {
 
           {/* Content */}
           <div className="lg:col-span-3">
-            <div className="bg-[#050d1b] border border-[#2c77d1]/20 rounded-2xl p-6">
+            <div className="bg-white dark:bg-[#050d1b] border border-gray-200 dark:border-[#2c77d1]/20 rounded-2xl p-6 shadow-md dark:shadow-lg">
               {/* Profile Tab */}
               {activeTab === 'profile' && (
                 <div>
-                  <h2 className="text-2xl font-bold mb-6">Profile Information</h2>
+                  <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Profile Information</h2>
                   <form className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium mb-2">First Name</label>
+                        <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">First Name</label>
                         <input
                           type="text"
                           defaultValue={user.first_name}
-                          className="w-full bg-[#050d1b] border border-[#2c77d1]/30 rounded-lg px-4 py-3 focus:outline-none focus:border-[#2c77d1]"
+                          className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg px-4 py-3 focus:outline-none focus:border-[#2c77d1] focus:ring-2 focus:ring-[#2c77d1]/20 transition"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium mb-2">Last Name</label>
+                        <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Last Name</label>
                         <input
                           type="text"
                           defaultValue={user.last_name}
-                          className="w-full bg-[#050d1b] border border-[#2c77d1]/30 rounded-lg px-4 py-3 focus:outline-none focus:border-[#2c77d1]"
+                          className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg px-4 py-3 focus:outline-none focus:border-[#2c77d1] focus:ring-2 focus:ring-[#2c77d1]/20 transition"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium mb-2">Email</label>
+                        <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Email</label>
                         <input
                           type="email"
                           defaultValue={user.email}
-                          className="w-full bg-[#050d1b] border border-[#2c77d1]/30 rounded-lg px-4 py-3 focus:outline-none focus:border-[#2c77d1]"
+                          disabled
+                          className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg px-4 py-3 cursor-not-allowed opacity-50"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium mb-2">Phone</label>
+                        <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Phone</label>
                         <input
                           type="tel"
-                          defaultValue={user.phone}
-                          className="w-full bg-[#050d1b] border border-[#2c77d1]/30 rounded-lg px-4 py-3 focus:outline-none focus:border-[#2c77d1]"
+                          defaultValue={user.phone || ''}
+                          className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg px-4 py-3 focus:outline-none focus:border-[#2c77d1] focus:ring-2 focus:ring-[#2c77d1]/20 transition"
                         />
                       </div>
                     </div>
                     <button
                       type="submit"
-                      className="bg-gradient-to-r from-[#2c77d1] to-[#9426f4] px-8 py-3 rounded-full font-semibold hover:opacity-90 transition"
+                      className="bg-gradient-to-r from-[#2c77d1] to-[#9426f4] text-white px-8 py-3 rounded-lg font-semibold hover:opacity-90 shadow-lg hover:shadow-xl transition transform hover:scale-105"
                     >
                       Save Changes
                     </button>
@@ -157,41 +162,41 @@ export default function Profile() {
               {/* Orders Tab */}
               {activeTab === 'orders' && (
                 <div>
-                  <h2 className="text-2xl font-bold mb-6">Order History</h2>
+                  <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Order History</h2>
                   {loading ? (
                     <div className="flex justify-center py-12">
                       <div className="w-12 h-12 border-4 border-[#2c77d1] border-t-transparent rounded-full animate-spin"></div>
                     </div>
                   ) : orders.length === 0 ? (
-                    <div className="text-center py-12 text-gray-400">
+                    <div className="text-center py-12 text-gray-500 dark:text-gray-400">
                       <Package className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                      <p>No orders yet</p>
+                      <p className="text-lg">No orders yet</p>
                     </div>
                   ) : (
                     <div className="space-y-4">
                       {orders.map((order) => (
                         <div
                           key={order.id}
-                          className="border border-[#2c77d1]/20 rounded-lg p-6 hover:border-[#2c77d1] transition"
+                          className="border border-gray-200 dark:border-[#2c77d1]/20 bg-gray-50 dark:bg-gray-800 rounded-lg p-6 hover:border-[#2c77d1] dark:hover:border-[#2c77d1]/40 transition shadow-sm hover:shadow-md"
                         >
                           <div className="flex justify-between items-start mb-4">
                             <div>
-                              <p className="font-semibold text-lg">Order #{order.id}</p>
-                              <p className="text-sm text-gray-400">
+                              <p className="font-semibold text-lg text-gray-900 dark:text-white">Order #{order.id}</p>
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
                                 {new Date(order.created_at).toLocaleDateString()}
                               </p>
                             </div>
                             <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                              order.status === 'delivered' ? 'bg-green-500/20 text-green-400' :
-                              order.status === 'shipped' ? 'bg-blue-500/20 text-blue-400' :
-                              order.status === 'processing' ? 'bg-yellow-500/20 text-yellow-400' :
-                              'bg-gray-500/20 text-gray-400'
+                              order.status === 'delivered' ? 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400' :
+                              order.status === 'shipped' ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400' :
+                              order.status === 'processing' ? 'bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-400' :
+                              'bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
                             }`}>
                               {order.status}
                             </span>
                           </div>
                           <div className="flex justify-between items-center">
-                            <p className="text-gray-300">
+                            <p className="text-gray-600 dark:text-gray-300">
                               {order.items_count || order.items?.length || 0} items
                             </p>
                             <p className="text-xl font-bold text-[#2c77d1]">

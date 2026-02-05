@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Star, Truck, Shield, Headphones, Zap } from 'lucide-react';
 import { getProducts, getCategories } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 export default function Home() {
   const [featuredProducts, setFeaturedProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
   useEffect(() => {
     fetchHomeData();
@@ -63,12 +65,14 @@ export default function Home() {
                 >
                   Shop Now <ArrowRight className="w-5 h-5" />
                 </Link>
-                <Link
-                  to="/dashboard"
-                  className="inline-flex items-center gap-2 bg-gray-900 dark:bg-gray-700 text-white font-bold px-8 py-4 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-600 transition-all"
-                >
-                  Dashboard
-                </Link>
+                {user?.role === 'seller' && (
+                  <Link
+                    to="/dashboard"
+                    className="inline-flex items-center gap-2 bg-gray-900 dark:bg-gray-700 text-white font-bold px-8 py-4 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-600 transition-all"
+                  >
+                    Dashboard
+                  </Link>
+                )}
                 <Link
                   to="/seller"
                   className="inline-flex items-center gap-2 border-2 border-blue-600 dark:border-purple-600 text-blue-600 dark:text-purple-400 font-bold px-8 py-4 rounded-lg hover:bg-blue-50 dark:hover:bg-gray-800 transition-colors"
@@ -79,11 +83,11 @@ export default function Home() {
             </div>
             <div className="relative h-96 md:h-full">
               <div className="absolute inset-0 bg-gradient-to-br from-blue-200 via-purple-200 to-pink-200 dark:from-blue-900 dark:via-purple-900 dark:to-pink-900 rounded-3xl opacity-20 blur-3xl"></div>
-              <img
-                src="https://via.placeholder.com/500x400?text=Featured+Product"
-                alt="Featured Product"
-                className="relative w-full h-full object-cover rounded-3xl shadow-2xl"
-              />
+              <div className="relative w-full h-full bg-gray-200 dark:bg-gray-700 rounded-3xl shadow-2xl flex items-center justify-center">
+                <svg className="w-32 h-32 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                </svg>
+              </div>
             </div>
           </div>
         </div>
@@ -148,7 +152,7 @@ export default function Home() {
               >
                 <div className="relative h-48 overflow-hidden bg-gray-200 dark:bg-gray-600">
                   <img
-                    src={product.image || 'https://via.placeholder.com/200x200?text=Product'}
+                    src={product.image || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22 viewBox=%220 0 200 200%22%3E%3Crect fill=%22%23e5e7eb%22 width=%22200%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-family=%22sans-serif%22 font-size=%2214%22 fill=%22%239ca3af%22%3ENo Image%3C/text%3E%3C/svg%3E'}
                     alt={product.name}
                     className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
                   />

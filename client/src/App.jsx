@@ -1,8 +1,10 @@
 import React from "react";
 import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
 import { ThemeProvider } from "./context/ThemeContext";
+import { AuthProvider } from "./context/AuthContext";
 import Navbar from "./components/common/Navbar";
 import Footer from "./components/common/Footer";
+import ProtectedRoute from "./components/common/ProtectedRoute";
 import Home from "./pages/Home";
 import Shop from "./pages/shop";
 import ProductDetail from "./pages/ProductDetail";
@@ -15,6 +17,10 @@ import AdminDashboard from "./pages/AdminDashboard";
 import SellerDashboard from "./pages/SellerDashboard";
 import AssistantChat from "./components/common/AssistantChat";
 import Dashboard from "./pages/Dashboard";
+import Orders from "./pages/Orders";
+import Reviews from "./pages/Reviews";
+import Notifications from "./pages/Notifications";
+import Chat from "./pages/Chat";
 
 function AppLayout() {
   const location = useLocation();
@@ -34,8 +40,26 @@ function AppLayout() {
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/profile" element={<Profile />} />
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/seller" element={<SellerDashboard />} />
+          <Route path="/orders" element={<Orders />} />
+          <Route path="/reviews" element={<Reviews />} />
+          <Route path="/notifications" element={<Notifications />} />
+          <Route path="/chat" element={<Chat />} />
+          <Route 
+            path="/admin" 
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminDashboard />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/seller" 
+            element={
+              <ProtectedRoute requiredRole="seller">
+                <SellerDashboard />
+              </ProtectedRoute>
+            } 
+          />
           <Route path="/dashboard" element={<Dashboard />} />
         </Routes>
       </main>
@@ -49,9 +73,11 @@ function AppLayout() {
 export default function App() {
   return (
     <ThemeProvider>
-      <Router>
-        <AppLayout />
-      </Router>
+      <AuthProvider>
+        <Router>
+          <AppLayout />
+        </Router>
+      </AuthProvider>
     </ThemeProvider>
   );
 }

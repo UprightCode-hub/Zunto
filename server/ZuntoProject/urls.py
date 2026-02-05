@@ -14,8 +14,8 @@ urlpatterns = [
     path('', RedirectView.as_view(url='/marketplace/products/', permanent=False)),
     
     # Frontend: Assistant AI
-    path('assistant/', assistant_view, {'page': 'index'}, name='assistant_home'),
-    path('assistant/<str:page>/', assistant_view, name='assistant_page'),
+    # path('assistant/', assistant_view, {'page': 'index'}, name='assistant_home'),  # Temporarily disabled
+    # path('assistant/<str:page>/', assistant_view, name='assistant_page'),  # Temporarily disabled
     
     # Frontend: Marketplace
     path('marketplace/', marketplace_view, {'section': 'products', 'page': 'index'}, name='marketplace_home'),
@@ -32,14 +32,14 @@ urlpatterns = [
     path('dashboard/', include('dashboard.urls')),
     
     # API Routes
-    path('', include('accounts.urls')),
+    path('accounts/', include('accounts.urls')),
     path('api/market/', include('market.urls')),
     path('api/reviews/', include('reviews.urls')),
     path('api/cart/', include('cart.urls')),
     path('api/orders/', include('orders.urls')),
     path('api/payments/', include('orders.payment_urls')),
     path('api/notifications/', include('notifications.urls')),
-    path('assistant/', include('assistant.urls')),
+    # path('assistant/', include('assistant.urls')),  # Temporarily disabled
     path('chat/', include('chat.urls')),
 ]
 

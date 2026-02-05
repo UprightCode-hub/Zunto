@@ -65,7 +65,7 @@ INSTALLED_APPS = [
     'orders',
     'notifications',
     'chat',
-    'assistant',
+    # 'assistant',  # Temporarily disabled - missing dependencies
 ]
 
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
@@ -154,32 +154,15 @@ REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}'
 if IS_PRODUCTION:
     CACHES = {
         'default': {
-            'BACKEND': 'django_redis.cache.RedisCache',
-            'LOCATION': config('REDIS_URL', default=REDIS_URL + '/0'),
-            'OPTIONS': {
-                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-                'SOCKET_CONNECT_TIMEOUT': 5,
-                'SOCKET_TIMEOUT': 5,
-                'COMPRESSOR': 'django_redis.compressors.zlib.ZlibCompressor',
-                'IGNORE_EXCEPTIONS': True,
-            },
-            'KEY_PREFIX': 'zunto',
-            'TIMEOUT': 300,
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'zunto-dev',
         }
     }
 else:
     CACHES = {
         'default': {
-            'BACKEND': 'django_redis.cache.RedisCache',
-            'LOCATION': REDIS_URL + '/0',
-            'OPTIONS': {
-                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-                'SOCKET_CONNECT_TIMEOUT': 5,
-                'SOCKET_TIMEOUT': 5,
-                'IGNORE_EXCEPTIONS': True,
-            },
-            'KEY_PREFIX': 'zunto',
-            'TIMEOUT': 300,
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'zunto',
         }
     }
 
@@ -266,10 +249,7 @@ USE_TZ = True
 # ============================================
 
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [
-    BASE_DIR / "static_my_project",
-    BASE_DIR / "frontend",
-]
+STATICFILES_DIRS = []
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 MEDIA_URL = '/media/'

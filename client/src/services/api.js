@@ -477,17 +477,13 @@ export const updateNotificationPreferences = (prefsData) => {
   });
 };
 
-// ==========================================
-// ASSISTANT (assistant/urls.py)
-// ==========================================
+export const getNotifications = () => {
+  return apiCall('/api/notifications/');
+};
 
-export const sendChatMessage = (message, sessionId = null) => {
-  return apiCall('/assistant/api/chat/', {
+export const markNotificationAsRead = (notificationId) => {
+  return apiCall(`/api/notifications/${notificationId}/mark-read/`, {
     method: 'POST',
-    body: JSON.stringify({ 
-        message,
-        session_id: sessionId 
-    }),
   });
 };
 
@@ -496,9 +492,20 @@ export const sendChatMessage = (message, sessionId = null) => {
 // ==========================================
 
 export const getChatRooms = () => {
-  return apiCall('/chat/api/rooms/');
+  return apiCall('/chat/conversations/');
 };
 
-export const getChatMessages = (roomName) => {
-  return apiCall(`/chat/api/rooms/${roomName}/messages/`);
+export const getChatMessages = (conversationId) => {
+  return apiCall(`/chat/messages/?conversation=${conversationId}`);
+};
+
+export const sendChatMessage = (message, sessionId = null) => {
+  const payload = { message };
+  if (sessionId) {
+    payload.session_id = sessionId;
+  }
+  return apiCall('/chat/send/', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 };
