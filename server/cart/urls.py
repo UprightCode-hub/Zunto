@@ -10,9 +10,11 @@ urlpatterns = [
     path('update/<uuid:item_id>/', views.update_cart_item, name='update_cart_item'),
     path('remove/<uuid:item_id>/', views.remove_from_cart, name='remove_from_cart'),
     path('clear/', views.clear_cart, name='clear_cart'),
-
-    # Save for later (Commented out until API implementation is ready)
-    # path('items/<uuid:item_id>/save-later/', views.save_for_later, name='save_for_later'),
-    # path('saved/', views.saved_for_later_list, name='saved_list'),
-    # path('saved/<uuid:saved_id>/move-to-cart/', views.move_to_cart, name='move_to_cart'),
+    
+    # Analytics endpoints (admin only)
+    path('analytics/scores/summary/', views.score_analytics_summary, name='score_analytics_summary'),
+    path('analytics/scores/value-by-tier/', views.value_by_tier, name='value_by_tier'),
+    path('analytics/scores/top-users/', views.top_users, name='top_users'),
+    path('analytics/scores/recovery-targets/', views.recovery_targets, name='recovery_targets'),
+    path('analytics/abandonment/enhanced/', views.enhanced_abandonment_summary, name='enhanced_abandonment_summary'),
 ]

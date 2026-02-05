@@ -4,257 +4,367 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Orders - Zunto</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        :root {
-            --black: #000000;
-            --white: #FFFFFF;
-            --gray-100: #F5F5F5;
-            --gray-200: #E0E0E0;
-            --gray-300: #BDBDBD;
-            --gray-500: #757575;
-            --gray-600: #616161;
-            --gray-800: #212121;
-            --space-4: 4px;
-            --space-8: 8px;
-            --space-16: 16px;
-            --space-24: 24px;
-            --space-32: 32px;
-            --space-48: 48px;
-            --border: 1px solid var(--gray-300);
-        }
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-            background: var(--white);
-            color: var(--black);
-            line-height: 1.5;
-            font-size: 15px;
+            background-color: #050d1b;
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #2c77d1 0%, #9426f4 100%);
+        }
+        .card-bg {
+            background-color: #0a1628;
+            border: 1px solid #1a2d4a;
         }
         
-        .header {
-            border-bottom: var(--border);
-            background: var(--white);
-            position: sticky;
-            top: 0;
-            z-index: 100;
+        #gigiAssistant {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 1000;
+            cursor: move;
+            user-select: none;
         }
         
-        .header-container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: var(--space-16) var(--space-24);
+        .gigi-button {
+            width: 70px;
+            height: 70px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, #2c77d1 0%, #9426f4 100%);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(44, 119, 209, 0.4);
             display: flex;
             align-items: center;
-            justify-content: space-between;
-        }
-        
-        .logo {
-            font-size: 18px;
-            font-weight: 600;
-            color: var(--black);
-            text-decoration: none;
-            letter-spacing: -0.02em;
-        }
-        
-        .nav {
-            display: flex;
-            gap: var(--space-32);
-        }
-        
-        .nav-link {
-            color: var(--gray-600);
-            text-decoration: none;
-            font-size: 14px;
-            transition: color 150ms;
-        }
-        
-        .nav-link:hover {
-            color: var(--black);
-        }
-        
-        .nav-link.active {
-            color: var(--black);
-        }
-        
-        .btn {
-            border: var(--border);
-            background: var(--white);
-            color: var(--black);
-            padding: var(--space-8) var(--space-16);
-            font-size: 14px;
+            justify-content: center;
             cursor: pointer;
-            transition: all 150ms;
-            text-decoration: none;
+            transition: all 0.3s ease;
+            animation: gigiFloat 3s ease-in-out infinite, gigiShine 2s linear infinite;
+        }
+        
+        .gigi-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 12px 40px rgba(148, 38, 244, 0.6);
+        }
+        
+        .gigi-icon {
+            font-size: 32px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        @keyframes gigiFloat {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            25% { transform: translateY(-5px) rotate(2deg); }
+            50% { transform: translateY(0px) rotate(0deg); }
+            75% { transform: translateY(-3px) rotate(-2deg); }
+        }
+        
+        @keyframes gigiShine {
+            0% { filter: brightness(1); }
+            50% { filter: brightness(1.2); }
+            100% { filter: brightness(1); }
+        }
+        
+        .gigi-tooltip {
+            position: absolute;
+            bottom: 80px;
+            right: 0;
+            background: #0a1628;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 12px;
+            border: 1px solid #1a2d4a;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+        }
+        
+        .gigi-button:hover + .gigi-tooltip {
+            opacity: 1;
+        }
+        
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 500;
             display: inline-block;
         }
         
-        .btn:hover {
-            background: var(--gray-100);
+        .status-pending {
+            background: rgba(234, 179, 8, 0.2);
+            color: #eab308;
         }
         
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-            padding: var(--space-48) var(--space-24);
+        .status-processing {
+            background: rgba(59, 130, 246, 0.2);
+            color: #3b82f6;
         }
         
-        h1 {
-            font-size: 28px;
-            font-weight: 600;
-            letter-spacing: -0.02em;
-            margin-bottom: var(--space-48);
+        .status-shipped {
+            background: rgba(139, 92, 246, 0.2);
+            color: #8b5cf6;
         }
         
-        .order-card {
-            border: var(--border);
-            padding: var(--space-24);
-            margin-bottom: var(--space-16);
-            text-decoration: none;
-            color: var(--black);
-            display: block;
-            transition: border-color 150ms;
+        .status-delivered {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
         }
         
-        .order-card:hover {
-            border-color: var(--black);
+        .status-cancelled {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
         }
         
-        .order-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: var(--space-16);
-            padding-bottom: var(--space-16);
-            border-bottom: var(--border);
-        }
-        
-        .order-number {
-            font-size: 15px;
-            font-weight: 500;
-        }
-        
-        .order-status {
-            font-size: 13px;
-            padding: var(--space-4) var(--space-8);
-            border: var(--border);
-        }
-        
-        .order-items {
-            display: flex;
-            gap: var(--space-16);
-            margin-bottom: var(--space-16);
-        }
-        
-        .order-meta {
-            display: flex;
-            justify-content: space-between;
-            font-size: 14px;
-            color: var(--gray-600);
-        }
-        
-        .order-total {
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--black);
-        }
-        
-        .empty {
-            text-align: center;
-            padding: var(--space-48);
-            color: var(--gray-600);
-        }
-        
-        .loading {
-            text-align: center;
-            padding: var(--space-48);
-            color: var(--gray-600);
+        @media (max-width: 768px) {
+            #gigiAssistant {
+                bottom: 16px;
+                right: 16px;
+            }
+            
+            .gigi-button {
+                width: 60px;
+                height: 60px;
+                border-radius: 16px;
+            }
+            
+            .gigi-icon {
+                font-size: 28px;
+            }
         }
     </style>
 </head>
-<body>
-    <header class="header">
-        <div class="header-container">
-            <a href="index.html" class="logo">Zunto</a>
-            
-            <nav class="nav">
-                <a href="index.html" class="nav-link">Products</a>
-                <a href="cart.html" class="nav-link">Cart</a>
-                <a href="my-orders.html" class="nav-link active">Orders</a>
-                <a href="profile.html" class="nav-link">Profile</a>
-            </nav>
-            
-            <div>
-                <button class="btn" id="logoutBtn">Logout</button>
+<body class="min-h-screen text-white">
+    <header class="card-bg sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div class="flex items-center justify-between">
+                <a href="{% url 'product_list' %}" class="text-2xl font-bold gradient-bg bg-clip-text text-transparent">
+                    Zunto
+                </a>
+
+                <nav class="hidden md:flex items-center gap-8">
+                    <a href="{% url 'product_list' %}" class="text-gray-400 hover:text-white transition-colors duration-200">Products</a>
+                    <a href="{% url 'cart' %}" class="text-gray-400 hover:text-white transition-colors duration-200">Cart</a>
+                    <a href="{% url 'wishlist' %}" class="text-gray-400 hover:text-white transition-colors duration-200">Wishlist</a>
+                    <a href="{% url 'my_orders' %}" class="text-white font-medium">Orders</a>
+                    <a href="{% url 'profile' %}" class="text-gray-400 hover:text-white transition-colors duration-200">Profile</a>
+                </nav>
+
+                <div class="flex items-center gap-4">
+                    <button id="logoutBtn" class="px-4 py-2 card-bg rounded-lg text-gray-400 hover:text-white hover:bg-[#1a2d4a] transition-all duration-200">
+                        Logout
+                    </button>
+                </div>
             </div>
         </div>
     </header>
-    
-    <main class="container">
-        <h1>My Orders</h1>
-        
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+        <div class="mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold mb-2">My Orders</h1>
+            <p class="text-gray-400">Track and manage your purchases</p>
+        </div>
+
         <div id="ordersContainer">
-            <div class="loading">Loading orders...</div>
+            <div class="flex items-center justify-center py-24">
+                <div class="text-center">
+                    <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#2c77d1] mb-4"></div>
+                    <p class="text-gray-400">Loading orders...</p>
+                </div>
+            </div>
         </div>
     </main>
-    
-    <script src="config.js"></script>
+
+    <div id="gigiAssistant">
+        <div class="gigi-button" onclick="openGigiChat()">
+            <div class="gigi-icon">G</div>
+        </div>
+        <div class="gigi-tooltip">Need help? Chat with Gigi!</div>
+    </div>
+
+    <script src="{% static 'marketplace/assets/js/config.js' %}"></script>
     <script>
         const ordersContainer = document.getElementById('ordersContainer');
         const logoutBtn = document.getElementById('logoutBtn');
-        
+
         logoutBtn.addEventListener('click', () => {
             clearAuth();
-            window.location.href = 'login.html';
+            window.location.href = '{% url "login" %}';
         });
-        
+
         async function loadOrders() {
             try {
                 const response = await apiRequest(API_CONFIG.ORDERS.MY_ORDERS);
-                
+
                 if (!response.ok) throw new Error('Failed to load orders');
-                
+
                 const orders = await response.json();
                 renderOrders(orders);
             } catch (error) {
-                ordersContainer.innerHTML = '<div class="loading">Failed to load orders</div>';
+                ordersContainer.innerHTML = `
+                    <div class="flex items-center justify-center py-24">
+                        <div class="text-center">
+                            <svg class="w-16 h-16 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <p class="text-gray-400 mb-4">Failed to load orders</p>
+                            <button onclick="loadOrders()" class="px-4 py-2 gradient-bg rounded-lg text-white hover:opacity-90">Retry</button>
+                        </div>
+                    </div>
+                `;
             }
         }
-        
+
+        function getStatusClass(status) {
+            const statusMap = {
+                'pending': 'status-pending',
+                'processing': 'status-processing',
+                'shipped': 'status-shipped',
+                'delivered': 'status-delivered',
+                'cancelled': 'status-cancelled'
+            };
+            return statusMap[status.toLowerCase()] || 'status-pending';
+        }
+
+        function formatStatus(status) {
+            return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+
         function renderOrders(orders) {
             if (!orders || orders.length === 0) {
                 ordersContainer.innerHTML = `
-                    <div class="empty">
-                        No orders yet
-                        <br><br>
-                        <a href="index.html" class="btn">Start Shopping</a>
+                    <div class="flex items-center justify-center py-24">
+                        <div class="text-center">
+                            <svg class="w-20 h-20 mx-auto mb-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                            </svg>
+                            <h3 class="text-xl font-semibold mb-2">No orders yet</h3>
+                            <p class="text-gray-400 mb-6">Start shopping to see your orders here</p>
+                            <a href="{% url 'product_list' %}" class="inline-block px-6 py-3 gradient-bg rounded-lg text-white font-medium hover:opacity-90 transition-opacity duration-200">
+                                Browse Products
+                            </a>
+                        </div>
                     </div>
                 `;
                 return;
             }
-            
-            ordersContainer.innerHTML = orders.map(order => `
-                <a href="order-detail.html?order=${order.order_number}" class="order-card">
-                    <div class="order-header">
-                        <div class="order-number">Order #${order.order_number}</div>
-                        <div class="order-status">${order.status.replace('_', ' ')}</div>
-                    </div>
-                    
-                    <div class="order-meta">
-                        <span>${new Date(order.created_at).toLocaleDateString()}</span>
-                        <span class="order-total">₦${order.total_amount.toLocaleString()}</span>
-                    </div>
-                </a>
-            `).join('');
+
+            ordersContainer.innerHTML = `
+                <div class="space-y-4">
+                    ${orders.map(order => `
+                        <a href="/marketplace/shopping/order-detail/?order=${order.order_number}" class="block card-bg rounded-lg p-6 hover:bg-[#0f1f35] transition-colors duration-200">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-4 pb-4 border-b border-[#1a2d4a]">
+                                <div>
+                                    <div class="flex items-center gap-3 mb-2">
+                                        <h3 class="text-lg font-semibold">Order #${order.order_number}</h3>
+                                        <span class="status-badge ${getStatusClass(order.status)}">
+                                            ${formatStatus(order.status)}
+                                        </span>
+                                    </div>
+                                    <p class="text-sm text-gray-400">
+                                        Placed on ${new Date(order.created_at).toLocaleDateString('en-US', { 
+                                            year: 'numeric', 
+                                            month: 'long', 
+                                            day: 'numeric' 
+                                        })}
+                                    </p>
+                                </div>
+                                
+                                <div class="mt-4 sm:mt-0 text-left sm:text-right">
+                                    <p class="text-sm text-gray-400 mb-1">Total Amount</p>
+                                    <p class="text-2xl font-bold text-white">₦${order.total_amount.toLocaleString()}</p>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2 text-sm text-gray-400">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                                    </svg>
+                                    <span>${order.items?.length || 0} ${order.items?.length === 1 ? 'item' : 'items'}</span>
+                                </div>
+                                
+                                <div class="flex items-center gap-2 text-[#2c77d1] hover:text-[#9426f4] transition-colors">
+                                    <span class="text-sm font-medium">View Details</span>
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </a>
+                    `).join('')}
+                </div>
+            `;
         }
-        
+
+        function openGigiChat() {
+            window.location.href = '/assistant/chat/';
+        }
+
+        const gigi = document.getElementById('gigiAssistant');
+        let isDragging = false;
+        let currentX;
+        let currentY;
+        let initialX;
+        let initialY;
+        let xOffset = 0;
+        let yOffset = 0;
+
+        gigi.addEventListener('mousedown', dragStart);
+        gigi.addEventListener('touchstart', dragStart);
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('touchmove', drag);
+        document.addEventListener('mouseup', dragEnd);
+        document.addEventListener('touchend', dragEnd);
+
+        function dragStart(e) {
+            if (e.type === 'touchstart') {
+                initialX = e.touches[0].clientX - xOffset;
+                initialY = e.touches[0].clientY - yOffset;
+            } else {
+                initialX = e.clientX - xOffset;
+                initialY = e.clientY - yOffset;
+            }
+
+            if (e.target === gigi || e.target.closest('#gigiAssistant')) {
+                isDragging = true;
+            }
+        }
+
+        function drag(e) {
+            if (isDragging) {
+                e.preventDefault();
+                
+                if (e.type === 'touchmove') {
+                    currentX = e.touches[0].clientX - initialX;
+                    currentY = e.touches[0].clientY - initialY;
+                } else {
+                    currentX = e.clientX - initialX;
+                    currentY = e.clientY - initialY;
+                }
+
+                xOffset = currentX;
+                yOffset = currentY;
+
+                setTranslate(currentX, currentY, gigi);
+            }
+        }
+
+        function dragEnd(e) {
+            initialX = currentX;
+            initialY = currentY;
+            isDragging = false;
+        }
+
+        function setTranslate(xPos, yPos, el) {
+            el.style.transform = `translate3d(${xPos}px, ${yPos}px, 0)`;
+        }
+
         if (!isAuthenticated()) {
-            window.location.href = 'login.html';
+            window.location.href = '{% url "login" %}';
         } else {
             loadOrders();
         }

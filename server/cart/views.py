@@ -1,4 +1,4 @@
-# cart/views.py
+# cart/views.py (COMPLETE FILE)
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -6,15 +6,14 @@ from django.views.decorators.http import require_POST
 
 from .models import Cart, CartItem, SavedForLater
 from .forms import AddToCartForm, UpdateCartItemForm, cart_summary
+from .utils import log_cart_event
 from market.models import Product
 
 
-# ----------------- Helper: Get or create cart -----------------
 def get_or_create_cart(request):
     """Get or create cart for user or guest"""
     if request.user.is_authenticated:
         cart, created = Cart.objects.get_or_create(user=request.user)
-        # Merge guest cart if exists
         session_id = request.session.get('cart_session_id')
         if session_id:
             try:
@@ -42,14 +41,12 @@ def get_or_create_cart(request):
         return cart
 
 
-# ----------------- Cart Page -----------------
 def cart_view(request):
     cart = get_or_create_cart(request)
     summary = cart_summary(cart)
     return render(request, "cart/cart.html", {"cart": cart, "summary": summary})
 
 
-# ----------------- Add to Cart -----------------
 @require_POST
 def add_to_cart(request):
     form = AddToCartForm(request.POST)
@@ -83,8 +80,18 @@ def add_to_cart(request):
                 cart_item.quantity = new_quantity
                 cart_item.save()
                 messages.success(request, "Cart item quantity updated.")
+                log_cart_event('cart_item_updated', cart, request.user if request.user.is_authenticated else None, {
+                    'product_id': str(product.id),
+                    'quantity': new_quantity,
+                    'price': float(product.price)
+                })
         else:
             messages.success(request, "Product added to cart.")
+            log_cart_event('cart_item_added', cart, request.user if request.user.is_authenticated else None, {
+                'product_id': str(product.id),
+                'quantity': quantity,
+                'price': float(product.price)
+            })
 
     else:
         for field, errors in form.errors.items():
@@ -93,7 +100,6 @@ def add_to_cart(request):
     return redirect("cart:cart")
 
 
-# ----------------- Update Cart Item -----------------
 @require_POST
 def update_cart_item(request, item_id):
     cart_item = get_object_or_404(
@@ -103,6 +109,11 @@ def update_cart_item(request, item_id):
     if form.is_valid():
         form.save()
         messages.success(request, "Cart item updated.")
+        log_cart_event('cart_item_updated', cart_item.cart, request.user if request.user.is_authenticated else None, {
+            'product_id': str(cart_item.product.id),
+            'quantity': cart_item.quantity,
+            'price': float(cart_item.product.price)
+        })
     else:
         for field, errors in form.errors.items():
             for error in errors:
@@ -110,18 +121,20 @@ def update_cart_item(request, item_id):
     return redirect("cart:cart")
 
 
-# ----------------- Remove Cart Item -----------------
 @require_POST
 def remove_cart_item(request, item_id):
     cart_item = get_object_or_404(
         CartItem, id=item_id, cart=get_or_create_cart(request)
     )
+    log_cart_event('cart_item_removed', cart_item.cart, request.user if request.user.is_authenticated else None, {
+        'product_id': str(cart_item.product.id),
+        'quantity': cart_item.quantity
+    })
     cart_item.delete()
     messages.success(request, "Item removed from cart.")
     return redirect("cart:cart")
 
 
-# ----------------- Clear Cart -----------------
 @require_POST
 def clear_cart(request):
     cart = get_or_create_cart(request)
@@ -130,18 +143,20 @@ def clear_cart(request):
     return redirect("cart:cart")
 
 
-# ----------------- Save for Later -----------------
 @login_required
 @require_POST
 def save_for_later(request, item_id):
     cart_item = get_object_or_404(CartItem, id=item_id, cart__user=request.user)
+    log_cart_event('cart_item_saved', cart_item.cart, request.user, {
+        'product_id': str(cart_item.product.id),
+        'quantity': cart_item.quantity
+    })
     SavedForLater.objects.get_or_create(user=request.user, product=cart_item.product)
     cart_item.delete()
     messages.success(request, "Item saved for later.")
     return redirect("cart:cart")
 
 
-# ----------------- Move to Cart -----------------
 @login_required
 @require_POST
 def move_to_cart(request, saved_id):
@@ -156,14 +171,12 @@ def move_to_cart(request, saved_id):
     return redirect("cart:cart")
 
 
-# ----------------- Saved for Later List -----------------
 @login_required
 def saved_for_later_list(request):
     saved_items = SavedForLater.objects.filter(user=request.user).select_related('product')
     return render(request, "cart/saved_for_later.html", {"saved_items": saved_items})
 
 
-# ----------------- Cart Summary -----------------
 def cart_summary_view(request):
     cart = get_or_create_cart(request)
     if cart.is_empty:
@@ -173,7 +186,6 @@ def cart_summary_view(request):
     return render(request, "cart/cart_summary.html", {"cart": cart, "summary": summary})
 
 
-# ----------------- Cart Count (for navbar, etc.) -----------------
 def cart_count(request):
     cart = get_or_create_cart(request)
     count = cart.total_items if cart else 0

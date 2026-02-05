@@ -1,16 +1,10 @@
 import os
 from pathlib import Path
-from decouple import Config, RepositoryEnv
+from decouple import config
 from celery.schedules import crontab
 import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-
-ENV_FILE = BASE_DIR / '.env'
-if ENV_FILE.exists():
-    config = Config(RepositoryEnv(str(ENV_FILE)))
-else:
-    from decouple import config
 
 # ============================================
 # ENVIRONMENT DETECTION
@@ -331,20 +325,24 @@ CELERY_TASK_TIME_LIMIT = 30 * 60
 CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60
 
 CELERY_BEAT_SCHEDULE = {
-    'send-cart-abandonment-emails': {
-        'task': 'notifications.tasks.send_cart_abandonment_emails',
-        'schedule': crontab(hour=10, minute=0),
+    'detect-abandoned-carts': {
+        'task': 'cart.tasks.detect_abandoned_carts',
+        'schedule': crontab(hour=2, minute=0),  # Daily 2 AM
     },
-    'calculate-daily-statistics': {
-        'task': 'analytics.tasks.calculate_daily_statistics',
-        'schedule': crontab(hour=0, minute=5),
+    'send-abandonment-reminders': {
+        'task': 'cart.tasks.send_abandonment_reminders',
+        'schedule': crontab(hour=3, minute=0),  # Daily 3 AM
     },
-    'calculate-yesterday-statistics': {
-        'task': 'analytics.tasks.calculate_yesterday_statistics',
-        'schedule': crontab(hour=1, minute=0),
+    'calculate-user-scores': {
+        'task': 'cart.tasks.calculate_user_scores_bulk',
+        'schedule': crontab(hour=4, minute=0),  # Daily 4 AM
+    },
+    'cleanup-old-guest-carts': {
+        'task': 'cart.tasks.cleanup_old_guest_carts',
+        'schedule': crontab(hour=5, minute=0, day_of_week=0),  # Weekly Sunday 5 AM
+        'kwargs': {'days': 30}
     },
 }
-
 # ============================================
 # PAYSTACK CONFIGURATION
 # ============================================

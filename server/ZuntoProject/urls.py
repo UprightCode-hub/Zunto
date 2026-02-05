@@ -6,8 +6,6 @@ from django.http import JsonResponse
 from django.views.generic import RedirectView
 from core.views import health_check, assistant_view, marketplace_view
 
-
-
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('health/', health_check, name='health_check'),
@@ -15,11 +13,11 @@ urlpatterns = [
     # Root redirect to marketplace
     path('', RedirectView.as_view(url='/marketplace/products/', permanent=False)),
     
-    # Frontend: Assistant AI (your existing frontend)
+    # Frontend: Assistant AI
     path('assistant/', assistant_view, {'page': 'index'}, name='assistant_home'),
     path('assistant/<str:page>/', assistant_view, name='assistant_page'),
     
-    # Frontend: Marketplace (new)
+    # Frontend: Marketplace
     path('marketplace/', marketplace_view, {'section': 'products', 'page': 'index'}, name='marketplace_home'),
     path('marketplace/auth/<str:page>/', marketplace_view, {'section': 'auth'}, name='marketplace_auth'),
     path('marketplace/account/<str:page>/', marketplace_view, {'section': 'account'}, name='marketplace_account'),
@@ -30,7 +28,10 @@ urlpatterns = [
     path('marketplace/chat/<str:page>/', marketplace_view, {'section': 'chat'}, name='marketplace_chat'),
     path('marketplace/reviews/<str:page>/', marketplace_view, {'section': 'reviews'}, name='marketplace_reviews'),
     
-    # API Routes (your existing backend)
+    # Dashboard (Executive & Analytics)
+    path('dashboard/', include('dashboard.urls')),
+    
+    # API Routes
     path('', include('accounts.urls')),
     path('api/market/', include('market.urls')),
     path('api/reviews/', include('reviews.urls')),

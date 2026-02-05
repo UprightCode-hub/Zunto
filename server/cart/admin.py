@@ -1,6 +1,5 @@
-# cart/admin.py
 from django.contrib import admin
-from .models import Cart, CartItem, SavedForLater, CartAbandonment
+from .models import Cart, CartItem, SavedForLater, CartAbandonment, UserScore
 
 
 class CartItemInline(admin.TabularInline):
@@ -17,7 +16,6 @@ class CartAdmin(admin.ModelAdmin):
     search_fields = ['user__email', 'session_id']
     readonly_fields = ['created_at', 'updated_at', 'total_items', 'subtotal']
     inlines = [CartItemInline]
-    
     fieldsets = (
         ('Cart Information', {
             'fields': ('user', 'session_id')
@@ -45,7 +43,6 @@ class CartItemAdmin(admin.ModelAdmin):
     list_filter = ['added_at', 'updated_at']
     search_fields = ['cart__user__email', 'product__title']
     readonly_fields = ['price_at_addition', 'added_at', 'updated_at', 'total_price']
-    
     fieldsets = (
         ('Item Information', {
             'fields': ('cart', 'product', 'quantity')
@@ -80,7 +77,6 @@ class CartAbandonmentAdmin(admin.ModelAdmin):
     list_filter = ['recovered', 'reminder_sent', 'abandoned_at']
     search_fields = ['user__email', 'cart__id']
     readonly_fields = ['abandoned_at', 'recovered_at', 'reminder_sent_at']
-    
     fieldsets = (
         ('Cart Information', {
             'fields': ('cart', 'user', 'total_items', 'total_value')
@@ -92,7 +88,6 @@ class CartAbandonmentAdmin(admin.ModelAdmin):
             'fields': ('abandoned_at',)
         }),
     )
-    
     actions = ['mark_as_recovered']
     
     def mark_as_recovered(self, request, queryset):
@@ -100,3 +95,39 @@ class CartAbandonmentAdmin(admin.ModelAdmin):
         queryset.update(recovered=True, recovered_at=timezone.now())
         self.message_user(request, f"{queryset.count()} carts marked as recovered.")
     mark_as_recovered.short_description = "Mark selected as recovered"
+
+
+@admin.register(UserScore)
+class UserScoreAdmin(admin.ModelAdmin):
+    list_display = [
+        'user', 'composite_score', 'score_tier',
+        'abandonment_score', 'value_score', 'conversion_score',
+        'hesitation_score', 'discount_eligibility', 'last_calculated'
+    ]
+    list_filter = ['last_calculated', 'discount_eligibility']
+    search_fields = ['user__email', 'promo_code']
+    readonly_fields = [
+        'abandonment_score', 'value_score', 'conversion_score',
+        'hesitation_score', 'composite_score', 'last_calculated'
+    ]
+    ordering = ['-composite_score']
+    
+    fieldsets = (
+        ('Scoring Metrics', {
+            'fields': (
+                'abandonment_score', 'value_score', 
+                'conversion_score', 'hesitation_score', 'composite_score'
+            )
+        }),
+        ('Promo/Discount', {
+            'fields': ('discount_eligibility', 'recommended_discount', 'promo_code'),
+            'classes': ('collapse',)
+        }),
+        ('Metadata', {
+            'fields': ('last_calculated',)
+        }),
+    )
+    
+    def score_tier(self, obj):
+        return obj.score_tier.replace('_', ' ').title()
+    score_tier.short_description = 'Tier'

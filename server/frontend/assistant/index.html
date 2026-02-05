@@ -1,145 +1,57 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GigiAI — AI Assistant for E-Commerce</title>
-    
-    <!-- SEO & Meta -->
+
     <meta name="description" content="Try a prompt-guided AI assistant that answers customers 24/7, speaks replies, and helps small businesses scale support.">
     <meta name="author" content="Wisdom Ekwugha">
     <meta name="keywords" content="AI, chatbot, e-commerce, customer support, text-to-speech">
     <meta name="theme-color" content="#4F46E5">
-    
-    <!-- Open Graph -->
+
     <meta property="og:title" content="GigiAI — AI Assistant for E-Commerce">
     <meta property="og:description" content="24/7 customer support with voice replies and guided prompts">
     <meta property="og:type" content="website">
-    <meta property="og:image" content="./og/gigi-og-1200x630.png">
-    <meta property="og:url" content="https://gigiai.app">
+    <meta property="og:url" content="{% url 'assistant:home' %}">
     <meta name="twitter:card" content="summary_large_image">
-    
-    <!-- Fonts -->
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet">
-    
-    <!-- Icons -->
+
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
-    
-    <!-- Styles -->
-    <link rel="stylesheet" href="./assets/css/styles.css">
-    
+    <link rel="stylesheet" href="{% static 'assistant/assets/css/styles.css' %}">
+
     <style>
-        body {
-            overflow: auto;
-            position: static;
-            height: auto;
-        }
-        
-        html {
-            position: static;
-            overflow: auto;
-        }
-        
-        .features-section {
-            padding: 4rem 2rem;
-            background: var(--bg);
-        }
-        
-        .features-container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        
-        .features-title {
-            font-family: 'Poppins', sans-serif;
-            font-size: 2.5rem;
-            font-weight: 700;
-            text-align: center;
-            margin-bottom: 3rem;
-            color: var(--text);
-        }
-        
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 2rem;
-        }
-        
-        .feature-card {
-            background: var(--card);
-            border-radius: var(--radius-lg);
-            padding: 2rem;
-            text-align: center;
-            box-shadow: var(--shadow-sm);
-            transition: transform 0.3s, box-shadow 0.3s;
-        }
-        
-        .feature-card:hover {
-            transform: translateY(-8px);
-            box-shadow: var(--shadow-lg);
-        }
-        
-        .feature-icon {
-            font-size: 3.5rem;
-            margin-bottom: 1rem;
-        }
-        
-        .feature-title {
-            font-family: 'Poppins', sans-serif;
-            font-size: 1.5rem;
-            font-weight: 600;
-            margin-bottom: 0.75rem;
-            color: var(--text);
-        }
-        
-        .feature-text {
-            color: var(--text-secondary);
-            line-height: 1.6;
-        }
-        
-        .footer {
-            text-align: center;
-            padding: 3rem 1.5rem;
-            background: var(--card);
-            border-top: 1px solid var(--border);
-            color: var(--text-secondary);
-        }
-        
-        .footer a {
-            color: var(--color-primary);
-            text-decoration: none;
-        }
-        
-        .footer a:hover {
-            text-decoration: underline;
-        }
-        
+        body { overflow: auto; position: static; height: auto; }
+        html { position: static; overflow: auto; }
+
+        .features-section { padding: 4rem 2rem; background: var(--bg); }
+        .features-container { max-width: 1200px; margin: 0 auto; }
+        .features-title { font-family: 'Poppins', sans-serif; font-size: 2.5rem; font-weight: 700; text-align: center; margin-bottom: 3rem; color: var(--text); }
+        .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2rem; }
+        .feature-card { background: var(--card); border-radius: var(--radius-lg); padding: 2rem; text-align: center; box-shadow: var(--shadow-sm); transition: transform 0.3s, box-shadow 0.3s; }
+        .feature-card:hover { transform: translateY(-8px); box-shadow: var(--shadow-lg); }
+        .feature-icon { font-size: 3.5rem; margin-bottom: 1rem; }
+        .feature-title { font-family: 'Poppins', sans-serif; font-size: 1.5rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--text); }
+        .feature-text { color: var(--text-secondary); line-height: 1.6; }
+        .footer { text-align: center; padding: 3rem 1.5rem; background: var(--card); border-top: 1px solid var(--border); color: var(--text-secondary); }
+        .footer a { color: var(--color-primary); text-decoration: none; }
+        .footer a:hover { text-decoration: underline; }
+
         @media (max-width: 768px) {
-            .hero-title {
-                font-size: 2.25rem;
-            }
-            
-            .hero-subtitle {
-                font-size: 1.125rem;
-            }
-            
-            .features-title {
-                font-size: 2rem;
-            }
-            
-            .features-section {
-                padding: 3rem 1rem;
-            }
+            .hero-title { font-size: 2.25rem; }
+            .hero-subtitle { font-size: 1.125rem; }
+            .features-title { font-size: 2rem; }
+            .features-section { padding: 3rem 1rem; }
         }
     </style>
 </head>
 <body>
-    <!-- Hero Section -->
     <section class="hero-section">
         <div class="hero-content">
-            <!-- Hero SVG Icon -->
             <div style="max-width: 400px; margin: 0 auto 2rem;">
                 <svg viewBox="0 0 793 551.73152" xmlns="http://www.w3.org/2000/svg" aria-label="AI Chat Illustration" style="width: 100%; height: auto;">
                     <ellipse cx="158" cy="539.73152" rx="158" ry="12" fill="#ffffff" opacity="0.3"/>
@@ -151,21 +63,20 @@
                     <rect x="380.93228" y="310.73947" width="200" height="25" rx="12" fill="#ffffff" opacity="0.8"/>
                 </svg>
             </div>
-            
+
             <h1 class="hero-title">GigiAI — Your E-Commerce AI Assistant</h1>
             <p class="hero-subtitle">Instant responses, voice chat, and guided prompts for 24/7 customer support.</p>
-            <a href="./chat.html" class="hero-cta btn btn-primary">
+            <a href="{% url 'assistant:chat_interface' %}" class="hero-cta btn btn-primary">
                 <i class="bi bi-chat-dots-fill"></i>
                 Try Demo Now
             </a>
         </div>
     </section>
-    
-    <!-- Features Section -->
+
     <section class="features-section">
         <div class="features-container">
             <h2 class="features-title">Why Choose GigiAI?</h2>
-            
+
             <div class="features-grid">
                 <div class="feature-card">
                     <div class="feature-icon">🤖</div>
@@ -174,7 +85,7 @@
                         Follow intuitive menu options to get exactly what you need. No complex commands required.
                     </p>
                 </div>
-                
+
                 <div class="feature-card">
                     <div class="feature-icon">🎙️</div>
                     <h3 class="feature-title">Voice Replies</h3>
@@ -182,7 +93,7 @@
                         Listen to responses with natural text-to-speech. Perfect for accessibility and multitasking.
                     </p>
                 </div>
-                
+
                 <div class="feature-card">
                     <div class="feature-icon">⚡</div>
                     <h3 class="feature-title">24/7 Availability</h3>
@@ -190,7 +101,7 @@
                         Always online to help your customers track orders, get shipping info, and request refunds.
                     </p>
                 </div>
-                
+
                 <div class="feature-card">
                     <div class="feature-icon">💬</div>
                     <h3 class="feature-title">Smart Conversations</h3>
@@ -198,7 +109,7 @@
                         Context-aware responses that understand your questions and provide relevant solutions.
                     </p>
                 </div>
-                
+
                 <div class="feature-card">
                     <div class="feature-icon">📱</div>
                     <h3 class="feature-title">Mobile-First Design</h3>
@@ -206,7 +117,7 @@
                         Optimized for Android and iOS with smooth scrolling and thumb-friendly controls.
                     </p>
                 </div>
-                
+
                 <div class="feature-card">
                     <div class="feature-icon">🔒</div>
                     <h3 class="feature-title">Privacy Focused</h3>
@@ -217,20 +128,14 @@
             </div>
         </div>
     </section>
-    
-    <!-- Footer -->
+
     <footer class="footer">
-        <p>
-            <strong>GigiAI</strong> — Built by <a href="./about.html">Wisdom Ekwugha</a>
-        </p>
+        <p><strong>GigiAI</strong> — Built by Wisdom Ekwugha</p>
         <p style="margin-top: 0.5rem; font-size: 0.875rem;">
-            We don't store personal data beyond this session — 
-            <a href="#privacy">privacy details</a>
+            We don't store personal data beyond this session
         </p>
         <p style="margin-top: 1.5rem;">
-            <a href="./chat.html" style="font-weight: 600;">Try Demo</a> · 
-            <a href="./about.html">About</a> · 
-            <a href="./report.html">Report Bug</a> · 
+            <a href="{% url 'assistant:chat_interface' %}" style="font-weight: 600;">Try Demo</a> · 
             <a href="https://www.linkedin.com/in/wisdom-ekwugha-2b2887217" target="_blank" rel="noopener noreferrer">Connect</a>
         </p>
         <p style="margin-top: 1rem; font-size: 0.8125rem;">

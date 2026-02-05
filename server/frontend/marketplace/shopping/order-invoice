@@ -4,425 +4,417 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Invoice - Zunto</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        :root {
-            --black: #000000;
-            --white: #FFFFFF;
-            --gray-100: #F5F5F5;
-            --gray-300: #BDBDBD;
-            --gray-600: #616161;
-            --space-8: 8px;
-            --space-16: 16px;
-            --space-24: 24px;
-            --space-32: 32px;
-            --space-48: 48px;
-            --border: 1px solid var(--gray-300);
-        }
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-            background: var(--white);
-            color: var(--black);
-            line-height: 1.5;
-            font-size: 14px;
-            padding: var(--space-24);
+            background-color: #050d1b;
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #2c77d1 0%, #9426f4 100%);
+        }
+        .card-bg {
+            background-color: #0a1628;
+            border: 1px solid #1a2d4a;
         }
         
-        .invoice-container {
-            max-width: 800px;
-            margin: 0 auto;
-            border: var(--border);
-            padding: var(--space-48);
-            background: var(--white);
+        #gigiAssistant {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 1000;
+            cursor: move;
+            user-select: none;
         }
         
-        .invoice-header {
+        .gigi-button {
+            width: 70px;
+            height: 70px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, #2c77d1 0%, #9426f4 100%);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(44, 119, 209, 0.4);
             display: flex;
-            justify-content: space-between;
-            margin-bottom: var(--space-48);
-            padding-bottom: var(--space-24);
-            border-bottom: var(--border);
-        }
-        
-        .company-info {
-            flex: 1;
-        }
-        
-        .company-name {
-            font-size: 32px;
-            font-weight: 600;
-            margin-bottom: var(--space-8);
-            letter-spacing: -0.02em;
-        }
-        
-        .company-details {
-            font-size: 13px;
-            color: var(--gray-600);
-            line-height: 1.8;
-        }
-        
-        .invoice-meta {
-            text-align: right;
-        }
-        
-        .invoice-title {
-            font-size: 24px;
-            font-weight: 600;
-            margin-bottom: var(--space-16);
-        }
-        
-        .invoice-details {
-            font-size: 13px;
-            line-height: 1.8;
-        }
-        
-        .addresses {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: var(--space-32);
-            margin-bottom: var(--space-48);
-        }
-        
-        .address-block {
-            padding: var(--space-16);
-            border: var(--border);
-            background: var(--gray-100);
-        }
-        
-        .address-title {
-            font-weight: 600;
-            margin-bottom: var(--space-8);
-            font-size: 13px;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-        
-        .address-content {
-            font-size: 14px;
-            line-height: 1.8;
-        }
-        
-        .items-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: var(--space-32);
-        }
-        
-        .items-table th {
-            background: var(--gray-100);
-            padding: var(--space-16);
-            text-align: left;
-            font-weight: 600;
-            font-size: 13px;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            border: var(--border);
-        }
-        
-        .items-table td {
-            padding: var(--space-16);
-            border: var(--border);
-        }
-        
-        .items-table tbody tr:hover {
-            background: var(--gray-100);
-        }
-        
-        .text-right {
-            text-align: right;
-        }
-        
-        .summary {
-            margin-left: auto;
-            width: 300px;
-        }
-        
-        .summary-row {
-            display: flex;
-            justify-content: space-between;
-            padding: var(--space-8) 0;
-            font-size: 14px;
-        }
-        
-        .summary-row.total {
-            font-size: 18px;
-            font-weight: 600;
-            padding-top: var(--space-16);
-            border-top: var(--border);
-            margin-top: var(--space-8);
-        }
-        
-        .payment-info {
-            margin-top: var(--space-48);
-            padding-top: var(--space-24);
-            border-top: var(--border);
-        }
-        
-        .payment-title {
-            font-weight: 600;
-            margin-bottom: var(--space-16);
-        }
-        
-        .payment-details {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: var(--space-24);
-            font-size: 13px;
-        }
-        
-        .payment-item {
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .payment-label {
-            color: var(--gray-600);
-            margin-bottom: var(--space-4);
-        }
-        
-        .footer {
-            margin-top: var(--space-48);
-            padding-top: var(--space-24);
-            border-top: var(--border);
-            text-align: center;
-            font-size: 13px;
-            color: var(--gray-600);
-        }
-        
-        .actions {
-            text-align: center;
-            margin-bottom: var(--space-32);
-        }
-        
-        .btn {
-            border: var(--border);
-            background: var(--white);
-            color: var(--black);
-            padding: var(--space-8) var(--space-24);
-            font-size: 14px;
+            align-items: center;
+            justify-content: center;
             cursor: pointer;
-            margin: 0 var(--space-8);
+            transition: all 0.3s ease;
+            animation: gigiFloat 3s ease-in-out infinite, gigiShine 2s linear infinite;
         }
         
-        .btn:hover {
-            background: var(--gray-100);
+        .gigi-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 12px 40px rgba(148, 38, 244, 0.6);
         }
         
-        .btn-primary {
-            background: var(--black);
-            color: var(--white);
-            border-color: var(--black);
+        .gigi-icon {
+            font-size: 32px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        @keyframes gigiFloat {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            25% { transform: translateY(-5px) rotate(2deg); }
+            50% { transform: translateY(0px) rotate(0deg); }
+            75% { transform: translateY(-3px) rotate(-2deg); }
+        }
+        
+        @keyframes gigiShine {
+            0% { filter: brightness(1); }
+            50% { filter: brightness(1.2); }
+            100% { filter: brightness(1); }
+        }
+        
+        .gigi-tooltip {
+            position: absolute;
+            bottom: 80px;
+            right: 0;
+            background: #0a1628;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 12px;
+            border: 1px solid #1a2d4a;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+        }
+        
+        .gigi-button:hover + .gigi-tooltip {
+            opacity: 1;
         }
         
         @media print {
             body {
-                padding: 0;
+                background-color: white;
+                color: black;
             }
             
-            .actions, .btn {
-                display: none;
+            .card-bg {
+                background-color: white;
+                border: 1px solid #ddd;
             }
             
-            .invoice-container {
-                border: none;
-                padding: 0;
+            .no-print {
+                display: none !important;
+            }
+            
+            .print-only {
+                display: block !important;
+            }
+            
+            #gigiAssistant {
+                display: none !important;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            #gigiAssistant {
+                bottom: 16px;
+                right: 16px;
+            }
+            
+            .gigi-button {
+                width: 60px;
+                height: 60px;
+                border-radius: 16px;
+            }
+            
+            .gigi-icon {
+                font-size: 28px;
             }
         }
     </style>
 </head>
-<body>
-    <div class="actions">
-        <button class="btn btn-primary" onclick="window.print()">Print Invoice</button>
-        <button class="btn" onclick="downloadPDF()">Download PDF</button>
-        <button class="btn" onclick="history.back()">Back to Order</button>
+<body class="min-h-screen text-white">
+    <div class="no-print">
+        <header class="card-bg sticky top-0 z-50">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                <div class="flex items-center justify-between">
+                    <a href="{% url 'product_list' %}" class="text-2xl font-bold gradient-bg bg-clip-text text-transparent">
+                        Zunto
+                    </a>
+                    
+                    <div class="flex items-center gap-4">
+                        <button onclick="window.print()" class="px-4 py-2 gradient-bg rounded-lg text-white hover:opacity-90 transition-opacity duration-200">
+                            Print Invoice
+                        </button>
+                        <button onclick="history.back()" class="px-4 py-2 card-bg rounded-lg text-gray-400 hover:text-white hover:bg-[#1a2d4a] transition-all duration-200">
+                            Back to Order
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
     </div>
-    
-    <div class="invoice-container" id="invoiceContainer">
-        <div style="text-align: center; padding: var(--space-48); color: var(--gray-600);">
-            Loading invoice...
+
+    <main class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+        <div id="invoiceContainer">
+            <div class="flex items-center justify-center py-24">
+                <div class="text-center">
+                    <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#2c77d1] mb-4"></div>
+                    <p class="text-gray-400">Loading invoice...</p>
+                </div>
+            </div>
         </div>
+    </main>
+
+    <div id="gigiAssistant">
+        <div class="gigi-button" onclick="openGigiChat()">
+            <div class="gigi-icon">G</div>
+        </div>
+        <div class="gigi-tooltip">Need help? Chat with Gigi!</div>
     </div>
-    
-    <script src="config.js"></script>
+
+    <script src="{% static 'marketplace/assets/js/config.js' %}"></script>
     <script>
         const invoiceContainer = document.getElementById('invoiceContainer');
-        
         let orderData = null;
-        
+
         function getOrderNumber() {
             const params = new URLSearchParams(window.location.search);
             return params.get('order');
         }
-        
+
         async function loadOrder() {
             const orderNumber = getOrderNumber();
             if (!orderNumber) {
-                window.location.href = 'my-orders.html';
+                window.location.href = '{% url "my_orders" %}';
                 return;
             }
-            
+
             try {
                 const response = await apiRequest(API_CONFIG.ORDERS.DETAIL(orderNumber));
-                
+
                 if (!response.ok) throw new Error('Failed to load order');
-                
+
                 orderData = await response.json();
                 renderInvoice(orderData);
             } catch (error) {
-                invoiceContainer.innerHTML = '<div style="text-align: center; padding: var(--space-48); color: var(--gray-600);">Failed to load invoice</div>';
+                invoiceContainer.innerHTML = `
+                    <div class="flex items-center justify-center py-24">
+                        <div class="text-center">
+                            <svg class="w-16 h-16 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <p class="text-gray-400 mb-4">Failed to load invoice</p>
+                            <button onclick="loadOrder()" class="px-4 py-2 gradient-bg rounded-lg text-white hover:opacity-90">Retry</button>
+                        </div>
+                    </div>
+                `;
             }
         }
-        
+
         function renderInvoice(order) {
             const invoiceDate = new Date(order.created_at);
             const dueDate = new Date(invoiceDate);
             dueDate.setDate(dueDate.getDate() + 30);
-            
+
             invoiceContainer.innerHTML = `
-                <div class="invoice-header">
-                    <div class="company-info">
-                        <div class="company-name">Zunto</div>
-                        <div class="company-details">
-                            Zunto Marketplace Limited<br>
-                            Lagos, Nigeria<br>
-                            Email: support@zunto.com<br>
-                            Phone: +234 800 000 0000
+                <div class="card-bg rounded-lg p-8 md:p-12">
+                    <div class="flex flex-col md:flex-row md:items-start justify-between mb-12 pb-8 border-b border-[#1a2d4a]">
+                        <div>
+                            <h1 class="text-4xl font-bold mb-2 gradient-bg bg-clip-text text-transparent">Zunto</h1>
+                            <div class="text-sm text-gray-400 leading-relaxed">
+                                Zunto Marketplace Limited<br>
+                                Lagos, Nigeria<br>
+                                Email: support@zunto.com<br>
+                                Phone: +234 800 000 0000
+                            </div>
+                        </div>
+
+                        <div class="mt-6 md:mt-0 text-left md:text-right">
+                            <h2 class="text-3xl font-bold mb-4">INVOICE</h2>
+                            <div class="text-sm space-y-1">
+                                <div><span class="text-gray-400">Invoice #:</span> <span class="font-semibold">${order.order_number}</span></div>
+                                <div><span class="text-gray-400">Date:</span> <span class="font-semibold">${invoiceDate.toLocaleDateString()}</span></div>
+                                <div><span class="text-gray-400">Due Date:</span> <span class="font-semibold">${dueDate.toLocaleDateString()}</span></div>
+                                <div><span class="text-gray-400">Status:</span> <span class="font-semibold">${order.payment_status}</span></div>
+                            </div>
                         </div>
                     </div>
-                    
-                    <div class="invoice-meta">
-                        <div class="invoice-title">INVOICE</div>
-                        <div class="invoice-details">
-                            <strong>Invoice #:</strong> ${order.order_number}<br>
-                            <strong>Date:</strong> ${invoiceDate.toLocaleDateString()}<br>
-                            <strong>Due Date:</strong> ${dueDate.toLocaleDateString()}<br>
-                            <strong>Status:</strong> ${order.payment_status}
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+                        <div class="card-bg p-6 rounded-lg">
+                            <h3 class="font-semibold mb-4 text-sm uppercase tracking-wider text-gray-400">Bill To</h3>
+                            <div class="text-sm leading-relaxed">
+                                ${order.shipping_address}<br>
+                                ${order.shipping_city}, ${order.shipping_state}<br>
+                                ${order.shipping_country}<br>
+                                ${order.shipping_phone}
+                            </div>
+                        </div>
+
+                        <div class="card-bg p-6 rounded-lg">
+                            <h3 class="font-semibold mb-4 text-sm uppercase tracking-wider text-gray-400">Ship To</h3>
+                            <div class="text-sm leading-relaxed">
+                                ${order.shipping_address}<br>
+                                ${order.shipping_city}, ${order.shipping_state}<br>
+                                ${order.shipping_country}<br>
+                                ${order.shipping_phone}
+                            </div>
                         </div>
                     </div>
-                </div>
-                
-                <div class="addresses">
-                    <div class="address-block">
-                        <div class="address-title">Bill To</div>
-                        <div class="address-content">
-                            ${order.shipping_address}<br>
-                            ${order.shipping_city}, ${order.shipping_state}<br>
-                            ${order.shipping_country}<br>
-                            ${order.shipping_phone}
+
+                    <div class="overflow-x-auto mb-8">
+                        <table class="w-full">
+                            <thead>
+                                <tr class="card-bg">
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">Item</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">Seller</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-400">Quantity</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-400">Unit Price</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-400">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-[#1a2d4a]">
+                                ${order.items.map(item => `
+                                    <tr class="hover:bg-[#0f1f35] transition-colors">
+                                        <td class="px-4 py-4">
+                                            <div class="font-semibold">${item.product_name}</div>
+                                            <div class="text-xs text-gray-400 mt-1">SKU: ${item.product_id}</div>
+                                        </td>
+                                        <td class="px-4 py-4 text-sm text-gray-400">${item.seller_name || 'N/A'}</td>
+                                        <td class="px-4 py-4 text-right font-semibold">${item.quantity}</td>
+                                        <td class="px-4 py-4 text-right">₦${item.unit_price.toLocaleString()}</td>
+                                        <td class="px-4 py-4 text-right font-semibold text-[#2c77d1]">₦${item.total_price.toLocaleString()}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="flex justify-end mb-12">
+                        <div class="w-full md:w-96 space-y-3">
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-400">Subtotal</span>
+                                <span class="font-semibold">₦${order.subtotal.toLocaleString()}</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-400">Shipping</span>
+                                <span class="font-semibold">₦${order.shipping_fee.toLocaleString()}</span>
+                            </div>
+                            ${order.tax_amount > 0 ? `
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-gray-400">Tax</span>
+                                    <span class="font-semibold">₦${order.tax_amount.toLocaleString()}</span>
+                                </div>
+                            ` : ''}
+                            ${order.discount_amount > 0 ? `
+                                <div class="flex justify-between text-sm text-green-400">
+                                    <span>Discount</span>
+                                    <span class="font-semibold">-₦${order.discount_amount.toLocaleString()}</span>
+                                </div>
+                            ` : ''}
+                            <div class="flex justify-between pt-3 border-t border-[#1a2d4a]">
+                                <span class="text-lg font-bold">Total</span>
+                                <span class="text-2xl font-bold">₦${order.total_amount.toLocaleString()}</span>
+                            </div>
                         </div>
                     </div>
-                    
-                    <div class="address-block">
-                        <div class="address-title">Ship To</div>
-                        <div class="address-content">
-                            ${order.shipping_address}<br>
-                            ${order.shipping_city}, ${order.shipping_state}<br>
-                            ${order.shipping_country}<br>
-                            ${order.shipping_phone}
+
+                    <div class="card-bg p-6 rounded-lg mb-8">
+                        <h3 class="font-semibold mb-4 text-sm uppercase tracking-wider text-gray-400">Payment Information</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                            <div>
+                                <div class="text-gray-400 mb-1">Payment Method</div>
+                                <div class="font-semibold">${order.payment_method.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
+                            </div>
+                            <div>
+                                <div class="text-gray-400 mb-1">Payment Status</div>
+                                <div class="font-semibold">${order.payment_status}</div>
+                            </div>
+                            <div>
+                                <div class="text-gray-400 mb-1">Transaction ID</div>
+                                <div class="font-semibold">${order.payment_reference || 'N/A'}</div>
+                            </div>
                         </div>
                     </div>
-                </div>
-                
-                <table class="items-table">
-                    <thead>
-                        <tr>
-                            <th>Item</th>
-                            <th>Seller</th>
-                            <th class="text-right">Quantity</th>
-                            <th class="text-right">Unit Price</th>
-                            <th class="text-right">Total</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${order.items.map(item => `
-                            <tr>
-                                <td>
-                                    <strong>${item.product_name}</strong><br>
-                                    <span style="font-size: 12px; color: var(--gray-600);">
-                                        SKU: ${item.product_id}
-                                    </span>
-                                </td>
-                                <td>${item.seller_name || 'N/A'}</td>
-                                <td class="text-right">${item.quantity}</td>
-                                <td class="text-right">₦${item.unit_price.toLocaleString()}</td>
-                                <td class="text-right">₦${item.total_price.toLocaleString()}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-                
-                <div class="summary">
-                    <div class="summary-row">
-                        <span>Subtotal</span>
-                        <span>₦${order.subtotal.toLocaleString()}</span>
-                    </div>
-                    <div class="summary-row">
-                        <span>Shipping</span>
-                        <span>₦${order.shipping_fee.toLocaleString()}</span>
-                    </div>
-                    ${order.tax_amount > 0 ? `
-                        <div class="summary-row">
-                            <span>Tax</span>
-                            <span>₦${order.tax_amount.toLocaleString()}</span>
+
+                    ${order.notes ? `
+                        <div class="card-bg p-6 rounded-lg mb-8">
+                            <h3 class="font-semibold mb-3 text-sm uppercase tracking-wider text-gray-400">Order Notes</h3>
+                            <div class="text-sm text-gray-400">${order.notes}</div>
                         </div>
                     ` : ''}
-                    ${order.discount_amount > 0 ? `
-                        <div class="summary-row">
-                            <span>Discount</span>
-                            <span>-₦${order.discount_amount.toLocaleString()}</span>
-                        </div>
-                    ` : ''}
-                    <div class="summary-row total">
-                        <span>Total</span>
-                        <span>₦${order.total_amount.toLocaleString()}</span>
+
+                    <div class="text-center pt-8 border-t border-[#1a2d4a]">
+                        <p class="text-sm text-gray-400">
+                            Thank you for your business!<br>
+                            For any questions regarding this invoice, please contact us at support@zunto.com
+                        </p>
                     </div>
-                </div>
-                
-                <div class="payment-info">
-                    <div class="payment-title">Payment Information</div>
-                    <div class="payment-details">
-                        <div class="payment-item">
-                            <span class="payment-label">Payment Method</span>
-                            <span>${order.payment_method.replace('_', ' ')}</span>
-                        </div>
-                        <div class="payment-item">
-                            <span class="payment-label">Payment Status</span>
-                            <span>${order.payment_status}</span>
-                        </div>
-                        <div class="payment-item">
-                            <span class="payment-label">Transaction ID</span>
-                            <span>${order.payment_reference || 'N/A'}</span>
-                        </div>
-                    </div>
-                </div>
-                
-                ${order.notes ? `
-                    <div style="margin-top: var(--space-32); padding: var(--space-16); border: var(--border); background: var(--gray-100);">
-                        <strong>Order Notes:</strong><br>
-                        ${order.notes}
-                    </div>
-                ` : ''}
-                
-                <div class="footer">
-                    Thank you for your business!<br>
-                    For any questions regarding this invoice, please contact us at support@zunto.com
                 </div>
             `;
         }
-        
-        function downloadPDF() {
-            alert('PDF download functionality requires server-side implementation. Use Print to save as PDF for now.');
-            window.print();
+
+        function openGigiChat() {
+            window.location.href = '/assistant/chat/';
         }
-        
+
+        const gigi = document.getElementById('gigiAssistant');
+        let isDragging = false;
+        let currentX;
+        let currentY;
+        let initialX;
+        let initialY;
+        let xOffset = 0;
+        let yOffset = 0;
+
+        gigi.addEventListener('mousedown', dragStart);
+        gigi.addEventListener('touchstart', dragStart);
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('touchmove', drag);
+        document.addEventListener('mouseup', dragEnd);
+        document.addEventListener('touchend', dragEnd);
+
+        function dragStart(e) {
+            if (e.type === 'touchstart') {
+                initialX = e.touches[0].clientX - xOffset;
+                initialY = e.touches[0].clientY - yOffset;
+            } else {
+                initialX = e.clientX - xOffset;
+                initialY = e.clientY - yOffset;
+            }
+
+            if (e.target === gigi || e.target.closest('#gigiAssistant')) {
+                isDragging = true;
+            }
+        }
+
+        function drag(e) {
+            if (isDragging) {
+                e.preventDefault();
+                
+                if (e.type === 'touchmove') {
+                    currentX = e.touches[0].clientX - initialX;
+                    currentY = e.touches[0].clientY - initialY;
+                } else {
+                    currentX = e.clientX - initialX;
+                    currentY = e.clientY - initialY;
+                }
+
+                xOffset = currentX;
+                yOffset = currentY;
+
+                setTranslate(currentX, currentY, gigi);
+            }
+        }
+
+        function dragEnd(e) {
+            initialX = currentX;
+            initialY = currentY;
+            isDragging = false;
+        }
+
+        function setTranslate(xPos, yPos, el) {
+            el.style.transform = `translate3d(${xPos}px, ${yPos}px, 0)`;
+        }
+
         if (!isAuthenticated()) {
-            window.location.href = 'login.html';
+            window.location.href = '{% url "login" %}';
         } else {
             loadOrder();
         }

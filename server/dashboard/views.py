@@ -1,3 +1,5 @@
+# dashboard/views.py
+
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum, Count, Avg
@@ -6,20 +8,17 @@ from datetime import timedelta
 import json
 from django.views.generic import TemplateView
 from django.contrib.auth.mixins import LoginRequiredMixin
-
-
-# Import your models - adjust these imports based on your actual models
-# from .models import Order, Product, Customer, OrderItem
+from cart.analytics import get_abandonment_summary_with_scores
 
 
 class DashboardView(LoginRequiredMixin, TemplateView):
+    """Main dashboard overview with high-level metrics"""
     template_name = 'dashboard/dashboard.html'
-
+    
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-
-        # Time range
         time_range = self.request.GET.get('range', 'week')
+        
         today = timezone.now()
         if time_range == 'day':
             start_date = today - timedelta(days=1)
@@ -29,13 +28,18 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             start_date = today - timedelta(days=30)
         else:
             start_date = today - timedelta(days=365)
-
-        # Sample stats
+        
+        abandonment_data = get_abandonment_summary_with_scores()
+        scoring_data = abandonment_data.get('scoring', {})
+        score_averages = scoring_data.get('averages', {})
+        
         context.update({
-            'total_revenue': '$45,280',
-            'total_orders': '1,284',
-            'total_customers': '892',
-            'total_products': '324',
+            'total_abandoned_carts': abandonment_data['total_abandoned'],
+            'total_recovered_carts': abandonment_data['total_recovered'],
+            'abandonment_rate': f"{abandonment_data['abandonment_rate']}%",
+            'recovery_rate': f"{abandonment_data['recovery_rate']}%",
+            'avg_abandoned_value': f"₦{abandonment_data['avg_abandoned_value']:,.2f}",
+            'avg_composite_score': score_averages.get('composite', 0),
             'sales_labels': json.dumps(['Mon','Tue','Wed','Thu','Fri','Sat','Sun']),
             'sales_data': json.dumps([4200,3800,5200,4600,6800,7200,5900]),
             'category_labels': json.dumps(['Electronics', 'Clothing', 'Home & Garden', 'Sports']),
@@ -51,69 +55,68 @@ class DashboardView(LoginRequiredMixin, TemplateView):
             ],
             'current_range': time_range,
         })
+        
         return context
 
 
+class AnalyticsDashboardView(LoginRequiredMixin, TemplateView):
+    """Deep analytics dashboard with user scoring and cart abandonment insights"""
+    template_name = 'dashboard/analytics.html'
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        abandonment_data = get_abandonment_summary_with_scores()
+        scoring_data = abandonment_data.get('scoring', {})
+        
+        context.update({
+            'score_distribution': scoring_data.get('distribution', {}),
+            'value_by_tier': abandonment_data.get('value_by_tier', {}),
+            'avg_composite_score': scoring_data.get('averages', {}).get('composite', 0),
+            'total_abandoned_carts': abandonment_data['total_abandoned'],
+            'total_recovered_carts': abandonment_data['total_recovered'],
+            'abandonment_rate': f"{abandonment_data['abandonment_rate']}%",
+            'recovery_rate': f"{abandonment_data['recovery_rate']}%",
+            'avg_abandoned_value': f"₦{abandonment_data['avg_abandoned_value']:,.2f}",
+        })
+        
+        return context
 
 
 def sales_report(request):
-    """
-    Detailed sales report view
-    """
-    # Add your sales report logic here
+    """Sales report view"""
     context = {
         'page_title': 'Sales Report'
     }
     return render(request, 'dashboard/sales_report.html', context)
 
 
-
 def products_list(request):
-    """
-    Products management view
-    """
-    # products = Product.objects.all().order_by('-created_at')
-    
+    """Products listing view"""
     context = {
         'page_title': 'Products',
-        # 'products': products
     }
     return render(request, 'dashboard/products.html', context)
 
 
-
 def orders_list(request):
-    """
-    Orders management view
-    """
-    # orders = Order.objects.all().order_by('-created_at')
-    
+    """Orders listing view"""
     context = {
         'page_title': 'Orders',
-        # 'orders': orders
     }
     return render(request, 'dashboard/orders.html', context)
 
 
-
 def customers_list(request):
-    """
-    Customers management view
-    """
-    # customers = Customer.objects.all().order_by('-date_joined')
-    
+    """Customers listing view"""
     context = {
         'page_title': 'Customers',
-        # 'customers': customers
     }
     return render(request, 'dashboard/customers.html', context)
 
 
-
 def analytics(request):
-    """
-    Advanced analytics view
-    """
+    """Legacy analytics view"""
     context = {
         'page_title': 'Analytics'
     }
