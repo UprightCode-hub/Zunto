@@ -1,138 +1,43 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>About — GigiAI</title>
-    
+
     <meta name="description" content="Learn about Wisdom Ekwugha, creator of GigiAI">
     <meta name="author" content="Wisdom Ekwugha">
     <meta name="theme-color" content="#4F46E5">
-    
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet">
-    
+
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="./assets/css/styles.css">
-    
+    <link rel="stylesheet" href="{% static 'assistant/assets/css/styles.css' %}">
+
     <style>
         body, html { overflow: auto; position: static; height: auto; }
-        
-        .about-container {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 3rem 1.5rem;
-            min-height: 100vh;
-        }
-        
-        .back-link {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            color: var(--color-primary);
-            text-decoration: none;
-            font-weight: 500;
-            margin-bottom: 2rem;
-            transition: gap 0.2s;
-        }
-        
+
+        .about-container { max-width: 800px; margin: 0 auto; padding: 3rem 1.5rem; min-height: 100vh; }
+        .back-link { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--color-primary); text-decoration: none; font-weight: 500; margin-bottom: 2rem; transition: gap 0.2s; }
         .back-link:hover { gap: 0.75rem; }
-        
-        .about-header {
-            text-align: center;
-            margin-bottom: 3rem;
-        }
-        
-        .about-header h1 {
-            font-family: 'Poppins', sans-serif;
-            font-size: 2.5rem;
-            font-weight: 700;
-            color: var(--text);
-            margin-bottom: 0.5rem;
-        }
-        
-        .about-header p {
-            color: var(--text-secondary);
-            font-size: 1.125rem;
-        }
-        
-        .about-content {
-            background: var(--card);
-            border-radius: var(--radius-lg);
-            padding: 2.5rem;
-            box-shadow: var(--shadow-md);
-            line-height: 1.8;
-        }
-        
-        .about-content h2 {
-            font-family: 'Poppins', sans-serif;
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: var(--text);
-            margin-bottom: 1rem;
-            margin-top: 2rem;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-        
+        .about-header { text-align: center; margin-bottom: 3rem; }
+        .about-header h1 { font-family: 'Poppins', sans-serif; font-size: 2.5rem; font-weight: 700; color: var(--text); margin-bottom: 0.5rem; }
+        .about-header p { color: var(--text-secondary); font-size: 1.125rem; }
+        .about-content { background: var(--card); border-radius: var(--radius-lg); padding: 2.5rem; box-shadow: var(--shadow-md); line-height: 1.8; }
+        .about-content h2 { font-family: 'Poppins', sans-serif; font-size: 1.5rem; font-weight: 600; color: var(--text); margin-bottom: 1rem; margin-top: 2rem; display: flex; align-items: center; gap: 0.75rem; }
         .about-content h2:first-child { margin-top: 0; }
-        
-        .about-content p {
-            color: var(--text-secondary);
-            margin-bottom: 1.25rem;
-        }
-        
-        .social-links {
-            display: flex;
-            gap: 1rem;
-            margin-top: 2rem;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-        
-        .social-btn {
-            padding: 0.875rem 1.75rem;
-            border-radius: var(--radius);
-            text-decoration: none;
-            font-weight: 600;
-            transition: all 0.2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            min-height: 48px;
-        }
-        
-        .social-btn.linkedin {
-            background: #0A66C2;
-            color: white;
-        }
-        
-        .social-btn.linkedin:hover {
-            background: #004182;
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-md);
-        }
-        
-        .social-btn.chat {
-            background: var(--color-primary);
-            color: white;
-        }
-        
-        .social-btn.chat:hover {
-            background: var(--color-primary-hover);
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-md);
-        }
-        
-        .footer {
-            text-align: center;
-            padding: 2rem 1rem;
-            color: var(--text-muted);
-            font-size: 0.875rem;
-        }
-        
+        .about-content p { color: var(--text-secondary); margin-bottom: 1.25rem; }
+        .social-links { display: flex; gap: 1rem; margin-top: 2rem; flex-wrap: wrap; justify-content: center; }
+        .social-btn { padding: 0.875rem 1.75rem; border-radius: var(--radius); text-decoration: none; font-weight: 600; transition: all 0.2s; display: inline-flex; align-items: center; gap: 0.5rem; min-height: 48px; }
+        .social-btn.linkedin { background: #0A66C2; color: white; }
+        .social-btn.linkedin:hover { background: #004182; transform: translateY(-2px); box-shadow: var(--shadow-md); }
+        .social-btn.chat { background: var(--color-primary); color: white; }
+        .social-btn.chat:hover { background: var(--color-primary-hover); transform: translateY(-2px); box-shadow: var(--shadow-md); }
+        .footer { text-align: center; padding: 2rem 1rem; color: var(--text-muted); font-size: 0.875rem; }
+
         @media (max-width: 768px) {
             .about-container { padding: 2rem 1rem; }
             .about-header h1 { font-size: 2rem; }
@@ -143,31 +48,25 @@
 </head>
 <body>
     <div class="about-container">
-        <a href="./chat.html" class="back-link">
+        <a href="{% url 'assistant:chat_interface' %}" class="back-link">
             <i class="bi bi-arrow-left"></i>
             Back to Chat
         </a>
-        
+
         <div class="about-header">
             <h1>About the Creator</h1>
             <p>Meet the developer behind GigiAI</p>
         </div>
-        
+
         <div class="about-content">
-            <h2>
-                <span>👋</span>
-                Hi, I'm Wisdom Ekwugha
-            </h2>
+            <h2><span>👋</span> Hi, I'm Wisdom Ekwugha</h2>
             <p>
                 I'm a developer passionate about building AI tools that help small businesses scale their customer support. 
                 GigiAI was born from the idea that every business should have access to intelligent, 24/7 customer service — 
                 not just the big players.
             </p>
-            
-            <h2>
-                <span>💡</span>
-                Why GigiAI?
-            </h2>
+
+            <h2><span>💡</span> Why GigiAI?</h2>
             <p>
                 Traditional chatbots feel robotic and frustrating. I wanted to create something different: an AI assistant 
                 that's guided by prompts, speaks responses naturally, and actually helps customers get what they need without confusion.
@@ -175,47 +74,37 @@
             <p>
                 The goal is simple: make customer support accessible, intelligent, and available 24/7 for businesses of all sizes.
             </p>
-            
-            <h2>
-                <span>🔧</span>
-                What's Next?
-            </h2>
+
+            <h2><span>🔧</span> What's Next?</h2>
             <p>
                 This is just the beginning. I'm actively working on new features, improving the conversation flow, and 
                 exploring ways to make AI support even more helpful.
             </p>
-            
-            <h2>
-                <span>🤝</span>
-                Let's Connect
-            </h2>
+
+            <h2><span>🤝</span> Let's Connect</h2>
             <p>
                 I'm always open to connecting with fellow builders, designers, and entrepreneurs. Whether you have feedback, 
                 ideas, or just want to chat about AI and e-commerce, I'd love to hear from you!
             </p>
-            
+
             <div class="social-links">
-                <a href="https://www.linkedin.com/in/wisdom-ekwugha-2b2887217" 
-                   target="_blank" 
-                   rel="noopener noreferrer"
-                   class="social-btn linkedin">
+                <a href="https://www.linkedin.com/in/wisdom-ekwugha-2b2887217" target="_blank" rel="noopener noreferrer" class="social-btn linkedin">
                     <i class="bi bi-linkedin"></i>
                     Connect on LinkedIn
                 </a>
-                <a href="./chat.html" class="social-btn chat">
+                <a href="{% url 'assistant:chat_interface' %}" class="social-btn chat">
                     <i class="bi bi-chat-dots-fill"></i>
                     Try GigiAI
                 </a>
             </div>
         </div>
     </div>
-    
+
     <footer class="footer">
         <p>© 2024 Wisdom Ekwugha. Built with care.</p>
         <p style="margin-top: 0.5rem;">
-            <a href="./index.html" style="color: var(--color-primary); text-decoration: none;">Home</a> · 
-            <a href="./chat.html" style="color: var(--color-primary); text-decoration: none;">Chat</a> · 
-            <a href="./report.html" style="color: var(--color-primary); text-decoration: none;">Report Bug</a>
+            <a href="{% url 'assistant:home' %}" style="color: var(--color-primary); text-decoration: none;">Home</a> · 
+            <a href="{% url 'assistant:chat_interface' %}" style="color: var(--color-primary); text-decoration: none;">Chat</a>
         </p>
     </footer>
 </body>
