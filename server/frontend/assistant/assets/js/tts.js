@@ -1,23 +1,10 @@
-/**
- * GigiAI - Premium Text-to-Speech Module
- * Features: Voice selection, speed control, auto-play toggle
- * API: POST ${API_BASE}/assistant/api/tts/
- */
-
-// ============================================
-// TTS SETTINGS (Saved to localStorage)
-// ============================================
-
 const TTS_DEFAULTS = {
-    voice: 'alloy',         // Default voice
-    speed: 1.0,             // Default speed
-    autoPlay: false,        // Auto-play assistant messages
-    enabled: true           // Voice enabled/disabled
+    voice: 'alloy',
+    speed: 1.0,
+    autoPlay: false,
+    enabled: true
 };
 
-/**
- * Available Groq voices with descriptions
- */
 const AVAILABLE_VOICES = {
     'alloy': { name: 'Alloy', description: 'Neutral & balanced', gender: 'neutral' },
     'echo': { name: 'Echo', description: 'Male, clear', gender: 'male' },
@@ -27,9 +14,6 @@ const AVAILABLE_VOICES = {
     'shimmer': { name: 'Shimmer', description: 'Female, bright', gender: 'female' }
 };
 
-/**
- * Get current TTS settings
- */
 function getTTSSettings() {
     if (typeof loadFromStorage === 'function') {
         return {
@@ -42,9 +26,6 @@ function getTTSSettings() {
     return { ...TTS_DEFAULTS };
 }
 
-/**
- * Save TTS settings
- */
 function saveTTSSettings(settings) {
     if (typeof saveToStorage === 'function') {
         saveToStorage('tts_voice', settings.voice);
@@ -54,64 +35,42 @@ function saveTTSSettings(settings) {
     }
 }
 
-// ============================================
-// TTS PLAYBACK
-// ============================================
-
-/**
- * Play text-to-speech
- * @param {HTMLElement} button - Play button
- * @param {string} text - Text to speak
- * @param {string} messageId - Message ID for tracking
- */
 async function playTTS(button, text, messageId = null) {
-    // Stop any currently playing audio
-    if (AppState.currentAudio) {
-        stopTTS();
-    }
-    
-    // If clicking same button that's playing, just stop
+    if (AppState.currentAudio) stopTTS();
+
     if (button.classList.contains('playing')) {
         stopTTS();
         return;
     }
-    
+
     try {
         button.classList.add('playing');
         button.innerHTML = '<i class="bi bi-hourglass-split"></i>';
         button.setAttribute('aria-label', 'Loading audio...');
-        
-        // Get current settings
+
         const settings = getTTSSettings();
-        
-        // API call
+
         const response = await fetch(`${API_BASE}/assistant/api/tts/`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAPIHeaders(),
             body: JSON.stringify({
                 text: text,
-                voice: settings.voice,      // ✅ User-selected voice
-                speed: settings.speed,       // ✅ User-selected speed
+                voice: settings.voice,
+                speed: settings.speed,
                 use_cache: true
             })
         });
-        
-        if (!response.ok) {
-            throw new Error(`TTS API error: ${response.status}`);
-        }
-        
-        // Get audio blob
+
+        if (!response.ok) throw new Error(`TTS API error: ${response.status}`);
+
         const audioBlob = await response.blob();
         const audioUrl = URL.createObjectURL(audioBlob);
-        
-        // Create audio
+
         AppState.currentAudio = new Audio(audioUrl);
-        
-        // Update button
+
         button.innerHTML = '<i class="bi bi-pause-fill"></i>';
         button.setAttribute('aria-label', 'Pause audio');
-        
-        // Handle audio end
+
         AppState.currentAudio.onended = () => {
             resetTTSButton(button);
             AppState.currentAudio = null;
@@ -120,8 +79,7 @@ async function playTTS(button, text, messageId = null) {
                 trackEvent('tts_completed', { messageId, voice: settings.voice, speed: settings.speed });
             }
         };
-        
-        // Handle audio error
+
         AppState.currentAudio.onerror = () => {
             resetTTSButton(button);
             AppState.currentAudio = null;
@@ -133,8 +91,7 @@ async function playTTS(button, text, messageId = null) {
                 trackEvent('tts_error', { messageId });
             }
         };
-        
-        // Start playback
+
         await AppState.currentAudio.play();
         if (typeof trackEvent === 'function') {
             trackEvent('tts_played', { 
@@ -144,12 +101,11 @@ async function playTTS(button, text, messageId = null) {
                 speed: settings.speed
             });
         }
-        
+
     } catch (error) {
         console.error('[TTS] Error:', error);
         resetTTSButton(button);
-        
-        // Degrade gracefully
+
         if (typeof showToast === 'function') {
             showToast('Voice unavailable right now', 'error', 2000);
         }
@@ -159,49 +115,32 @@ async function playTTS(button, text, messageId = null) {
     }
 }
 
-/**
- * Stop currently playing TTS
- */
 function stopTTS() {
     if (AppState.currentAudio) {
         AppState.currentAudio.pause();
         AppState.currentAudio = null;
     }
-    
-    // Reset all TTS buttons
-    document.querySelectorAll('.btn-icon.playing').forEach(btn => {
-        resetTTSButton(btn);
-    });
+
+    document.querySelectorAll('.btn-icon.playing').forEach(btn => resetTTSButton(btn));
 }
 
-/**
- * Reset TTS button to default state
- * @param {HTMLElement} button - Button element
- */
 function resetTTSButton(button) {
     button.classList.remove('playing');
     button.innerHTML = '<i class="bi bi-play-fill"></i>';
     button.setAttribute('aria-label', 'Play audio');
 }
 
-// ============================================
-// VOICE TOGGLE
-// ============================================
-
-/**
- * Toggle voice on/off globally
- */
 function toggleVoice() {
     const settings = getTTSSettings();
     settings.enabled = !settings.enabled;
     AppState.voiceEnabled = settings.enabled;
     saveTTSSettings(settings);
-    
+
     const voiceBtn = document.getElementById('voiceToggle');
     if (voiceBtn) {
         const icon = voiceBtn.querySelector('i');
         const text = voiceBtn.querySelector('span');
-        
+
         if (settings.enabled) {
             icon.className = 'bi bi-volume-up-fill';
             if (text) text.textContent = 'Voice';
@@ -212,88 +151,55 @@ function toggleVoice() {
             voiceBtn.setAttribute('aria-label', 'Voice disabled. Click to enable');
         }
     }
-    
-    // Stop any playing audio when disabling
-    if (!settings.enabled) {
-        stopTTS();
-    }
-    
-    // Show feedback
+
+    if (!settings.enabled) stopTTS();
+
     if (typeof showToast === 'function') {
-        showToast(
-            settings.enabled ? 'Voice enabled' : 'Voice disabled',
-            'info',
-            2000
-        );
+        showToast(settings.enabled ? 'Voice enabled' : 'Voice disabled', 'info', 2000);
     }
-    
+
     if (typeof trackEvent === 'function') {
         trackEvent('voice_toggle', { enabled: settings.enabled });
     }
 }
 
-// ============================================
-// VOICE SETTINGS MODAL
-// ============================================
-
-/**
- * Show voice settings modal
- */
 function showVoiceSettings() {
-    // Create modal if doesn't exist
-    if (!document.getElementById('voiceSettingsModal')) {
-        createVoiceSettingsModal();
-    }
-    
-    // Update values from settings
+    if (!document.getElementById('voiceSettingsModal')) createVoiceSettingsModal();
+
     const settings = getTTSSettings();
-    
+
     const voiceSelect = document.getElementById('voiceSelect');
     const speedSlider = document.getElementById('speedSlider');
     const speedValue = document.getElementById('speedValue');
     const autoPlayToggle = document.getElementById('autoPlayToggle');
-    
+
     if (voiceSelect) voiceSelect.value = settings.voice;
     if (speedSlider) {
         speedSlider.value = settings.speed;
         if (speedValue) speedValue.textContent = `${settings.speed}x`;
     }
     if (autoPlayToggle) autoPlayToggle.checked = settings.autoPlay;
-    
-    // Show modal
+
     const modal = document.getElementById('voiceSettingsModal');
-    if (modal) {
-        modal.classList.add('visible');
-    }
-    
-    if (typeof trackEvent === 'function') {
-        trackEvent('voice_settings_opened');
-    }
+    if (modal) modal.classList.add('visible');
+
+    if (typeof trackEvent === 'function') trackEvent('voice_settings_opened');
 }
 
-/**
- * Hide voice settings modal
- */
 function hideVoiceSettings() {
     const modal = document.getElementById('voiceSettingsModal');
-    if (modal) {
-        modal.classList.remove('visible');
-    }
+    if (modal) modal.classList.remove('visible');
 }
 
-/**
- * Create voice settings modal
- */
 function createVoiceSettingsModal() {
     const settings = getTTSSettings();
-    
-    // Build voice options HTML
+
     const voiceOptionsHTML = Object.entries(AVAILABLE_VOICES).map(([key, voice]) => `
         <option value="${key}" ${settings.voice === key ? 'selected' : ''}>
             ${voice.name} — ${voice.description}
         </option>
     `).join('');
-    
+
     const html = `
         <div class="modal-overlay" id="voiceSettingsModal">
             <div class="modal-content voice-settings-modal">
@@ -308,7 +214,6 @@ function createVoiceSettingsModal() {
                 </div>
                 
                 <div class="modal-body">
-                    <!-- Voice Selection -->
                     <div class="settings-group">
                         <label for="voiceSelect">
                             <i class="bi bi-person-bounding-box"></i>
@@ -320,7 +225,6 @@ function createVoiceSettingsModal() {
                         <small class="settings-hint">Choose a voice that suits your preference</small>
                     </div>
                     
-                    <!-- Speed Control -->
                     <div class="settings-group">
                         <label for="speedSlider">
                             <i class="bi bi-speedometer2"></i>
@@ -340,7 +244,6 @@ function createVoiceSettingsModal() {
                         </div>
                     </div>
                     
-                    <!-- Auto-play Toggle -->
                     <div class="settings-group">
                         <label class="settings-toggle">
                             <input type="checkbox" 
@@ -356,7 +259,6 @@ function createVoiceSettingsModal() {
                         <small class="settings-hint">Automatically play audio for assistant messages</small>
                     </div>
                     
-                    <!-- Test Button -->
                     <button class="btn btn-secondary" onclick="testVoice()" style="width: 100%; margin-top: 1rem;">
                         <i class="bi bi-megaphone"></i>
                         Test Voice
@@ -375,149 +277,101 @@ function createVoiceSettingsModal() {
             </div>
         </div>
     `;
-    
+
     document.body.insertAdjacentHTML('beforeend', html);
-    
-    // Close on overlay click
+
     const modal = document.getElementById('voiceSettingsModal');
     modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            hideVoiceSettings();
-        }
+        if (e.target === modal) hideVoiceSettings();
     });
-    
-    // Close on Escape
+
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && modal.classList.contains('visible')) {
-            hideVoiceSettings();
-        }
+        if (e.key === 'Escape' && modal.classList.contains('visible')) hideVoiceSettings();
     });
 }
 
-/**
- * Update voice selection
- */
 function updateVoice(voice) {
     const settings = getTTSSettings();
     settings.voice = voice;
     saveTTSSettings(settings);
-    
-    if (typeof trackEvent === 'function') {
-        trackEvent('voice_changed', { voice });
-    }
+
+    if (typeof trackEvent === 'function') trackEvent('voice_changed', { voice });
 }
 
-/**
- * Update speed
- */
 function updateSpeed(speed) {
     const settings = getTTSSettings();
     settings.speed = parseFloat(speed);
     saveTTSSettings(settings);
-    
+
     const speedValue = document.getElementById('speedValue');
-    if (speedValue) {
-        speedValue.textContent = `${speed}x`;
-    }
-    
-    if (typeof trackEvent === 'function') {
-        trackEvent('speed_changed', { speed });
-    }
+    if (speedValue) speedValue.textContent = `${speed}x`;
+
+    if (typeof trackEvent === 'function') trackEvent('speed_changed', { speed });
 }
 
-/**
- * Update auto-play
- */
 function updateAutoPlay(enabled) {
     const settings = getTTSSettings();
     settings.autoPlay = enabled;
     saveTTSSettings(settings);
-    
+
     if (typeof showToast === 'function') {
-        showToast(
-            enabled ? 'Auto-play enabled' : 'Auto-play disabled',
-            'info',
-            2000
-        );
+        showToast(enabled ? 'Auto-play enabled' : 'Auto-play disabled', 'info', 2000);
     }
-    
-    if (typeof trackEvent === 'function') {
-        trackEvent('autoplay_changed', { enabled });
-    }
+
+    if (typeof trackEvent === 'function') trackEvent('autoplay_changed', { enabled });
 }
 
-/**
- * Reset to default settings
- */
 function resetVoiceSettings() {
     const confirmed = confirm('Reset voice settings to default?');
     if (!confirmed) return;
-    
+
     saveTTSSettings(TTS_DEFAULTS);
-    
-    // Update UI
+
     const voiceSelect = document.getElementById('voiceSelect');
     const speedSlider = document.getElementById('speedSlider');
     const speedValue = document.getElementById('speedValue');
     const autoPlayToggle = document.getElementById('autoPlayToggle');
-    
+
     if (voiceSelect) voiceSelect.value = TTS_DEFAULTS.voice;
     if (speedSlider) speedSlider.value = TTS_DEFAULTS.speed;
     if (speedValue) speedValue.textContent = `${TTS_DEFAULTS.speed}x`;
     if (autoPlayToggle) autoPlayToggle.checked = TTS_DEFAULTS.autoPlay;
-    
-    if (typeof showToast === 'function') {
-        showToast('Settings reset to default', 'success', 2000);
-    }
-    
-    if (typeof trackEvent === 'function') {
-        trackEvent('voice_settings_reset');
-    }
+
+    if (typeof showToast === 'function') showToast('Settings reset to default', 'success', 2000);
+
+    if (typeof trackEvent === 'function') trackEvent('voice_settings_reset');
 }
 
-/**
- * Test current voice settings
- */
 async function testVoice() {
     const settings = getTTSSettings();
     const voiceInfo = AVAILABLE_VOICES[settings.voice];
-    
+
     const testText = `Hello! I'm ${voiceInfo.name}. This is how I sound at ${settings.speed}x speed.`;
-    
-    // Create temporary button for playback
+
     const testBtn = document.createElement('button');
     testBtn.style.display = 'none';
     document.body.appendChild(testBtn);
-    
+
     try {
         await playTTS(testBtn, testText, 'test');
     } finally {
-        // Remove temp button after a delay
-        setTimeout(() => {
-            testBtn.remove();
-        }, 1000);
+        setTimeout(() => testBtn.remove(), 1000);
     }
-    
+
     if (typeof trackEvent === 'function') {
         trackEvent('voice_tested', { voice: settings.voice, speed: settings.speed });
     }
 }
 
-// ============================================
-// INITIALIZATION
-// ============================================
-
 function initTTS() {
-    // Load voice preference
     const settings = getTTSSettings();
     AppState.voiceEnabled = settings.enabled;
-    
-    // Update UI if button exists
+
     const voiceBtn = document.getElementById('voiceToggle');
     if (voiceBtn) {
         const icon = voiceBtn.querySelector('i');
         const text = voiceBtn.querySelector('span');
-        
+
         if (settings.enabled) {
             icon.className = 'bi bi-volume-up-fill';
             if (text) text.textContent = 'Voice';
@@ -526,23 +380,14 @@ function initTTS() {
             if (text) text.textContent = 'Muted';
         }
     }
-    
-    console.log('[TTS] Initialized. Voice:', settings.voice, 'Speed:', settings.speed, 'Auto-play:', settings.autoPlay);
+
+    console.log('[TTS] Init', settings.voice, settings.speed);
 }
 
-// ============================================
-// CLEANUP
-// ============================================
-
-window.addEventListener('beforeunload', () => {
-    stopTTS();
-});
+window.addEventListener('beforeunload', () => stopTTS());
 
 document.addEventListener('visibilitychange', () => {
-    if (document.hidden && AppState.currentAudio) {
-        stopTTS();
-    }
+    if (document.hidden && AppState.currentAudio) stopTTS();
 });
 
-// Auto-initialize
 document.addEventListener('DOMContentLoaded', initTTS);
