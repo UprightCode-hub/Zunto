@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Products - Zunto</title>
+    <style>
+        :root {
+            --black: #000000;
+            --white: #FFFFFF;
+            --gray-100: #F5F5F5;
+            --gray-200: #E0E0E0;
+            --gray-300: #BDBDBD;
+            --gray-500: #757575;
+            --gray-600: #616161;
+            --gray-800: #212121;
+            --space-4: 4px;
+            --space-8: 8px;
+            --space-16: 16px;
+            --space-24: 24px;
+            --space-32: 32px;
+            --space-48: 48px;
+            --border: 1px solid var(--gray-300);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--white);
+            color: var(--black);
+            line-height: 1.5;
+            font-size: 15px;
+        }
+        
+        .header {
+            border-bottom: var(--border);
+            background: var(--white);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .header-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: var(--space-16) var(--space-24);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .logo {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--black);
+            text-decoration: none;
+            letter-spacing: -0.02em;
+        }
+        
+        .nav {
+            display: flex;
+            gap: var(--space-32);
+        }
+        
+        .nav-link {
+            color: var(--gray-600);
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 150ms;
+        }
+        
+        .nav-link:hover {
+            color: var(--black);
+        }
+        
+        .nav-link.active {
+            color: var(--black);
+        }
+        
+        .btn {
+            border: var(--border);
+            background: var(--white);
+            color: var(--black);
+            padding: var(--space-8) var(--space-16);
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 150ms;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn:hover {
+            background: var(--gray-100);
+        }
+        
+        .btn-primary {
+            background: var(--black);
+            color: var(--white);
+            border-color: var(--black);
+        }
+        
+        .btn-primary:hover {
+            background: var(--gray-800);
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: var(--space-48) var(--space-24);
+        }
+        
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--space-48);
+        }
+        
+        h1 {
+            font-size: 28px;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+        }
+        
+        .products-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: var(--space-24);
+        }
+        
+        .product-card {
+            border: var(--border);
+            background: var(--white);
+            transition: border-color 150ms;
+        }
+        
+        .product-card:hover {
+            border-color: var(--black);
+        }
+        
+        .product-image {
+            width: 100%;
+            aspect-ratio: 1;
+            background: var(--gray-100);
+            border-bottom: var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        
+        .product-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .product-info {
+            padding: var(--space-16);
+        }
+        
+        .product-title {
+            font-size: 15px;
+            font-weight: 500;
+            margin-bottom: var(--space-4);
+        }
+        
+        .product-price {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: var(--space-8);
+        }
+        
+        .product-meta {
+            font-size: 13px;
+            color: var(--gray-600);
+            margin-bottom: var(--space-16);
+        }
+        
+        .product-status {
+            font-size: 13px;
+            padding: var(--space-4) var(--space-8);
+            border: var(--border);
+            display: inline-block;
+            margin-bottom: var(--space-16);
+        }
+        
+        .product-actions {
+            display: flex;
+            gap: var(--space-8);
+        }
+        
+        .product-actions .btn {
+            flex: 1;
+            text-align: center;
+            font-size: 13px;
+            padding: var(--space-4) var(--space-8);
+        }
+        
+        .empty {
+            text-align: center;
+            padding: var(--space-48);
+            color: var(--gray-600);
+        }
+        
+        .loading {
+            text-align: center;
+            padding: var(--space-48);
+            color: var(--gray-600);
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-container">
+            <a href="index.html" class="logo">Zunto</a>
+            
+            <nav class="nav">
+                <a href="index.html" class="nav-link">Products</a>
+                <a href="my-products.html" class="nav-link active">My Products</a>
+                <a href="seller-orders.html" class="nav-link">Seller Orders</a>
+                <a href="profile.html" class="nav-link">Profile</a>
+            </nav>
+            
+            <div>
+                <button class="btn" id="logoutBtn">Logout</button>
+            </div>
+        </div>
+    </header>
+    
+    <main class="container">
+        <div class="page-header">
+            <h1>My Products</h1>
+            <a href="create-product.html" class="btn btn-primary">Add Product</a>
+        </div>
+        
+        <div id="productsContainer">
+            <div class="loading">Loading products...</div>
+        </div>
+    </main>
+    
+    <script src="config.js"></script>
+    <script>
+        const productsContainer = document.getElementById('productsContainer');
+        const logoutBtn = document.getElementById('logoutBtn');
+        
+        logoutBtn.addEventListener('click', () => {
+            clearAuth();
+            window.location.href = 'login.html';
+        });
+        
+        async function loadProducts() {
+            try {
+                const response = await apiRequest(API_CONFIG.PRODUCTS.MY_PRODUCTS);
+                
+                if (!response.ok) throw new Error('Failed to load products');
+                
+                const products = await response.json();
+                renderProducts(products);
+            } catch (error) {
+                productsContainer.innerHTML = '<div class="loading">Failed to load products</div>';
+            }
+        }
+        
+        function renderProducts(products) {
+            if (!products || products.length === 0) {
+                productsContainer.innerHTML = `
+                    <div class="empty">
+                        No products yet
+                        <br><br>
+                        <a href="create-product.html" class="btn btn-primary">Add Your First Product</a>
+                    </div>
+                `;
+                return;
+            }
+            
+            productsContainer.innerHTML = `
+                <div class="products-grid">
+                    ${products.map(product => `
+                        <div class="product-card">
+                            <div class="product-image">
+                                ${product.primary_image 
+                                    ? `<img src="${product.primary_image}" alt="${product.title}">`
+                                    : '<div style="color: var(--gray-400)">No image</div>'
+                                }
+                            </div>
+                            <div class="product-info">
+                                <div class="product-title">${product.title}</div>
+                                <div class="product-price">₦${product.price.toLocaleString()}</div>
+                                <div class="product-meta">Views: ${product.views_count} | Favorites: ${product.favorites_count}</div>
+                                <div class="product-status">${product.status}</div>
+                                
+                                <div class="product-actions">
+                                    <a href="product-detail.html?slug=${product.slug}" class="btn">View</a>
+                                    <a href="edit-product.html?slug=${product.slug}" class="btn">Edit</a>
+                                    ${product.status === 'sold' 
+                                        ? `<button class="btn" onclick="reactivateProduct('${product.slug}')">Reactivate</button>`
+                                        : `<button class="btn" onclick="markAsSold('${product.slug}')">Mark Sold</button>`
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+        
+        async function markAsSold(slug) {
+            if (!confirm('Mark this product as sold?')) return;
+            
+            try {
+                const response = await apiRequest(`/api/market/products/${slug}/mark-sold/`, {
+                    method: 'POST'
+                });
+                
+                if (!response.ok) throw new Error('Failed to mark as sold');
+                
+                alert('Product marked as sold');
+                loadProducts();
+            } catch (error) {
+                alert('Failed to mark product as sold');
+            }
+        }
+        
+        async function reactivateProduct(slug) {
+            if (!confirm('Reactivate this product?')) return;
+            
+            try {
+                const response = await apiRequest(`/api/market/products/${slug}/reactivate/`, {
+                    method: 'POST'
+                });
+                
+                if (!response.ok) throw new Error('Failed to reactivate');
+                
+                alert('Product reactivated');
+                loadProducts();
+            } catch (error) {
+                alert('Failed to reactivate product');
+            }
+        }
+        
+        if (!isAuthenticated()) {
+            window.location.href = 'login.html';
+        } else {
+            loadProducts();
+        }
+    </script>
+</body>
+</html>

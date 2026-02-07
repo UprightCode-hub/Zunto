@@ -1,0 +1,5 @@
+{
+    "name": "Python 3.12.8 Codespace",
+      "image": "mcr.microsoft.com/devcontainers/python:0-3.12.8",
+        "postCreateCommand": "python3 -m venv venv && ./venv/bin/pip install --upgrade pip"
+        }
