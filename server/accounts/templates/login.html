@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Zunto</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-dark: #050d1b;
+            --primary-blue: #2c77d1;
+            --primary-purple: #9426f4;
+            --text-light: #ffffff;
+            --text-gray: #a0aec0;
+            --bg-dark: #0a1628;
+            --card-bg: #1a2332;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--bg-dark) 100%);
+            color: var(--text-light);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .auth-container {
+            width: 100%;
+            max-width: 450px;
+        }
+
+        .logo {
+            text-align: center;
+            font-size: 3rem;
+            font-weight: bold;
+            background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 2rem;
+            cursor: pointer;
+        }
+
+        .auth-card {
+            background: var(--card-bg);
+            padding: 3rem;
+            border-radius: 25px;
+            box-shadow: 0 10px 50px rgba(0, 0, 0, 0.5);
+        }
+
+        .auth-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .auth-header h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .auth-header p {
+            color: var(--text-gray);
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-gray);
+            font-size: 0.95rem;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 1rem;
+            background: var(--bg-dark);
+            border: 2px solid transparent;
+            border-radius: 12px;
+            color: var(--text-light);
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 20px rgba(44, 119, 209, 0.3);
+        }
+
+        .form-group select {
+            width: 100%;
+            padding: 1rem;
+            background: var(--bg-dark);
+            border: 2px solid transparent;
+            border-radius: 12px;
+            color: var(--text-light);
+            font-size: 1rem;
+            cursor: pointer;
+        }
+
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--primary-blue);
+        }
+
+        .password-field {
+            position: relative;
+        }
+
+        .toggle-password {
+            position: absolute;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--text-gray);
+            cursor: pointer;
+            font-size: 1.2rem;
+        }
+
+        .remember-forgot {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            font-size: 0.9rem;
+        }
+
+        .remember-me {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-gray);
+        }
+
+        .remember-me input {
+            width: auto;
+        }
+
+        .forgot-password {
+            color: var(--primary-blue);
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .forgot-password:hover {
+            color: var(--primary-purple);
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 1.25rem;
+            background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+            color: white;
+            border: none;
+            border-radius: 15px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(148, 38, 244, 0.5);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .divider {
+            text-align: center;
+            margin: 2rem 0;
+            color: var(--text-gray);
+            position: relative;
+        }
+
+        .divider::before,
+        .divider::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            width: 40%;
+            height: 1px;
+            background: var(--bg-dark);
+        }
+
+        .divider::before {
+            left: 0;
+        }
+
+        .divider::after {
+            right: 0;
+        }
+
+        .social-login {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .social-btn {
+            flex: 1;
+            padding: 1rem;
+            background: var(--bg-dark);
+            color: var(--text-light);
+            border: 2px solid transparent;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .social-btn:hover {
+            border-color: var(--primary-blue);
+        }
+
+        .switch-mode {
+            text-align: center;
+            color: var(--text-gray);
+            margin-top: 2rem;
+        }
+
+        .switch-mode a {
+            color: var(--primary-blue);
+            text-decoration: none;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .switch-mode a:hover {
+            color: var(--primary-purple);
+        }
+
+        .error-message {
+            background: rgba(239, 68, 68, 0.2);
+            border: 2px solid #ef4444;
+            color: #fca5a5;
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 1.5rem;
+            display: none;
+        }
+
+        .success-message {
+            background: rgba(16, 185, 129, 0.2);
+            border: 2px solid #10b981;
+            color: #6ee7b7;
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 1.5rem;
+            display: none;
+        }
+
+        /* Hide forms by default */
+        #registerForm {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .auth-card {
+                padding: 2rem;
+            }
+
+            .logo {
+                font-size: 2.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <div class="logo" onclick="window.location.href='/'">Zunto</div>
+
+        <div class="auth-card">
+            <!-- Error/Success Messages -->
+            <div class="error-message" id="errorMessage"></div>
+            <div class="success-message" id="successMessage"></div>
+
+            <!-- Login Form -->
+            <div id="loginForm">
+                <div class="auth-header">
+                    <h1>Welcome Back!</h1>
+                    <p>Login to your account</p>
+                </div>
+
+                <form onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label for="loginEmail">Email Address</label>
+                        <input type="email" id="loginEmail" required placeholder="your@email.com">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="loginPassword">Password</label>
+                        <div class="password-field">
+                            <input type="password" id="loginPassword" required placeholder="Enter your password">
+                            <button type="button" class="toggle-password" onclick="togglePassword('loginPassword')">
+                                👁️
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="remember-forgot">
+                        <label class="remember-me">
+                            <input type="checkbox" id="rememberMe">
+                            <span>Remember me</span>
+                        </label>
+                        <a href="#" class="forgot-password" onclick="showForgotPassword()">Forgot Password?</a>
+                    </div>
+
+                    <button type="submit" class="submit-btn">Login</button>
+                </form>
+
+                <div class="divider">or</div>
+
+                <div class="social-login">
+                    <button class="social-btn">
+                        <span>G</span> Google
+                    </button>
+                    <button class="social-btn">
+                        <span>f</span> Facebook
+                    </button>
+                </div>
+
+                <div class="switch-mode">
+                    Don't have an account? <a onclick="showRegister()">Sign up</a>
+                </div>
+            </div>
+
+            <!-- Register Form -->
+            <div id="registerForm">
+                <div class="auth-header">
+                    <h1>Create Account</h1>
+                    <p>Join Zunto today!</p>
+                </div>
+
+                <form onsubmit="handleRegister(event)">
+                    <div class="form-group">
+                        <label for="firstName">First Name</label>
+                        <input type="text" id="firstName" required placeholder="John">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="lastName">Last Name</label>
+                        <input type="text" id="lastName" required placeholder="Doe">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="registerEmail">Email Address</label>
+                        <input type="email" id="registerEmail" required placeholder="your@email.com">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="phone">Phone Number</label>
+                        <input type="tel" id="phone" placeholder="+234...">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="role">Account Type</label>
+                        <select id="role" required>
+                            <option value="buyer">Buyer</option>
+                            <option value="seller">Seller</option>
+                            <option value="service_provider">Service Provider</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="registerPassword">Password</label>
+                        <div class="password-field">
+                            <input type="password" id="registerPassword" required placeholder="Create a password">
+                            <button type="button" class="toggle-password" onclick="togglePassword('registerPassword')">
+                                👁️
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="confirmPassword">Confirm Password</label>
+                        <div class="password-field">
+                            <input type="password" id="confirmPassword" required placeholder="Confirm your password">
+                            <button type="button" class="toggle-password" onclick="togglePassword('confirmPassword')">
+                                👁️
+                            </button>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="submit-btn">Create Account</button>
+                </form>
+
+                <div class="divider">or</div>
+
+                <div class="social-login">
+                    <button class="social-btn">
+                        <span>G</span> Google
+                    </button>
+                    <button class="social-btn">
+                        <span>f</span> Facebook
+                    </button>
+                </div>
+
+                <div class="switch-mode">
+                    Already have an account? <a onclick="showLogin()">Login</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = '/api';
+
+        // Check for redirect parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        const redirectTo = urlParams.get('redirect');
+
+        // Toggle between login and register
+        function showRegister() {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('registerForm').style.display = 'block';
+            hideMessages();
+        }
+
+        function showLogin() {
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('registerForm').style.display = 'none';
+            hideMessages();
+        }
+
+        // Toggle password visibility
+        function togglePassword(inputId) {
+            const input = document.getElementById(inputId);
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
+
+        // Show/hide messages
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            document.getElementById('successMessage').style.display = 'none';
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.getElementById('successMessage');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+            document.getElementById('errorMessage').style.display = 'none';
+        }
+
+        function hideMessages() {
+            document.getElementById('errorMessage').style.display = 'none';
+            document.getElementById('successMessage').style.display = 'none';
+        }
+
+        // Handle Login
+        async function handleLogin(event) {
+            event.preventDefault();
+            hideMessages();
+
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/accounts/login/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Save tokens
+                    localStorage.setItem('authToken', data.access);
+                    localStorage.setItem('refreshToken', data.refresh);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+
+                    showSuccess('Login successful! Redirecting...');
+
+                    // Redirect
+                    setTimeout(() => {
+                        if (redirectTo === 'checkout') {
+                            window.location.href = '/checkout.html';
+                        } else {
+                            window.location.href = '/account.html';
+                        }
+                    }, 1000);
+                } else {
+                    showError(data.detail || 'Login failed. Please check your credentials.');
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                showError('An error occurred. Please try again.');
+            }
+        }
+
+        // Handle Register
+        async function handleRegister(event) {
+            event.preventDefault();
+            hideMessages();
+
+            const password = document.getElementById('registerPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+
+            if (password !== confirmPassword) {
+                showError('Passwords do not match!');
+                return;
+            }
+
+            const formData = {
+                email: document.getElementById('registerEmail').value,
+                password: password,
+                password_confirm: confirmPassword,
+                first_name: document.getElementById('firstName').value,
+                last_name: document.getElementById('lastName').value,
+                phone: document.getElementById('phone').value,
+                role: document.getElementById('role').value
+            };
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/accounts/register/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showSuccess('Account created successfully! Please check your email for verification.');
+                    
+                    // Switch to login form after 2 seconds
+                    setTimeout(() => {
+                        showLogin();
+                        document.getElementById('loginEmail').value = formData.email;
+                    }, 2000);
+                } else {
+                    const errorMsg = data.email?.[0] || data.phone?.[0] || data.password?.[0] || 'Registration failed. Please try again.';
+                    showError(errorMsg);
+                }
+            } catch (error) {
+                console.error('Registration error:', error);
+                showError('An error occurred. Please try again.');
+            }
+        }
+
+        // Forgot Password
+        function showForgotPassword() {
+            const email = prompt('Enter your email address:');
+            if (email) {
+                // TODO: Implement forgot password
+                fetch(`${API_BASE_URL}/accounts/password-reset/request/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    showSuccess('Password reset link sent to your email!');
+                })
+                .catch(error => {
+                    showError('Error sending reset link. Please try again.');
+                });
+            }
+        }
+    </script>
+</body>
+</html>

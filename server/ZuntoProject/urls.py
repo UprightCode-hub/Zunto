@@ -5,13 +5,21 @@ from django.conf.urls.static import static
 from django.http import JsonResponse
 from django.views.generic import RedirectView
 from core.views import health_check, assistant_view, marketplace_view
+from market.views import product_list_page, product_list
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    # path('/', views.product_list_page, name='product_list_page'),
+    path('', product_list_page, name='product_list_page'),
+    path('product_list/', product_list, name='product_list'),
+    # path('', ProductListCreateView, name='ProductListCreateView'),
+    # path('', ProductTemplateView.as_view(), nayyme='ProductTemplateView'),
+    # path('', ProductListCreateView.as_view(), name='ProductListCreateView'),
     path('health/', health_check, name='health_check'),
- 
+    path('market/', include('market.urls')),
+    
     # Root redirect to marketplace
-    path('', RedirectView.as_view(url='/marketplace/products/', permanent=False)),
+    # path('', RedirectView.as_view(url='/Zunto/server/market/templates/products.html/', permanent=False)),
     
     # Frontend: Assistant AI
     # path('assistant/', assistant_view, {'page': 'index'}, name='assistant_home'),  # Temporarily disabled
@@ -41,6 +49,10 @@ urlpatterns = [
     path('api/notifications/', include('notifications.urls')),
     # path('assistant/', include('assistant.urls')),  # Temporarily disabled
     path('chat/', include('chat.urls')),
+
+    #market
+    path('market/', include('market.urls')),
+
 ]
 
 if settings.DEBUG:

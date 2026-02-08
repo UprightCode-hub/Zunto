@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seller Orders - Zunto</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root { --primary-dark: #050d1b; --primary-blue: #2c77d1; --primary-purple: #9426f4; --text-light: #fff; --text-gray: #a0aec0; --bg-dark: #0a1628; --card-bg: #1a2332; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--primary-dark); color: var(--text-light); }
+        header { background: linear-gradient(135deg, var(--primary-dark), var(--bg-dark)); padding: 1rem 0; box-shadow: 0 4px 20px rgba(148, 38, 244, 0.2); }
+        nav { max-width: 1400px; margin: 0 auto; padding: 0 2rem; display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 2rem; font-weight: bold; background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; cursor: pointer; }
+        .container { max-width: 1400px; margin: 2rem auto; padding: 0 2rem; }
+        .page-title { font-size: 2.5rem; background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 2rem; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+        .stat-card { background: var(--card-bg); padding: 1.5rem; border-radius: 15px; }
+        .stat-value { font-size: 2rem; font-weight: bold; color: var(--primary-blue); }
+        .stat-label { color: var(--text-gray); margin-top: 0.5rem; }
+        .order-card { background: var(--card-bg); padding: 1.5rem; border-radius: 15px; margin-bottom: 1rem; }
+        .order-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 2px solid var(--bg-dark); }
+        .order-number { color: var(--primary-blue); font-weight: 600; }
+        .status-badge { padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.9rem; font-weight: 600; text-transform: uppercase; }
+        .status-pending { background: rgba(251, 191, 36, 0.2); color: #fbbf24; border: 2px solid #fbbf24; }
+        .status-processing { background: rgba(59, 130, 246, 0.2); color: #3b82f6; border: 2px solid #3b82f6; }
+        .status-shipped { background: rgba(139, 92, 246, 0.2); color: #8b5cf6; border: 2px solid #8b5cf6; }
+        .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; transition: all 0.3s; }
+        .btn-primary { background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple)); color: white; }
+    </style>
+</head>
+<body>
+    <header><nav><div class="logo" onclick="window.location.href='/'">Zunto</div></nav></header>
+    <div class="container">
+        <h1 class="page-title">Seller Orders Dashboard</h1>
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-value" id="totalOrders">0</div><div class="stat-label">Total Orders</div></div>
+            <div class="stat-card"><div class="stat-value" id="pendingOrders">0</div><div class="stat-label">Pending</div></div>
+            <div class="stat-card"><div class="stat-value" id="totalRevenue">₦0</div><div class="stat-label">Total Revenue</div></div>
+        </div>
+        <div id="ordersList"></div>
+    </div>
+    <script>
+        const API_BASE_URL = '/api';
+        document.addEventListener('DOMContentLoaded', loadSellerOrders);
+        
+        async function loadSellerOrders() {
+            try {
+                const token = localStorage.getItem('authToken');
+                const res = await fetch(`${API_BASE_URL}/orders/seller/orders/`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const orders = await res.json();
+                const data = Array.isArray(orders) ? orders : (orders.results || []);
+                
+                document.getElementById('totalOrders').textContent = data.length;
+                document.getElementById('pendingOrders').textContent = data.filter(o => o.status === 'pending').length;
+                
+                const revenue = data.reduce((sum, o) => sum + parseFloat(o.total_amount || 0), 0);
+                document.getElementById('totalRevenue').textContent = '₦' + revenue.toLocaleString();
+                
+                document.getElementById('ordersList').innerHTML = data.map(o => `
+                    <div class="order-card">
+                        <div class="order-header">
+                            <span class="order-number">#${o.order_number}</span>
+                            <span class="status-badge status-${o.status}">${o.status}</span>
+                        </div>
+                        <p>Customer: ${o.customer_name}</p>
+                        <p>Amount: ₦${parseFloat(o.total_amount).toLocaleString()}</p>
+                        <p>Date: ${new Date(o.created_at).toLocaleDateString()}</p>
+                        <button class="btn btn-primary" onclick="window.location.href='/order-detail.html?order=${o.order_number}'">View Details</button>
+                    </div>
+                `).join('');
+            } catch (e) {
+                console.error(e);
+            }
+        }
+    </script>
+</body>
+</html>

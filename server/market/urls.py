@@ -17,9 +17,9 @@ from .views import (
     ProductStatsView,
     mark_as_sold,
     reactivate_product,
+    product_list,
 )
 
-app_name = 'market'
 
 urlpatterns = [
     # Categories & Locations
@@ -28,6 +28,7 @@ urlpatterns = [
     
     # Products
     path('products/', ProductListCreateView.as_view(), name='product_list_create'),
+    path('product_list/', product_list, name='product_list'),
     path('products/my-products/', MyProductsView.as_view(), name='my_products'),
     path('products/featured/', FeaturedProductsView.as_view(), name='featured_products'),
     path('products/boosted/', BoostedProductsView.as_view(), name='boosted_products'),
@@ -49,3 +50,4 @@ urlpatterns = [
     # Reports
     path('products/<slug:product_slug>/report/', ProductReportCreateView.as_view(), name='product_report'),
 ]
+# path('products/', ProductListCreateView.as_view(), name='product_list_create'),

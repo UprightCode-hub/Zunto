@@ -18,7 +18,7 @@ from .views import (
 app_name = 'accounts'
 
 urlpatterns = [
-    path('', Home, name='Home'),
+    # path('', Home, name='Home'),
     
     # HTML Pages (for browser navigation)
     path('login-page/', LoginPageView.as_view(), name='login_page'),
