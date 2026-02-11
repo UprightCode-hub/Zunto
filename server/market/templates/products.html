@@ -769,7 +769,7 @@
                 <li><a href="{% url 'product_list_page' %}">Home</a></li>
                 <li><a href="{% url 'product_list' %}" class="active">Products</a></li>
                 <li><a href="{% url 'category_list' %}">Categories</a></li>
-                <li><a href="{% url 'deals' %}">Deals</a></li>
+                <li><a href="#">Deals</a></li>
             </ul>
 
             <div class="search-bar">
@@ -781,11 +781,11 @@
                 <button class="icon-btn" onclick="window.location.href='{% url 'favorite_list' %}'">
                     ❤️
                 </button>
-                <button class="icon-btn" onclick="window.location.href='{% url 'cart' %}'">
+                <button class="icon-btn" onclick="window.location.href='#'>
                     🛒
                     <span class="cart-badge" id="cartCount">0</span>
                 </button>
-                <button class="icon-btn" onclick="toggleUserMenu()">
+                <button class="icon-btn" href="{% url 'login_page' %}" onclick="toggleUserMenu()">
                     👤
                 </button>
             </div>
@@ -795,7 +795,7 @@
     <div class="container">
         <!-- Breadcrumb -->
         <div class="breadcrumb">
-            <a href="{% url 'home' %}">Home</a> / <span id="breadcrumbText">Products</span>
+            <a href="{% url 'product_list_page' %}">Home</a> / <span id="breadcrumbText">Products</span>
         </div>
 
         <!-- Page Header -->
@@ -1538,3 +1538,4 @@
     </script>
 </body>
 </html>
+

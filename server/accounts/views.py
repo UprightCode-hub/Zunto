@@ -320,8 +320,9 @@ class LoginPageView(View):
     """Render the login HTML page"""
 
     def get(self, request):
-        return render(request, 'marketplace/auth/login.html')
-
+        return render(request, '\templates\login.html')
+       
+# 'marketplace/auth/login.html'
 
 class RegisterPageView(View):
     """Render the registration HTML page"""

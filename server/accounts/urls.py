@@ -21,7 +21,7 @@ urlpatterns = [
     # path('', Home, name='Home'),
     
     # HTML Pages (for browser navigation)
-    path('login-page/', LoginPageView.as_view(), name='login_page'),
+    path('login_page/', LoginPageView.as_view(), name='login_page'),
     path('register-page/', RegisterPageView.as_view(), name='register_page'),
     
     # API Authentication Endpoints (for AJAX/API calls)

@@ -65,7 +65,7 @@ INSTALLED_APPS = [
     'orders',
     'notifications',
     'chat',
-    # 'assistant',  # Temporarily disabled - missing dependencies
+    'assistant',  
 ]
 
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"

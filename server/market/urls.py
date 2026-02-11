@@ -51,3 +51,7 @@ urlpatterns = [
     path('products/<slug:product_slug>/report/', ProductReportCreateView.as_view(), name='product_report'),
 ]
 # path('products/', ProductListCreateView.as_view(), name='product_list_create'),
+
+#  {% url 'deals' %}
+#  {% url 'cart' %}'
+#  {% url 'home' %}
