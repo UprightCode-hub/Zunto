@@ -47,6 +47,7 @@ class LocationListView(generics.ListAPIView):
 class ProductListCreateView(generics.ListCreateAPIView):
     """List and create products"""
     
+    template_name = 'products.html'
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     # filterset_class = ProductFilter
@@ -150,6 +151,7 @@ class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
 class MyProductsView(generics.ListAPIView):
     """List current user's products"""
     
+    template_name = 'product-detail.html'
     serializer_class = ProductListSerializer
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [filters.OrderingFilter]

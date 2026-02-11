@@ -44,22 +44,27 @@ class UserRegistrationView(generics.CreateAPIView):
         # Generate verification code
         code = self.generate_verification_code(user, 'email')
 
-        # ❌ Remove synchronous email sending
-        # EmailService.send_verification_email(user, code)
-        # EmailService.send_welcome_email(user)
-
-        # ✅ Send emails only through Celery async tasks
+        # Send emails through Celery async tasks
         send_verification_email_task.delay(str(user.id), code)
         send_welcome_email_task.delay(str(user.id))
 
+        # ✅ Generate JWT tokens
+        refresh = RefreshToken.for_user(user)
+
+        # ✅ Return same user data structure as login (CustomTokenObtainPairSerializer)
         return Response({
-            'message': 'Registration successful. Please check your email for verification code.',
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
             'user': {
                 'id': str(user.id),
                 'email': user.email,
                 'first_name': user.first_name,
                 'last_name': user.last_name,
-            }
+                'role': user.role,
+                'is_verified': user.is_verified,
+                'profile_picture': user.profile_picture.url if user.profile_picture else None,
+            },
+            'message': 'Registration successful. Please check your email for verification code.'
         }, status=status.HTTP_201_CREATED)
 
     def generate_verification_code(self, user, code_type):

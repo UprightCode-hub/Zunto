@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="pageTitle">Product Details - Zunto</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-dark: #050d1b;
+            --primary-blue: #2c77d1;
+            --primary-purple: #9426f4;
+            --text-light: #ffffff;
+            --text-gray: #a0aec0;
+            --bg-dark: #0a1628;
+            --card-bg: #1a2332;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--primary-dark);
+            color: var(--text-light);
+            line-height: 1.6;
+        }
+
+        /* Header */
+        header {
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--bg-dark) 100%);
+            padding: 1rem 0;
+            box-shadow: 0 4px 20px rgba(148, 38, 244, 0.2);
+        }
+
+        nav {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 2rem;
+            font-weight: bold;
+            background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            cursor: pointer;
+        }
+
+        /* Container */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Breadcrumb */
+        .breadcrumb {
+            color: var(--text-gray);
+            margin-bottom: 2rem;
+        }
+
+        .breadcrumb a {
+            color: var(--primary-blue);
+            text-decoration: none;
+        }
+
+        /* Product Detail Layout */
+        .product-detail {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3rem;
+            margin-bottom: 3rem;
+        }
+
+        /* Image Gallery */
+        .image-gallery {
+            position: sticky;
+            top: 2rem;
+            height: fit-content;
+        }
+
+        .main-image {
+            width: 100%;
+            height: 500px;
+            border-radius: 20px;
+            object-fit: cover;
+            background: var(--card-bg);
+            margin-bottom: 1rem;
+        }
+
+        .thumbnail-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 1rem;
+        }
+
+        .thumbnail {
+            width: 100%;
+            height: 100px;
+            border-radius: 10px;
+            object-fit: cover;
+            cursor: pointer;
+            border: 3px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .thumbnail:hover,
+        .thumbnail.active {
+            border-color: var(--primary-blue);
+        }
+
+        /* Product Info */
+        .product-info {
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: 20px;
+        }
+
+        .product-title {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .product-price {
+            font-size: 3rem;
+            font-weight: bold;
+            color: var(--primary-blue);
+            margin-bottom: 1rem;
+        }
+
+        .product-meta {
+            display: flex;
+            gap: 2rem;
+            color: var(--text-gray);
+            margin-bottom: 2rem;
+            padding-bottom: 2rem;
+            border-bottom: 2px solid var(--bg-dark);
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .product-description {
+            margin-bottom: 2rem;
+            line-height: 1.8;
+        }
+
+        .product-specs {
+            background: var(--bg-dark);
+            padding: 1.5rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+        }
+
+        .spec-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--card-bg);
+        }
+
+        .spec-row:last-child {
+            border-bottom: none;
+        }
+
+        .spec-label {
+            color: var(--text-gray);
+        }
+
+        .spec-value {
+            font-weight: 600;
+        }
+
+        .action-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .btn {
+            padding: 1rem;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+            color: white;
+            grid-column: 1/-1;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(148, 38, 244, 0.4);
+        }
+
+        .btn-secondary {
+            background: var(--bg-dark);
+            color: var(--text-light);
+            border: 2px solid var(--primary-blue);
+        }
+
+        .btn-secondary:hover {
+            background: var(--primary-blue);
+        }
+
+        /* Seller Info */
+        .seller-info {
+            background: var(--bg-dark);
+            padding: 1.5rem;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .seller-avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: var(--primary-blue);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+
+        .seller-details {
+            flex: 1;
+        }
+
+        .seller-name {
+            font-weight: 600;
+            font-size: 1.1rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .seller-rating {
+            color: #fbbf24;
+        }
+
+        /* Similar Products */
+        .similar-products {
+            margin-top: 3rem;
+        }
+
+        .section-title {
+            font-size: 2rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .similar-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .similar-card {
+            background: var(--card-bg);
+            border-radius: 15px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .similar-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 10px 30px rgba(44, 119, 209, 0.3);
+        }
+
+        .similar-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+
+        .similar-info {
+            padding: 1rem;
+        }
+
+        .similar-title {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .similar-price {
+            color: var(--primary-blue);
+            font-weight: bold;
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 3rem;
+        }
+
+        .spinner {
+            border: 4px solid var(--card-bg);
+            border-top: 4px solid var(--primary-blue);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .product-detail {
+                grid-template-columns: 1fr;
+            }
+
+            .image-gallery {
+                position: static;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .action-buttons {
+                grid-template-columns: 1fr;
+            }
+
+            .product-title {
+                font-size: 2rem;
+            }
+
+            .product-price {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <nav>
+            <div class="logo" onclick="window.location.href='/'">Zunto</div>
+        </nav>
+    </header>
+
+    <div class="container">
+        <!-- Breadcrumb -->
+        <div class="breadcrumb" id="breadcrumb">
+            <a href="/">Home</a> / <a href="/products/">Products</a> / <span id="breadcrumbProduct">Loading...</span>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loadingState" class="loading">
+            <div class="spinner"></div>
+            <p>Loading product details...</p>
+        </div>
+
+        <!-- Product Detail (Hidden until loaded) -->
+        <div id="productDetail" style="display: none;">
+            <div class="product-detail">
+                <!-- Image Gallery -->
+                <div class="image-gallery">
+                    <img id="mainImage" src="" alt="" class="main-image">
+                    <div class="thumbnail-list" id="thumbnailList">
+                        <!-- Thumbnails loaded dynamically -->
+                    </div>
+                </div>
+
+                <!-- Product Info -->
+                <div class="product-info">
+                    <h1 class="product-title" id="productTitle"></h1>
+                    
+                    <div class="product-price" id="productPrice"></div>
+                    
+                    <div class="product-meta">
+                        <span class="meta-item">
+                            <span>📁</span>
+                            <span id="productCategory"></span>
+                        </span>
+                        <span class="meta-item">
+                            <span>📍</span>
+                            <span id="productLocation"></span>
+                        </span>
+                        <span class="meta-item">
+                            <span>👁️</span>
+                            <span id="productViews"></span>
+                        </span>
+                        <span class="meta-item">
+                            <span>❤️</span>
+                            <span id="productFavorites"></span>
+                        </span>
+                    </div>
+
+                    <div class="product-description" id="productDescription"></div>
+
+                    <div class="product-specs" id="productSpecs">
+                        <!-- Specs loaded dynamically -->
+                    </div>
+
+                    <div class="action-buttons">
+                        <button class="btn btn-primary" id="contactSellerBtn">
+                            📞 Contact Seller
+                        </button>
+                        <button class="btn btn-secondary" id="favoriteBtn">
+                            ❤️ Add to Favorites
+                        </button>
+                        <button class="btn btn-secondary" id="shareBtn">
+                            🔗 Share
+                        </button>
+                    </div>
+
+                    <div class="seller-info" id="sellerInfo">
+                        <!-- Seller info loaded dynamically -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Similar Products -->
+            <div class="similar-products">
+                <h2 class="section-title">Similar Products</h2>
+                <div class="similar-grid" id="similarProducts">
+                    <!-- Similar products loaded dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = '/api';
+        let currentProduct = null;
+
+        // Get product slug from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const productSlug = urlParams.get('slug') || window.location.pathname.split('/').filter(Boolean).pop();
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (productSlug) {
+                await loadProduct(productSlug);
+                await loadSimilarProducts(productSlug);
+            }
+        });
+
+        // Load product
+        async function loadProduct(slug) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/market/products/${slug}/`);
+                if (!response.ok) throw new Error('Product not found');
+
+                const product = await response.json();
+                currentProduct = product;
+                renderProduct(product);
+            } catch (error) {
+                console.error('Error loading product:', error);
+                document.getElementById('loadingState').innerHTML = `
+                    <div class="empty-state">
+                        <h2>Product Not Found</h2>
+                        <p>The product you're looking for doesn't exist or has been removed.</p>
+                        <a href="/products/" class="btn btn-primary">Browse Products</a>
+                    </div>
+                `;
+            }
+        }
+
+        // Render product
+        function renderProduct(product) {
+            // Hide loading, show product
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('productDetail').style.display = 'block';
+
+            // Update page title
+            document.getElementById('pageTitle').textContent = `${product.title} - Zunto`;
+            document.getElementById('breadcrumbProduct').textContent = product.title;
+
+            // Product info
+            document.getElementById('productTitle').textContent = product.title;
+            document.getElementById('productPrice').innerHTML = `
+                ₦${parseFloat(product.price).toLocaleString()}
+                ${product.negotiable ? '<span style="font-size: 0.4em; color: var(--text-gray);">💬 Negotiable</span>' : ''}
+            `;
+            document.getElementById('productCategory').textContent = product.category_name || 'Uncategorized';
+            document.getElementById('productLocation').textContent = product.location_display || 'Location not specified';
+            document.getElementById('productViews').textContent = `${product.views_count || 0} views`;
+            document.getElementById('productFavorites').textContent = `${product.favorites_count || 0} favorites`;
+            document.getElementById('productDescription').textContent = product.description || 'No description available.';
+
+            // Images
+            const images = product.images || [];
+            const mainImage = images.length > 0 ? images[0].image : 'https://via.placeholder.com/500/1a2332/ffffff?text=No+Image';
+            document.getElementById('mainImage').src = mainImage;
+            document.getElementById('mainImage').alt = product.title;
+
+            // Thumbnails
+            const thumbnailList = document.getElementById('thumbnailList');
+            thumbnailList.innerHTML = '';
+            images.forEach((img, index) => {
+                const thumb = document.createElement('img');
+                thumb.src = img.image;
+                thumb.alt = `${product.title} ${index + 1}`;
+                thumb.className = `thumbnail ${index === 0 ? 'active' : ''}`;
+                thumb.onclick = () => {
+                    document.getElementById('mainImage').src = img.image;
+                    document.querySelectorAll('.thumbnail').forEach(t => t.classList.remove('active'));
+                    thumb.classList.add('active');
+                };
+                thumbnailList.appendChild(thumb);
+            });
+
+            // Specs
+            const specsContainer = document.getElementById('productSpecs');
+            specsContainer.innerHTML = '<h3 style="margin-bottom: 1rem;">Product Details</h3>';
+            
+            const specs = [
+                { label: 'Condition', value: product.condition },
+                { label: 'Brand', value: product.brand || 'N/A' },
+                { label: 'Quantity', value: product.quantity },
+                { label: 'Listed', value: new Date(product.created_at).toLocaleDateString() }
+            ];
+
+            specs.forEach(spec => {
+                const row = document.createElement('div');
+                row.className = 'spec-row';
+                row.innerHTML = `
+                    <span class="spec-label">${spec.label}</span>
+                    <span class="spec-value">${spec.value}</span>
+                `;
+                specsContainer.appendChild(row);
+            });
+
+            // Seller info
+            const sellerInfo = document.getElementById('sellerInfo');
+            sellerInfo.innerHTML = `
+                <div class="seller-avatar">
+                    ${product.seller_name ? product.seller_name.charAt(0).toUpperCase() : '?'}
+                </div>
+                <div class="seller-details">
+                    <div class="seller-name">${product.seller_name || 'Unknown Seller'}</div>
+                    <div class="seller-rating">⭐⭐⭐⭐⭐ (${product.seller_rating || 0} reviews)</div>
+                </div>
+            `;
+
+            // Event listeners
+            document.getElementById('contactSellerBtn').onclick = () => {
+                alert(`Contact seller: ${product.seller_phone || 'No phone available'}`);
+            };
+
+            document.getElementById('favoriteBtn').onclick = () => toggleFavorite(product.slug);
+            document.getElementById('shareBtn').onclick = () => shareProduct(product);
+        }
+
+        // Load similar products
+        async function loadSimilarProducts(slug) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/market/products/${slug}/similar/`);
+                const products = await response.json();
+                
+                const grid = document.getElementById('similarProducts');
+                grid.innerHTML = '';
+                
+                products.slice(0, 4).forEach(product => {
+                    const card = document.createElement('div');
+                    card.className = 'similar-card';
+                    card.onclick = () => window.location.href = `/products/${product.slug}/`;
+                    
+                    card.innerHTML = `
+                        <img src="${product.primary_image || 'https://via.placeholder.com/250x200'}" 
+                             alt="${product.title}" class="similar-image">
+                        <div class="similar-info">
+                            <div class="similar-title">${product.title}</div>
+                            <div class="similar-price">₦${parseFloat(product.price).toLocaleString()}</div>
+                        </div>
+                    `;
+                    
+                    grid.appendChild(card);
+                });
+            } catch (error) {
+                console.error('Error loading similar products:', error);
+            }
+        }
+
+        // Toggle favorite
+        async function toggleFavorite(slug) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/market/products/${slug}/favorite/`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+                    }
+                });
+
+                const data = await response.json();
+                alert(data.message);
+                loadProduct(slug);
+            } catch (error) {
+                console.error('Error toggling favorite:', error);
+                alert('Please login to add favorites');
+            }
+        }
+
+        // Share product
+        function shareProduct(product) {
+            if (navigator.share) {
+                navigator.share({
+                    title: product.title,
+                    text: product.description,
+                    url: window.location.href
+                });
+            } else {
+                navigator.clipboard.writeText(window.location.href);
+                alert('Link copied to clipboard!');
+            }
+        }
+    </script>
+</body>
+</html>
