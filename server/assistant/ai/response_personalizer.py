@@ -1,6 +1,5 @@
-"""
-Response Personalizer - Adapts tone, formality, and content based on user context and emotion.
-"""
+# assistant/ai/response_personalizer.py
+
 import logging
 import random
 from datetime import datetime
@@ -11,10 +10,6 @@ logger = logging.getLogger(__name__)
 
 
 class ResponsePersonalizer:
-    """
-    Premium response personalization engine.
-    Transforms generic responses into contextually appropriate, emotionally intelligent replies.
-    """
 
     HIGH_CONFIDENCE_TEMPLATES = [
         "{greeting} {content}",
@@ -115,20 +110,21 @@ class ResponsePersonalizer:
         add_emoji: bool = True,
         formality: str = 'balanced'
     ) -> str:
-        """
-        Transform a base response into a personalized, contextually appropriate reply.
         
-        Args:
-            base_response: Raw response text
-            confidence: Confidence score (0-1) from RAG/query processor
-            emotion: Detected emotion (frustrated, happy, confused, etc.)
-            add_greeting: Whether to add contextual greeting
-            add_emoji: Whether to add appropriate emojis
-            formality: Desired formality level
+        formatting_analysis = self._analyze_formatting(base_response)
         
-        Returns:
-            Personalized response string
-        """
+        if formatting_analysis['is_fully_formatted']:
+            logger.debug("Response already fully formatted, skipping personalization")
+            return base_response
+        
+        if formatting_analysis['is_partially_formatted']:
+            logger.debug("Response partially formatted, applying minimal personalization")
+            return self._apply_minimal_personalization(
+                base_response, 
+                emotion, 
+                formatting_analysis
+            )
+
         emotion_mod = self.EMOTION_MODIFIERS.get(emotion, self.EMOTION_MODIFIERS['neutral'])
 
         greeting = self._build_greeting(add_greeting, formality) if add_greeting else ""
@@ -167,6 +163,71 @@ class ResponsePersonalizer:
 
         return response
 
+    def _analyze_formatting(self, text: str) -> Dict:
+        analysis = {
+            'is_fully_formatted': False,
+            'is_partially_formatted': False,
+            'has_greeting': False,
+            'has_emoji': False,
+            'has_markdown': False,
+            'has_closing': False,
+            'emoji_count': 0,
+            'greeting_position': None
+        }
+
+        first_50 = text[:50].lower()
+        greetings = ['hi ', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening']
+        analysis['has_greeting'] = any(g in first_50 for g in greetings)
+        if analysis['has_greeting']:
+            for i, g in enumerate(greetings):
+                if g in first_50:
+                    analysis['greeting_position'] = first_50.index(g)
+                    break
+
+        emoji_chars = [c for c in text if ord(c) > 0x1F300]
+        analysis['emoji_count'] = len(emoji_chars)
+        analysis['has_emoji'] = analysis['emoji_count'] > 0
+
+        analysis['has_markdown'] = ('**' in text or '##' in text or '###' in text)
+
+        last_50 = text[-50:].lower()
+        closings = ['hope this helps', 'let me know', 'feel free', 'happy to help', 'glad i could']
+        analysis['has_closing'] = any(c in last_50 for c in closings)
+
+        formatted_count = sum([
+            analysis['has_greeting'],
+            analysis['has_emoji'],
+            analysis['has_closing']
+        ])
+
+        if formatted_count >= 2:
+            analysis['is_fully_formatted'] = True
+        elif formatted_count == 1:
+            analysis['is_partially_formatted'] = True
+
+        return analysis
+
+    def _apply_minimal_personalization(
+        self, 
+        base_response: str, 
+        emotion: str, 
+        formatting_analysis: Dict
+    ) -> str:
+        
+        emotion_mod = self.EMOTION_MODIFIERS.get(emotion, self.EMOTION_MODIFIERS['neutral'])
+        
+        if emotion in ['frustrated', 'angry', 'urgent'] and emotion_mod['prefix']:
+            prefix = random.choice(emotion_mod['prefix'])
+            if not formatting_analysis['has_greeting']:
+                return f"{prefix} {base_response}"
+
+        if not formatting_analysis['has_emoji'] and formatting_analysis['emoji_count'] == 0:
+            if emotion == 'happy':
+                emoji = random.choice(self.EMOJIS['positive'])
+                return f"{base_response} {emoji}"
+
+        return base_response
+
     def _build_greeting(self, add_greeting: bool, formality: str) -> str:
         if not add_greeting:
             return ""
@@ -192,11 +253,6 @@ class ResponsePersonalizer:
         return f"{base_greeting}!"
 
     def _adjust_content_tone(self, content: str, tone: str, formality: str) -> str:
-        """
-        Adjust content tone based on emotion and formality.
-        
-        Tones: empathetic, professional, educational, enthusiastic, balanced, direct
-        """
         content = content.replace('!!', '!').replace('..', '.')
 
         if formality == 'formal':
@@ -299,16 +355,6 @@ class ResponsePersonalizer:
         return random.choice(closings)
 
     def personalize_menu(self, base_menu: str, user_traits: Dict) -> str:
-        """
-        Personalize menu display based on user traits.
-        
-        Args:
-            base_menu: Standard menu text
-            user_traits: Dict with keys like 'previous_disputes', 'common_questions'
-        
-        Returns:
-            Personalized menu with smart suggestions
-        """
         suggestions = []
 
         if user_traits.get('previous_disputes', 0) > 0:
@@ -324,16 +370,6 @@ class ResponsePersonalizer:
         return base_menu
 
     def personalize_error(self, error_type: str, user_name: Optional[str] = None) -> str:
-        """
-        Generate personalized error messages.
-        
-        Args:
-            error_type: Type of error (timeout, no_results, system_error, etc.)
-            user_name: User's name for personalization
-        
-        Returns:
-            Friendly error message
-        """
         name = user_name or self.user_name or "there"
 
         error_templates = {
@@ -359,16 +395,6 @@ class ResponsePersonalizer:
         return random.choice(templates)
 
     def add_context_hint(self, response: str, context_type: str) -> str:
-        """
-        Add contextual hints to guide user through flows.
-        
-        Args:
-            response: Base response
-            context_type: Type of hint (dispute_next, faq_more, feedback_thanks)
-        
-        Returns:
-            Response with appended hint
-        """
         hints = {
             'dispute_next': "\n\n💡 *Next:* I'll help you draft a professional message to send to support.",
             'faq_more': "\n\n💡 *Tip:* You can ask follow-up questions or type 'menu' to see other options.",
@@ -381,11 +407,6 @@ class ResponsePersonalizer:
 
     @staticmethod
     def detect_formality_preference(message: str) -> str:
-        """
-        Detect user's preferred formality level from their message.
-        
-        Returns: 'formal', 'casual', or 'balanced'
-        """
         formal_indicators = ['sir', 'madam', 'kindly', 'please assist', 'would like to', 'could you please']
         casual_indicators = ['hey', 'sup', 'yo', 'wanna', 'gonna', 'yeah', 'nah']
 
