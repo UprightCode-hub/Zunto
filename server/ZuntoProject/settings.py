@@ -400,6 +400,12 @@ SENTENCE_TRANSFORMER_MODEL = config(
     default='all-MiniLM-L6-v2'
 )
 
+# Phase 1 Orchestration Feature Flags
+PHASE1_UNIFIED_CONFIDENCE = config('PHASE1_UNIFIED_CONFIDENCE', default=True, cast=bool)
+PHASE1_CONTEXT_INTEGRATION = config('PHASE1_CONTEXT_INTEGRATION', default=True, cast=bool)
+PHASE1_INTENT_CACHING = config('PHASE1_INTENT_CACHING', default=True, cast=bool)
+PHASE1_LLM_CONTEXT_ENRICHMENT = config('PHASE1_LLM_CONTEXT_ENRICHMENT', default=True, cast=bool)
+PHASE1_RESPONSE_PERSONALIZATION_FIX = config('PHASE1_RESPONSE_PERSONALIZATION_FIX', default=True, cast=bool)
 # ============================================
 # LOGGING
 # ============================================
