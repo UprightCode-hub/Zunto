@@ -70,26 +70,6 @@ class ProductListCreateView(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         serializer.save(seller=self.request.user)
 
-def product_list_page(request):
-    """
-    Renders the main product listing HTML page.
-    The actual product data is loaded via JavaScript AJAX calls.
-    """
-    return render(request, 'products.html')
-
-def analytics_dashboard(request):
-    return render(request, "Analytic/Analytics dashboard.html")
-
-def product_list(request):
-    """
-    Displays a list of active products.
-    """
-    products = Product.objects.filter(status='active', quantity__gt=0).order_by('-created_at')
-    context = {
-        'products': products,
-        'page_title': 'Our Amazing Products',
-    }
-    return render(request, 'templates/product_list.html', context)
 
 class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
     """Get, update, and delete product"""

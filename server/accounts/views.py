@@ -24,6 +24,7 @@ from .serializers import (
 from .models import VerificationCode
 from django.views import View
 
+
 User = get_user_model()
 
 @method_decorator(ratelimit(key='ip', rate='5/h', method='POST'), name='post')
@@ -310,27 +311,3 @@ class PasswordResetConfirmView(APIView):
                 }, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-def Home(request):
-    context = {
-        "content": "Welcome to Home Page, by Aikay",
-        "superuser": "Superuser Email:contact@user.com",
-        "personnal": "Personnal Information"
-    }
-    return render(request, 'accounts/Home.html', context)
-
-
-class LoginPageView(View):
-    """Render the login HTML page"""
-
-    def get(self, request):
-        return render(request, '\templates\login.html')
-       
-# 'marketplace/auth/login.html'
-
-class RegisterPageView(View):
-    """Render the registration HTML page"""
-
-    def get(self, request):
-        return render(request, 'marketplace/auth/register.html')
