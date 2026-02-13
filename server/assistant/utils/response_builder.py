@@ -247,4 +247,3 @@ def create_response(
         builder.add_closing(auto=True)
     
     return builder.build()
-```
