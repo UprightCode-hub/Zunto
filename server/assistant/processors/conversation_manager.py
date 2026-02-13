@@ -1,8 +1,5 @@
-"""
-Conversation Manager - Unified conversation orchestrator.
+# assistant/processors/conversation_manager.py
 
-Author: Wisdom Ekwugha
-"""
 import logging
 from typing import Dict, Tuple, Optional
 from functools import lru_cache
@@ -50,12 +47,7 @@ logger = logging.getLogger(__name__)
 
 
 class ConversationManager:
-    """
-    Unified conversation orchestrator.
     
-    Flow: greeting → name → menu → [FAQ | Dispute | Feedback | Creator Info]
-    """
-
     def __init__(self, session_id: str, user_id: int = None):
         self.session_id = session_id
         self.user_id = user_id
@@ -72,12 +64,12 @@ class ConversationManager:
         self.dispute_flow = DisputeFlow(self.session, self.llm, self.context_mgr)
         self.feedback_flow = FeedbackFlow(self.session, self.context_mgr, intent_classifier=True)
 
-        gc.collect()
+        self._message_intent_cache = {}
 
+        gc.collect()
         logger.info(f"ConversationManager initialized for session {session_id[:8]}")
 
     def _get_or_create_session(self) -> ConversationSession:
-        """Get existing session or create new one."""
         session, created = ConversationSession.objects.get_or_create(
             session_id=self.session_id,
             defaults={
@@ -93,7 +85,6 @@ class ConversationManager:
         return session
 
     def process_message(self, message: str) -> str:
-        """Main entry point: process user message and return response."""
         is_valid, error = validate_message(message)
         if not is_valid:
             logger.warning(f"Invalid message: {error}")
@@ -135,6 +126,16 @@ class ConversationManager:
             logger.warning(f"Unknown state '{current_state}', falling back to query processor")
             return self._handle_chat_mode(message)
 
+    def _get_or_classify_intent(self, message: str):
+        if message not in self._message_intent_cache:
+            intent, confidence, metadata = classify_intent(message, self.session.context)
+            self._message_intent_cache[message] = (intent, confidence, metadata)
+            logger.debug(f"Intent classified and cached: {intent.value} ({confidence:.2f})")
+        else:
+            logger.debug(f"Intent retrieved from cache")
+        
+        return self._message_intent_cache[message]
+
     def _handle_greeting(self) -> str:
         return self.greeting_flow.start_conversation()
 
@@ -170,7 +171,6 @@ class ConversationManager:
             )
 
     def _handle_menu_selection(self, message: str) -> str:
-        """Handle menu selection including creator info option."""
         message_lower = message.lower().strip()
 
         creator_keywords = [
@@ -209,8 +209,7 @@ class ConversationManager:
             return intro
 
         else:
-            # Not a menu selection - classify intent
-            intent, confidence, metadata = classify_intent(message, self.session.context)
+            intent, confidence, metadata = self._get_or_classify_intent(message)
             emotion = metadata.get('emotion', 'neutral')
 
             logger.info(f"Menu selection: intent={intent.value}, emotion={emotion}")
@@ -234,9 +233,6 @@ class ConversationManager:
 
     @lru_cache(maxsize=1)
     def _get_cached_creator_info(self) -> str:
-        """
-        Cached creator info to avoid repeated imports and string building.
-        """
         from assistant.ai.creator_info import get_creator_bio, get_creator_achievements
 
         user_name = self.session.user_name or "there"
@@ -286,15 +282,13 @@ class ConversationManager:
         return response
 
     def _get_creator_info(self) -> str:
-        """Return creator information when user selects option 4."""
         self.session.context['last_topic'] = 'creator'
         self.session.save()
 
         return self._get_cached_creator_info()
 
     def _handle_faq_mode(self, message: str) -> str:
-        """Handle FAQ queries with 3-tier confidence system."""
-        intent, conf, metadata = classify_intent(message, self.session.context)
+        intent, conf, metadata = self._get_or_classify_intent(message)
         emotion = metadata.get('emotion', 'neutral')
 
         self.context_mgr.add_message(
@@ -306,11 +300,14 @@ class ConversationManager:
 
         reply, faq_metadata = self.faq_flow.handle_faq_query(message)
 
-        final_reply = self.personalizer.personalize(
-            base_response=reply,
-            confidence=faq_metadata.get('confidence', 0.5),
-            emotion=emotion
-        )
+        if self._needs_personalization(reply):
+            final_reply = self.personalizer.personalize(
+                base_response=reply,
+                confidence=faq_metadata.get('confidence', 0.5),
+                emotion=emotion
+            )
+        else:
+            final_reply = reply
 
         self.context_mgr.add_message(
             role='assistant',
@@ -321,8 +318,7 @@ class ConversationManager:
         return final_reply
 
     def _handle_dispute_mode(self, message: str) -> str:
-        """Handle multi-step dispute reporting with AI drafts."""
-        intent, conf, metadata = classify_intent(message, self.session.context)
+        intent, conf, metadata = self._get_or_classify_intent(message)
         emotion = metadata.get('emotion', 'neutral')
 
         self.context_mgr.add_message(
@@ -334,12 +330,15 @@ class ConversationManager:
 
         reply, dispute_metadata = self.dispute_flow.handle_dispute_message(message)
 
-        final_reply = self.personalizer.personalize(
-            base_response=reply,
-            confidence=0.9,
-            emotion=emotion,
-            formality='formal'
-        )
+        if self._needs_personalization(reply):
+            final_reply = self.personalizer.personalize(
+                base_response=reply,
+                confidence=0.9,
+                emotion=emotion,
+                formality='formal'
+            )
+        else:
+            final_reply = reply
 
         self.context_mgr.add_message(
             role='assistant',
@@ -353,8 +352,7 @@ class ConversationManager:
         return final_reply
 
     def _handle_feedback_mode(self, message: str) -> str:
-        """Handle feedback collection with sentiment analysis."""
-        intent, conf, metadata = classify_intent(message, self.session.context)
+        intent, conf, metadata = self._get_or_classify_intent(message)
         emotion = metadata.get('emotion', 'neutral')
 
         self.context_mgr.add_message(
@@ -366,11 +364,14 @@ class ConversationManager:
 
         reply, feedback_metadata = self.feedback_flow.handle_feedback_message(message)
 
-        final_reply = self.personalizer.personalize(
-            base_response=reply,
-            confidence=0.85,
-            emotion=emotion
-        )
+        if self._needs_personalization(reply):
+            final_reply = self.personalizer.personalize(
+                base_response=reply,
+                confidence=0.85,
+                emotion=emotion
+            )
+        else:
+            final_reply = reply
 
         self.context_mgr.add_message(
             role='assistant',
@@ -386,7 +387,6 @@ class ConversationManager:
         return final_reply
 
     def _handle_chat_mode(self, message: str) -> str:
-        """Handle general chat/query mode with creator detection."""
         message_lower = message.lower()
 
         if message_lower in ['menu', 'main menu', 'options', 'back', 'go back']:
@@ -401,7 +401,7 @@ class ConversationManager:
             logger.info(f"🎨 Creator question detected in chat mode")
             return self._handle_creator_followup(message)
 
-        intent, conf, metadata = classify_intent(message, self.session.context)
+        intent, conf, metadata = self._get_or_classify_intent(message)
         emotion = metadata.get('emotion', 'neutral')
 
         self.context_mgr.add_message(
@@ -413,20 +413,24 @@ class ConversationManager:
 
         result = self.query_processor.process(
             message=message,
-            user_name=self.session.user_name or None
+            user_name=self.session.user_name or None,
+            context=self.session.context
         )
 
-        hints = self.context_mgr.get_personalization_hints()
-        formality = ResponsePersonalizer.detect_formality_preference(message)
+        if self._needs_personalization(result['reply']):
+            hints = self.context_mgr.get_personalization_hints()
+            formality = ResponsePersonalizer.detect_formality_preference(message)
 
-        final_reply = self.personalizer.personalize(
-            base_response=result['reply'],
-            confidence=result['confidence'],
-            emotion=emotion,
-            formality=hints.get('formality', formality),
-            add_greeting=True,
-            add_emoji=True
-        )
+            final_reply = self.personalizer.personalize(
+                base_response=result['reply'],
+                confidence=result['confidence'],
+                emotion=emotion,
+                formality=hints.get('formality', formality),
+                add_greeting=True,
+                add_emoji=True
+            )
+        else:
+            final_reply = result['reply']
 
         self.context_mgr.add_message(
             role='assistant',
@@ -437,15 +441,20 @@ class ConversationManager:
         if result['confidence'] >= CONFIDENCE_HIGH:
             self.context_mgr.mark_resolution(success=True)
 
-        # Clear last_topic if moved to different topic
         if 'last_topic' in self.session.context:
             self.session.context['last_topic'] = None
             self.session.save()
 
         return final_reply
 
+    def _needs_personalization(self, response: str) -> bool:
+        has_greeting = any(g in response.lower()[:50] for g in ['hi ', 'hello', 'hey', 'good morning', 'good afternoon'])
+        has_emoji = any(ord(c) > 0x1F300 for c in response)
+        has_markdown = '**' in response or '#' in response
+        
+        return not (has_greeting and has_emoji)
+
     def _is_creator_related(self, message: str) -> bool:
-        """Check if message is about creator."""
         creator_keywords = [
             'creator', 'developer', 'wisdom', 'who made', 'who built',
             'who created', 'technology', 'ai behind', 'how do you work',
@@ -455,7 +464,6 @@ class ConversationManager:
         return any(keyword in message_lower for keyword in creator_keywords)
 
     def _is_creator_followup(self, message: str) -> bool:
-        """Check if this is a followup on creator topic."""
         last_topic = self.session.context.get('last_topic')
         if last_topic != 'creator':
             return False
@@ -470,7 +478,6 @@ class ConversationManager:
         return any(pattern in message_lower for pattern in followup_patterns)
 
     def _handle_creator_followup(self, message: str) -> str:
-        """Handle detailed creator questions."""
         from assistant.ai.creator_info import (
             get_creator_bio,
             get_creator_achievements,
@@ -512,23 +519,20 @@ class ConversationManager:
         return response
 
     def get_current_state(self) -> str:
-        """Get current conversation state."""
         return self.session.current_state
 
     def get_user_name(self) -> str:
-        """Get user's name or default."""
         return self.session.user_name or "there"
 
     def get_conversation_summary(self) -> Dict:
-        """Get conversation summary for analytics."""
         return self.context_mgr.get_conversation_summary()
 
     def reset_session(self):
-        """Reset session to initial greeting state."""
         self.session.current_state = STATE_GREETING
         self.session.user_name = ''
         self.session.context = {}
         self.session.save()
 
         self.context_mgr.reset()
+        self._message_intent_cache.clear()
         logger.info(f"Session reset: {self.session_id}")
