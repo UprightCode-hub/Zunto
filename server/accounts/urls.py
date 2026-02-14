@@ -10,9 +10,9 @@ from .views import (
     ResendVerificationCodeView,
     PasswordResetRequestView,
     PasswordResetConfirmView,
-    Home,
     LoginPageView,
     RegisterPageView,
+    GoogleAuthView,
 )
 
 app_name = 'accounts'
@@ -28,6 +28,7 @@ urlpatterns = [
     path('register/', UserRegistrationView.as_view(), name='register'),
     path('login/', CustomTokenObtainPairView.as_view(), name='login'),
     path('logout/', LogoutView.as_view(), name='logout'),
+    path('auth/google/', GoogleAuthView.as_view(), name='google_auth'),  
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     
     # Profile

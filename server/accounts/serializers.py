@@ -126,3 +126,12 @@ class EmailVerificationSerializer(serializers.Serializer):
     """Serializer for email verification"""
     
     code = serializers.CharField(required=True, max_length=6)
+
+class GoogleAuthSerializer(serializers.Serializer):
+    """Serializer for Google OAuth authentication"""
+    token = serializers.CharField(required=True)
+    
+    def validate_token(self, value):
+        if not value:
+            raise serializers.ValidationError("Google token is required")
+        return value

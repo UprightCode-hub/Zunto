@@ -44,80 +44,79 @@ const apiCall = async (endpoint, options = {}) => {
 // ==========================================
 
 export const register = (userData) => {
-  return apiCall('/accounts/register/', {
+  return apiCall('/api/accounts/register/', {
     method: 'POST',
     body: JSON.stringify(userData),
   });
 };
 
 export const login = (email, password) => {
-  return apiCall('/accounts/login/', {
+  return apiCall('/api/accounts/login/', {
     method: 'POST',
     body: JSON.stringify({ email, password }),
   });
 };
 
 export const logout = (refreshToken) => {
-  return apiCall('/accounts/logout/', {
+  return apiCall('/api/accounts/logout/', {
     method: 'POST',
     body: JSON.stringify({ refresh_token: refreshToken }),
   });
 };
 
 export const refreshToken = (refreshToken) => {
-  return apiCall('/accounts/token/refresh/', {
+  return apiCall('/api/accounts/token/refresh/', {
     method: 'POST',
     body: JSON.stringify({ refresh: refreshToken }),
   });
 };
 
 export const getUserProfile = () => {
-  return apiCall('/accounts/profile/', {
+  return apiCall('/api/accounts/profile/', {
     method: 'GET',
   });
 };
 
 export const updateUserProfile = (userData) => {
-  return apiCall('/accounts/profile/', {
-    method: 'PUT', // or PATCH
+  return apiCall('/api/accounts/profile/', {
+    method: 'PUT',
     body: JSON.stringify(userData),
   });
 };
 
 export const changePassword = (passwordData) => {
-  return apiCall('/accounts/change-password/', {
+  return apiCall('/api/accounts/change-password/', {
     method: 'POST',
     body: JSON.stringify(passwordData),
   });
 };
 
 export const verifyEmail = (code) => {
-  return apiCall('/accounts/verify-email/', {
+  return apiCall('/api/accounts/verify-email/', {
     method: 'POST',
     body: JSON.stringify({ code }),
   });
 };
 
 export const resendVerificationEmail = () => {
-  return apiCall('/accounts/resend-verification/', {
+  return apiCall('/api/accounts/resend-verification/', {
     method: 'POST',
   });
 };
 
 export const requestPasswordReset = (email) => {
-  return apiCall('/accounts/password-reset/request/', {
+  return apiCall('/api/accounts/password-reset/request/', {
     method: 'POST',
     body: JSON.stringify({ email }),
   });
 };
 
 export const confirmPasswordReset = (data) => {
-  return apiCall('/accounts/password-reset/confirm/', {
+  return apiCall('/api/accounts/password-reset/confirm/', {
     method: 'POST',
     body: JSON.stringify(data),
   });
 };
-
 // ==========================================
 // MARKET / PRODUCTS (market/urls.py)
 // ==========================================

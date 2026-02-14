@@ -1,7 +1,9 @@
+// client/src/pages/signup.jsx
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, User, Eye, EyeOff, Phone, ArrowRight, Sparkles, ShoppingBag } from 'lucide-react';
+import { Mail, Lock, User, Eye, EyeOff, Phone, ArrowRight, ShoppingBag } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import GoogleAuthButton from '../components/auth/GoogleAuthButton';
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -250,6 +252,32 @@ export default function Signup() {
               )}
             </button>
           </form>
+
+          {/* ↓↓↓ GOOGLE AUTH SECTION ↓↓↓ */}
+          <div className="mt-6">
+            {/* Divider */}
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-800"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-3 bg-[#020617] text-gray-500">Or continue with</span>
+              </div>
+            </div>
+
+            {/* Google Sign-Up Button */}
+            <GoogleAuthButton 
+              mode="signup"
+              onSuccess={(data) => {
+                console.log('Google signup successful:', data);
+                navigate('/');
+              }}
+              onError={(errorMsg) => {
+                setError(errorMsg);
+              }}
+            />
+          </div>
+          {/* ↑↑↑ END GOOGLE AUTH SECTION ↑↑↑ */}
 
           <div className="mt-8 pt-8 border-t border-gray-800 text-center">
             <p className="text-gray-500 text-sm">

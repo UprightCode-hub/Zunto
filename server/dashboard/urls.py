@@ -1,18 +1,18 @@
 from django.urls import path
 from .views import (
-    DashboardView,
-    AnalyticsDashboardView,
-    sales_report,
-    products_list,
-    orders_list,
-    customers_list,
+    DashboardAPI,
+    AnalyticsDashboardAPI,
+    sales_report_api,
+    products_list_api,
+    orders_list_api,
+    customers_list_api,
 )
 
 urlpatterns = [
-    path('', DashboardView.as_view(), name='dashboard'),
-    path('analytics/', AnalyticsDashboardView.as_view(), name='analytics_dashboard'),
-    path('sales/', sales_report, name='sales_report'),
-    path('products/', products_list, name='products_list'),
-    path('orders/', orders_list, name='orders_list'),
-    path('customers/', customers_list, name='customers_list'),
+    path('', DashboardAPI.as_view(), name='dashboard'),
+    path('analytics/', AnalyticsDashboardAPI.as_view(), name='analytics_dashboard'),
+    path('sales/', sales_report_api, name='sales_report'),
+    path('products/', products_list_api, name='products_list'),
+    path('orders/', orders_list_api, name='orders_list'),
+    path('customers/', customers_list_api, name='customers_list'),
 ]

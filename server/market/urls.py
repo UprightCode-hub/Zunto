@@ -17,7 +17,6 @@ from .views import (
     ProductStatsView,
     mark_as_sold,
     reactivate_product,
-    product_list,
 )
 
 
@@ -28,7 +27,7 @@ urlpatterns = [
     
     # Products
     path('products/', ProductListCreateView.as_view(), name='product_list_create'),
-    path('product_list/', product_list, name='product_list'),
+    # path('product_list/', product_list, name='product_list'),
     path('products/my-products/', MyProductsView.as_view(), name='my_products'),
     path('products/featured/', FeaturedProductsView.as_view(), name='featured_products'),
     path('products/boosted/', BoostedProductsView.as_view(), name='boosted_products'),

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import GoogleAuthButton from '../components/auth/GoogleAuthButton';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -141,6 +142,32 @@ export default function Login() {
               )}
             </button>
           </form>
+
+          {/* ↓↓↓ GOOGLE AUTH SECTION - ADD THIS ↓↓↓ */}
+          <div className="mt-6">
+            {/* Divider */}
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-800"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-3 bg-[#020617] text-gray-500">Or continue with</span>
+              </div>
+            </div>
+
+            {/* Google Sign-In Button */}
+            <GoogleAuthButton 
+              mode="signin"
+              onSuccess={(data) => {
+                console.log('Google login successful:', data);
+                navigate('/');
+              }}
+              onError={(errorMsg) => {
+                setError(errorMsg);
+              }}
+            />
+          </div>
+          {/* ↑↑↑ END GOOGLE AUTH SECTION ↑↑↑ */}
 
           <div className="mt-8 pt-8 border-t border-gray-800 text-center">
             <p className="text-gray-500 text-sm">

@@ -1,3 +1,4 @@
+# accounts/views.py
 from django.shortcuts import render
 from notifications.email_service import EmailService
 from rest_framework import status, generics, permissions
@@ -12,6 +13,7 @@ import random
 from notifications.tasks import send_welcome_email_task, send_verification_email_task
 from django_ratelimit.decorators import ratelimit
 from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 from .serializers import (
     UserRegistrationSerializer,
     CustomTokenObtainPairSerializer,
@@ -19,15 +21,21 @@ from .serializers import (
     ChangePasswordSerializer,
     PasswordResetRequestSerializer,
     PasswordResetConfirmSerializer,
-    EmailVerificationSerializer
+    EmailVerificationSerializer,
+    GoogleAuthSerializer,  # ← ADD THIS IMPORT
 )
 from .models import VerificationCode
 from django.views import View
 
+# ← ADD THESE IMPORTS FOR GOOGLE AUTH
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+from django.conf import settings
+
 
 User = get_user_model()
-
-@method_decorator(ratelimit(key='ip', rate='5/h', method='POST'), name='post')
+ 
+@method_decorator(ratelimit(key='ip', rate='50/h', method='POST'), name='post')
 class UserRegistrationView(generics.CreateAPIView):
     """
     User registration endpoint
@@ -89,6 +97,96 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
 
+# ↓↓↓ NEW: GOOGLE AUTHENTICATION VIEW ↓↓↓
+@method_decorator(csrf_exempt, name='dispatch')
+@method_decorator(ratelimit(key='ip', rate='10/h', method='POST'), name='post')
+class GoogleAuthView(APIView):
+    """
+    Authenticate user with Google OAuth token
+    Endpoint: POST /api/accounts/auth/google/
+    """
+    permission_classes = [permissions.AllowAny]
+    
+    def post(self, request):
+        serializer = GoogleAuthSerializer(data=request.data)
+        
+        if not serializer.is_valid():
+            return Response(
+                serializer.errors,
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        token = serializer.validated_data['token']
+        
+        try:
+            # Verify the Google token
+            idinfo = id_token.verify_oauth2_token(
+                token,
+                google_requests.Request(),
+                settings.GOOGLE_OAUTH_CLIENT_ID
+            )
+            
+            # Extract user information from Google
+            email = idinfo.get('email')
+            first_name = idinfo.get('given_name', '')
+            last_name = idinfo.get('family_name', '')
+            google_id = idinfo.get('sub')
+            
+            if not email:
+                return Response(
+                    {'error': 'Email not provided by Google'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Get or create user
+            user, created = User.objects.get_or_create(
+                email=email.lower(),
+                defaults={
+                    'first_name': first_name,
+                    'last_name': last_name,
+                    'is_verified': True,  # Google emails are pre-verified
+                    'role': 'buyer',  # Default role
+                    'google_id': google_id,  # Save Google ID
+                }
+            )
+            
+            # If user exists but doesn't have google_id, add it
+            if not user.google_id:
+                user.google_id = google_id
+                user.save()
+            
+            # Generate JWT tokens (MATCHING YOUR CustomTokenObtainPairSerializer FORMAT)
+            refresh = RefreshToken.for_user(user)
+            
+            # Return EXACT same format as your login/register endpoints
+            return Response({
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
+                'user': {
+                    'id': str(user.id),
+                    'email': user.email,
+                    'first_name': user.first_name,
+                    'last_name': user.last_name,
+                    'role': user.role,
+                    'is_verified': user.is_verified,
+                    'profile_picture': user.profile_picture.url if user.profile_picture else None,
+                },
+                'message': 'Account created successfully' if created else 'Login successful'
+            }, status=status.HTTP_200_OK)
+            
+        except ValueError as e:
+            return Response(
+                {'error': 'Invalid Google token', 'details': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {'error': 'Authentication failed', 'details': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+# ↑↑↑ END NEW VIEW ↑↑↑
+
+
 class UserProfileView(generics.RetrieveUpdateAPIView):
     """Get and update user profile"""
 
@@ -127,6 +225,30 @@ class ChangePasswordView(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
+
+def Home(request):
+    context = {
+        "content": "Welcome to Home Page, by Aikay",
+        "superuser": "Superuser Email:contact@user.com",
+        "personnal": "Personnal Information"
+    }
+    return render(request, 'accounts/Home.html', context)
+
+
+class LoginPageView(View):
+    """Render the login HTML page"""
+
+    def get(self, request):
+        return render(request, '\templates\login.html')
+       
+# 'marketplace/auth/login.html'
+
+class RegisterPageView(View):
+    """Render the registration HTML page"""
+
+    def get(self, request):
+        return render(request, 'marketplace/auth/register.html')
 
 class LogoutView(APIView):
     """Logout endpoint"""
@@ -216,8 +338,8 @@ class ResendVerificationCodeView(APIView):
             expires_at=expires_at
         )
 
-        # TODO: Send email with verification code
-        send_verification_email(user.email, code)
+        # Send email with verification code
+        send_verification_email_task.delay(str(user.id), code)
 
         return Response({
             'message': 'Verification code sent successfully.'
@@ -250,8 +372,7 @@ class PasswordResetRequestView(APIView):
                     expires_at=expires_at
                 )
 
-                # TODO: Send email with reset code
-                # send_password_reset_email(user.email, code)
+                # Send email with reset code
                 EmailService.send_password_reset_email(user, code)
 
                 return Response({

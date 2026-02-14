@@ -103,23 +103,23 @@ ASGI_APPLICATION = 'ZuntoProject.asgi.application'
 # TEMPLATES
 # ============================================
 
-# TEMPLATES = [
-#     {
-#         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-#         'DIRS': [BASE_DIR / 'templates', BASE_DIR / 'frontend'],
-#         'APP_DIRS': True,
-#         'OPTIONS': {
-#             'context_processors': [
-#                 'django.template.context_processors.debug',
-#                 'django.template.context_processors.request',
-#                 'django.contrib.auth.context_processors.auth',
-#                 'django.contrib.messages.context_processors.messages',
-#                 'django.template.context_processors.media',
-#                 'django.template.context_processors.static',
-#             ],
-#         },
-#     },
-# ]
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [BASE_DIR / 'templates', BASE_DIR / 'frontend'],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+                'django.template.context_processors.media',
+                'django.template.context_processors.static',
+            ],
+        },
+    },
+]
 
 # ============================================
 # DATABASE
@@ -539,3 +539,23 @@ if IS_PRODUCTION:
     FRONTEND_URL = 'https://zunto-frontend.onrender.com'
 else:
     FRONTEND_URL = 'http://localhost:5173'  # Vite dev server
+
+
+
+# ============================================
+# CSRF CONFIGURATION (Add this section)
+# ============================================
+
+CSRF_COOKIE_NAME = 'csrftoken'
+CSRF_HEADER_NAME = 'HTTP_X_CSRFTOKEN'
+CSRF_COOKIE_HTTPONLY = False  # ← CRITICAL: Must be False so JavaScript can read it
+CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SECURE = not DEBUG  # True in production (HTTPS only)
+CSRF_USE_SESSIONS = False  # Use cookie-based CSRF
+CSRF_COOKIE_AGE = 31449600  # 1 year
+
+
+# ============================================
+# GOOGLE OAUTH CONFIGURATION
+# ============================================
+GOOGLE_OAUTH_CLIENT_ID = config('GOOGLE_OAUTH_CLIENT_ID', default='')

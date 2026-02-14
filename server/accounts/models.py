@@ -53,6 +53,7 @@ class User(AbstractUser):
     # Primary fields
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True, db_index=True)
+    google_id = models.CharField(max_length=255, blank=True, null=True, unique=True, db_index=True)  # ← ADDED THIS LINE
     phone = models.CharField(validators=[phone_regex], max_length=17, unique=True, null=True, blank=True)
     
     # Profile fields

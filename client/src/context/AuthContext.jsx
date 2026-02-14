@@ -1,3 +1,4 @@
+// client/src/context/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { login as loginAPI, register as registerAPI, logout as logoutAPI, getUserProfile } from '../services/api';
 
@@ -63,7 +64,7 @@ export const AuthProvider = ({ children }) => {
       
       return { success: true, data };
     } catch (error) {
-      // ✅ Better error handling for login
+      // Better error handling for login
       const errorData = error.response?.data;
       let errorMessage = 'Login failed. Please try again.';
       
@@ -85,7 +86,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const data = await registerAPI(userData);
       
-      // ✅ Validate response has required data
+      // Validate response has required data
       if (!data.access || !data.refresh || !data.user) {
         throw new Error('Invalid response from server. Please try again.');
       }
@@ -95,7 +96,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('refresh_token', data.refresh);
       localStorage.setItem('token', data.access);
       
-      // ✅ Save user data (ONLY from server, never raw form data)
+      // Save user data (ONLY from server, never raw form data)
       localStorage.setItem('user', JSON.stringify(data.user));
       
       setToken(data.access);
@@ -103,7 +104,7 @@ export const AuthProvider = ({ children }) => {
       
       return { success: true, data };
     } catch (error) {
-      // ✅ Extract Django's detailed error messages
+      // Extract Django's detailed error messages
       const errorData = error.response?.data;
       let errorMessage = 'Registration failed. Please try again.';
       
@@ -144,6 +145,37 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // ↓↓↓ NEW: Google Authentication Function ↓↓↓
+  const googleAuth = async (googleData) => {
+    try {
+      // Validate response has required data
+      if (!googleData.access || !googleData.refresh || !googleData.user) {
+        throw new Error('Invalid response from Google authentication');
+      }
+      
+      // Save tokens
+      localStorage.setItem('access_token', googleData.access);
+      localStorage.setItem('refresh_token', googleData.refresh);
+      localStorage.setItem('token', googleData.access);
+      
+      // Save user data
+      localStorage.setItem('user', JSON.stringify(googleData.user));
+      
+      // Update state
+      setToken(googleData.access);
+      setUser(googleData.user);
+      
+      return { success: true, data: googleData };
+    } catch (error) {
+      console.error('Google auth state update failed:', error);
+      return { 
+        success: false, 
+        error: error.message || 'Failed to update authentication state' 
+      };
+    }
+  };
+  // ↑↑↑ END NEW FUNCTION ↑↑↑
+
   const logout = async () => {
     try {
       const refresh = localStorage.getItem('refresh_token');
@@ -168,6 +200,7 @@ export const AuthProvider = ({ children }) => {
     loading,
     login,
     register,
+    googleAuth,  // ← Added this
     logout,
     isAuthenticated: !!token,
   };

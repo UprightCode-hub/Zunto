@@ -5,13 +5,13 @@ from django.conf.urls.static import static
 from django.http import JsonResponse
 from django.views.generic import RedirectView
 from core.views import health_check, assistant_view, marketplace_view
-from market.views import product_list_page, product_list
-from accounts.views import LoginPageView
+# from market.views import product_list_page, product_list
+# from accounts.views import LoginPageView
 urlpatterns = [
     path('admin/', admin.site.urls),
     # path('/', views.product_list_page, name='product_list_page'),
-    path('', product_list_page, name='product_list_page'),
-    path('product_list/', product_list, name='product_list'),
+    # path('', product_list_page, name='product_list_page'),
+    # path('product_list/', product_list, name='product_list'),
     # path('', ProductListCreateView, name='ProductListCreateView'),
     # path('', ProductTemplateView.as_view(), name='ProductTemplateView'),
     # path('', ProductListCreateView.as_view(), name='ProductListCreateView'),
@@ -19,7 +19,7 @@ urlpatterns = [
     path('market/', include('market.urls')),
     
     # Root redirect to marketplace
-    path('login_page/', LoginPageView.as_view(), name='login_page'),
+    # path('login_page/', LoginPageView.as_view(), name='login_page'),as
     path('', RedirectView.as_view(url='/Zunto/server/market/templates/products.html/', permanent=False)),
     
     # Frontend: Assistant AI
