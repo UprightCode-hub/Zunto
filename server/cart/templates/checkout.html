@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout - Zunto</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-dark: #050d1b;
+            --primary-blue: #2c77d1;
+            --primary-purple: #9426f4;
+            --text-light: #ffffff;
+            --text-gray: #a0aec0;
+            --bg-dark: #0a1628;
+            --card-bg: #1a2332;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--primary-dark);
+            color: var(--text-light);
+            line-height: 1.6;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--bg-dark) 100%);
+            padding: 1rem 0;
+            box-shadow: 0 4px 20px rgba(148, 38, 244, 0.2);
+        }
+
+        nav {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 2rem;
+            font-weight: bold;
+            background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            cursor: pointer;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+
+        .checkout-header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .checkout-title {
+            font-size: 2.5rem;
+            background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 1rem;
+        }
+
+        .checkout-steps {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        .step {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            background: var(--card-bg);
+            border-radius: 50px;
+            border: 2px solid transparent;
+        }
+
+        .step.active {
+            border-color: var(--primary-blue);
+            background: linear-gradient(135deg, rgba(44, 119, 209, 0.2), rgba(148, 38, 244, 0.2));
+        }
+
+        .step.completed {
+            border-color: #10b981;
+        }
+
+        .step-number {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: var(--bg-dark);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        .checkout-layout {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 2rem;
+        }
+
+        /* Forms Section */
+        .checkout-forms {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .form-section {
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: 20px;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--bg-dark);
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+
+        .form-grid.full {
+            grid-template-columns: 1fr;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-gray);
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.875rem;
+            background: var(--bg-dark);
+            border: 2px solid transparent;
+            border-radius: 10px;
+            color: var(--text-light);
+            font-size: 1rem;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--primary-blue);
+        }
+
+        .saved-addresses {
+            margin-top: 1rem;
+        }
+
+        .address-card {
+            background: var(--bg-dark);
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 0.75rem;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .address-card:hover {
+            border-color: var(--primary-blue);
+        }
+
+        .address-card.selected {
+            border-color: var(--primary-purple);
+            background: linear-gradient(135deg, rgba(44, 119, 209, 0.1), rgba(148, 38, 244, 0.1));
+        }
+
+        .payment-methods {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .payment-option {
+            background: var(--bg-dark);
+            padding: 1.5rem;
+            border-radius: 15px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .payment-option:hover {
+            border-color: var(--primary-blue);
+        }
+
+        .payment-option.selected {
+            border-color: var(--primary-purple);
+            background: linear-gradient(135deg, rgba(44, 119, 209, 0.1), rgba(148, 38, 244, 0.1));
+        }
+
+        .payment-icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Order Summary */
+        .order-summary {
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: 20px;
+            height: fit-content;
+            position: sticky;
+            top: 2rem;
+        }
+
+        .summary-items {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 1.5rem;
+        }
+
+        .summary-item {
+            display: flex;
+            gap: 1rem;
+            padding: 1rem 0;
+            border-bottom: 1px solid var(--bg-dark);
+        }
+
+        .item-image {
+            width: 60px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+
+        .item-details {
+            flex: 1;
+        }
+
+        .item-name {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .item-qty {
+            color: var(--text-gray);
+            font-size: 0.9rem;
+        }
+
+        .item-price {
+            font-weight: bold;
+            color: var(--primary-blue);
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem 0;
+            color: var(--text-gray);
+        }
+
+        .summary-row.total {
+            border-top: 2px solid var(--bg-dark);
+            margin-top: 1rem;
+            padding-top: 1rem;
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: var(--text-light);
+        }
+
+        .total-amount {
+            color: var(--primary-blue);
+            font-size: 1.8rem;
+        }
+
+        .place-order-btn {
+            width: 100%;
+            background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+            color: white;
+            padding: 1.25rem;
+            border: none;
+            border-radius: 15px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 1.5rem;
+            transition: all 0.3s;
+        }
+
+        .place-order-btn:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(148, 38, 244, 0.5);
+        }
+
+        .place-order-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .secure-note {
+            text-align: center;
+            color: var(--text-gray);
+            font-size: 0.9rem;
+            margin-top: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .checkout-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .payment-methods {
+                grid-template-columns: 1fr;
+            }
+
+            .order-summary {
+                position: static;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo" onclick="window.location.href='/'">Zunto</div>
+        </nav>
+    </header>
+
+    <div class="container">
+        <div class="checkout-header">
+            <h1 class="checkout-title">Checkout</h1>
+            <div class="checkout-steps">
+                <div class="step active">
+                    <div class="step-number">1</div>
+                    <span>Shipping</span>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <span>Payment</span>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <span>Confirm</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="checkout-layout">
+            <div class="checkout-forms">
+                <!-- Shipping Information -->
+                <div class="form-section">
+                    <h2 class="section-title">📦 Shipping Information</h2>
+                    
+                    <div id="savedAddresses" class="saved-addresses" style="display: none;">
+                        <!-- Saved addresses loaded here -->
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="firstName">First Name *</label>
+                            <input type="text" id="firstName" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="lastName">Last Name *</label>
+                            <input type="text" id="lastName" required>
+                        </div>
+                    </div>
+
+                    <div class="form-grid full">
+                        <div class="form-group">
+                            <label for="email">Email *</label>
+                            <input type="email" id="email" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="phone">Phone Number *</label>
+                            <input type="tel" id="phone" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="address">Address *</label>
+                            <textarea id="address" rows="2" required></textarea>
+                        </div>
+                    </div>
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="city">City *</label>
+                            <input type="text" id="city" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="state">State *</label>
+                            <input type="text" id="state" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="postalCode">Postal Code</label>
+                            <input type="text" id="postalCode">
+                        </div>
+                        <div class="form-group">
+                            <label for="country">Country *</label>
+                            <select id="country">
+                                <option value="Nigeria">Nigeria</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="saveAddress"> Save this address for future orders
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Payment Method -->
+                <div class="form-section">
+                    <h2 class="section-title">💳 Payment Method</h2>
+                    
+                    <div class="payment-methods">
+                        <div class="payment-option selected" onclick="selectPayment('paystack')">
+                            <div class="payment-icon">💳</div>
+                            <div>Paystack</div>
+                            <small style="color: var(--text-gray)">Card Payment</small>
+                        </div>
+                        <div class="payment-option" onclick="selectPayment('bank_transfer')">
+                            <div class="payment-icon">🏦</div>
+                            <div>Bank Transfer</div>
+                            <small style="color: var(--text-gray)">Direct Transfer</small>
+                        </div>
+                        <div class="payment-option" onclick="selectPayment('cash_on_delivery')">
+                            <div class="payment-icon">💵</div>
+                            <div>Cash on Delivery</div>
+                            <small style="color: var(--text-gray)">Pay when you receive</small>
+                        </div>
+                        <div class="payment-option" onclick="selectPayment('wallet')">
+                            <div class="payment-icon">👛</div>
+                            <div>Wallet</div>
+                            <small style="color: var(--text-gray)">Pay with wallet</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Order Notes -->
+                <div class="form-section">
+                    <h2 class="section-title">📝 Additional Notes</h2>
+                    <div class="form-group">
+                        <label for="notes">Order Notes (Optional)</label>
+                        <textarea id="notes" rows="3" placeholder="Any special instructions for your order..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Order Summary -->
+            <div class="order-summary">
+                <h2 class="section-title">Order Summary</h2>
+                
+                <div class="summary-items" id="summaryItems">
+                    <!-- Items loaded dynamically -->
+                </div>
+
+                <div class="summary-row">
+                    <span>Subtotal</span>
+                    <span id="subtotal">₦0</span>
+                </div>
+                <div class="summary-row">
+                    <span>Shipping</span>
+                    <span id="shipping">₦0</span>
+                </div>
+                <div class="summary-row">
+                    <span>Tax</span>
+                    <span id="tax">₦0</span>
+                </div>
+
+                <div class="summary-row total">
+                    <span>Total</span>
+                    <span class="total-amount" id="total">₦0</span>
+                </div>
+
+                <button class="place-order-btn" onclick="placeOrder()">
+                    Place Order
+                </button>
+                <p class="secure-note">🔒 Secure checkout powered by Paystack</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = '/api';
+        let selectedPaymentMethod = 'paystack';
+        let cartData = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadCart();
+            await loadUserData();
+            await loadSavedAddresses();
+        });
+
+        async function loadCart() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/cart/`);
+                cartData = await response.json();
+                renderOrderSummary();
+            } catch (error) {
+                console.error('Error loading cart:', error);
+                alert('Error loading cart. Please try again.');
+                window.location.href = '/cart.html';
+            }
+        }
+
+        async function loadUserData() {
+            const user = JSON.parse(localStorage.getItem('user'));
+            if (user) {
+                document.getElementById('firstName').value = user.first_name || '';
+                document.getElementById('lastName').value = user.last_name || '';
+                document.getElementById('email').value = user.email || '';
+            }
+        }
+
+        async function loadSavedAddresses() {
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch(`${API_BASE_URL}/orders/addresses/`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                const addresses = await response.json();
+
+                if (addresses && addresses.length > 0) {
+                    const container = document.getElementById('savedAddresses');
+                    container.style.display = 'block';
+                    container.innerHTML = '<h4 style="margin-bottom: 1rem;">Saved Addresses</h4>';
+                    
+                    addresses.forEach(addr => {
+                        const card = document.createElement('div');
+                        card.className = 'address-card';
+                        if (addr.is_default) card.classList.add('selected');
+                        card.innerHTML = `
+                            <strong>${addr.label}</strong><br>
+                            ${addr.address}, ${addr.city}, ${addr.state}<br>
+                            ${addr.phone}
+                        `;
+                        card.onclick = () => selectAddress(addr);
+                        container.appendChild(card);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading addresses:', error);
+            }
+        }
+
+        function selectAddress(address) {
+            document.getElementById('address').value = address.address;
+            document.getElementById('city').value = address.city;
+            document.getElementById('state').value = address.state;
+            document.getElementById('phone').value = address.phone;
+            document.getElementById('postalCode').value = address.postal_code || '';
+
+            // Update UI
+            document.querySelectorAll('.address-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            event.target.closest('.address-card').classList.add('selected');
+        }
+
+        function renderOrderSummary() {
+            if (!cartData || !cartData.items) return;
+
+            const container = document.getElementById('summaryItems');
+            container.innerHTML = '';
+
+            cartData.items.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'summary-item';
+                div.innerHTML = `
+                    <img src="${item.product.primary_image || 'https://via.placeholder.com/60'}" 
+                         alt="${item.product.title}" class="item-image">
+                    <div class="item-details">
+                        <div class="item-name">${item.product.title}</div>
+                        <div class="item-qty">Qty: ${item.quantity}</div>
+                    </div>
+                    <div class="item-price">₦${(parseFloat(item.price_at_addition) * item.quantity).toLocaleString()}</div>
+                `;
+                container.appendChild(div);
+            });
+
+            // Update totals
+            const subtotal = parseFloat(cartData.subtotal || 0);
+            const shipping = 0; // Calculate shipping
+            const tax = 0; // Calculate tax
+            const total = subtotal + shipping + tax;
+
+            document.getElementById('subtotal').textContent = `₦${subtotal.toLocaleString()}`;
+            document.getElementById('shipping').textContent = shipping > 0 ? `₦${shipping.toLocaleString()}` : 'Free';
+            document.getElementById('tax').textContent = `₦${tax.toLocaleString()}`;
+            document.getElementById('total').textContent = `₦${total.toLocaleString()}`;
+        }
+
+        function selectPayment(method) {
+            selectedPaymentMethod = method;
+            document.querySelectorAll('.payment-option').forEach(option => {
+                option.classList.remove('selected');
+            });
+            event.target.closest('.payment-option').classList.add('selected');
+        }
+
+        async function placeOrder() {
+            // Validate form
+            const requiredFields = ['firstName', 'lastName', 'email', 'phone', 'address', 'city', 'state'];
+            for (const field of requiredFields) {
+                const input = document.getElementById(field);
+                if (!input.value.trim()) {
+                    alert(`Please fill in ${field}`);
+                    input.focus();
+                    return;
+                }
+            }
+
+            const orderData = {
+                shipping_address: document.getElementById('address').value,
+                shipping_city: document.getElementById('city').value,
+                shipping_state: document.getElementById('state').value,
+                shipping_country: document.getElementById('country').value,
+                shipping_phone: document.getElementById('phone').value,
+                shipping_email: document.getElementById('email').value,
+                shipping_full_name: `${document.getElementById('firstName').value} ${document.getElementById('lastName').value}`,
+                shipping_postal_code: document.getElementById('postalCode').value,
+                payment_method: selectedPaymentMethod,
+                notes: document.getElementById('notes').value,
+                save_address: document.getElementById('saveAddress').checked,
+                address_label: document.getElementById('saveAddress').checked ? 'Home' : ''
+            };
+
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch(`${API_BASE_URL}/orders/checkout/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(orderData)
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Clear cart
+                    localStorage.removeItem('cart');
+
+                    // Handle payment
+                    if (data.payment_data && data.payment_data.authorization_url) {
+                        // Redirect to Paystack
+                        window.location.href = data.payment_data.authorization_url;
+                    } else {
+                        // Order placed successfully
+                        alert('Order placed successfully!');
+                        window.location.href = `/order-success.html?order=${data.order.order_number}`;
+                    }
+                } else {
+                    alert(data.error || 'Failed to place order. Please try again.');
+                }
+            } catch (error) {
+                console.error('Error placing order:', error);
+                alert('Error placing order. Please try again.');
+            }
+        }
+    </script>
+</body>
+</html>
