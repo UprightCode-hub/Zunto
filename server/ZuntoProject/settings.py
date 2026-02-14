@@ -3,6 +3,7 @@ from pathlib import Path
 from decouple import config
 from celery.schedules import crontab
 import dj_database_url
+from datetime import timedelta
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -18,6 +19,7 @@ if IS_PRODUCTION:
     ALLOWED_HOSTS = [
         '.onrender.com',
         'zunto-backend.onrender.com',
+        'localhost:5174',
     ]
 else:
     DEBUG = config('DEBUG', default=True, cast=bool)
@@ -65,11 +67,12 @@ INSTALLED_APPS = [
     'orders',
     'notifications',
     'chat',
-    'assistant',  
+    'assistant',
+    'rest_framework_simplejwt.token_blacklist',  
 ]
 
-CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
-CRISPY_TEMPLATE_PACK = "bootstrap5"
+# CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
+# CRISPY_TEMPLATE_PACK = "bootstrap5"
 
 # ============================================
 # MIDDLEWARE
@@ -100,23 +103,23 @@ ASGI_APPLICATION = 'ZuntoProject.asgi.application'
 # TEMPLATES
 # ============================================
 
-TEMPLATES = [
-    {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates', BASE_DIR / 'frontend'],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.debug',
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
-                'django.template.context_processors.media',
-                'django.template.context_processors.static',
-            ],
-        },
-    },
-]
+# TEMPLATES = [
+#     {
+#         'BACKEND': 'django.template.backends.django.DjangoTemplates',
+#         'DIRS': [BASE_DIR / 'templates', BASE_DIR / 'frontend'],
+#         'APP_DIRS': True,
+#         'OPTIONS': {
+#             'context_processors': [
+#                 'django.template.context_processors.debug',
+#                 'django.template.context_processors.request',
+#                 'django.contrib.auth.context_processors.auth',
+#                 'django.contrib.messages.context_processors.messages',
+#                 'django.template.context_processors.media',
+#                 'django.template.context_processors.static',
+#             ],
+#         },
+#     },
+# ]
 
 # ============================================
 # DATABASE
@@ -212,6 +215,7 @@ else:
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.SessionAuthentication',
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 50,
@@ -396,6 +400,12 @@ SENTENCE_TRANSFORMER_MODEL = config(
     default='all-MiniLM-L6-v2'
 )
 
+# Phase 1 Orchestration Feature Flags
+PHASE1_UNIFIED_CONFIDENCE = config('PHASE1_UNIFIED_CONFIDENCE', default=True, cast=bool)
+PHASE1_CONTEXT_INTEGRATION = config('PHASE1_CONTEXT_INTEGRATION', default=True, cast=bool)
+PHASE1_INTENT_CACHING = config('PHASE1_INTENT_CACHING', default=True, cast=bool)
+PHASE1_LLM_CONTEXT_ENRICHMENT = config('PHASE1_LLM_CONTEXT_ENRICHMENT', default=True, cast=bool)
+PHASE1_RESPONSE_PERSONALIZATION_FIX = config('PHASE1_RESPONSE_PERSONALIZATION_FIX', default=True, cast=bool)
 # ============================================
 # LOGGING
 # ============================================
@@ -490,3 +500,42 @@ os.environ['HF_HOME'] = '/tmp'
 os.environ['SENTENCE_TRANSFORMERS_HOME'] = '/tmp'
 
 CHAT_HMAC_SECRET = config('CHAT_HMAC_SECRET', default='change-me-in-production')
+
+
+# ============================================
+# JWT CONFIGURATION (ADD THIS NEW SECTION)
+# ============================================
+
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': False,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': True,
+    
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'VERIFYING_KEY': None,
+    'AUDIENCE': None,
+    'ISSUER': None,
+    
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+    
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_TYPE_CLAIM': 'token_type',
+    
+    'JTI_CLAIM': 'jti',
+}
+
+# ============================================
+# FRONTEND URL
+# ============================================
+if IS_PRODUCTION:
+    FRONTEND_URL = 'https://zunto-frontend.onrender.com'
+else:
+    FRONTEND_URL = 'http://localhost:5173'  # Vite dev server

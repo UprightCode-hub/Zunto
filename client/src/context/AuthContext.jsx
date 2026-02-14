@@ -63,7 +63,21 @@ export const AuthProvider = ({ children }) => {
       
       return { success: true, data };
     } catch (error) {
-      return { success: false, error: error.message };
+      // ✅ Better error handling for login
+      const errorData = error.response?.data;
+      let errorMessage = 'Login failed. Please try again.';
+      
+      if (errorData) {
+        if (errorData.detail) {
+          errorMessage = errorData.detail;
+        } else if (errorData.non_field_errors) {
+          errorMessage = Array.isArray(errorData.non_field_errors) 
+            ? errorData.non_field_errors[0] 
+            : errorData.non_field_errors;
+        }
+      }
+      
+      return { success: false, error: errorMessage };
     }
   };
 
@@ -71,21 +85,62 @@ export const AuthProvider = ({ children }) => {
     try {
       const data = await registerAPI(userData);
       
+      // ✅ Validate response has required data
+      if (!data.access || !data.refresh || !data.user) {
+        throw new Error('Invalid response from server. Please try again.');
+      }
+      
       // Save tokens
       localStorage.setItem('access_token', data.access);
       localStorage.setItem('refresh_token', data.refresh);
       localStorage.setItem('token', data.access);
       
-      // Save user data
-      const userInfo = data.user || userData;
-      localStorage.setItem('user', JSON.stringify(userInfo));
+      // ✅ Save user data (ONLY from server, never raw form data)
+      localStorage.setItem('user', JSON.stringify(data.user));
       
       setToken(data.access);
-      setUser(userInfo);
+      setUser(data.user);
       
       return { success: true, data };
     } catch (error) {
-      return { success: false, error: error.message };
+      // ✅ Extract Django's detailed error messages
+      const errorData = error.response?.data;
+      let errorMessage = 'Registration failed. Please try again.';
+      
+      if (errorData) {
+        // Check for field-specific errors (Django returns these)
+        if (errorData.password) {
+          errorMessage = Array.isArray(errorData.password) 
+            ? errorData.password[0] 
+            : errorData.password;
+        } else if (errorData.email) {
+          errorMessage = Array.isArray(errorData.email) 
+            ? errorData.email[0] 
+            : errorData.email;
+        } else if (errorData.first_name) {
+          errorMessage = Array.isArray(errorData.first_name) 
+            ? errorData.first_name[0] 
+            : errorData.first_name;
+        } else if (errorData.last_name) {
+          errorMessage = Array.isArray(errorData.last_name) 
+            ? errorData.last_name[0] 
+            : errorData.last_name;
+        } else if (errorData.phone) {
+          errorMessage = Array.isArray(errorData.phone) 
+            ? errorData.phone[0] 
+            : errorData.phone;
+        } else if (errorData.detail) {
+          errorMessage = errorData.detail;
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.non_field_errors) {
+          errorMessage = Array.isArray(errorData.non_field_errors) 
+            ? errorData.non_field_errors[0] 
+            : errorData.non_field_errors;
+        }
+      }
+      
+      return { success: false, error: errorMessage };
     }
   };
 

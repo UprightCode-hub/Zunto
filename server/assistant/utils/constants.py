@@ -1,3 +1,5 @@
+# assistant/utils/constants.py
+
 """
 Constants - System-wide configuration constants for Zunto Assistant.
 
@@ -41,17 +43,80 @@ ALL_STATES = [
 ]
 
 # ============================================================================
-# CONFIDENCE THRESHOLDS (3-Tier System)
+# UNIFIED CONFIDENCE CONFIGURATION
 # ============================================================================
-CONFIDENCE_HIGH = 0.65      # Tier 1: Return FAQ directly, no LLM call
-CONFIDENCE_MEDIUM = 0.40    # Tier 2: Use LLM to enhance answer
-CONFIDENCE_LOW = 0.40       # Tier 3: LLM generates from scratch
 
-# Response quality thresholds
-QUALITY_EXCELLENT = 0.85    # Excellent response quality
-QUALITY_GOOD = 0.65        # Good response quality
-QUALITY_FAIR = 0.40        # Fair response quality
-QUALITY_POOR = 0.40        # Poor response quality
+class ConfidenceConfig:
+    """Centralized confidence thresholds for all AI components."""
+    
+    RAG = {
+        'high': 0.65,
+        'medium': 0.40,
+        'low': 0.0
+    }
+    
+    INTENT = {
+        'certain': 0.75,
+        'likely': 0.50,
+        'uncertain': 0.0
+    }
+    
+    LLM = {
+        'excellent': 0.80,
+        'good': 0.60,
+        'fair': 0.40,
+        'poor': 0.0
+    }
+    
+    @classmethod
+    def get_rag_tier(cls, score: float) -> str:
+        """Get RAG confidence tier from score."""
+        if score >= cls.RAG['high']:
+            return 'high'
+        elif score >= cls.RAG['medium']:
+            return 'medium'
+        return 'low'
+    
+    @classmethod
+    def get_intent_tier(cls, score: float) -> str:
+        """Get intent confidence tier from score."""
+        if score >= cls.INTENT['certain']:
+            return 'certain'
+        elif score >= cls.INTENT['likely']:
+            return 'likely'
+        return 'uncertain'
+    
+    @classmethod
+    def get_llm_tier(cls, score: float) -> str:
+        """Get LLM confidence tier from score."""
+        if score >= cls.LLM['excellent']:
+            return 'excellent'
+        elif score >= cls.LLM['good']:
+            return 'good'
+        elif score >= cls.LLM['fair']:
+            return 'fair'
+        return 'poor'
+    
+    @classmethod
+    def should_use_rag_directly(cls, score: float) -> bool:
+        """Check if RAG confidence is high enough for direct use."""
+        return score >= cls.RAG['high']
+    
+    @classmethod
+    def should_fallback_to_llm(cls, score: float) -> bool:
+        """Check if RAG confidence requires LLM fallback."""
+        return score < cls.RAG['medium']
+
+
+# Legacy constants for backward compatibility
+CONFIDENCE_HIGH = ConfidenceConfig.RAG['high']
+CONFIDENCE_MEDIUM = ConfidenceConfig.RAG['medium']
+CONFIDENCE_LOW = ConfidenceConfig.RAG['low']
+
+QUALITY_EXCELLENT = 0.85
+QUALITY_GOOD = 0.65
+QUALITY_FAIR = 0.40
+QUALITY_POOR = 0.40
 
 # ============================================================================
 # MESSAGE LIMITS & VALIDATION
@@ -63,7 +128,6 @@ MESSAGE_WARNING_LENGTH = 1500
 NAME_MIN_LENGTH = 2
 NAME_MAX_LENGTH = 50
 
-# Session limits
 SESSION_TIMEOUT_MINUTES = 30
 MAX_MESSAGES_PER_SESSION = 100
 MAX_CONTEXT_HISTORY = 20
@@ -71,13 +135,12 @@ MAX_CONTEXT_HISTORY = 20
 # ============================================================================
 # RAG CONFIGURATION
 # ============================================================================
-RAG_TOP_K = 5                          # Number of FAQs to retrieve
+RAG_TOP_K = 5
 RAG_EMBEDDING_MODEL = 'BAAI/bge-small-en-v1.5'
-RAG_DIMENSION = 384                    # BGE-small embedding dimension
-RAG_INDEX_TYPE = 'HNSW'               # FAISS index type
+RAG_DIMENSION = 384
+RAG_INDEX_TYPE = 'HNSW'
 
-# Target performance
-RAG_TARGET_QUERY_TIME_MS = 50         # Target: 30ms, acceptable: 50ms
+RAG_TARGET_QUERY_TIME_MS = 50
 RAG_CACHE_ENABLED = True
 
 # ============================================================================
@@ -135,7 +198,6 @@ ALL_EMOTIONS = [
     EMOTION_SAD
 ]
 
-# Emotion weights for sentiment calculation
 EMOTION_WEIGHTS = {
     EMOTION_HAPPY: 1.0,
     EMOTION_EXCITED: 1.0,
@@ -148,12 +210,12 @@ EMOTION_WEIGHTS = {
 # ============================================================================
 # ESCALATION LEVELS
 # ============================================================================
-ESCALATION_NONE = 0         # User is calm
-ESCALATION_CONCERNED = 1    # Slightly concerned
-ESCALATION_FRUSTRATED = 2   # Frustrated, needs attention
-ESCALATION_CRITICAL = 3     # Critical, needs immediate human intervention
+ESCALATION_NONE = 0
+ESCALATION_CONCERNED = 1
+ESCALATION_FRUSTRATED = 2
+ESCALATION_CRITICAL = 3
 
-ESCALATION_THRESHOLD = 3    # Number of negative messages to trigger escalation
+ESCALATION_THRESHOLD = 3
 
 # ============================================================================
 # REPORT TYPES & SEVERITY
@@ -211,12 +273,11 @@ ALL_PLATFORMS = [
 # ============================================================================
 # ZUNTO CONTACT INFORMATION
 # ============================================================================
-ZUNTO_SUPPORT_EMAIL = 'support@zunto.com'
-ZUNTO_SUPPORT_TWITTER = '@ZuntoSupport'
-ZUNTO_SUPPORT_WHATSAPP = '+234-XXX-XXX-XXXX'
+ZUNTO_SUPPORT_EMAIL = 'zuntoproject@gmail.com'
+ZUNTO_SUPPORT_TWITTER = '@zuntoproject'
+ZUNTO_SUPPORT_WHATSAPP = '+234-815-789-9402'
 ZUNTO_WEBSITE = 'https://zunto.com'
 
-# Response time expectations
 SUPPORT_RESPONSE_TIME_HOURS = 24
 
 # ============================================================================
@@ -284,7 +345,6 @@ SUPPORTED_LANGUAGES = [
     'english', 'spanish', 'french', 'chinese', 'arabic', 'portuguese'
 ]
 
-# Multi-language greetings
 GREETINGS_MULTILANG = {
     'english': ['hello', 'hi', 'hey', 'greetings'],
     'spanish': ['hola', 'buenos días', 'buenas tardes'],
@@ -296,12 +356,11 @@ GREETINGS_MULTILANG = {
 # ============================================================================
 # PERFORMANCE TARGETS
 # ============================================================================
-TARGET_RESPONSE_TIME_MS = 100      # Target total response time
-ACCEPTABLE_RESPONSE_TIME_MS = 500  # Acceptable response time
-SLOW_RESPONSE_TIME_MS = 1000       # Warning threshold
+TARGET_RESPONSE_TIME_MS = 100
+ACCEPTABLE_RESPONSE_TIME_MS = 500
+SLOW_RESPONSE_TIME_MS = 1000
 
-# Cost optimization targets
-COST_SAVINGS_TARGET = 0.65         # 65% cost savings from 3-tier system
+COST_SAVINGS_TARGET = 0.65
 
 # ============================================================================
 # FEATURE FLAGS
@@ -323,7 +382,6 @@ LOG_LEVEL_INFO = 'INFO'
 LOG_LEVEL_WARNING = 'WARNING'
 LOG_LEVEL_ERROR = 'ERROR'
 
-# Log what gets tracked
 LOG_USER_MESSAGES = True
 LOG_CONTEXT_CHANGES = True
 LOG_ESCALATIONS = True
@@ -371,28 +429,23 @@ RATE_LIMIT_BURST_SIZE = 10
 # CACHE CONFIGURATION
 # ============================================================================
 CACHE_ENABLED = True
-CACHE_TTL_SECONDS = 3600           # 1 hour
+CACHE_TTL_SECONDS = 3600
 CACHE_MAX_SIZE_MB = 100
 
 # ============================================================================
 # DATABASE QUERY LIMITS
 # ============================================================================
-MAX_CONVERSATION_LOGS = 10000      # Max logs per user
-MAX_REPORTS = 1000                 # Max reports per user
-MAX_SESSIONS = 100                 # Max sessions per user
+MAX_CONVERSATION_LOGS = 10000
+MAX_REPORTS = 1000
+MAX_SESSIONS = 100
 
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
 
 def get_confidence_tier(score: float) -> str:
-    """Get confidence tier label from score."""
-    if score >= CONFIDENCE_HIGH:
-        return 'high'
-    elif score >= CONFIDENCE_MEDIUM:
-        return 'medium'
-    else:
-        return 'low'
+    """Get confidence tier label from score (deprecated - use ConfidenceConfig)."""
+    return ConfidenceConfig.get_rag_tier(score)
 
 
 def get_escalation_label(level: int) -> str:
