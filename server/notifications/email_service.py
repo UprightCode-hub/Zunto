@@ -1,5 +1,6 @@
 # notifications/email_service.py
 from django.core.mail import EmailMultiAlternatives
+from django.utils.html import strip_tags
 from django.template import Template, Context
 from django.conf import settings
 from django.utils import timezone
@@ -99,13 +100,37 @@ class EmailService:
             'email': user.email,
             'frontend_url': settings.FRONTEND_URL,
         }
-        
-        return EmailService.send_email(
+
+        sent = EmailService.send_email(
             'welcome',
             user.email,
             context,
             user.get_full_name()
         )
+        if sent:
+            return True
+
+        # Fallback if DB template is missing/inactive.
+        subject = 'Welcome to Zunto'
+        html_content = (
+            f"<p>Hello {context['user_name']},</p>"
+            "<p>Welcome to Zunto. Your account has been created successfully.</p>"
+        )
+        text_content = strip_tags(html_content)
+
+        try:
+            email = EmailMultiAlternatives(
+                subject=subject,
+                body=text_content,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=[user.email]
+            )
+            email.attach_alternative(html_content, 'text/html')
+            email.send()
+            return True
+        except Exception as e:
+            logger.error(f"Fallback welcome email failed for {user.email}: {str(e)}")
+            return False
     
     @staticmethod
     def send_verification_email(user, code):
@@ -115,13 +140,39 @@ class EmailService:
             'verification_code': code,
             'frontend_url': settings.FRONTEND_URL,
         }
-        
-        return EmailService.send_email(
+
+        sent = EmailService.send_email(
             'email_verification',
             user.email,
             context,
             user.get_full_name()
         )
+        if sent:
+            return True
+
+        # Fallback if DB template is missing/inactive.
+        subject = 'Your Zunto verification code'
+        html_content = (
+            f"<p>Hello {context['user_name']},</p>"
+            "<p>Use the verification code below to verify your account:</p>"
+            f"<h2>{code}</h2>"
+            "<p>This code expires in 15 minutes.</p>"
+        )
+        text_content = strip_tags(html_content)
+
+        try:
+            email = EmailMultiAlternatives(
+                subject=subject,
+                body=text_content,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=[user.email]
+            )
+            email.attach_alternative(html_content, 'text/html')
+            email.send()
+            return True
+        except Exception as e:
+            logger.error(f"Fallback verification email failed for {user.email}: {str(e)}")
+            return False
     
     @staticmethod
     def send_password_reset_email(user, code):

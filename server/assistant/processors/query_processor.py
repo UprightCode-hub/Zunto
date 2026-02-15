@@ -281,7 +281,7 @@ class QueryProcessor:
             )
 
             start_time = time.time()
-            response = self.llm.generate(
+            llm_output = self.llm.generate(
                 prompt=message,
                 system_prompt=system_prompt,
                 max_tokens=500,
@@ -289,18 +289,19 @@ class QueryProcessor:
             )
             time_ms = int((time.time() - start_time) * 1000)
 
-            confidence = self._estimate_llm_confidence(response, message)
+            response_text = llm_output.get('response', '') if isinstance(llm_output, dict) else str(llm_output)
+            confidence = self._estimate_llm_confidence(response_text, message)
 
             rag_ids = []
             if rag_results:
                 rag_ids = [r.get('id', '') for r in rag_results if r.get('id')]
 
             return {
-                'response': response,
+                'response': response_text,
                 'confidence': confidence,
-                'tokens': len(response.split()),
-                'time_ms': time_ms,
-                'model': self.llm.model_name,
+                'tokens': llm_output.get('tokens_generated', len(response_text.split())) if isinstance(llm_output, dict) else len(response_text.split()),
+                'time_ms': int((llm_output.get('generation_time', 0) or 0) * 1000) if isinstance(llm_output, dict) else time_ms,
+                'model': llm_output.get('model', self.llm.model_name) if isinstance(llm_output, dict) else self.llm.model_name,
                 'context_provided': context_info,
                 'rag_references_used': rag_ids
             }

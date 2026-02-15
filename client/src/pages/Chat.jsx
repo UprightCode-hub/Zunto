@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { getChatRooms, getChatMessages, sendChatMessage } from '../services/api';
+import { getChatRooms, getChatMessages, sendMarketplaceChatMessage } from '../services/api';
 import { Send, MessageCircle, Search } from 'lucide-react';
 
 export default function Chat() {
@@ -64,7 +64,7 @@ export default function Chat() {
 
     try {
       setSendingMessage(true);
-      await sendChatMessage(newMessage, selectedConversation.id);
+      await sendMarketplaceChatMessage(selectedConversation.id, newMessage);
       setNewMessage('');
       
       // Fetch updated messages

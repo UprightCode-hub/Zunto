@@ -4,7 +4,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.http import JsonResponse
 from django.views.generic import RedirectView
-from core.views import health_check, assistant_view, marketplace_view
+from core.views import health_check, marketplace_view
 # from market.views import product_list_page, product_list
 # from accounts.views import LoginPageView
 urlpatterns = [
@@ -22,9 +22,8 @@ urlpatterns = [
     # path('login_page/', LoginPageView.as_view(), name='login_page'),as
     path('', RedirectView.as_view(url='/Zunto/server/market/templates/products.html/', permanent=False)),
     
-    # Frontend: Assistant AI
-    path('assistant/', assistant_view, {'page': 'index'}, name='assistant_home'), 
-    path('assistant/<str:page>/', assistant_view, name='assistant_page'),  
+    # Assistant app (UI + API)
+    path('assistant/', include('assistant.urls')),
     
     # Frontend: Marketplace
     path('marketplace/', marketplace_view, {'section': 'products', 'page': 'index'}, name='marketplace_home'),
@@ -41,14 +40,16 @@ urlpatterns = [
     path('dashboard/', include('dashboard.urls')),
     
     # API Routes
+    # Keep legacy non-API account routes while exposing API-prefixed routes
+    # expected by the React client (e.g. /api/accounts/register/).
     path('accounts/', include('accounts.urls')),
+    path('api/accounts/', include('accounts.urls')),
     path('api/market/', include('market.urls')),
     path('api/reviews/', include('reviews.urls')),
     path('api/cart/', include('cart.urls')),
     path('api/orders/', include('orders.urls')),
     path('api/payments/', include('orders.payment_urls')),
     path('api/notifications/', include('notifications.urls')),
-    # path('assistant/', include('assistant.urls')),  # Temporarily disabled
     path('chat/', include('chat.urls')),
 
     #market
