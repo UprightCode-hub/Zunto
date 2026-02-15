@@ -1,6 +1,13 @@
 // client/src/context/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { login as loginAPI, register as registerAPI, logout as logoutAPI, getUserProfile } from '../services/api';
+import {
+  login as loginAPI,
+  register as registerAPI,
+  verifyRegistration as verifyRegistrationAPI,
+  resendRegistrationCode as resendRegistrationCodeAPI,
+  logout as logoutAPI,
+  getUserProfile,
+} from '../services/api';
 
 const AuthContext = createContext();
 
@@ -17,25 +24,23 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState(null);
 
-  // Initialize from localStorage on mount
   useEffect(() => {
     const accessToken = localStorage.getItem('access_token');
-    const refreshToken = localStorage.getItem('refresh_token');
     const userData = localStorage.getItem('user');
-    
+
     if (accessToken) {
       setToken(accessToken);
       if (userData) {
         setUser(JSON.parse(userData));
       } else {
-        // Try to fetch user profile if we have token but no user data
-        fetchUserProfile(accessToken);
+        fetchUserProfile();
       }
     }
+
     setLoading(false);
   }, []);
 
-  const fetchUserProfile = async (accessToken) => {
+  const fetchUserProfile = async () => {
     try {
       const data = await getUserProfile();
       localStorage.setItem('user', JSON.stringify(data));
@@ -49,35 +54,34 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       const data = await loginAPI(email, password);
-      
-      // Save tokens (JWT format: {access, refresh})
+
       localStorage.setItem('access_token', data.access);
       localStorage.setItem('refresh_token', data.refresh);
-      localStorage.setItem('token', data.access); // For backwards compatibility
-      
-      // Save user data
+      localStorage.setItem('token', data.access);
+
       const userData = data.user || { email };
       localStorage.setItem('user', JSON.stringify(userData));
-      
+
       setToken(data.access);
       setUser(userData);
-      
+
       return { success: true, data };
     } catch (error) {
-      // Better error handling for login
-      const errorData = error.response?.data;
+      const errorData = error.data;
       let errorMessage = 'Login failed. Please try again.';
-      
+
       if (errorData) {
         if (errorData.detail) {
           errorMessage = errorData.detail;
         } else if (errorData.non_field_errors) {
-          errorMessage = Array.isArray(errorData.non_field_errors) 
-            ? errorData.non_field_errors[0] 
+          errorMessage = Array.isArray(errorData.non_field_errors)
+            ? errorData.non_field_errors[0]
             : errorData.non_field_errors;
+        } else if (errorData.error) {
+          errorMessage = errorData.error;
         }
       }
-      
+
       return { success: false, error: errorMessage };
     }
   };
@@ -85,96 +89,107 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       const data = await registerAPI(userData);
-      
-      // Validate response has required data
-      if (!data.access || !data.refresh || !data.user) {
-        throw new Error('Invalid response from server. Please try again.');
-      }
-      
-      // Save tokens
-      localStorage.setItem('access_token', data.access);
-      localStorage.setItem('refresh_token', data.refresh);
-      localStorage.setItem('token', data.access);
-      
-      // Save user data (ONLY from server, never raw form data)
-      localStorage.setItem('user', JSON.stringify(data.user));
-      
-      setToken(data.access);
-      setUser(data.user);
-      
       return { success: true, data };
     } catch (error) {
-      // Extract Django's detailed error messages
-      const errorData = error.response?.data;
+      const errorData = error.data;
       let errorMessage = 'Registration failed. Please try again.';
-      
+
       if (errorData) {
-        // Check for field-specific errors (Django returns these)
         if (errorData.password) {
-          errorMessage = Array.isArray(errorData.password) 
-            ? errorData.password[0] 
+          errorMessage = Array.isArray(errorData.password)
+            ? errorData.password[0]
             : errorData.password;
         } else if (errorData.email) {
-          errorMessage = Array.isArray(errorData.email) 
-            ? errorData.email[0] 
+          errorMessage = Array.isArray(errorData.email)
+            ? errorData.email[0]
             : errorData.email;
         } else if (errorData.first_name) {
-          errorMessage = Array.isArray(errorData.first_name) 
-            ? errorData.first_name[0] 
+          errorMessage = Array.isArray(errorData.first_name)
+            ? errorData.first_name[0]
             : errorData.first_name;
         } else if (errorData.last_name) {
-          errorMessage = Array.isArray(errorData.last_name) 
-            ? errorData.last_name[0] 
+          errorMessage = Array.isArray(errorData.last_name)
+            ? errorData.last_name[0]
             : errorData.last_name;
         } else if (errorData.phone) {
-          errorMessage = Array.isArray(errorData.phone) 
-            ? errorData.phone[0] 
+          errorMessage = Array.isArray(errorData.phone)
+            ? errorData.phone[0]
             : errorData.phone;
         } else if (errorData.detail) {
           errorMessage = errorData.detail;
         } else if (errorData.message) {
           errorMessage = errorData.message;
+        } else if (errorData.error) {
+          errorMessage = errorData.error;
         } else if (errorData.non_field_errors) {
-          errorMessage = Array.isArray(errorData.non_field_errors) 
-            ? errorData.non_field_errors[0] 
+          errorMessage = Array.isArray(errorData.non_field_errors)
+            ? errorData.non_field_errors[0]
             : errorData.non_field_errors;
         }
       }
-      
+
       return { success: false, error: errorMessage };
     }
   };
 
-  // ↓↓↓ NEW: Google Authentication Function ↓↓↓
+  const verifyRegistration = async (email, code) => {
+    try {
+      const data = await verifyRegistrationAPI(email, code);
+
+      if (!data.access || !data.refresh || !data.user) {
+        throw new Error('Invalid response from server during verification');
+      }
+
+      localStorage.setItem('access_token', data.access);
+      localStorage.setItem('refresh_token', data.refresh);
+      localStorage.setItem('token', data.access);
+      localStorage.setItem('user', JSON.stringify(data.user));
+
+      setToken(data.access);
+      setUser(data.user);
+
+      return { success: true, data };
+    } catch (error) {
+      const errorData = error.data;
+      const errorMessage = errorData?.error || errorData?.detail || error.message || 'Verification failed.';
+      return { success: false, error: errorMessage };
+    }
+  };
+
+  const resendRegistrationCode = async (email) => {
+    try {
+      const data = await resendRegistrationCodeAPI(email);
+      return { success: true, data };
+    } catch (error) {
+      const errorData = error.data;
+      const errorMessage = errorData?.error || errorData?.detail || error.message || 'Failed to resend verification code.';
+      return { success: false, error: errorMessage };
+    }
+  };
+
   const googleAuth = async (googleData) => {
     try {
-      // Validate response has required data
       if (!googleData.access || !googleData.refresh || !googleData.user) {
         throw new Error('Invalid response from Google authentication');
       }
-      
-      // Save tokens
+
       localStorage.setItem('access_token', googleData.access);
       localStorage.setItem('refresh_token', googleData.refresh);
       localStorage.setItem('token', googleData.access);
-      
-      // Save user data
       localStorage.setItem('user', JSON.stringify(googleData.user));
-      
-      // Update state
+
       setToken(googleData.access);
       setUser(googleData.user);
-      
+
       return { success: true, data: googleData };
     } catch (error) {
       console.error('Google auth state update failed:', error);
-      return { 
-        success: false, 
-        error: error.message || 'Failed to update authentication state' 
+      return {
+        success: false,
+        error: error.message || 'Failed to update authentication state',
       };
     }
   };
-  // ↑↑↑ END NEW FUNCTION ↑↑↑
 
   const logout = async () => {
     try {
@@ -183,12 +198,11 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      // Clear local storage
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      
+
       setUser(null);
       setToken(null);
     }
@@ -200,7 +214,9 @@ export const AuthProvider = ({ children }) => {
     loading,
     login,
     register,
-    googleAuth,  // ← Added this
+    verifyRegistration,
+    resendRegistrationCode,
+    googleAuth,
     logout,
     isAuthenticated: !!token,
   };

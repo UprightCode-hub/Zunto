@@ -14,8 +14,11 @@ def send_welcome_email_task(user_id):
     
     try:
         user = User.objects.get(id=user_id)
-        EmailService.send_welcome_email(user)
-        logger.info(f"Welcome email sent to {user.email}")
+        sent = EmailService.send_welcome_email(user)
+        if sent:
+            logger.info(f"Welcome email sent to {user.email}")
+        else:
+            logger.error(f"Welcome email failed for {user.email}")
     except User.DoesNotExist:
         logger.error(f"User with id {user_id} not found")
     except Exception as e:
@@ -30,8 +33,11 @@ def send_verification_email_task(user_id, code):
     
     try:
         user = User.objects.get(id=user_id)
-        EmailService.send_verification_email(user, code)
-        logger.info(f"Verification email sent to {user.email}")
+        sent = EmailService.send_verification_email(user, code)
+        if sent:
+            logger.info(f"Verification email sent to {user.email}")
+        else:
+            logger.error(f"Verification email failed for {user.email}")
     except User.DoesNotExist:
         logger.error(f"User with id {user_id} not found")
     except Exception as e:

@@ -64,7 +64,7 @@ export default function Signup() {
       });
       
       if (result.success) {
-        navigate('/');
+        navigate(`/verify-registration?email=${encodeURIComponent(formData.email)}`);
       } else {
         setError(result.error || 'Signup failed. Please try again.');
       }

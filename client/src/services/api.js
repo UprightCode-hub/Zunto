@@ -25,11 +25,20 @@ const apiCall = async (endpoint, options = {}) => {
     if (response.status === 204) {
       return null;
     }
-
-    const data = await response.json();
+    let data = null;
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      data = await response.json();
+    } else {
+      const text = await response.text();
+      data = text ? { detail: text } : {};
+    }
     
     if (!response.ok) {
-      throw new Error(data.message || data.detail || 'Something went wrong');
+      const error = new Error(data.message || data.detail || 'Something went wrong');
+      error.status = response.status;
+      error.data = data;
+      throw error;
     }
     
     return data;
@@ -47,6 +56,20 @@ export const register = (userData) => {
   return apiCall('/api/accounts/register/', {
     method: 'POST',
     body: JSON.stringify(userData),
+  });
+};
+
+export const verifyRegistration = (email, code) => {
+  return apiCall('/api/accounts/register/verify/', {
+    method: 'POST',
+    body: JSON.stringify({ email, code }),
+  });
+};
+
+export const resendRegistrationCode = (email) => {
+  return apiCall('/api/accounts/register/resend/', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
   });
 };
 

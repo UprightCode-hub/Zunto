@@ -3,6 +3,7 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.exceptions import AuthenticationFailed
 
 User = get_user_model()
 
@@ -56,6 +57,11 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     
     def validate(self, attrs):
         data = super().validate(attrs)
+
+        if not self.user.is_verified:
+            raise AuthenticationFailed(
+                "Email is not verified. Complete email verification before logging in."
+            )
         
         # Add custom user data to token response
         data['user'] = {
@@ -126,6 +132,56 @@ class EmailVerificationSerializer(serializers.Serializer):
     """Serializer for email verification"""
     
     code = serializers.CharField(required=True, max_length=6)
+
+
+class RegistrationInitiateSerializer(serializers.Serializer):
+    """Serializer for registration initiation (code send only)."""
+
+    email = serializers.EmailField(required=True)
+    password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
+    password_confirm = serializers.CharField(write_only=True, required=True)
+    first_name = serializers.CharField(required=True, max_length=150)
+    last_name = serializers.CharField(required=True, max_length=150)
+    phone = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=17)
+    role = serializers.ChoiceField(required=False, choices=User.ROLE_CHOICES, default='buyer')
+
+    def validate(self, attrs):
+        if attrs['password'] != attrs['password_confirm']:
+            raise serializers.ValidationError({"password": "Password fields didn't match."})
+        return attrs
+
+    def validate_email(self, value):
+        normalized = value.lower()
+        if User.objects.filter(email=normalized).exists():
+            raise serializers.ValidationError("A user with this email already exists.")
+        return normalized
+
+    def validate_phone(self, value):
+        if not value:
+            return None
+        if User.objects.filter(phone=value).exists():
+            raise serializers.ValidationError("A user with this phone number already exists.")
+        return value
+
+
+class RegistrationVerifySerializer(serializers.Serializer):
+    """Serializer for registration code verification."""
+
+    email = serializers.EmailField(required=True)
+    code = serializers.CharField(required=True, max_length=6, min_length=6)
+
+    def validate_email(self, value):
+        return value.lower()
+
+
+class RegistrationResendSerializer(serializers.Serializer):
+    """Serializer for registration code resend."""
+
+    email = serializers.EmailField(required=True)
+
+    def validate_email(self, value):
+        return value.lower()
+
 
 class GoogleAuthSerializer(serializers.Serializer):
     """Serializer for Google OAuth authentication"""

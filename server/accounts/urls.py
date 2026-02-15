@@ -2,6 +2,8 @@ from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     UserRegistrationView,
+    VerifyRegistrationView,
+    ResendRegistrationCodeView,
     CustomTokenObtainPairView,
     UserProfileView,
     ChangePasswordView,
@@ -26,6 +28,8 @@ urlpatterns = [
     
     # API Authentication Endpoints (for AJAX/API calls)
     path('register/', UserRegistrationView.as_view(), name='register'),
+    path('register/verify/', VerifyRegistrationView.as_view(), name='register_verify'),
+    path('register/resend/', ResendRegistrationCodeView.as_view(), name='register_resend'),
     path('login/', CustomTokenObtainPairView.as_view(), name='login'),
     path('logout/', LogoutView.as_view(), name='logout'),
     path('auth/google/', GoogleAuthView.as_view(), name='google_auth'),  

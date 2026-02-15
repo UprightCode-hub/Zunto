@@ -1,7 +1,6 @@
 import React from "react";
 import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
 import { ThemeProvider } from "./context/ThemeContext";
-import { AuthProvider } from "./context/AuthContext";
 import Navbar from "./components/common/Navbar";
 import Footer from "./components/common/Footer";
 import ProtectedRoute from "./components/common/ProtectedRoute";
@@ -21,6 +20,7 @@ import Orders from "./pages/Orders";
 import Reviews from "./pages/Reviews";
 import Notifications from "./pages/Notifications";
 import Chat from "./pages/Chat";
+import VerifyRegistration from "./pages/VerifyRegistration";
 
 function AppLayout() {
   const location = useLocation();
@@ -39,6 +39,7 @@ function AppLayout() {
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/verify-registration" element={<VerifyRegistration />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/orders" element={<Orders />} />
           <Route path="/reviews" element={<Reviews />} />
@@ -60,7 +61,14 @@ function AppLayout() {
               </ProtectedRoute>
             } 
           />
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute requireVerified>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
         </Routes>
       </main>
 
@@ -73,11 +81,9 @@ function AppLayout() {
 export default function App() {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <Router>
-          <AppLayout />
-        </Router>
-      </AuthProvider>
+      <Router>
+        <AppLayout />
+      </Router>
     </ThemeProvider>
   );
 }
