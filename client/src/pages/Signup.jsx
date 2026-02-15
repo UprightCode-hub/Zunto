@@ -7,7 +7,7 @@ import GoogleAuthButton from '../components/auth/GoogleAuthButton';
 
 export default function Signup() {
   const navigate = useNavigate();
-  const { register } = useAuth();
+  const { register, googleAuth } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -68,7 +68,7 @@ export default function Signup() {
       } else {
         setError(result.error || 'Signup failed. Please try again.');
       }
-    } catch (err) {
+    } catch { 
       setError('An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
@@ -268,9 +268,13 @@ export default function Signup() {
             {/* Google Sign-Up Button */}
             <GoogleAuthButton 
               mode="signup"
-              onSuccess={(data) => {
-                console.log('Google signup successful:', data);
-                navigate('/');
+              onSuccess={async (data) => {
+                const authResult = await googleAuth(data);
+                if (authResult.success) {
+                  navigate('/');
+                } else {
+                  setError(authResult.error || 'Google authentication failed.');
+                }
               }}
               onError={(errorMsg) => {
                 setError(errorMsg);

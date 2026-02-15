@@ -284,7 +284,10 @@ EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='ZONTO <noreply@zonto.com>')
 ADMIN_EMAIL = config('ADMIN_EMAIL', default='admin@zonto.com')
 
-if DEBUG:
+# In development you can opt into console backend, but do not force it.
+# Forced console backend prevents real verification emails from being delivered.
+EMAIL_USE_CONSOLE_IN_DEBUG = config('EMAIL_USE_CONSOLE_IN_DEBUG', default=False, cast=bool)
+if DEBUG and EMAIL_USE_CONSOLE_IN_DEBUG:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 # ============================================
