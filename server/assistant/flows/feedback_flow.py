@@ -160,7 +160,7 @@ Type 1, 2, 3, or describe what you need!"""
         
         return self.FEEDBACK_INTRO.format(name=self.name)
     
-    def handle_feedback_message(self, message: str) -> Tuple[str, Dict]:
+    def handle_feedback_message(self, message: str, emotion: Optional[str] = None) -> Tuple[str, Dict]:
         """
         Handle feedback message with sentiment analysis.
         
@@ -186,7 +186,7 @@ Type 1, 2, 3, or describe what you need!"""
         
         # Route based on step
         if current_step == self.STEP_COLLECT_FEEDBACK:
-            return self._handle_initial_feedback(message)
+            return self._handle_initial_feedback(message, emotion)
         
         elif current_step == self.STEP_FOLLOW_UP:
             return self._handle_follow_up(message)
@@ -195,7 +195,7 @@ Type 1, 2, 3, or describe what you need!"""
             # Fallback
             return self._save_and_complete()
     
-    def _handle_initial_feedback(self, message: str) -> Tuple[str, Dict]:
+    def _handle_initial_feedback(self, message: str, emotion: Optional[str] = None) -> Tuple[str, Dict]:
         """
         Handle initial feedback collection with sentiment analysis.
         """
@@ -204,7 +204,7 @@ Type 1, 2, 3, or describe what you need!"""
         
         # Detect feedback type and sentiment
         feedback_type = self._detect_feedback_type(message)
-        sentiment = self._detect_sentiment(message)
+        sentiment = self._detect_sentiment(message, emotion=emotion)
         
         self.context['feedback']['type'] = feedback_type
         self.context['feedback']['sentiment'] = sentiment
@@ -297,22 +297,29 @@ Type 1, 2, 3, or describe what you need!"""
         
         return self.TYPE_GENERAL
     
-    def _detect_sentiment(self, message: str) -> str:
+    def _detect_sentiment(self, message: str, emotion: Optional[str] = None) -> str:
         """
         Detect sentiment using intent_classifier if available,
         otherwise use keyword-based detection.
         """
-        # Try using intent_classifier for emotion
+        # Prefer already-classified emotion from ConversationManager.
+        if emotion:
+            if emotion in ['happy', 'excited']:
+                return 'positive'
+            elif emotion in ['angry', 'frustrated', 'sad']:
+                return 'negative'
+            return 'neutral'
+
+        # Backward compatibility: if no emotion is provided, optionally classify here.
         if self.intent_classifier:
             try:
                 from assistant.ai.intent_classifier import classify_intent
                 _, _, metadata = classify_intent(message, self.session.context)
-                emotion = metadata.get('emotion', 'neutral')
-                
-                # Map emotion to sentiment
-                if emotion in ['happy', 'excited']:
+                detected_emotion = metadata.get('emotion', 'neutral')
+
+                if detected_emotion in ['happy', 'excited']:
                     return 'positive'
-                elif emotion in ['angry', 'frustrated', 'sad']:
+                elif detected_emotion in ['angry', 'frustrated', 'sad']:
                     return 'negative'
                 else:
                     return 'neutral'

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { sendChatMessage } from '../../services/api';
+import { sendAssistantMessage } from '../../services/api';
 
 const AssistantChat = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -33,7 +33,7 @@ const AssistantChat = () => {
     setIsLoading(true);
 
     try {
-      const response = await sendChatMessage(userMessage, sessionId);
+      const response = await sendAssistantMessage(userMessage, sessionId);
       
       if (response.session_id) {
         setSessionId(response.session_id);
