@@ -414,7 +414,7 @@ class ConversationManager:
                 emotion=emotion
             )
 
-            reply, feedback_metadata = self.feedback_flow.handle_feedback_message(message)
+            reply, feedback_metadata = self.feedback_flow.handle_feedback_message(message, emotion=emotion)
 
             use_personalization = getattr(settings, 'PHASE1_RESPONSE_PERSONALIZATION_FIX', True)
             

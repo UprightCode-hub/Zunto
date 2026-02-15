@@ -521,12 +521,27 @@ export const getChatMessages = (conversationId) => {
   return apiCall(`/chat/messages/?conversation=${conversationId}`);
 };
 
-export const sendChatMessage = (message, sessionId = null) => {
+export const sendMarketplaceChatMessage = (conversationId, content, messageType = 'text') => {
+  return apiCall('/chat/messages/', {
+    method: 'POST',
+    body: JSON.stringify({
+      conversation_id: conversationId,
+      content,
+      message_type: messageType,
+    }),
+  });
+};
+
+export const sendAssistantMessage = (message, sessionId = null, userId = null) => {
   const payload = { message };
   if (sessionId) {
     payload.session_id = sessionId;
   }
-  return apiCall('/chat/send/', {
+  if (userId) {
+    payload.user_id = userId;
+  }
+
+  return apiCall('/assistant/api/chat/', {
     method: 'POST',
     body: JSON.stringify(payload),
   });

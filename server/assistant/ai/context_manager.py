@@ -84,7 +84,8 @@ class ContextManager:
         content: str,
         intent: Optional[str] = None,
         emotion: Optional[str] = None,
-        confidence: float = 0.0
+        confidence: float = 0.0,
+        metadata: Optional[Dict] = None
     ):
         try:
             message_num = self.context['metadata']['message_count'] + 1
@@ -98,6 +99,9 @@ class ContextManager:
                 'emotion': emotion,
                 'confidence': confidence
             }
+
+            if metadata:
+                message['metadata'] = metadata
 
             history = self.context.get('history', [])
             history.append(message)
