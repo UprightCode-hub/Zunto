@@ -135,17 +135,27 @@ class EmailService:
     @staticmethod
     def send_verification_email(user, code):
         """Send email verification code"""
+        recipient_name = user.get_full_name() or user.email
+        return EmailService.send_verification_email_to_recipient(
+            recipient_email=user.email,
+            recipient_name=recipient_name,
+            code=code,
+        )
+
+    @staticmethod
+    def send_verification_email_to_recipient(recipient_email, recipient_name, code):
+        """Send email verification code to an arbitrary recipient."""
         context = {
-            'user_name': user.get_full_name() or user.email,
+            'user_name': recipient_name or recipient_email,
             'verification_code': code,
             'frontend_url': settings.FRONTEND_URL,
         }
 
         sent = EmailService.send_email(
             'email_verification',
-            user.email,
+            recipient_email,
             context,
-            user.get_full_name()
+            recipient_name
         )
         if sent:
             return True
@@ -165,13 +175,15 @@ class EmailService:
                 subject=subject,
                 body=text_content,
                 from_email=settings.DEFAULT_FROM_EMAIL,
-                to=[user.email]
+                to=[recipient_email]
             )
             email.attach_alternative(html_content, 'text/html')
             email.send()
             return True
         except Exception as e:
-            logger.error(f"Fallback verification email failed for {user.email}: {str(e)}")
+            logger.error(
+                f"Fallback verification email failed for {recipient_email}: {str(e)}"
+            )
             return False
     
     @staticmethod

@@ -43,8 +43,8 @@ urlpatterns = [
     # API Routes
     # Keep legacy non-API account routes while exposing API-prefixed routes
     # expected by the React client (e.g. /api/accounts/register/).
-    path('accounts/', include('accounts.urls')),
-    path('api/accounts/', include('accounts.urls')),
+    path('accounts/', include(('accounts.urls', 'accounts'), namespace='accounts')),
+    path('api/accounts/', include(('accounts.urls', 'accounts_api'), namespace='accounts_api')),
     path('api/market/', include('market.urls')),
     path('api/reviews/', include('reviews.urls')),
     path('api/cart/', include('cart.urls')),

@@ -140,3 +140,36 @@ class VerificationCode(models.Model):
     def is_expired(self):
         from django.utils import timezone
         return timezone.now() > self.expires_at
+
+
+class PendingRegistration(models.Model):
+    """
+    Stores registration data until email verification succeeds.
+    A real User record is created only after code verification.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    email = models.EmailField(unique=True, db_index=True)
+    first_name = models.CharField(max_length=150)
+    last_name = models.CharField(max_length=150)
+    phone = models.CharField(max_length=17, null=True, blank=True)
+    role = models.CharField(max_length=20, choices=User.ROLE_CHOICES, default='buyer')
+    password_hash = models.CharField(max_length=128)
+    verification_code = models.CharField(max_length=6)
+    code_expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'pending_registrations'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['email']),
+        ]
+
+    def __str__(self):
+        return f"PendingRegistration<{self.email}>"
+
+    def is_expired(self):
+        from django.utils import timezone
+        return timezone.now() > self.code_expires_at

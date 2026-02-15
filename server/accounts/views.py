@@ -1,196 +1,190 @@
 # accounts/views.py
-from django.shortcuts import render
-from notifications.email_service import EmailService
-from rest_framework import status, generics, permissions
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework_simplejwt.views import TokenObtainPairView
-from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth import get_user_model
-from django.utils import timezone
 from datetime import timedelta
 import random
-from notifications.tasks import send_welcome_email_task, send_verification_email_task
-from django_ratelimit.decorators import ratelimit
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt
-from .serializers import (
-    UserRegistrationSerializer,
-    CustomTokenObtainPairSerializer,
-    UserProfileSerializer,
-    ChangePasswordSerializer,
-    PasswordResetRequestSerializer,
-    PasswordResetConfirmSerializer,
-    EmailVerificationSerializer,
-    GoogleAuthSerializer,  # ← ADD THIS IMPORT
-)
-from .models import VerificationCode
-from django.views import View
 
-# ← ADD THESE IMPORTS FOR GOOGLE AUTH
-from google.oauth2 import id_token
-from google.auth.transport import requests as google_requests
 from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.contrib.auth.hashers import make_password
+from django.db import IntegrityError, transaction
+from django.shortcuts import render
+from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views import View
+from django.views.decorators.csrf import csrf_exempt
+from django_ratelimit.decorators import ratelimit
+from rest_framework import generics, permissions, status
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView
+
+from notifications.email_service import EmailService
+from notifications.tasks import send_verification_email_task, send_welcome_email_task
+from .models import PendingRegistration, VerificationCode
+from .serializers import (
+    ChangePasswordSerializer,
+    CustomTokenObtainPairSerializer,
+    EmailVerificationSerializer,
+    GoogleAuthSerializer,
+    PasswordResetConfirmSerializer,
+    PasswordResetRequestSerializer,
+    RegistrationInitiateSerializer,
+    RegistrationResendSerializer,
+    RegistrationVerifySerializer,
+    UserProfileSerializer,
+)
+
+try:
+    from google.oauth2 import id_token
+    from google.auth.transport import requests as google_requests
+except Exception:  # pragma: no cover
+    id_token = None
+    google_requests = None
 
 
 User = get_user_model()
- 
+
+
 @method_decorator(ratelimit(key='ip', rate='50/h', method='POST'), name='post')
 class UserRegistrationView(generics.CreateAPIView):
     """
-    User registration endpoint
+    Initiate registration: store pending data and send email code.
+    A User account is created only after /register/verify/ succeeds.
     """
 
-    queryset = User.objects.all()
-    serializer_class = UserRegistrationSerializer
+    queryset = PendingRegistration.objects.all()
+    serializer_class = RegistrationInitiateSerializer
     permission_classes = [permissions.AllowAny]
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        user = serializer.save()
+        data = serializer.validated_data
 
-        # Generate verification code
-        code = self.generate_verification_code(user, 'email')
+        code = self.generate_verification_code()
+        expires_at = timezone.now() + timedelta(minutes=15)
 
-        # Send emails through Celery async tasks.
-        # Fallback to direct send if queueing fails (worker/broker unavailable).
+        PendingRegistration.objects.update_or_create(
+            email=data['email'],
+            defaults={
+                'first_name': data['first_name'],
+                'last_name': data['last_name'],
+                'phone': data.get('phone'),
+                'role': data.get('role', 'buyer'),
+                'password_hash': make_password(data['password']),
+                'verification_code': code,
+                'code_expires_at': expires_at,
+            },
+        )
+
+        email_sent = EmailService.send_verification_email_to_recipient(
+            recipient_email=data['email'],
+            recipient_name=f"{data['first_name']} {data['last_name']}".strip(),
+            code=code,
+        )
+
+        if not email_sent:
+            return Response(
+                {
+                    'error': (
+                        'Unable to send verification email right now. '
+                        'Check email configuration and try again.'
+                    )
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        return Response(
+            {
+                'message': 'Verification code sent. Verify code to complete registration.',
+                'email': data['email'],
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @staticmethod
+    def generate_verification_code():
+        return ''.join([str(random.randint(0, 9)) for _ in range(6)])
+
+
+@method_decorator(ratelimit(key='ip', rate='20/h', method='POST'), name='post')
+class VerifyRegistrationView(APIView):
+    """Verify pending registration code and create the actual account."""
+
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = RegistrationVerifySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data['email']
+        code = serializer.validated_data['code']
+
         try:
-            send_verification_email_task.delay(str(user.id), code)
-        except Exception:
-            EmailService.send_verification_email(user, code)
+            pending = PendingRegistration.objects.get(email=email)
+        except PendingRegistration.DoesNotExist:
+            return Response(
+                {'error': 'No pending registration found for this email.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if pending.is_expired():
+            pending.delete()
+            return Response(
+                {'error': 'Verification code has expired. Request a new code.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if pending.verification_code != code:
+            return Response(
+                {'error': 'Invalid verification code.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if User.objects.filter(email=email).exists():
+            pending.delete()
+            return Response(
+                {'error': 'An account already exists for this email. Please login.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if pending.phone and User.objects.filter(phone=pending.phone).exists():
+            return Response(
+                {'error': 'A user with this phone number already exists.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            with transaction.atomic():
+                user = User(
+                    email=pending.email,
+                    first_name=pending.first_name,
+                    last_name=pending.last_name,
+                    phone=pending.phone,
+                    role=pending.role,
+                    is_verified=True,
+                )
+                user.password = pending.password_hash
+                user.save()
+                pending.delete()
+        except IntegrityError:
+            return Response(
+                {
+                    'error': (
+                        'Could not complete registration due to conflicting account data.'
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
             send_welcome_email_task.delay(str(user.id))
         except Exception:
             EmailService.send_welcome_email(user)
 
-        # ✅ Generate JWT tokens
         refresh = RefreshToken.for_user(user)
-
-        # ✅ Return same user data structure as login (CustomTokenObtainPairSerializer)
-        return Response({
-            'access': str(refresh.access_token),
-            'refresh': str(refresh),
-            'user': {
-                'id': str(user.id),
-                'email': user.email,
-                'first_name': user.first_name,
-                'last_name': user.last_name,
-                'role': user.role,
-                'is_verified': user.is_verified,
-                'profile_picture': user.profile_picture.url if user.profile_picture else None,
-            },
-            'message': 'Registration successful. Please check your email for verification code.'
-        }, status=status.HTTP_201_CREATED)
-
-    def generate_verification_code(self, user, code_type):
-        """Generate and store a 6-digit verification code."""
-        code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
-        expires_at = timezone.now() + timedelta(minutes=15)
-
-        VerificationCode.objects.create(
-            user=user,
-            code=code,
-            code_type=code_type,
-            expires_at=expires_at
-        )
-        return code
-
-
-@method_decorator(ratelimit(key='ip', rate='5/h', method='POST'), name='post')
-class CustomTokenObtainPairView(TokenObtainPairView):
-    """Custom login endpoint with user data"""
-
-    serializer_class = CustomTokenObtainPairSerializer
-
-
-# ↓↓↓ NEW: GOOGLE AUTHENTICATION VIEW ↓↓↓
-@method_decorator(csrf_exempt, name='dispatch')
-@method_decorator(ratelimit(key='ip', rate='10/h', method='POST'), name='post')
-class GoogleAuthView(APIView):
-    """
-    Authenticate user with Google OAuth token
-    Endpoint: POST /api/accounts/auth/google/
-    """
-    permission_classes = [permissions.AllowAny]
-    
-    def post(self, request):
-        serializer = GoogleAuthSerializer(data=request.data)
-        
-        if not serializer.is_valid():
-            return Response(
-                serializer.errors,
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        token = serializer.validated_data['token']
-        
-        try:
-            # Verify the Google token
-            idinfo = id_token.verify_oauth2_token(
-                token,
-                google_requests.Request(),
-                settings.GOOGLE_OAUTH_CLIENT_ID
-            )
-            
-            # Extract user information from Google
-            email = idinfo.get('email')
-            first_name = idinfo.get('given_name', '')
-            last_name = idinfo.get('family_name', '')
-            google_id = idinfo.get('sub')
-            email_verified = idinfo.get('email_verified', False)
-
-            if not email:
-                return Response(
-                    {'error': 'Email not provided by Google'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            if not email_verified:
-                return Response(
-                    {'error': 'Google email is not verified'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # Prevent account takeover by ensuring a Google account ID
-            # is always tied to a single local account.
-            existing_google_user = User.objects.filter(google_id=google_id).first()
-            if existing_google_user and existing_google_user.email.lower() != email.lower():
-                return Response(
-                    {'error': 'This Google account is already linked to another user.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # Get or create user
-            user, created = User.objects.get_or_create(
-                email=email.lower(),
-                defaults={
-                    'first_name': first_name,
-                    'last_name': last_name,
-                    'is_verified': True,  # Google emails are pre-verified
-                    'role': 'buyer',  # Default role
-                    'google_id': google_id,  # Save Google ID
-                }
-            )
-
-            # If user exists with a different linked Google account, block login.
-            if user.google_id and user.google_id != google_id:
-                return Response(
-                    {'error': 'This email is linked to a different Google account.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # If user exists but doesn't have google_id, add it
-            if not user.google_id:
-                user.google_id = google_id
-                user.save(update_fields=['google_id'])
-            
-            # Generate JWT tokens (MATCHING YOUR CustomTokenObtainPairSerializer FORMAT)
-            refresh = RefreshToken.for_user(user)
-            
-            # Return EXACT same format as your login/register endpoints
-            return Response({
+        return Response(
+            {
                 'access': str(refresh.access_token),
                 'refresh': str(refresh),
                 'user': {
@@ -200,22 +194,194 @@ class GoogleAuthView(APIView):
                     'last_name': user.last_name,
                     'role': user.role,
                     'is_verified': user.is_verified,
-                    'profile_picture': user.profile_picture.url if user.profile_picture else None,
+                    'profile_picture': (
+                        user.profile_picture.url if user.profile_picture else None
+                    ),
                 },
-                'message': 'Account created successfully' if created else 'Login successful'
-            }, status=status.HTTP_200_OK)
-            
-        except ValueError as e:
+                'message': 'Registration completed successfully.',
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+@method_decorator(ratelimit(key='ip', rate='10/h', method='POST'), name='post')
+class ResendRegistrationCodeView(APIView):
+    """Resend code for an existing pending registration."""
+
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = RegistrationResendSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data['email']
+
+        if User.objects.filter(email=email).exists():
             return Response(
-                {'error': 'Invalid Google token', 'details': str(e)},
-                status=status.HTTP_400_BAD_REQUEST
+                {'error': 'An account already exists for this email. Please login.'},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-        except Exception as e:
+
+        try:
+            pending = PendingRegistration.objects.get(email=email)
+        except PendingRegistration.DoesNotExist:
             return Response(
-                {'error': 'Authentication failed', 'details': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {'error': 'No pending registration found for this email.'},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-# ↑↑↑ END NEW VIEW ↑↑↑
+
+        pending.verification_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+        pending.code_expires_at = timezone.now() + timedelta(minutes=15)
+        pending.save()
+
+        email_sent = EmailService.send_verification_email_to_recipient(
+            recipient_email=pending.email,
+            recipient_name=f"{pending.first_name} {pending.last_name}".strip(),
+            code=pending.verification_code,
+        )
+
+        if not email_sent:
+            return Response(
+                {
+                    'error': (
+                        'Unable to send verification email right now. '
+                        'Check email configuration and try again.'
+                    )
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        return Response(
+            {'message': 'Verification code resent successfully.'},
+            status=status.HTTP_200_OK,
+        )
+
+
+@method_decorator(ratelimit(key='ip', rate='5/h', method='POST'), name='post')
+class CustomTokenObtainPairView(TokenObtainPairView):
+    """Custom login endpoint with user data"""
+
+    serializer_class = CustomTokenObtainPairSerializer
+
+
+@method_decorator(csrf_exempt, name='dispatch')
+@method_decorator(ratelimit(key='ip', rate='10/h', method='POST'), name='post')
+class GoogleAuthView(APIView):
+    """
+    Authenticate user with Google OAuth token.
+    Endpoint: POST /api/accounts/auth/google/
+    """
+
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = GoogleAuthSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        if id_token is None or google_requests is None:
+            return Response(
+                {
+                    'error': (
+                        'Google authentication is not available. '
+                        'Install google-auth dependency on the backend.'
+                    )
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        if not settings.GOOGLE_OAUTH_CLIENT_ID:
+            return Response(
+                {'error': 'GOOGLE_OAUTH_CLIENT_ID is not configured on the backend.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        token = serializer.validated_data['token']
+
+        try:
+            idinfo = id_token.verify_oauth2_token(
+                token,
+                google_requests.Request(),
+                settings.GOOGLE_OAUTH_CLIENT_ID,
+            )
+
+            email = idinfo.get('email')
+            first_name = idinfo.get('given_name', '')
+            last_name = idinfo.get('family_name', '')
+            google_id = idinfo.get('sub')
+            email_verified = idinfo.get('email_verified', False)
+
+            if not email:
+                return Response(
+                    {'error': 'Email not provided by Google'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if not email_verified:
+                return Response(
+                    {'error': 'Google email is not verified'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            existing_google_user = User.objects.filter(google_id=google_id).first()
+            if existing_google_user and existing_google_user.email.lower() != email.lower():
+                return Response(
+                    {'error': 'This Google account is already linked to another user.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            user, created = User.objects.get_or_create(
+                email=email.lower(),
+                defaults={
+                    'first_name': first_name,
+                    'last_name': last_name,
+                    'is_verified': True,
+                    'role': 'buyer',
+                    'google_id': google_id,
+                },
+            )
+
+            if user.google_id and user.google_id != google_id:
+                return Response(
+                    {'error': 'This email is linked to a different Google account.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if not user.google_id:
+                user.google_id = google_id
+                user.save(update_fields=['google_id'])
+
+            refresh = RefreshToken.for_user(user)
+            return Response(
+                {
+                    'access': str(refresh.access_token),
+                    'refresh': str(refresh),
+                    'user': {
+                        'id': str(user.id),
+                        'email': user.email,
+                        'first_name': user.first_name,
+                        'last_name': user.last_name,
+                        'role': user.role,
+                        'is_verified': user.is_verified,
+                        'profile_picture': (
+                            user.profile_picture.url if user.profile_picture else None
+                        ),
+                    },
+                    'message': 'Account created successfully' if created else 'Login successful',
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except ValueError as exc:
+            return Response(
+                {'error': 'Invalid Google token', 'details': str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as exc:
+            return Response(
+                {'error': 'Authentication failed', 'details': str(exc)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
 class UserProfileView(generics.RetrieveUpdateAPIView):
@@ -239,30 +405,28 @@ class ChangePasswordView(APIView):
         if serializer.is_valid():
             user = request.user
 
-            # Check old password
             if not user.check_password(serializer.data.get('old_password')):
                 return Response(
                     {'old_password': ['Wrong password.']},
-                    status=status.HTTP_400_BAD_REQUEST
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Set new password
             user.set_password(serializer.data.get('new_password'))
             user.save()
 
-            return Response({
-                'message': 'Password changed successfully.'
-            }, status=status.HTTP_200_OK)
+            return Response(
+                {'message': 'Password changed successfully.'},
+                status=status.HTTP_200_OK,
+            )
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-
 def Home(request):
     context = {
-        "content": "Welcome to Home Page, by Aikay",
-        "superuser": "Superuser Email:contact@user.com",
-        "personnal": "Personnal Information"
+        'content': 'Welcome to Home Page, by Aikay',
+        'superuser': 'Superuser Email:contact@user.com',
+        'personnal': 'Personnal Information',
     }
     return render(request, 'accounts/Home.html', context)
 
@@ -271,15 +435,15 @@ class LoginPageView(View):
     """Render the login HTML page"""
 
     def get(self, request):
-        return render(request, '\templates\login.html')
-       
-# 'marketplace/auth/login.html'
+        return render(request, 'marketplace/auth/login.html')
+
 
 class RegisterPageView(View):
     """Render the registration HTML page"""
 
     def get(self, request):
         return render(request, 'marketplace/auth/register.html')
+
 
 class LogoutView(APIView):
     """Logout endpoint"""
@@ -292,17 +456,13 @@ class LogoutView(APIView):
             token = RefreshToken(refresh_token)
             token.blacklist()
 
-            return Response({
-                'message': 'Logout successful.'
-            }, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({
-                'error': 'Invalid token.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'message': 'Logout successful.'}, status=status.HTTP_200_OK)
+        except Exception:
+            return Response({'error': 'Invalid token.'}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class VerifyEmailView(APIView):
-    """Verify user email"""
+    """Verify user email for already-authenticated users"""
 
     permission_classes = [permissions.IsAuthenticated]
 
@@ -310,7 +470,7 @@ class VerifyEmailView(APIView):
         serializer = EmailVerificationSerializer(data=request.data)
 
         if serializer.is_valid():
-            code = serializer.data.get('code')
+            code = serializer.validated_data.get('code')
             user = request.user
 
             try:
@@ -318,35 +478,37 @@ class VerifyEmailView(APIView):
                     user=user,
                     code=code,
                     code_type='email',
-                    is_used=False
+                    is_used=False,
                 )
 
                 if verification.is_expired():
-                    return Response({
-                        'error': 'Verification code has expired.'
-                    }, status=status.HTTP_400_BAD_REQUEST)
+                    return Response(
+                        {'error': 'Verification code has expired.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
-                # Mark as verified
                 user.is_verified = True
-                user.save()
+                user.save(update_fields=['is_verified'])
 
                 verification.is_used = True
-                verification.save()
+                verification.save(update_fields=['is_used'])
 
-                return Response({
-                    'message': 'Email verified successfully.'
-                }, status=status.HTTP_200_OK)
+                return Response(
+                    {'message': 'Email verified successfully.'},
+                    status=status.HTTP_200_OK,
+                )
 
             except VerificationCode.DoesNotExist:
-                return Response({
-                    'error': 'Invalid verification code.'
-                }, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {'error': 'Invalid verification code.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ResendVerificationCodeView(APIView):
-    """Resend email verification code"""
+    """Resend verification code for authenticated user"""
 
     permission_classes = [permissions.IsAuthenticated]
 
@@ -354,11 +516,11 @@ class ResendVerificationCodeView(APIView):
         user = request.user
 
         if user.is_verified:
-            return Response({
-                'message': 'Email is already verified.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'message': 'Email is already verified.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        # Generate new code
         code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
         expires_at = timezone.now() + timedelta(minutes=15)
 
@@ -366,18 +528,18 @@ class ResendVerificationCodeView(APIView):
             user=user,
             code=code,
             code_type='email',
-            expires_at=expires_at
+            expires_at=expires_at,
         )
 
-        # Send email with verification code
         try:
             send_verification_email_task.delay(str(user.id), code)
         except Exception:
             EmailService.send_verification_email(user, code)
 
-        return Response({
-            'message': 'Verification code sent successfully.'
-        }, status=status.HTTP_200_OK)
+        return Response(
+            {'message': 'Verification code sent successfully.'},
+            status=status.HTTP_200_OK,
+        )
 
 
 @method_decorator(ratelimit(key='ip', rate='5/h', method='POST'), name='post')
@@ -390,12 +552,11 @@ class PasswordResetRequestView(APIView):
         serializer = PasswordResetRequestSerializer(data=request.data)
 
         if serializer.is_valid():
-            email = serializer.data.get('email')
+            email = serializer.validated_data.get('email')
 
             try:
                 user = User.objects.get(email=email)
 
-                # Generate reset code
                 code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
                 expires_at = timezone.now() + timedelta(minutes=15)
 
@@ -403,21 +564,21 @@ class PasswordResetRequestView(APIView):
                     user=user,
                     code=code,
                     code_type='password_reset',
-                    expires_at=expires_at
+                    expires_at=expires_at,
                 )
 
-                # Send email with reset code
                 EmailService.send_password_reset_email(user, code)
 
-                return Response({
-                    'message': 'Password reset code sent to your email.'
-                }, status=status.HTTP_200_OK)
+                return Response(
+                    {'message': 'Password reset code sent to your email.'},
+                    status=status.HTTP_200_OK,
+                )
 
             except User.DoesNotExist:
-                # Don't reveal if email exists or not (security)
-                return Response({
-                    'message': 'If this email exists, a reset code has been sent.'
-                }, status=status.HTTP_200_OK)
+                return Response(
+                    {'message': 'If this email exists, a reset code has been sent.'},
+                    status=status.HTTP_200_OK,
+                )
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -431,9 +592,9 @@ class PasswordResetConfirmView(APIView):
         serializer = PasswordResetConfirmSerializer(data=request.data)
 
         if serializer.is_valid():
-            email = serializer.data.get('email')
-            code = serializer.data.get('code')
-            new_password = serializer.data.get('new_password')
+            email = serializer.validated_data.get('email')
+            code = serializer.validated_data.get('code')
+            new_password = serializer.validated_data.get('new_password')
 
             try:
                 user = User.objects.get(email=email)
@@ -441,28 +602,30 @@ class PasswordResetConfirmView(APIView):
                     user=user,
                     code=code,
                     code_type='password_reset',
-                    is_used=False
+                    is_used=False,
                 )
 
                 if verification.is_expired():
-                    return Response({
-                        'error': 'Reset code has expired.'
-                    }, status=status.HTTP_400_BAD_REQUEST)
+                    return Response(
+                        {'error': 'Reset code has expired.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
-                # Reset password
                 user.set_password(new_password)
                 user.save()
 
                 verification.is_used = True
-                verification.save()
+                verification.save(update_fields=['is_used'])
 
-                return Response({
-                    'message': 'Password reset successfully.'
-                }, status=status.HTTP_200_OK)
+                return Response(
+                    {'message': 'Password reset successfully.'},
+                    status=status.HTTP_200_OK,
+                )
 
             except (User.DoesNotExist, VerificationCode.DoesNotExist):
-                return Response({
-                    'error': 'Invalid email or reset code.'
-                }, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {'error': 'Invalid email or reset code.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
