@@ -4,13 +4,14 @@ import axios from 'axios';
 
 const GoogleAuthButton = ({ onSuccess, onError, mode = 'signup' }) => {
   const [loading, setLoading] = useState(false);
+  const apiBaseUrl = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
   const handleGoogleSuccess = async (credentialResponse) => {
     setLoading(true);
     
     try {
       const response = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/accounts/auth/google/`,
+        `${apiBaseUrl}/api/accounts/auth/google/`,
         {
           token: credentialResponse.credential
         },
@@ -22,12 +23,6 @@ const GoogleAuthButton = ({ onSuccess, onError, mode = 'signup' }) => {
       );
 
       console.log('Google authentication successful:', response.data);
-
-      // Store tokens in localStorage (matching your AuthContext format)
-      localStorage.setItem('access_token', response.data.access);
-      localStorage.setItem('refresh_token', response.data.refresh);
-      localStorage.setItem('token', response.data.access);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
 
       // Call success callback
       if (onSuccess) {

@@ -53,9 +53,17 @@ class UserRegistrationView(generics.CreateAPIView):
         # Generate verification code
         code = self.generate_verification_code(user, 'email')
 
-        # Send emails through Celery async tasks
-        send_verification_email_task.delay(str(user.id), code)
-        send_welcome_email_task.delay(str(user.id))
+        # Send emails through Celery async tasks.
+        # Fallback to direct send if queueing fails (worker/broker unavailable).
+        try:
+            send_verification_email_task.delay(str(user.id), code)
+        except Exception:
+            EmailService.send_verification_email(user, code)
+
+        try:
+            send_welcome_email_task.delay(str(user.id))
+        except Exception:
+            EmailService.send_welcome_email(user)
 
         # ✅ Generate JWT tokens
         refresh = RefreshToken.for_user(user)
@@ -131,13 +139,29 @@ class GoogleAuthView(APIView):
             first_name = idinfo.get('given_name', '')
             last_name = idinfo.get('family_name', '')
             google_id = idinfo.get('sub')
-            
+            email_verified = idinfo.get('email_verified', False)
+
             if not email:
                 return Response(
                     {'error': 'Email not provided by Google'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            
+
+            if not email_verified:
+                return Response(
+                    {'error': 'Google email is not verified'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Prevent account takeover by ensuring a Google account ID
+            # is always tied to a single local account.
+            existing_google_user = User.objects.filter(google_id=google_id).first()
+            if existing_google_user and existing_google_user.email.lower() != email.lower():
+                return Response(
+                    {'error': 'This Google account is already linked to another user.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             # Get or create user
             user, created = User.objects.get_or_create(
                 email=email.lower(),
@@ -149,11 +173,18 @@ class GoogleAuthView(APIView):
                     'google_id': google_id,  # Save Google ID
                 }
             )
-            
+
+            # If user exists with a different linked Google account, block login.
+            if user.google_id and user.google_id != google_id:
+                return Response(
+                    {'error': 'This email is linked to a different Google account.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             # If user exists but doesn't have google_id, add it
             if not user.google_id:
                 user.google_id = google_id
-                user.save()
+                user.save(update_fields=['google_id'])
             
             # Generate JWT tokens (MATCHING YOUR CustomTokenObtainPairSerializer FORMAT)
             refresh = RefreshToken.for_user(user)
@@ -339,7 +370,10 @@ class ResendVerificationCodeView(APIView):
         )
 
         # Send email with verification code
-        send_verification_email_task.delay(str(user.id), code)
+        try:
+            send_verification_email_task.delay(str(user.id), code)
+        except Exception:
+            EmailService.send_verification_email(user, code)
 
         return Response({
             'message': 'Verification code sent successfully.'
