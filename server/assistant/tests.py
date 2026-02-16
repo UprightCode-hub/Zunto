@@ -193,3 +193,51 @@ class ModelTests(TestCase):
         self.assertEqual(log.confidence, 0.85)
         self.assertIsNotNone(log.created_at)
 
+
+
+class EvidenceAuthorizationTests(APITestCase):
+    """Authorization checks for dispute evidence endpoints."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user(username='owner', password='ownerpass123')
+        self.other_user = User.objects.create_user(username='other', password='otherpass123')
+
+    def test_upload_rejects_ownerless_report_for_non_staff(self):
+        report = Report.objects.create(
+            user=None,
+            message='Anonymous dispute',
+            report_type='dispute',
+            status='pending'
+        )
+        self.client.force_authenticate(user=self.other_user)
+
+        response = self.client.post(f'/assistant/api/report/{report.id}/evidence/', {}, format='multipart')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_list_rejects_ownerless_report_for_non_staff(self):
+        report = Report.objects.create(
+            user=None,
+            message='Anonymous dispute',
+            report_type='dispute',
+            status='pending'
+        )
+        self.client.force_authenticate(user=self.other_user)
+
+        response = self.client.get(f'/assistant/api/report/{report.id}/evidence/list/')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_upload_allows_report_owner(self):
+        report = Report.objects.create(
+            user=self.owner,
+            message='Owned dispute',
+            report_type='dispute',
+            status='pending'
+        )
+        self.client.force_authenticate(user=self.owner)
+
+        response = self.client.post(f'/assistant/api/report/{report.id}/evidence/', {}, format='multipart')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('file is required', str(response.data.get('error', '')))

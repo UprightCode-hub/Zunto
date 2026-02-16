@@ -29,6 +29,7 @@ from django.http import HttpResponse
 from assistant.utils.tts_utils import get_tts_service
 from assistant.models import ConversationSession, ConversationLog, Report, DisputeMedia
 from assistant.processors.conversation_manager import ConversationManager
+from assistant.processors.query_processor import QueryProcessor
 from assistant.serializers import (
     ConversationSessionSerializer,
     ConversationLogSerializer,
@@ -959,7 +960,7 @@ def upload_report_evidence(request, report_id):
     if report.report_type != 'dispute':
         return Response({'error': 'Evidence uploads are only supported for dispute reports.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    if request.user.is_authenticated and report.user_id and report.user_id != request.user.id and not request.user.is_staff:
+    if not request.user.is_staff and (report.user_id is None or report.user_id != request.user.id):
         return Response({'error': 'You do not have permission to upload evidence to this report.'}, status=status.HTTP_403_FORBIDDEN)
 
     uploaded_file = request.FILES.get('file')
@@ -1031,7 +1032,7 @@ def list_report_evidence(request, report_id):
     except Report.DoesNotExist:
         return Response({'error': 'Report not found'}, status=status.HTTP_404_NOT_FOUND)
 
-    if request.user.is_authenticated and report.user_id and report.user_id != request.user.id and not request.user.is_staff:
+    if not request.user.is_staff and (report.user_id is None or report.user_id != request.user.id):
         return Response({'error': 'You do not have permission to view evidence for this report.'}, status=status.HTTP_403_FORBIDDEN)
 
     limit = min(int(request.GET.get('limit', 20)), 100)
