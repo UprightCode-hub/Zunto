@@ -17,7 +17,7 @@ export default function ProductCard({ product, viewMode = 'grid' }) {
       setIsLoading(true);
       await addToCart(product.id, 1);
       alert('Added to cart!');
-    } catch (error) {
+    } catch {
       alert('Failed to add to cart');
     } finally {
       setIsLoading(false);

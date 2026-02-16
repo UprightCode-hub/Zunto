@@ -27,7 +27,7 @@ export default function Dashboard() {
     } else if (user.role === 'seller') {
       fetchSellerStats();
     }
-  }, [user]);
+  }, [navigate, user]);
 
   const fetchBuyerStats = async () => {
     try {

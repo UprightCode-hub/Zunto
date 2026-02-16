@@ -12,22 +12,11 @@ const NOTIFICATION_TYPES = {
 };
 
 export default function Notifications() {
-  const { user } = useAuth();
+  useAuth();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // all, unread, read
   const pollInterval = useRef(null);
-
-  useEffect(() => {
-    fetchNotifications();
-
-    // Poll for new notifications every 5 seconds
-    pollInterval.current = setInterval(fetchNotifications, 5000);
-
-    return () => {
-      if (pollInterval.current) clearInterval(pollInterval.current);
-    };
-  }, []);
 
   const fetchNotifications = async () => {
     try {
@@ -39,6 +28,19 @@ export default function Notifications() {
       setLoading(false);
     }
   };
+
+
+  useEffect(() => {
+    const startupTimer = setTimeout(fetchNotifications, 0);
+
+    // Poll for new notifications every 5 seconds
+    pollInterval.current = setInterval(fetchNotifications, 5000);
+
+    return () => {
+      clearTimeout(startupTimer);
+      if (pollInterval.current) clearInterval(pollInterval.current);
+    };
+  }, []);
 
   const handleMarkAsRead = async (notificationId, e) => {
     e.stopPropagation();

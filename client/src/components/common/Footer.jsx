@@ -1,16 +1,8 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { Facebook, Twitter, Instagram, Youtube, Mail, MapPin, Phone } from 'lucide-react';
 
 export default function Footer() {
-  const [email, setEmail] = useState('');
-
-  const handleSubscribe = (e) => {
-    e.preventDefault();
-    alert('Thank you for subscribing!');
-    setEmail('');
-  };
-
   return (
     <footer className="bg-gray-900 dark:bg-black border-t border-gray-200 dark:border-gray-800 py-12 px-4 sm:px-6 lg:px-8 mt-12 transition-colors">
       <div className="max-w-7xl mx-auto">

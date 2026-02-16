@@ -56,11 +56,11 @@ export default function Checkout() {
         save_address: false,
       };
 
-      const result = await checkout(payload);
+      await checkout(payload);
       
       alert('Order placed successfully!');
       navigate('/profile?tab=orders');
-    } catch (error) {
+    } catch {
       alert('Failed to place order. Please try again.');
     } finally {
       setLoading(false);

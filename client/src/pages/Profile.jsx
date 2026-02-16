@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { User, Package, MapPin, Heart, Settings, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { getMyProducts } from '../services/api';
-import { updateUserProfile } from '../services/api';
+import { getMyOrders } from '../services/api';
 
 export default function Profile() {
   const [searchParams] = useSearchParams();

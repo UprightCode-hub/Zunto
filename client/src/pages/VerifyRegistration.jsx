@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { MailCheck, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -8,17 +8,13 @@ export default function VerifyRegistration() {
   const navigate = useNavigate();
   const { verifyRegistration, resendRegistrationCode } = useAuth();
 
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => searchParams.get('email') || '');
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
-  useEffect(() => {
-    const queryEmail = searchParams.get('email') || '';
-    setEmail(queryEmail);
-  }, [searchParams]);
 
   const handleVerify = async (e) => {
     e.preventDefault();

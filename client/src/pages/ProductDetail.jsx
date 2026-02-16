@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Star, ShoppingCart, Heart, Share2, Truck, Shield, RefreshCw, Plus, Minus } from 'lucide-react';
 import { getProductDetail, getProductReviews, toggleFavorite, createProductReview, shareProduct } from '../services/api';
@@ -26,9 +26,9 @@ export default function ProductDetail() {
   useEffect(() => {
     fetchProduct();
     fetchReviews();
-  }, [slug]);
+  }, [fetchProduct, fetchReviews]);
 
-  const fetchProduct = async () => {
+  const fetchProduct = useCallback(async () => {
     try {
       setLoading(true);
       const data = await getProductDetail(slug);
@@ -39,9 +39,9 @@ export default function ProductDetail() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [slug]);
 
-  const fetchReviews = async () => {
+  const fetchReviews = useCallback(async () => {
     try {
       setLoadingReviews(true);
       const data = await getProductReviews(slug);
@@ -51,14 +51,14 @@ export default function ProductDetail() {
     } finally {
       setLoadingReviews(false);
     }
-  };
+  }, [slug]);
 
   const handleAddToCart = async () => {
     try {
       setAddingToCart(true);
       await addToCart(product.id, quantity);
       alert('Product added to cart!');
-    } catch (error) {
+    } catch {
       alert('Failed to add to cart');
     } finally {
       setAddingToCart(false);
@@ -124,7 +124,7 @@ export default function ProductDetail() {
       setShowReviewForm(false);
       fetchReviews();
       alert('Review submitted successfully!');
-    } catch (error) {
+    } catch {
       alert('Failed to submit review');
     } finally {
       setSubmittingReview(false);
