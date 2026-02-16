@@ -21,6 +21,7 @@ export default function Signup() {
     password: '',
     passwordConfirm: '',
     role: 'buyer',
+    sellerCommerceMode: 'direct',
   });
 
   const handleChange = (e) => {
@@ -61,6 +62,7 @@ export default function Signup() {
         password: formData.password,
         password_confirm: formData.passwordConfirm,
         role: formData.role,
+        seller_commerce_mode: formData.role === 'seller' ? formData.sellerCommerceMode : 'direct',
       });
       
       if (result.success) {
@@ -191,6 +193,26 @@ export default function Signup() {
                 <option value="seller">Seller</option>
               </select>
             </div>
+
+            {formData.role === 'seller' && (
+              <div className="space-y-3 rounded-xl border border-[#2c77d1]/20 bg-[#0f172a] p-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-300">Seller Commerce Option</label>
+                  <select
+                    name="sellerCommerceMode"
+                    value={formData.sellerCommerceMode}
+                    onChange={handleChange}
+                    className="mt-2 w-full bg-[#020617] border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#2c77d1]"
+                  >
+                    <option value="direct">Direct selling (buyer pays me directly)</option>
+                    <option value="managed">Managed by Zunto (buyer pays Zunto first)</option>
+                  </select>
+                </div>
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  Managed sellers use Zunto checkout, delivery support, and refunds. Direct sellers handle payment and delivery directly with buyers.
+                </p>
+              </div>
+            )}
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-300 ml-1">Password</label>

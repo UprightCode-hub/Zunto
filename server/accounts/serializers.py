@@ -71,6 +71,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             'last_name': self.user.last_name,
             'role': self.user.role,
             'is_verified': self.user.is_verified,
+            'seller_commerce_mode': self.user.seller_commerce_mode,
+            'is_managed_seller': self.user.is_managed_seller,
             'profile_picture': self.user.profile_picture.url if self.user.profile_picture else None,
         }
         
@@ -87,9 +89,10 @@ class UserProfileSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'email', 'first_name', 'last_name', 'full_name', 'phone',
             'profile_picture', 'bio', 'role', 'is_verified', 'is_phone_verified',
-            'address', 'city', 'state', 'country', 'created_at'
+            'address', 'city', 'state', 'country', 'seller_commerce_mode',
+            'is_managed_seller', 'created_at'
         ]
-        read_only_fields = ['id', 'email', 'is_verified', 'is_phone_verified', 'created_at']
+        read_only_fields = ['id', 'email', 'is_verified', 'is_phone_verified', 'created_at', 'is_managed_seller']
     
     def get_full_name(self, obj):
         return obj.get_full_name()
@@ -144,10 +147,22 @@ class RegistrationInitiateSerializer(serializers.Serializer):
     last_name = serializers.CharField(required=True, max_length=150)
     phone = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=17)
     role = serializers.ChoiceField(required=False, choices=User.ROLE_CHOICES, default='buyer')
+    seller_commerce_mode = serializers.ChoiceField(
+        required=False,
+        choices=User.SELLER_COMMERCE_MODE_CHOICES,
+        default='direct',
+    )
 
     def validate(self, attrs):
         if attrs['password'] != attrs['password_confirm']:
             raise serializers.ValidationError({"password": "Password fields didn't match."})
+
+        role = attrs.get('role', 'buyer')
+        mode = attrs.get('seller_commerce_mode', 'direct')
+        if role != 'seller' and mode != 'direct':
+            raise serializers.ValidationError({
+                'seller_commerce_mode': 'Only seller accounts can choose a commerce mode.'
+            })
         return attrs
 
     def validate_email(self, value):

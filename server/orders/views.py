@@ -1,5 +1,5 @@
 # orders/views.py
-from rest_framework import generics, status, permissions
+from rest_framework import generics, serializers, status, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -20,6 +20,7 @@ from .serializers import (
 from .permissions import IsOrderOwner, IsSellerOfOrderItem
 from cart.models import Cart, CartItem
 from market.models import Product
+from .commerce import get_ineligible_sellers_for_items, is_managed_order
 
 
 class CheckoutView(APIView):
@@ -80,6 +81,17 @@ class CheckoutView(APIView):
                     'error': 'Some items in your cart are unavailable.',
                     'unavailable_items': unavailable_items,
                     'insufficient_stock': insufficient_stock
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            blocked_sellers = get_ineligible_sellers_for_items(cart.items.all())
+            if blocked_sellers:
+                return Response({
+                    'error': (
+                        'Checkout, shipping, and refunds are only available for verified '
+                        'sellers using Zunto managed commerce. Please contact these sellers '
+                        'directly in chat or remove their items to continue.'
+                    ),
+                    'blocked_sellers': blocked_sellers,
                 }, status=status.HTTP_400_BAD_REQUEST)
             
             # Get shipping address
@@ -150,10 +162,8 @@ class CheckoutView(APIView):
                     order=order,
                     product=product,
                     product_name=product.title,
-                    product_price=product.price,
                     product_image=product_image_url,
                     seller=product.seller,
-                    seller_name=product.seller.get_full_name(),
                     quantity=cart_item.quantity,
                     unit_price=cart_item.price_at_addition
                 )
@@ -352,7 +362,7 @@ class CancelOrderView(APIView):
         EmailService.send_order_cancelled_email(order, serializer.validated_data['reason'])
 
         # TODO: Process refund if payment was made
-        if order.status == 'paid':
+        if old_status == 'paid' or order.payment_status == 'paid':
             # Create refund request
             pass
 
@@ -516,12 +526,17 @@ class RequestRefundView(generics.CreateAPIView):
             raise serializers.ValidationError('This order does not belong to you.')
         
         # Check if order is paid
-        if order.status == 'paid':
+        if order.payment_status != 'paid':
             raise serializers.ValidationError('Order must be paid before requesting refund.')
         
         # Check if order can be refunded
         if order.status in ['cancelled', 'refunded']:
             raise serializers.ValidationError('Order has already been cancelled or refunded.')
+
+        if not is_managed_order(order):
+            raise serializers.ValidationError(
+                'Refunds are available only for orders sold through Zunto managed commerce.'
+            )
         
         serializer.save()
 
@@ -597,7 +612,12 @@ def seller_statistics(request):
 def verify_payment(request, order_number):
     """Verify payment for order (Paystack webhook)"""
     
-    order = get_object_or_404(Order, order_number=order_number)
+    order = get_object_or_404(Order, order_number=order_number, customer=request.user)
+
+    if not is_managed_order(order):
+        return Response({
+            'error': 'Payment verification is only available for Zunto managed-commerce orders.'
+        }, status=status.HTTP_400_BAD_REQUEST)
     
     # Verify with payment gateway
     reference = request.data.get('reference')

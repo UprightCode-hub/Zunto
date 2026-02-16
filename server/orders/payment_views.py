@@ -14,6 +14,7 @@ import json
 from .models import Order, Payment, Refund, OrderStatusHistory
 from .paystack_service import PaystackService
 from .serializers import PaymentSerializer
+from .commerce import is_managed_order
 
 
 class InitializePaymentView(APIView):
@@ -27,6 +28,11 @@ class InitializePaymentView(APIView):
             order_number=order_number,
             customer=request.user
         )
+
+        if not is_managed_order(order):
+            return Response({
+                'error': 'Platform payment is only available for Zunto managed-commerce orders.'
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         # Check if order is already paid
         if order.payment_status == 'paid':
@@ -111,6 +117,11 @@ class VerifyPaymentView(APIView):
             order_number=order_number,
             customer=request.user
         )
+
+        if not is_managed_order(order):
+            return Response({
+                'error': 'Platform payment verification is only available for managed-commerce orders.'
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         # Get reference from query params or use order's reference
         reference = request.query_params.get('reference') or order.payment_reference
