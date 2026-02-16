@@ -1,4 +1,4 @@
-# accounts/views.py
+#server/accounts/views.py
 from datetime import timedelta
 import random
 
@@ -37,7 +37,7 @@ from .serializers import (
 try:
     from google.oauth2 import id_token
     from google.auth.transport import requests as google_requests
-except Exception:  # pragma: no cover
+except Exception:                    
     id_token = None
     google_requests = None
 

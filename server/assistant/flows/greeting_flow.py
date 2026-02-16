@@ -1,8 +1,5 @@
-"""
-Unified Greeting Flow - Handles initial greetings, name collection, and menu presentation.
-
-Author: Wisdom Ekwugha
-"""
+#server/assistant/flows/greeting_flow.py
+"""Greeting flow handling name collection and menu presentation."""
 from typing import Tuple, Dict
 import logging
 from datetime import datetime
@@ -14,15 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class GreetingFlow:
-    """
-    Greeting flow with intelligent adaptation.
-    
-    Features:
-    - Multi-language name detection
-    - Context-aware greetings
-    - Timezone-aware salutations
-    - Confidence scoring for interactions
-    """
+    """Greeting flow."""
 
     def __init__(self, session, context_mgr):
         self.session = session

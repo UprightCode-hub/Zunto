@@ -1,3 +1,4 @@
+#server/cart/analytics.py
 from django.db.models import Count, Q, Avg, Sum, Min, Max
 from .models import CartAbandonment, Cart, UserScore
 from decimal import Decimal

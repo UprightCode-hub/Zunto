@@ -1,4 +1,4 @@
-# orders/serializers.py
+#server/orders/serializers.py
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import (
@@ -14,7 +14,7 @@ User = get_user_model()
 class OrderItemSerializer(serializers.ModelSerializer):
     """Serializer for order items"""
     seller_name = serializers.SerializerMethodField()
-    # status = serializers.SerializerMethodField()
+                                                  
 
     class Meta:
         model = OrderItem
@@ -29,9 +29,9 @@ class OrderItemSerializer(serializers.ModelSerializer):
             return obj.seller.get_full_name() or obj.seller.email
         return None
 
-    # def get_status(self, obj):
-    #     # If status is coming from the parent Order, e.g., obj.order.status
-    #     return getattr(obj.order, 'status', None) 
+                                
+                                                                             
+                                                    
 
 
 class OrderStatusHistorySerializer(serializers.ModelSerializer):
@@ -112,10 +112,10 @@ class OrderDetailSerializer(serializers.ModelSerializer):
 class CheckoutSerializer(serializers.Serializer):
     """Serializer for checkout"""
     
-    # Shipping address (can be new or use saved address)
+                                                        
     shipping_address_id = serializers.UUIDField(required=False)
     
-    # Or provide new shipping details
+                                     
     shipping_address = serializers.CharField(required=False)
     shipping_city = serializers.CharField(required=False)
     shipping_state = serializers.CharField(required=False)
@@ -123,18 +123,18 @@ class CheckoutSerializer(serializers.Serializer):
     shipping_phone = serializers.CharField(required=False)
     shipping_email = serializers.EmailField(required=False)
     
-    # Payment
+             
     payment_method = serializers.ChoiceField(
         choices=['paystack', 'bank_transfer', 'cash_on_delivery', 'wallet']
     )
     
-    # Additional
+                
     notes = serializers.CharField(required=False, allow_blank=True)
     save_address = serializers.BooleanField(default=False)
     address_label = serializers.CharField(required=False)
     
     def validate(self, attrs):
-        # Must provide either shipping_address_id or full shipping details
+                                                                          
         if not attrs.get('shipping_address_id'):
             required_fields = [
                 'shipping_address', 'shipping_city', 'shipping_state',
@@ -146,7 +146,7 @@ class CheckoutSerializer(serializers.Serializer):
                         field: f"{field.replace('_', ' ').title()} is required."
                     })
         
-        # If save_address is True, address_label is required
+                                                            
         if attrs.get('save_address') and not attrs.get('address_label'):
             raise serializers.ValidationError({
                 'address_label': 'Address label is required when saving address.'

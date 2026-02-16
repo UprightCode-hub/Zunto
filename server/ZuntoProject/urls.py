@@ -1,3 +1,4 @@
+#server/ZuntoProject/urls.py
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
@@ -5,27 +6,27 @@ from django.conf.urls.static import static
 from django.http import JsonResponse
 from django.views.generic import RedirectView
 from core.views import health_check, marketplace_view
-# from market.views import product_list_page, product_list
-# from accounts.views import LoginPageView
+                                                          
+                                          
 urlpatterns = [
     path('admin/', admin.site.urls),
-    # path('/', views.product_list_page, name='product_list_page'),
-    # path('', product_list_page, name='product_list_page'),
-    # path('product_list/', product_list, name='product_list'),
-    # path('', ProductListCreateView, name='ProductListCreateView'),
-    # path('', ProductTemplateView.as_view(), name='ProductTemplateView'),
-    # path('', ProductListCreateView.as_view(), name='ProductListCreateView'),
+                                                                   
+                                                            
+                                                               
+                                                                    
+                                                                          
+                                                                              
     path('health/', health_check, name='health_check'),
     path('market/', include('market.urls')),
     
-    # Root redirect to marketplace
-    # path('login_page/', LoginPageView.as_view(), name='login_page'),as
+                                  
+                                                                        
     path('', RedirectView.as_view(url='/Zunto/server/market/templates/products.html/', permanent=False)),
     
-    # Assistant app (UI + API)
+                              
     path('assistant/', include('assistant.urls')),
     
-    # Frontend: Marketplace
+                           
     path('marketplace/', marketplace_view, {'section': 'products', 'page': 'index'}, name='marketplace_home'),
     path('marketplace/auth/<str:page>/', marketplace_view, {'section': 'auth'}, name='marketplace_auth'),
     path('marketplace/account/<str:page>/', marketplace_view, {'section': 'account'}, name='marketplace_account'),
@@ -36,12 +37,12 @@ urlpatterns = [
     path('marketplace/chat/<str:page>/', marketplace_view, {'section': 'chat'}, name='marketplace_chat'),
     path('marketplace/reviews/<str:page>/', marketplace_view, {'section': 'reviews'}, name='marketplace_reviews'),
     
-    # Dashboard (Executive & Analytics)
+                                       
     path('dashboard/', include('dashboard.urls')),
     
-    # API Routes
-    # Keep legacy non-API account routes while exposing API-prefixed routes
-    # expected by the React client (e.g. /api/accounts/register/).
+                
+                                                                           
+                                                                  
     path('accounts/', include(('accounts.urls', 'accounts'), namespace='accounts')),
     path('api/accounts/', include(('accounts.urls', 'accounts_api'), namespace='accounts_api')),
     path('api/market/', include('market.urls')),
@@ -52,7 +53,7 @@ urlpatterns = [
     path('api/notifications/', include('notifications.urls')),
     path('chat/', include('chat.urls')),
 
-    #market
+           
     path('market/', include('market.urls')),
 
 ]

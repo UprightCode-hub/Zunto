@@ -1,4 +1,4 @@
-# orders/views.py
+#server/orders/views.py
 from rest_framework import generics, serializers, status, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
@@ -47,15 +47,13 @@ class CheckoutView(APIView):
                 return Response({
                     'error': 'Cart is empty.'
                 }, status=status.HTTP_400_BAD_REQUEST)
-# =================================================================================
-             # Send order confirmation email
-            # EmailService.send_order_confirmation_email(order)
+                                            
+                                                               
             
-            # # Send notification to sellers
-            # for item in order.items.all():
-            #     EmailService.send_seller_new_order_email(item)
-# ================================================================================
-            # Validate all items are available
+                                            
+                                            
+                                                                
+                                              
             unavailable_items = []
             insufficient_stock = []
             
@@ -94,7 +92,7 @@ class CheckoutView(APIView):
                     'blocked_sellers': blocked_sellers,
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # Get shipping address
+                                  
             shipping_address_id = serializer.validated_data.get('shipping_address_id')
             
             if shipping_address_id:
@@ -125,14 +123,14 @@ class CheckoutView(APIView):
                     'shipping_email': serializer.validated_data['shipping_email'],
                 }
             
-            # Calculate totals
+                              
             subtotal = cart.subtotal
-            tax_amount = 0  # TODO: Calculate tax
-            shipping_fee = 0  # TODO: Calculate shipping
-            discount_amount = 0  # TODO: Apply discounts
+            tax_amount = 0                       
+            shipping_fee = 0                            
+            discount_amount = 0                         
             total_amount = subtotal + tax_amount + shipping_fee - discount_amount
             
-            # Create order
+                          
             order = Order.objects.create(
                 customer=request.user,
                 subtotal=subtotal,
@@ -145,11 +143,11 @@ class CheckoutView(APIView):
                 **shipping_data
             )
             
-            # Create order items
+                                
             for cart_item in cart.items.all():
                 product = cart_item.product
                 
-                # Get primary image
+                                   
                 primary_image = product.images.filter(is_primary=True).first()
                 if not primary_image:
                     primary_image = product.images.first()
@@ -168,11 +166,11 @@ class CheckoutView(APIView):
                     unit_price=cart_item.price_at_addition
                 )
                 
-                # Reduce product quantity
+                                         
                 product.quantity -= cart_item.quantity
                 product.save(update_fields=['quantity'])
             
-            # Save shipping address if requested
+                                                
             if serializer.validated_data.get('save_address'):
                 ShippingAddress.objects.create(
                     user=request.user,
@@ -185,21 +183,21 @@ class CheckoutView(APIView):
                     country=shipping_data['shipping_country']
                 )
             
-            # Clear cart
+                        
             cart.clear()
 
-        # Initialize payment if payment method is paystack
+                                                          
             payment_data = None
             if serializer.validated_data['payment_method'] == 'paystack':
                 from .paystack_service import PaystackService
                 
-                # Generate payment reference
+                                            
                 payment_reference = order.generate_payment_reference()
                 
-                # Get callback URL
+                                  
                 callback_url = f"{request.scheme}://{request.get_host()}/payment/verify/{order.order_number}/"
                 
-                # Prepare metadata
+                                  
                 metadata = {
                     'order_number': order.order_number,
                     'customer_id': str(order.customer.id),
@@ -207,7 +205,7 @@ class CheckoutView(APIView):
                     'items_count': order.total_items,
                 }
                 
-                # Initialize payment
+                                    
                 paystack = PaystackService()
                 result = paystack.initialize_transaction(
                     email=order.customer.email,
@@ -220,7 +218,7 @@ class CheckoutView(APIView):
                 if result['success']:
                     data = result['data']['data']
                     
-                    # Create payment record
+                                           
                     Payment.objects.create(
                         order=order,
                         payment_method='paystack',
@@ -256,26 +254,26 @@ class CheckoutView(APIView):
             ip = request.META.get('REMOTE_ADDR')
         return ip
             
-        #     # Return order with payment initialization data if needed
-        #     if serializer.validated_data['payment_method'] == 'paystack':
-        #         # TODO: Initialize Paystack payment
-        #         payment_data = {
-        #             'authorization_url': None,  # Will be populated by Paystack
-        #             'access_code': None,
-        #             'reference': order.order_number
-        #         }
-        #     else:
-        #         payment_data = None
+                                                                       
+                                                                           
+                                                     
+                                  
+                                                                                 
+                                          
+                                                     
+                   
+                   
+                                     
             
-        #     order_serializer = OrderDetailSerializer(order, context={'request': request})
+                                                                                           
             
-        #     return Response({
-        #         'message': 'Order created successfully.',
-        #         'order': order_serializer.data,
-        #         'payment_data': payment_data
-        #     }, status=status.HTTP_201_CREATED)
+                               
+                                                           
+                                                 
+                                              
+                                                
         
-        # return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                                                                                
 
 
 class MyOrdersView(generics.ListAPIView):
@@ -317,25 +315,25 @@ class CancelOrderView(APIView):
             customer=request.user
         )
 
-        # Check if order can be cancelled
+                                         
         if not order.can_cancel:
             return Response(
                 {"detail": "Order cannot be cancelled."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Validate cancellation reason
+                                      
         serializer = CancelOrderSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        # Update order status
+                             
         old_status = order.status
         order.status = 'cancelled'
         order.cancelled_at = timezone.now()
         order.save(update_fields=['status', 'cancelled_at'])
 
-        # Create status history
+                               
         OrderStatusHistory.objects.create(
             order=order,
             old_status=old_status,
@@ -344,7 +342,7 @@ class CancelOrderView(APIView):
             changed_by=request.user
         )
 
-        # Restore product quantities and update items
+                                                     
         products_to_update = []
         items_to_update = []
 
@@ -358,12 +356,12 @@ class CancelOrderView(APIView):
         Product.objects.bulk_update(products_to_update, ['quantity'])
         OrderItem.objects.bulk_update(items_to_update, ['status'])
 
-        # Send cancellation email
+                                 
         EmailService.send_order_cancelled_email(order, serializer.validated_data['reason'])
 
-        # TODO: Process refund if payment was made
+                                                  
         if old_status == 'paid' or order.payment_status == 'paid':
-            # Create refund request
+                                   
             pass
 
         return Response({
@@ -379,7 +377,7 @@ class SellerOrdersView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def get_queryset(self):
-        # Get orders that have items sold by this user
+                                                      
         return Order.objects.filter(
             items__seller=self.request.user
         ).distinct().select_related('customer').prefetch_related('items').order_by('-created_at')
@@ -393,7 +391,7 @@ class SellerOrderDetailView(generics.RetrieveAPIView):
     lookup_field = 'order_number'
     
     def get_queryset(self):
-        # Seller can only see orders containing their products
+                                                              
         return Order.objects.filter(
             items__seller=self.request.user
         ).distinct().select_related('customer').prefetch_related(
@@ -434,21 +432,21 @@ class UpdateOrderItemStatusView(APIView):
         item.status = new_status
         item.save(update_fields=['status'])
         
-        # Update main order status if all items have same status
+                                                                
         order = item.order
         all_items_status = order.items.values_list('status', flat=True).distinct()
         
         if len(all_items_status) == 1:
-            # All items have same status, update order
+                                                      
             order.status = new_status
             if new_status == 'shipped':
                 order.shipped_at = timezone.now()
             elif new_status == 'delivered':
                 order.delivered_at = timezone.now()
-                order.payment_status = 'paid'  # Mark as paid on delivery
+                order.payment_status = 'paid'                            
             order.save()
             
-            # Create status history
+                                   
             OrderStatusHistory.objects.create(
                 order=order,
                 old_status=old_status,
@@ -496,13 +494,13 @@ class SetDefaultAddressView(APIView):
             user=request.user
         )
         
-        # Unset all other defaults
+                                  
         ShippingAddress.objects.filter(
             user=request.user,
             is_default=True
         ).update(is_default=False)
         
-        # Set this as default
+                             
         address.is_default = True
         address.save(update_fields=['is_default'])
         
@@ -521,15 +519,15 @@ class RequestRefundView(generics.CreateAPIView):
     def perform_create(self, serializer):
         order = serializer.validated_data['order']
         
-        # Validate order belongs to user
+                                        
         if order.customer != self.request.user:
             raise serializers.ValidationError('This order does not belong to you.')
         
-        # Check if order is paid
+                                
         if order.payment_status != 'paid':
             raise serializers.ValidationError('Order must be paid before requesting refund.')
         
-        # Check if order can be refunded
+                                        
         if order.status in ['cancelled', 'refunded']:
             raise serializers.ValidationError('Order has already been cancelled or refunded.')
 
@@ -584,10 +582,10 @@ def seller_statistics(request):
     
     from django.db.models import Count, Sum, Q
     
-    # Get orders containing seller's items
+                                          
     orders = Order.objects.filter(items__seller=request.user).distinct()
     
-    # Get seller's order items
+                              
     items = OrderItem.objects.filter(seller=request.user)
     
     stats = {
@@ -619,11 +617,11 @@ def verify_payment(request, order_number):
             'error': 'Payment verification is only available for Zunto managed-commerce orders.'
         }, status=status.HTTP_400_BAD_REQUEST)
     
-    # Verify with payment gateway
+                                 
     reference = request.data.get('reference')
     
-    # TODO: Verify with Paystack API
-    # For now, just mark as paid
+                                    
+                                
     
     if order.payment_status != 'paid':
         order.payment_status = 'paid'
@@ -631,7 +629,7 @@ def verify_payment(request, order_number):
         order.paid_at = timezone.now()
         order.save(update_fields=['payment_status', 'status', 'paid_at'])
         
-        # Create payment record
+                               
         Payment.objects.create(
             order=order,
             payment_method=order.payment_method,
@@ -641,7 +639,7 @@ def verify_payment(request, order_number):
             paid_at=timezone.now()
         )
         
-        # Create status history
+                               
         OrderStatusHistory.objects.create(
             order=order,
             old_status='pending',
@@ -650,7 +648,7 @@ def verify_payment(request, order_number):
             changed_by=request.user
         )
         
-        # TODO: Send order confirmation email
+                                             
         
         return Response({
             'message': 'Payment verified successfully.',
@@ -673,7 +671,7 @@ def reorder(request, order_number):
         customer=request.user
     )
     
-    # Get or create cart
+                        
     cart, created = Cart.objects.get_or_create(user=request.user)
     
     added_items = []
@@ -686,12 +684,12 @@ def reorder(request, order_number):
             unavailable_items.append(order_item.product_name)
             continue
         
-        # Check stock
+                     
         if product.quantity < order_item.quantity:
             unavailable_items.append(f"{order_item.product_name} (only {product.quantity} available)")
             continue
         
-        # Add to cart
+                     
         cart_item, item_created = CartItem.objects.get_or_create(
             cart=cart,
             product=product,
@@ -699,7 +697,7 @@ def reorder(request, order_number):
         )
         
         if not item_created:
-            # Update quantity
+                             
             new_quantity = cart_item.quantity + order_item.quantity
             if new_quantity <= product.quantity:
                 cart_item.quantity = new_quantity

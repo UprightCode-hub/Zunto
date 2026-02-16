@@ -1,4 +1,4 @@
-# chat/serializers.py
+#server/chat/serializers.py
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import Conversation, Message, MessageRead
@@ -75,7 +75,7 @@ class MessageSerializer(serializers.ModelSerializer):
                 "Either 'content' or 'attachment_url' must be provided"
             )
         
-        # Validate message type
+                               
         message_type = data.get('message_type', 'text')
         if message_type != 'text' and not attachment_url:
             raise serializers.ValidationError(
@@ -173,7 +173,7 @@ class ConversationDetailSerializer(serializers.ModelSerializer):
     messages = MessageSerializer(many=True, read_only=True)
     unread_count = serializers.SerializerMethodField()
     
-    # Product details
+                     
     product_title = serializers.CharField(source='product.title', read_only=True)
     product_slug = serializers.CharField(source='product.slug', read_only=True)
     product_price = serializers.DecimalField(

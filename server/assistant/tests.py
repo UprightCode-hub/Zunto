@@ -1,3 +1,4 @@
+#server/assistant/tests.py
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase
@@ -26,12 +27,12 @@ class FAQRetrieverTests(TestCase):
         """Test TF-IDF based matching."""
         result = self.retriever.retrieve("Where can I see my shipment status?")
         self.assertIsNotNone(result)
-        # Should match tracking FAQ
+                                   
     
     def test_no_match(self):
         """Test query with no good match."""
         result = self.retriever.retrieve("asdf qwerty zxcv")
-        # May or may not return a result depending on threshold
+                                                               
 
 
 class RuleEngineTests(TestCase):
@@ -122,7 +123,7 @@ class APIEndpointTests(APITestCase):
     def test_ask_endpoint_validation(self):
         """Test input validation."""
         url = '/assistant/api/ask/'
-        data = {}  # Missing required 'message' field
+        data = {}                                    
         
         response = self.client.post(url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -143,16 +144,16 @@ class APIEndpointTests(APITestCase):
         """Admin endpoints should require staff permission."""
         url = '/assistant/api/admin/recent-logs/'
         
-        # Unauthenticated should fail
+                                     
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         
-        # Regular user should fail
+                                  
         self.client.force_authenticate(user=self.user)
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         
-        # Staff user should succeed
+                                   
         self.client.force_authenticate(user=self.staff_user)
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)

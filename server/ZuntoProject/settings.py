@@ -1,3 +1,4 @@
+#server/ZuntoProject/settings.py
 import os
 from pathlib import Path
 from decouple import config
@@ -7,9 +8,7 @@ from datetime import timedelta
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# ============================================
-# ENVIRONMENT DETECTION
-# ============================================
+                       
 
 IS_PRODUCTION = os.environ.get('RENDER', 'False') == 'True'
 
@@ -40,9 +39,7 @@ if not DEBUG:
     SECURE_REFERRER_POLICY = 'same-origin'
     SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
 
-# ============================================
-# APPLICATIONS
-# ============================================
+              
 
 INSTALLED_APPS = [
     'daphne',
@@ -71,12 +68,10 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',  
 ]
 
-# CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
-# CRISPY_TEMPLATE_PACK = "bootstrap5"
+                                              
+                                     
 
-# ============================================
-# MIDDLEWARE
-# ============================================
+            
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -92,17 +87,13 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-# ============================================
-# URL & WSGI/ASGI
-# ============================================
+                 
 
 ROOT_URLCONF = 'ZuntoProject.urls'
 WSGI_APPLICATION = 'ZuntoProject.wsgi.application'
 ASGI_APPLICATION = 'ZuntoProject.asgi.application'
 
-# ============================================
-# TEMPLATES
-# ============================================
+           
 
 TEMPLATES = [
     {
@@ -122,9 +113,7 @@ TEMPLATES = [
     },
 ]
 
-# ============================================
-# DATABASE
-# ============================================
+          
 
 if IS_PRODUCTION:
     DATABASES = {
@@ -143,17 +132,13 @@ else:
         }
     }
 
-# ============================================
-# REDIS CONFIGURATION
-# ============================================
+                     
 
 REDIS_HOST = config('REDIS_HOST', default='localhost')
 REDIS_PORT = config('REDIS_PORT', default=6379, cast=int)
 REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}'
 
-# ============================================
-# CACHING
-# ============================================
+         
 
 if IS_PRODUCTION:
     CACHES = {
@@ -170,9 +155,7 @@ else:
         }
     }
 
-# ============================================
-# SESSION CONFIGURATION
-# ============================================
+                       
 
 SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
 SESSION_CACHE_ALIAS = 'default'
@@ -182,9 +165,7 @@ SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_SAMESITE = 'Lax'
 
-# ============================================
-# CHANNELS & WEBSOCKETS
-# ============================================
+                       
 
 if IS_PRODUCTION:
     CHANNEL_LAYERS = {
@@ -209,9 +190,7 @@ else:
         },
     }
 
-# ============================================
-# REST FRAMEWORK
-# ============================================
+                
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -229,9 +208,7 @@ REST_FRAMEWORK = {
     },
 }
 
-# ============================================
-# AUTHENTICATION
-# ============================================
+                
 
 AUTH_USER_MODEL = 'accounts.User'
 
@@ -247,18 +224,14 @@ LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'accounts:login'
 PASSWORD_RESET_TIMEOUT = 3600
 
-# ============================================
-# INTERNATIONALIZATION
-# ============================================
+                      
 
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'Africa/Lagos'
 USE_I18N = True
 USE_TZ = True
 
-# ============================================
-# STATIC & MEDIA FILES
-# ============================================
+                      
 
 STATIC_URL = '/static/'
 STATICFILES_DIRS = []
@@ -279,9 +252,7 @@ STORAGES = {
 ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
 MAX_UPLOAD_SIZE = 5242880
 
-# ============================================
-# EMAIL CONFIGURATION
-# ============================================
+                     
 
 EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.smtp.EmailBackend')
 EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
@@ -292,15 +263,13 @@ EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='ZONTO <noreply@zonto.com>')
 ADMIN_EMAIL = config('ADMIN_EMAIL', default='admin@zonto.com')
 
-# In development you can opt into console backend, but do not force it.
-# Forced console backend prevents real verification emails from being delivered.
+                                                                       
+                                                                                
 EMAIL_USE_CONSOLE_IN_DEBUG = config('EMAIL_USE_CONSOLE_IN_DEBUG', default=False, cast=bool)
 if DEBUG and EMAIL_USE_CONSOLE_IN_DEBUG:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
-# ============================================
-# CELERY CONFIGURATION
-# ============================================
+                      
 
 if IS_PRODUCTION:
     CELERY_BROKER_URL = config('REDIS_URL', default=REDIS_URL + '/1')
@@ -322,19 +291,19 @@ CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60
 CELERY_BEAT_SCHEDULE = {
     'detect-abandoned-carts': {
         'task': 'cart.tasks.detect_abandoned_carts',
-        'schedule': crontab(hour=2, minute=0),  # Daily 2 AM
+        'schedule': crontab(hour=2, minute=0),              
     },
     'send-abandonment-reminders': {
         'task': 'cart.tasks.send_abandonment_reminders',
-        'schedule': crontab(hour=3, minute=0),  # Daily 3 AM
+        'schedule': crontab(hour=3, minute=0),              
     },
     'calculate-user-scores': {
         'task': 'cart.tasks.calculate_user_scores_bulk',
-        'schedule': crontab(hour=4, minute=0),  # Daily 4 AM
+        'schedule': crontab(hour=4, minute=0),              
     },
     'cleanup-old-guest-carts': {
         'task': 'cart.tasks.cleanup_old_guest_carts',
-        'schedule': crontab(hour=5, minute=0, day_of_week=0),  # Weekly Sunday 5 AM
+        'schedule': crontab(hour=5, minute=0, day_of_week=0),                      
         'kwargs': {'days': 30}
     },
     'cleanup-dispute-media': {
@@ -346,17 +315,13 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(hour=6, minute=30),
     },
 }
-# ============================================
-# PAYSTACK CONFIGURATION
-# ============================================
+                        
 
 PAYSTACK_SECRET_KEY = config('PAYSTACK_SECRET_KEY', default='')
 PAYSTACK_PUBLIC_KEY = config('PAYSTACK_PUBLIC_KEY', default='')
 PAYSTACK_BASE_URL = 'https://api.paystack.co'
 
-# ============================================
-# CORS CONFIGURATION
-# ============================================
+                    
 
 if IS_PRODUCTION:
     CORS_ALLOWED_ORIGINS = [
@@ -406,9 +371,7 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 
-# ============================================
-# AI ASSISTANT CONFIGURATION
-# ============================================
+                            
 
 GROQ_API_KEY = config('GROQ_API_KEY', default='')
 GROQ_MODEL = config('GROQ_MODEL', default='llama-3.3-70b-versatile')
@@ -419,15 +382,13 @@ SENTENCE_TRANSFORMER_MODEL = config(
     default='all-MiniLM-L6-v2'
 )
 
-# Phase 1 Orchestration Feature Flags
+                                     
 PHASE1_UNIFIED_CONFIDENCE = config('PHASE1_UNIFIED_CONFIDENCE', default=True, cast=bool)
 PHASE1_CONTEXT_INTEGRATION = config('PHASE1_CONTEXT_INTEGRATION', default=True, cast=bool)
 PHASE1_INTENT_CACHING = config('PHASE1_INTENT_CACHING', default=True, cast=bool)
 PHASE1_LLM_CONTEXT_ENRICHMENT = config('PHASE1_LLM_CONTEXT_ENRICHMENT', default=True, cast=bool)
 PHASE1_RESPONSE_PERSONALIZATION_FIX = config('PHASE1_RESPONSE_PERSONALIZATION_FIX', default=True, cast=bool)
-# ============================================
-# LOGGING
-# ============================================
+         
 
 LOGGING = {
     'version': 1,
@@ -497,16 +458,12 @@ LOGGING = {
 LOGS_DIR = BASE_DIR / 'logs'
 LOGS_DIR.mkdir(exist_ok=True)
 
-# ============================================
-# DATA UPLOAD SETTINGS
-# ============================================
+                      
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 5242880
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880
 
-# ============================================
-# MISC
-# ============================================
+      
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -534,9 +491,7 @@ os.environ['SENTENCE_TRANSFORMERS_HOME'] = '/tmp'
 CHAT_HMAC_SECRET = config('CHAT_HMAC_SECRET', default='change-me-in-production')
 
 
-# ============================================
-# JWT CONFIGURATION (ADD THIS NEW SECTION)
-# ============================================
+                                          
 
 from datetime import timedelta
 
@@ -564,30 +519,24 @@ SIMPLE_JWT = {
     'JTI_CLAIM': 'jti',
 }
 
-# ============================================
-# FRONTEND URL
-# ============================================
+              
 if IS_PRODUCTION:
     FRONTEND_URL = 'https://zunto-frontend.onrender.com'
 else:
-    FRONTEND_URL = 'http://localhost:5173'  # Vite dev server
+    FRONTEND_URL = 'http://localhost:5173'                   
 
 
 
-# ============================================
-# CSRF CONFIGURATION (Add this section)
-# ============================================
+                                       
 
 CSRF_COOKIE_NAME = 'csrftoken'
 CSRF_HEADER_NAME = 'HTTP_X_CSRFTOKEN'
-CSRF_COOKIE_HTTPONLY = False  # ← CRITICAL: Must be False so JavaScript can read it
+CSRF_COOKIE_HTTPONLY = False                                                       
 CSRF_COOKIE_SAMESITE = 'Lax'
-CSRF_COOKIE_SECURE = not DEBUG  # True in production (HTTPS only)
-CSRF_USE_SESSIONS = False  # Use cookie-based CSRF
-CSRF_COOKIE_AGE = 31449600  # 1 year
+CSRF_COOKIE_SECURE = not DEBUG                                   
+CSRF_USE_SESSIONS = False                         
+CSRF_COOKIE_AGE = 31449600          
 
 
-# ============================================
-# GOOGLE OAUTH CONFIGURATION
-# ============================================
+                            
 GOOGLE_OAUTH_CLIENT_ID = config('GOOGLE_OAUTH_CLIENT_ID', default='')

@@ -1,4 +1,4 @@
-# accounts/models.py
+#server/accounts/models.py
 from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.core.validators import RegexValidator
@@ -52,27 +52,27 @@ class User(AbstractUser):
         message="Phone number must be entered in the format: '+999999999'. Up to 15 digits allowed."
     )
     
-    # Remove username field, use email instead
+                                              
     username = None
     
-    # Primary fields
+                    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True, db_index=True)
-    google_id = models.CharField(max_length=255, blank=True, null=True, unique=True, db_index=True)  # ← ADDED THIS LINE
+    google_id = models.CharField(max_length=255, blank=True, null=True, unique=True, db_index=True)                     
     phone = models.CharField(validators=[phone_regex], max_length=17, unique=True, null=True, blank=True)
     
-    # Profile fields
+                    
     first_name = models.CharField(max_length=150)
     last_name = models.CharField(max_length=150)
     profile_picture = models.ImageField(upload_to='profile_pictures/', null=True, blank=True)
     bio = models.TextField(max_length=500, blank=True)
     
-    # Role and verification
+                           
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='buyer')
     is_verified = models.BooleanField(default=False)
     is_phone_verified = models.BooleanField(default=False)
     
-    # Identity verification
+                           
     nin = models.CharField(max_length=11, unique=True, null=True, blank=True, help_text="National Identification Number")
     bvn = models.CharField(max_length=11, unique=True, null=True, blank=True, help_text="Bank Verification Number")
     seller_commerce_mode = models.CharField(
@@ -82,18 +82,18 @@ class User(AbstractUser):
         help_text='Direct sellers handle payment off-platform. Managed sellers use Zunto payment, shipping, and refunds.',
     )
     
-    # Address information
+                         
     address = models.TextField(blank=True)
     city = models.CharField(max_length=100, blank=True)
     state = models.CharField(max_length=100, blank=True)
     country = models.CharField(max_length=100, default='Nigeria')
     
-    # Timestamps
+                
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     last_login_at = models.DateTimeField(null=True, blank=True)
     
-    # Account status
+                    
     is_active = models.BooleanField(default=True)
     is_suspended = models.BooleanField(default=False)
     suspension_reason = models.TextField(blank=True)

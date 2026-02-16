@@ -1,3 +1,4 @@
+#server/assistant/models.py
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.serializers.json import DjangoJSONEncoder
@@ -81,14 +82,14 @@ class ConversationSession(models.Model):
         help_text="Current conversation state"
     )
 
-    # Primary context field - used by ContextManager
+                                                    
     context = models.JSONField(
         default=dict,
         encoder=DjangoJSONEncoder,
         help_text="Complete session context: history, traits, sentiment, escalation, metadata"
     )
 
-    # Legacy compatibility
+                          
     context_data = models.JSONField(
         default=dict,
         encoder=DjangoJSONEncoder,
@@ -124,7 +125,7 @@ class ConversationSession(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     last_activity = models.DateTimeField(auto_now=True)
-    updated_at = models.DateTimeField(auto_now=True)  # Required by context_manager.py
+    updated_at = models.DateTimeField(auto_now=True)                                  
     closed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
@@ -398,7 +399,7 @@ class ConversationLog(models.Model):
         related_name='logs',
         help_text="Associated conversation session"
     )
-    # Separate from session FK to avoid field name collision
+                                                            
     anonymous_session_id = models.CharField(
         max_length=100,
         blank=True,

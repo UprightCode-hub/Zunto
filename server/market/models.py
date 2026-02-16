@@ -1,4 +1,4 @@
-# market/models.py
+#server/market/models.py
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator, MaxValueValidator
@@ -107,14 +107,14 @@ class Product(SoftDeleteModel):
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     
-    # Seller information
+                        
     seller = models.ForeignKey(
         User, 
         on_delete=models.CASCADE, 
         related_name='products'
     )
     
-    # Basic information
+                       
     title = models.CharField(max_length=255, db_index=True)
     slug = models.SlugField(max_length=255, unique=True, blank=True)
     description = models.TextField()
@@ -124,7 +124,7 @@ class Product(SoftDeleteModel):
         default='product'
     )
     
-    # Categorization
+                    
     category = models.ForeignKey(
         Category, 
         on_delete=models.SET_NULL, 
@@ -138,7 +138,7 @@ class Product(SoftDeleteModel):
         related_name='products'
     )
     
-    # Pricing
+             
     price = models.DecimalField(
         max_digits=12, 
         decimal_places=2,
@@ -146,7 +146,7 @@ class Product(SoftDeleteModel):
     )
     negotiable = models.BooleanField(default=False)
     
-    # Product details
+                     
     condition = models.CharField(
         max_length=20, 
         choices=CONDITION_CHOICES, 
@@ -155,7 +155,7 @@ class Product(SoftDeleteModel):
     brand = models.CharField(max_length=100, blank=True)
     quantity = models.PositiveIntegerField(default=1)
     
-    # Status
+            
     status = models.CharField(
         max_length=20, 
         choices=STATUS_CHOICES, 
@@ -163,23 +163,23 @@ class Product(SoftDeleteModel):
         db_index=True
     )
     
-    # Promotion
+               
     is_featured = models.BooleanField(default=False)
     is_boosted = models.BooleanField(default=False)
     boost_expires_at = models.DateTimeField(null=True, blank=True)
     
-    # Verification
+                  
     is_verified = models.BooleanField(
         default=False, 
         help_text="Admin verified listing"
     )
     
-    # Engagement metrics
+                        
     views_count = models.PositiveIntegerField(default=0)
     favorites_count = models.PositiveIntegerField(default=0)
     shares_count = models.PositiveIntegerField(default=0)
     
-    # Timestamps
+                
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
     expires_at = models.DateTimeField(null=True, blank=True)
@@ -261,7 +261,7 @@ class ProductImage(models.Model):
         return f"Image for {self.product.title}"
     
     def save(self, *args, **kwargs):
-        # If this is set as primary, unset other primary images
+                                                               
         if self.is_primary:
             ProductImage.objects.filter(
                 product=self.product, 

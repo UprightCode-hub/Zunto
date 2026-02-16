@@ -1,3 +1,4 @@
+#server/scripts/test_answer.py
 import os
 import sys
 from pathlib import Path
@@ -11,7 +12,7 @@ django.setup()
 
 from assistant.processors import QueryProcessor
 
-# Test the full pipeline
+                        
 processor = QueryProcessor()
 result = processor.process("How do I create an account?")
 

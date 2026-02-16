@@ -1,12 +1,5 @@
-"""
-Flows Module - Conversational flow handlers for Zunto AI Assistant.
-
-This module provides specialized conversation flows for different user intents:
-- Greeting Flow: Welcome messages and name collection
-- FAQ Flow: Answering common questions
-- Dispute Flow: Handling seller disputes and scam reports
-- Feedback Flow: Collecting user feedback and suggestions
-"""
+#server/assistant/flows/__init__.py
+"""Conversation flow handlers package."""
 
 from assistant.flows.greeting_flow import GreetingFlow
 from assistant.flows.faq_flow import FAQFlow
@@ -20,7 +13,7 @@ __all__ = [
     'FeedbackFlow',
 ]
 
-# Module version and info
+                         
 __version__ = '2.0.0'
 __author__ = 'Wisdom Ekwugha'
 

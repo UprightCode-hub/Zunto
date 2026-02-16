@@ -1,8 +1,5 @@
-"""
-TTS Utilities - Groq TTS API Integration with Caching
-Handles text-to-speech generation for assistant responses.
-Created by Wisdom Ekwugha
-"""
+#server/assistant/utils/tts_utils.py
+"""TTS utilities for Groq integration and caching."""
 import os
 import hashlib
 import logging
@@ -15,17 +12,17 @@ logger = logging.getLogger(__name__)
 
 
 class GroqTTSService:
-    """Service for handling Groq TTS API calls with intelligent caching."""
+    """Service for handling Groq TTS API calls with caching."""
     
-    # Voice mapping: Map common voice names to Groq PlayAI voices
+                                                                 
     VOICE_MAPPING = {
-        "alloy": "Jennifer-PlayAI",      # Female, friendly
-        "echo": "Angelo-PlayAI",          # Male, neutral
-        "fable": "Eleanor-PlayAI",        # Female, expressive
-        "onyx": "Cillian-PlayAI",         # Male, deep
-        "nova": "Ruby-PlayAI",            # Female, warm
-        "shimmer": "Adelaide-PlayAI",     # Female, bright
-        # Direct Groq voices also supported
+        "alloy": "Jennifer-PlayAI",                        
+        "echo": "Angelo-PlayAI",                         
+        "fable": "Eleanor-PlayAI",                            
+        "onyx": "Cillian-PlayAI",                     
+        "nova": "Ruby-PlayAI",                          
+        "shimmer": "Adelaide-PlayAI",                     
+                                           
         "jennifer": "Jennifer-PlayAI",
         "angelo": "Angelo-PlayAI",
         "eleanor": "Eleanor-PlayAI",
@@ -42,7 +39,7 @@ class GroqTTSService:
         "thunder": "Thunder-PlayAI",
     }
     
-    # All available Groq PlayAI voices
+                                      
     AVAILABLE_VOICES = [
         "Aaliyah-PlayAI", "Adelaide-PlayAI", "Angelo-PlayAI", "Arista-PlayAI",
         "Atlas-PlayAI", "Basil-PlayAI", "Briggs-PlayAI", "Calum-PlayAI",
@@ -57,10 +54,10 @@ class GroqTTSService:
         self.api_key = getattr(settings, 'GROQ_API_KEY', os.environ.get('GROQ_API_KEY'))
         self.api_url = "https://api.groq.com/openai/v1/audio/speech"
         self.model = "playai-tts"
-        self.voice = "Jennifer-PlayAI"  # Default Groq voice (friendly female)
-        self.response_format = "mp3"  # mp3, opus, aac, flac, wav, pcm
-        self.speed = 1.0  # 0.25 to 4.0
-        self.cache_timeout = 3600 * 24 * 7  # 7 days for audio files
+        self.voice = "Jennifer-PlayAI"                                        
+        self.response_format = "mp3"                                  
+        self.speed = 1.0               
+        self.cache_timeout = 3600 * 24 * 7                          
         
         if not self.api_key:
             logger.error("GROQ_API_KEY not found in environment variables!")
@@ -75,21 +72,21 @@ class GroqTTSService:
         
         voice_lower = voice.lower().strip()
         
-        # Check if it's in the mapping
+                                      
         if voice_lower in self.VOICE_MAPPING:
             return self.VOICE_MAPPING[voice_lower]
         
-        # Check if it's already a valid Groq voice
+                                                  
         if voice in self.AVAILABLE_VOICES:
             return voice
         
-        # Try to find a case-insensitive match
+                                              
         for available_voice in self.AVAILABLE_VOICES:
-            if available_voice.lower() == voice_lower or \
+            if available_voice.lower() == voice_lower or\
                available_voice.lower().replace("-playai", "") == voice_lower:
                 return available_voice
         
-        # Fallback to default
+                             
         logger.warning(f"Unknown voice '{voice}', using default: {self.voice}")
         return self.voice
     
@@ -119,25 +116,25 @@ class GroqTTSService:
         Returns:
             Tuple of (success, audio_bytes, error_message)
         """
-        # Validate input
+                        
         if not text or not text.strip():
             return False, None, "Empty text provided"
         
         if not self.api_key:
             return False, None, "Groq API key not configured"
         
-        # Sanitize text (remove excessive whitespace)
+                                                     
         text = " ".join(text.split())
         
-        # Limit text length to avoid rate limits (Groq free tier)
+                                                                 
         if len(text) > 4000:
             logger.warning(f"Text too long ({len(text)} chars), truncating to 4000")
             text = text[:3997] + "..."
         
-        # Normalize voice to Groq format
+                                        
         normalized_voice = self._normalize_voice(voice)
         
-        # Check cache first
+                           
         cache_key = self._get_cache_key(text, normalized_voice, speed)
         if use_cache:
             cached_audio = cache.get(cache_key)
@@ -145,7 +142,7 @@ class GroqTTSService:
                 logger.info(f"Cache HIT for text: {text[:50]}...")
                 return True, cached_audio, None
         
-        # Prepare API request
+                             
         speed = speed or self.speed
         
         headers = {
@@ -168,22 +165,22 @@ class GroqTTSService:
                 self.api_url,
                 headers=headers,
                 json=payload,
-                timeout=15  # 15 second timeout
+                timeout=15                     
             )
             
-            # Check for errors
+                              
             if response.status_code != 200:
                 error_msg = self._parse_error(response)
                 logger.error(f"Groq TTS API error {response.status_code}: {error_msg}")
                 return False, None, error_msg
             
-            # Get audio bytes
+                             
             audio_bytes = response.content
             
             if not audio_bytes:
                 return False, None, "Empty audio response from API"
             
-            # Cache the audio
+                             
             if use_cache:
                 cache.set(cache_key, audio_bytes, self.cache_timeout)
                 logger.info(f"Cached audio for: {text[:50]}...")
@@ -243,12 +240,12 @@ class GroqTTSService:
             cache.delete(cache_key)
             logger.info(f"Cleared cache for: {text[:50]}...")
         else:
-            # Note: Django cache doesn't support wildcard delete easily
-            # You'd need to track keys separately for this
+                                                                       
+                                                          
             logger.warning("Full cache clear not implemented - clear specific texts instead")
 
 
-# Singleton instance
+                    
 _tts_service_instance = None
 
 
@@ -260,7 +257,7 @@ def get_tts_service() -> GroqTTSService:
     return _tts_service_instance
 
 
-# Convenience function
+                      
 def text_to_speech(
     text: str,
     voice: Optional[str] = None,

@@ -1,4 +1,4 @@
-# notifications/tasks.py
+#server/notifications/tasks.py
 from celery import shared_task
 from .email_service import EmailService
 import logging
@@ -111,7 +111,7 @@ def send_cart_abandonment_emails():
     from django.utils import timezone
     from datetime import timedelta
     
-    # Get carts abandoned for 24 hours
+                                      
     cutoff_time = timezone.now() - timedelta(hours=24)
     
     abandoned_carts = Cart.objects.filter(

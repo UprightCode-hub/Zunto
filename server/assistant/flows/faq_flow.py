@@ -1,6 +1,5 @@
-"""
-FAQ Flow - Smart FAQ question handling with RAG integration.
-"""
+#server/assistant/flows/faq_flow.py
+"""FAQ flow for question handling with retrieval support."""
 import logging
 from typing import Dict, Optional, Tuple, List
 
@@ -10,10 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class FAQFlow:
-    """
-    Premium FAQ flow handler with smart RAG integration.
-    Leverages your 0.03s FAISS + BGE-small-en-v1.5 setup.
-    """
+    """FAQ flow handler with retrieval-based responses."""
 
     FAQ_MODE_INTRO = """Perfect {name}! 📚 I'm ready to answer your questions about Zunto.
 
@@ -93,11 +89,11 @@ Just type your question or choose an option!"""
         """
         msg_lower = message.lower().strip()
 
-        # Check for exit commands
+                                 
         if msg_lower in ['menu', 'main menu', 'back', 'exit']:
             return self._exit_to_menu(), {'success': True, 'action': 'exit'}
 
-        # Check for yes/no follow-up responses
+                                              
         if msg_lower in ['yes', 'y', 'yeah', 'yep', 'that helped', 'thanks', 'thank you']:
             if self.context_manager:
                 self.context_manager.mark_resolution(success=True)
@@ -128,7 +124,7 @@ Just type your question or choose an option!"""
             needs_followup = True
             success = True
 
-        else:  # low tier
+        else:            
             reply = self._build_low_confidence_response(result)
             needs_followup = True
             success = False

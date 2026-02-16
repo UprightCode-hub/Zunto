@@ -1,15 +1,5 @@
-"""
-Feedback Flow - Premium sentiment-aware feedback collection.
-Handles user feedback with emotion detection and categorization.
-
-Features:
-- Sentiment-aware responses (positive/negative/neutral)
-- Feedback categorization (praise, complaint, suggestion, bug)
-- Follow-up questions based on sentiment
-- NPS-style satisfaction tracking
-- Report model integration
-- Smart escalation for negative feedback
-"""
+#server/assistant/flows/feedback_flow.py
+"""Feedback flow for collecting and categorizing user feedback."""
 import logging
 from typing import Dict, Optional, Tuple
 from assistant.models import Report
@@ -18,24 +8,21 @@ logger = logging.getLogger(__name__)
 
 
 class FeedbackFlow:
-    """
-    Premium feedback collection flow with sentiment analysis.
-    Adapts responses based on user emotion and feedback type.
-    """
+    """Feedback collection flow with sentiment analysis."""
     
-    # Feedback types
+                    
     TYPE_PRAISE = 'praise'
     TYPE_COMPLAINT = 'complaint'
     TYPE_SUGGESTION = 'suggestion'
     TYPE_BUG_REPORT = 'bug'
     TYPE_GENERAL = 'general'
     
-    # Step constants
+                    
     STEP_COLLECT_FEEDBACK = 'collecting_feedback'
     STEP_FOLLOW_UP = 'follow_up'
     STEP_COMPLETE = 'complete'
     
-    # Category keywords
+                       
     CATEGORY_KEYWORDS = {
         TYPE_PRAISE: ['great', 'good', 'excellent', 'love', 'amazing', 'perfect', 
                       'wonderful', 'helpful', 'thank', 'appreciate', 'awesome'],
@@ -47,7 +34,7 @@ class FeedbackFlow:
                          'problem', 'glitch', 'fail', 'doesnt work', "doesn't work"]
     }
     
-    # Message templates
+                       
     FEEDBACK_INTRO = """Thank you {name}! 💭 Your feedback helps us improve Zunto.
 
 Please share your thoughts:
@@ -128,7 +115,7 @@ Type 1, 2, 3, or describe what you need!"""
         self.intent_classifier = intent_classifier
         self.name = session.user_name or "there"
         
-        # Get or initialize context
+                                   
         self.context = session.context or {}
         if 'feedback' not in self.context:
             self.context['feedback'] = {
@@ -146,12 +133,12 @@ Type 1, 2, 3, or describe what you need!"""
         Returns:
             Intro message
         """
-        # Update session state
+                              
         self.session.current_state = 'feedback_mode'
         self.context['feedback']['step'] = self.STEP_COLLECT_FEEDBACK
         self._save_context()
         
-        # Track mode usage
+                          
         if self.context_manager:
             self.context_manager.mark_mode_used('feedback_mode')
             self.context_manager.mark_topic_discussed('feedback')
@@ -180,11 +167,11 @@ Type 1, 2, 3, or describe what you need!"""
         current_step = self.context['feedback']['step']
         msg_lower = message.lower().strip()
         
-        # Check for exit/completion commands
+                                            
         if msg_lower in ['menu', 'exit', 'back', 'done', 'finish']:
             return self._save_and_complete()
         
-        # Route based on step
+                             
         if current_step == self.STEP_COLLECT_FEEDBACK:
             return self._handle_initial_feedback(message, emotion)
         
@@ -192,17 +179,17 @@ Type 1, 2, 3, or describe what you need!"""
             return self._handle_follow_up(message)
         
         else:
-            # Fallback
+                      
             return self._save_and_complete()
     
     def _handle_initial_feedback(self, message: str, emotion: Optional[str] = None) -> Tuple[str, Dict]:
         """
         Handle initial feedback collection with sentiment analysis.
         """
-        # Store feedback message
+                                
         self.context['feedback']['messages'].append(message)
         
-        # Detect feedback type and sentiment
+                                            
         feedback_type = self._detect_feedback_type(message)
         sentiment = self._detect_sentiment(message, emotion=emotion)
         
@@ -216,7 +203,7 @@ Type 1, 2, 3, or describe what you need!"""
             f"length={len(message)} chars"
         )
         
-        # Generate appropriate response based on type and sentiment
+                                                                   
         reply, metadata = self._generate_typed_response(message, feedback_type, sentiment)
         
         return reply, metadata
@@ -227,13 +214,13 @@ Type 1, 2, 3, or describe what you need!"""
         """
         msg_lower = message.lower().strip()
         
-        # Check for option selection from negative feedback prompt
+                                                                  
         if msg_lower in ['1', 'report', 'formal', 'issue']:
-            # Save as dispute instead
+                                     
             return self._escalate_to_dispute()
         
         elif msg_lower in ['2', 'more', 'details', 'share more']:
-            # Collect more feedback
+                                   
             self.context['feedback']['messages'].append(message)
             self.context['feedback']['follow_up_count'] += 1
             self._save_context()
@@ -250,10 +237,10 @@ Type 1, 2, 3, or describe what you need!"""
             )
         
         elif msg_lower in ['3', 'menu', 'done', 'finish', 'no', 'nope', "that's all"]:
-            # Complete feedback
+                               
             return self._save_and_complete()
         
-        # Check if user wants to share more or is done
+                                                      
         elif any(kw in msg_lower for kw in ['yes', 'yeah', 'yep', 'sure', 'more']):
             return (
                 "Go ahead, I'm listening! What else would you like to share?",
@@ -265,7 +252,7 @@ Type 1, 2, 3, or describe what you need!"""
             )
         
         else:
-            # User shared more feedback
+                                       
             self.context['feedback']['messages'].append(message)
             self.context['feedback']['follow_up_count'] += 1
             self._save_context()
@@ -284,14 +271,14 @@ Type 1, 2, 3, or describe what you need!"""
         """Detect feedback type from keywords."""
         msg_lower = message.lower()
         
-        # Count matches for each type
+                                     
         type_scores = {}
         for fb_type, keywords in self.CATEGORY_KEYWORDS.items():
             score = sum(1 for kw in keywords if kw in msg_lower)
             if score > 0:
                 type_scores[fb_type] = score
         
-        # Return type with highest score
+                                        
         if type_scores:
             return max(type_scores, key=type_scores.get)
         
@@ -302,7 +289,7 @@ Type 1, 2, 3, or describe what you need!"""
         Detect sentiment using intent_classifier if available,
         otherwise use keyword-based detection.
         """
-        # Prefer already-classified emotion from ConversationManager.
+                                                                     
         if emotion:
             if emotion in ['happy', 'excited']:
                 return 'positive'
@@ -310,7 +297,7 @@ Type 1, 2, 3, or describe what you need!"""
                 return 'negative'
             return 'neutral'
 
-        # Backward compatibility: if no emotion is provided, optionally classify here.
+                                                                                      
         if self.intent_classifier:
             try:
                 from assistant.ai.intent_classifier import classify_intent
@@ -326,7 +313,7 @@ Type 1, 2, 3, or describe what you need!"""
             except Exception as e:
                 logger.warning(f"Intent classifier failed: {e}")
         
-        # Fallback: keyword-based sentiment
+                                           
         msg_lower = message.lower()
         positive_count = sum(1 for kw in self.CATEGORY_KEYWORDS[self.TYPE_PRAISE] if kw in msg_lower)
         negative_count = sum(1 for kw in self.CATEGORY_KEYWORDS[self.TYPE_COMPLAINT] if kw in msg_lower)
@@ -347,7 +334,7 @@ Type 1, 2, 3, or describe what you need!"""
         """
         Generate response based on feedback type and sentiment.
         """
-        # Build custom message based on type
+                                            
         if feedback_type == self.TYPE_PRAISE:
             custom_msg = "It means a lot to us that you took the time to share positive feedback!"
             template = self.POSITIVE_RESPONSE
@@ -364,11 +351,11 @@ Type 1, 2, 3, or describe what you need!"""
             custom_msg = "Bug reports help us maintain a smooth experience for everyone. We'll investigate this promptly."
             template = self.BUG_RESPONSE
         
-        else:  # GENERAL
+        else:           
             custom_msg = "We appreciate you taking the time to share your thoughts with us!"
-            template = self.POSITIVE_RESPONSE  # Default to positive template
+            template = self.POSITIVE_RESPONSE                                
         
-        # Format response
+                         
         reply = template.format(
             name=self.name,
             custom_message=custom_msg
@@ -387,7 +374,7 @@ Type 1, 2, 3, or describe what you need!"""
         """
         Escalate negative feedback to dispute flow.
         """
-        # Save feedback as a report first
+                                         
         feedback_text = " ".join(self.context['feedback']['messages'])
         
         report = Report.objects.create(
@@ -406,7 +393,7 @@ Type 1, 2, 3, or describe what you need!"""
         
         logger.info(f"Feedback escalated to report #{report.id}")
         
-        # Switch to dispute mode
+                                
         self.session.current_state = 'dispute_mode'
         self.context['dispute'] = {
             'step': 'show_contact',
@@ -444,7 +431,7 @@ Type: **email**, **twitter**, **whatsapp**, or **no**"""
         feedback_data = self.context['feedback']
         feedback_text = " ".join(feedback_data['messages'])
         
-        # Determine severity based on sentiment
+                                               
         severity_map = {
             'positive': 'low',
             'neutral': 'low',
@@ -452,7 +439,7 @@ Type: **email**, **twitter**, **whatsapp**, or **no**"""
         }
         severity = severity_map.get(feedback_data['sentiment'], 'low')
         
-        # Determine report type
+                               
         if feedback_data['type'] == self.TYPE_COMPLAINT:
             report_type = 'complaint'
         elif feedback_data['type'] == self.TYPE_SUGGESTION:
@@ -460,7 +447,7 @@ Type: **email**, **twitter**, **whatsapp**, or **no**"""
         else:
             report_type = 'feedback'
         
-        # Save to database
+                          
         report = Report.objects.create(
             user=self.session.user,
             message=feedback_text,
@@ -480,11 +467,11 @@ Type: **email**, **twitter**, **whatsapp**, or **no**"""
             f"(type={report_type}, sentiment={feedback_data['sentiment']})"
         )
         
-        # Mark resolution in context manager
+                                            
         if self.context_manager:
             self.context_manager.mark_resolution(success=True)
         
-        # Build custom closing based on sentiment
+                                                 
         if feedback_data['sentiment'] == 'positive':
             custom_closing = "We're grateful for your support! 🙏"
         elif feedback_data['sentiment'] == 'negative':
@@ -492,7 +479,7 @@ Type: **email**, **twitter**, **whatsapp**, or **no**"""
         else:
             custom_closing = "Your input helps us grow. Thank you!"
         
-        # Reset context
+                       
         self.session.current_state = 'menu'
         self.context['feedback'] = {'step': self.STEP_COMPLETE}
         self._save_context()
@@ -514,37 +501,3 @@ Type: **email**, **twitter**, **whatsapp**, or **no**"""
         self.session.context = self.context
         self.session.save(update_fields=['context', 'current_state', 'updated_at'])
 
-
-# Integration example
-"""
-# In conversation_manager.py:
-
-from assistant.flows.feedback_flow import FeedbackFlow
-from assistant.ai.context_manager import ContextManager
-
-# Initialize
-context_mgr = ContextManager(session)
-feedback_flow = FeedbackFlow(session, context_mgr, intent_classifier=True)
-
-# User selects feedback mode
-if menu_choice == '3' or 'feedback' in user_message.lower():
-    intro_message = feedback_flow.enter_feedback_mode()
-    return intro_message
-
-# Handle feedback messages
-if session.current_state == 'feedback_mode':
-    reply, metadata = feedback_flow.handle_feedback_message(user_message)
-    
-    # Track in context manager
-    if metadata.get('complete'):
-        context_mgr.mark_resolution(success=True)
-    
-    # Check for escalation
-    if metadata.get('action') == 'escalated_to_dispute':
-        # Switch to dispute flow
-        from assistant.flows.dispute_flow import DisputeFlow
-        dispute_flow = DisputeFlow(session, llm, context_mgr)
-        # Continue in dispute mode...
-    
-    return reply
-"""

@@ -1,4 +1,4 @@
-# reviews/permissions.py
+#server/reviews/permissions.py
 from rest_framework import permissions
 
 
@@ -8,11 +8,11 @@ class IsReviewerOrReadOnly(permissions.BasePermission):
     """
     
     def has_object_permission(self, request, view, obj):
-        # Read permissions are allowed to any request
+                                                     
         if request.method in permissions.SAFE_METHODS:
             return True
         
-        # Write permissions are only allowed to the reviewer
+                                                            
         return obj.reviewer == request.user
 
 
@@ -22,11 +22,11 @@ class IsSellerOrReadOnly(permissions.BasePermission):
     """
     
     def has_object_permission(self, request, view, obj):
-        # Read permissions are allowed to any request
+                                                     
         if request.method in permissions.SAFE_METHODS:
             return True
         
-        # Check if user is the seller
+                                     
         if hasattr(obj, 'product'):
             return obj.product.seller == request.user
         elif hasattr(obj, 'seller'):
