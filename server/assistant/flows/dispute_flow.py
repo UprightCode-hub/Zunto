@@ -1,6 +1,5 @@
-"""
-Dispute Flow - Multi-step dispute reporting with AI draft generation.
-"""
+#server/assistant/flows/dispute_flow.py
+"""Dispute flow handling multi-step dispute reporting."""
 import logging
 from typing import Dict, Optional, Tuple
 from assistant.models import Report
@@ -9,10 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class DisputeFlow:
-    """
-    Premium dispute reporting flow with AI-assisted message drafting.
-    Integrates with Groq for professional communication generation.
-    """
+    """Dispute reporting flow with draft generation support."""
 
     STEP_COLLECT_DESCRIPTION = 'collecting_details'
     STEP_CATEGORIZE = 'categorizing'
@@ -97,7 +93,7 @@ Type "menu" to see options or ask another question."""
         self.context_manager = context_manager
         self.name = session.user_name or "there"
 
-        # Get or initialize context
+                                   
         self.context = session.context or {}
         if 'dispute' not in self.context:
             self.context['dispute'] = {
@@ -146,7 +142,7 @@ Type "menu" to see options or ask another question."""
         current_step = self.context['dispute']['step']
         msg_lower = message.lower().strip()
 
-        # Check for exit command
+                                
         if msg_lower in ['menu', 'cancel', 'exit', 'back']:
             return self._exit_dispute_flow(), {'step': 'exit', 'complete': False}
 
@@ -210,7 +206,7 @@ Type "menu" to see options or ask another question."""
             return self._generate_draft(platform)
 
         else:
-            # Unclear choice - prompt again
+                                           
             return (
                 "I didn't catch that. Would you like a draft for:\n"
                 "- **email**\n"
@@ -226,7 +222,7 @@ Type "menu" to see options or ask another question."""
         description = self.context['dispute']['description']
         category = self.context['dispute']['category']
 
-        # Check if LLM is available
+                                   
         if not self.llm or not self.llm.is_available():
             logger.warning("LLM unavailable for draft generation")
             return self._save_dispute_without_draft()
@@ -285,7 +281,7 @@ Write a clear, friendly message (3-4 sentences) that:
 Format:
 [Message]"""
 
-            else:  # whatsapp
+            else:            
                 prompt = f"""Write a professional WhatsApp message to Zunto support.
 
 Issue Category: {category}
@@ -363,7 +359,7 @@ Format:
             return self._save_dispute_with_draft()
 
         else:
-            # Unclear response - assume edit request
+                                                    
             return self._regenerate_with_edits(message)
 
     def _regenerate_with_edits(self, edit_instruction: str) -> Tuple[str, Dict]:
@@ -432,13 +428,13 @@ How's this? Type:
             if score > 0:
                 category_scores[category] = score
 
-        # Return category with highest score, default to 'other'
+                                                                
         if category_scores:
             return max(category_scores, key=category_scores.get)
         return 'other'
 
     def _save_dispute_with_draft(self) -> Tuple[str, Dict]:
-        """Save dispute report with AI-generated draft to database."""
+        """Save dispute report and draft message to database."""
         dispute_data = self.context['dispute']
 
         report = Report.objects.create(
@@ -458,7 +454,7 @@ How's this? Type:
 
         logger.info(f"Dispute report saved: Report #{report.id} with draft")
 
-        # Reset dispute context
+                               
         self.context['dispute'] = {'step': self.STEP_COMPLETE}
         self.session.current_state = 'menu'
         self._save_context()
@@ -490,7 +486,7 @@ How's this? Type:
 
         logger.info(f"Dispute report saved: Report #{report.id} (no draft)")
 
-        # Reset context
+                       
         self.context['dispute'] = {'step': self.STEP_COMPLETE}
         self.session.current_state = 'menu'
         self._save_context()

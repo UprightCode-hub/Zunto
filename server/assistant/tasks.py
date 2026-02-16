@@ -1,3 +1,4 @@
+#server/assistant/tasks.py
 import logging
 from datetime import timedelta
 from pathlib import Path
@@ -33,7 +34,7 @@ def _sniff_type(file_path: str) -> str:
 
 def _antivirus_scan_stub(file_path: str) -> bool:
     """Placeholder for AV integration (ClamAV/Cloud AV). Returns True if safe."""
-    # TODO: integrate real scanner in production
+                                                
     _ = file_path
     return True
 
@@ -51,7 +52,7 @@ def validate_dispute_media_task(self, media_id: int):
     file_path = media.file.path if media.file else ''
     sniffed = _sniff_type(file_path) if file_path else 'unknown'
 
-    # Enforce server-side file size limits again async
+                                                      
     max_size = 15 * 1024 * 1024 if media.media_type == 'audio' else 5 * 1024 * 1024
     if media.file_size > max_size:
         media.validation_status = DisputeMedia.VALIDATION_REJECTED

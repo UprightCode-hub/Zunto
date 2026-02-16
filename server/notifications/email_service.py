@@ -1,4 +1,4 @@
-# notifications/email_service.py
+#server/notifications/email_service.py
 from django.core.mail import EmailMultiAlternatives
 from django.utils.html import strip_tags
 from django.template import Template, Context
@@ -28,28 +28,28 @@ class EmailService:
             bool: True if email sent successfully
         """
         try:
-            # Get template
+                          
             template = EmailTemplate.objects.get(
                 template_type=template_type,
                 is_active=True
             )
             
-            # Render subject
+                            
             subject_template = Template(template.subject)
             subject = subject_template.render(Context(context_data))
             
-            # Render HTML content
+                                 
             html_template = Template(template.html_content)
             html_content = html_template.render(Context(context_data))
             
-            # Render text content
+                                 
             if template.text_content:
                 text_template = Template(template.text_content)
                 text_content = text_template.render(Context(context_data))
             else:
                 text_content = ''
             
-            # Create email log
+                              
             email_log = EmailLog.objects.create(
                 template=template,
                 recipient_email=recipient_email,
@@ -58,7 +58,7 @@ class EmailService:
                 status='pending'
             )
             
-            # Send email
+                        
             email = EmailMultiAlternatives(
                 subject=subject,
                 body=text_content,
@@ -69,7 +69,7 @@ class EmailService:
             
             email.send()
             
-            # Update log
+                        
             email_log.status = 'sent'
             email_log.sent_at = timezone.now()
             email_log.save(update_fields=['status', 'sent_at'])
@@ -84,7 +84,7 @@ class EmailService:
         except Exception as e:
             logger.error(f"Failed to send email to {recipient_email}: {str(e)}")
             
-            # Update log with error
+                                   
             if 'email_log' in locals():
                 email_log.status = 'failed'
                 email_log.error_message = str(e)
@@ -110,7 +110,7 @@ class EmailService:
         if sent:
             return True
 
-        # Fallback if DB template is missing/inactive.
+                                                      
         subject = 'Welcome to Zunto'
         html_content = (
             f"<p>Hello {context['user_name']},</p>"
@@ -160,7 +160,7 @@ class EmailService:
         if sent:
             return True
 
-        # Fallback if DB template is missing/inactive.
+                                                      
         subject = 'Your Zunto verification code'
         html_content = (
             f"<p>Hello {context['user_name']},</p>"
@@ -205,7 +205,7 @@ class EmailService:
     @staticmethod
     def send_order_confirmation_email(order):
         """Send order confirmation email"""
-        # Check user preferences
+                                
         if hasattr(order.customer, 'notification_preferences'):
             if not order.customer.notification_preferences.email_order_updates:
                 return False
@@ -352,7 +352,7 @@ class EmailService:
         
         context = {
             'user_name': cart.user.get_full_name(),
-            'items': cart.items.all()[:3],  # Show first 3 items
+            'items': cart.items.all()[:3],                      
             'total_items': cart.total_items,
             'subtotal': f"₦{cart.subtotal:,.2f}",
             'frontend_url': settings.FRONTEND_URL,

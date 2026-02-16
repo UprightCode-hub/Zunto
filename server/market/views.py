@@ -1,4 +1,4 @@
-# market/views.py
+#server/market/views.py
 from rest_framework import generics, status, permissions, filters
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
@@ -30,7 +30,7 @@ class CategoryListView(generics.ListAPIView):
     permission_classes = [permissions.AllowAny]
     
     def get_queryset(self):
-        # Only return top-level categories
+                                          
         return Category.objects.filter(is_active=True, parent=None)
 
 
@@ -50,7 +50,7 @@ class ProductListCreateView(generics.ListCreateAPIView):
     template_name = 'products.html'
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    # filterset_class = ProductFilter
+                                     
     search_fields = ['title', 'description', 'brand']
     ordering_fields = ['created_at', 'price', 'views_count', 'favorites_count']
     ordering = ['-created_at']
@@ -90,7 +90,7 @@ class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         
-        # Track view
+                    
         self.track_view(instance)
         
         serializer = self.get_serializer(instance)
@@ -102,11 +102,11 @@ class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
         ip_address = self.get_client_ip()
         user_agent = self.request.META.get('HTTP_USER_AGENT', '')
         
-        # Don't count seller's own views
+                                        
         if user and user == product.seller:
             return
         
-        # Create view record
+                            
         ProductView.objects.create(
             product=product,
             user=user,
@@ -114,7 +114,7 @@ class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
             user_agent=user_agent
         )
         
-        # Increment view count
+                              
         product.views_count += 1
         product.save(update_fields=['views_count'])
     
@@ -152,7 +152,7 @@ class ProductImageUploadView(APIView):
     def post(self, request, product_slug):
         product = get_object_or_404(Product, slug=product_slug, seller=request.user)
         
-        # Check if max images reached (e.g., 10 images max)
+                                                           
         if product.images.count() >= 10:
             return Response({
                 'error': 'Maximum 10 images allowed per product.'
@@ -182,7 +182,7 @@ class ProductVideoUploadView(APIView):
     def post(self, request, product_slug):
         product = get_object_or_404(Product, slug=product_slug, seller=request.user)
         
-        # Check if max videos reached (e.g., 3 videos max)
+                                                          
         if product.videos.count() >= 3:
             return Response({
                 'error': 'Maximum 3 videos allowed per product.'
@@ -212,7 +212,7 @@ class FavoriteToggleView(APIView):
         )
         
         if not created:
-            # Already favorited, so remove it
+                                             
             favorite.delete()
             product.favorites_count -= 1
             product.save(update_fields=['favorites_count'])
@@ -221,7 +221,7 @@ class FavoriteToggleView(APIView):
                 'is_favorited': False
             }, status=status.HTTP_200_OK)
         else:
-            # Newly favorited
+                             
             product.favorites_count += 1
             product.save(update_fields=['favorites_count'])
             return Response({'message': 'Product added to favorites.',
@@ -327,7 +327,7 @@ class SimilarProductsView(generics.ListAPIView):
         product_slug = self.kwargs.get('product_slug')
         product = get_object_or_404(Product, slug=product_slug)
         
-        # Get similar products from same category or location
+                                                             
         similar_products = Product.objects.filter(
             Q(category=product.category) | Q(location=product.location),
             status='active'
@@ -350,14 +350,14 @@ class ProductStatsView(APIView):
             seller=request.user
         )
         
-        # Get view statistics
+                             
         total_views = product.views_count
         unique_users = ProductView.objects.filter(
             product=product, 
             user__isnull=False
         ).values('user').distinct().count()
         
-        # Get views over time (last 7 days)
+                                           
         from django.utils import timezone
         from datetime import timedelta
         seven_days_ago = timezone.now() - timedelta(days=7)

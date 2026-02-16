@@ -1,3 +1,4 @@
+#server/assistant/processors/rag_retriever.py
 """
 RAG Retriever - Memory-efficient semantic search using lazy loading.
 """

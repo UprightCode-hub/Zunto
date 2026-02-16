@@ -1,3 +1,4 @@
+#server/assistant/ninja_api.py
 """Ninja API routes for assistant module (parallel to DRF endpoints)."""
 
 from typing import Optional

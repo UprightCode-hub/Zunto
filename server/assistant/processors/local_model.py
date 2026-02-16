@@ -1,3 +1,4 @@
+#server/assistant/processors/local_model.py
 """
 Local Model Adapter - Groq API integration for fast LLM responses.
 """

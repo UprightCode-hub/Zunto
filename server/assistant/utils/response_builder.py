@@ -1,5 +1,4 @@
-# assistant/utils/response_builder.py
-
+#server/assistant/utils/response_builder.py
 import logging
 from typing import Optional, List
 from datetime import datetime

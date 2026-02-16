@@ -1,17 +1,4 @@
-"""
-Assistant Views - REFACTORED with premium AI system and utils.
-Handles /api/chat/ endpoint with modular conversation management.
-
-NEW FEATURES:
-- Premium ConversationManager with AI modules
-- Enhanced logging with context tracking
-- Escalation detection and flagging
-- Rich conversation analytics
-- Improved error handling
-- Utils integration for validation and formatting
-
-BACKWARD COMPATIBLE: All existing clients continue to work.
-"""
+#server/assistant/views.py
 import logging
 import time
 import uuid
@@ -36,7 +23,7 @@ from assistant.serializers import (
     DisputeMediaSerializer
 )
 
-# NEW: Import utils
+                   
 from assistant.utils.constants import (
     STATE_GREETING,
     ERROR_MSG_EMPTY_MESSAGE,
@@ -181,7 +168,7 @@ def _handle_ephemeral_chat(message: str, lane: str):
 @throttle_classes([AssistantChatAnonThrottle, AssistantChatUserThrottle])
 def chat_endpoint(request):
     """
-    Main chat endpoint with premium AI processing.
+    Main chat endpoint.
     
     Request body:
     {
@@ -207,7 +194,7 @@ def chat_endpoint(request):
     start_time = time.time()
     
     try:
-        # NEW: Comprehensive validation
+                                       
         is_valid, error, sanitized_data = validate_chat_request(request.data)
         
         if not is_valid:
@@ -220,7 +207,7 @@ def chat_endpoint(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Extract validated data
+                                
         message = sanitized_data['message']
         cookie_session = request.COOKIES.get('assistant_temp_session')
         session_id = sanitized_data.get('session_id') or cookie_session or str(uuid.uuid4())
@@ -230,7 +217,7 @@ def chat_endpoint(request):
         if 'session_id' not in sanitized_data:
             logger.info(f"New session created: {session_id[:8]}")
 
-        # Logged-out users are always ephemeral (no DB writes)
+                                                              
         if not request.user.is_authenticated:
             ephemeral_response = _handle_ephemeral_chat(message=message, lane=assistant_lane)
             ephemeral_response['session_id'] = session_id
@@ -245,10 +232,10 @@ def chat_endpoint(request):
             audit_event(request, action='assistant.chat.ephemeral', session_id=session_id, extra={'assistant_lane': assistant_lane})
             return response
 
-        # Get authenticated user if available
+                                             
         user_id = request.user.id
 
-        # Initialize conversation manager (with premium modules!)
+                                                                 
         conv_manager = ConversationManager(session_id, user_id, assistant_lane=assistant_lane)
         
         logger.info(
@@ -256,13 +243,13 @@ def chat_endpoint(request):
             f"state={conv_manager.get_current_state()}]: {message[:50]}..."
         )
         
-        # Process message through premium system
+                                                
         reply = conv_manager.process_message(message)
         
-        # Get conversation summary for metadata
+                                               
         summary = conv_manager.get_conversation_summary()
         
-        # Check for escalation
+                              
         is_escalated = conv_manager.context_mgr.is_escalated()
         if is_escalated:
             logger.warning(
@@ -270,10 +257,10 @@ def chat_endpoint(request):
                 f"User: {summary.get('user_name', 'unknown')}"
             )
         
-        # Calculate processing time
+                                   
         processing_time = int((time.time() - start_time) * 1000)
         
-        # Build response
+                        
         response_data = {
             'reply': reply,
             'session_id': session_id,
@@ -293,7 +280,7 @@ def chat_endpoint(request):
             }
         }
         
-        # Log conversation (legacy compatibility) - FIXED VERSION
+                                                                 
         _log_conversation(
             user_id=user_id,
             session_id=session_id,
@@ -316,10 +303,10 @@ def chat_endpoint(request):
         
         processing_time = int((time.time() - start_time) * 1000)
         
-        # NEW: Use formatter for error response
+                                               
         error_message = build_error_response('processing_failed', include_help=True)
         
-        # Return friendly error message
+                                       
         return Response(
             {
                 'error': 'An error occurred while processing your message',
@@ -358,7 +345,7 @@ def tts_endpoint(request):
     start_time = time.time()
     
     try:
-        # Validate request
+                          
         text = request.data.get('text', '').strip()
         
         if not text:
@@ -370,12 +357,12 @@ def tts_endpoint(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Get optional parameters
+                                 
         voice = request.data.get('voice')
         speed = request.data.get('speed')
         use_cache = request.data.get('use_cache', True)
         
-        # Validate voice
+                        
         valid_voices = ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']
         if voice and voice not in valid_voices:
             return Response(
@@ -385,7 +372,7 @@ def tts_endpoint(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Validate speed
+                        
         if speed is not None:
             try:
                 speed = float(speed)
@@ -400,10 +387,10 @@ def tts_endpoint(request):
                     status=status.HTTP_400_BAD_REQUEST
                 )
         
-        # Get TTS service
+                         
         tts_service = get_tts_service()
         
-        # Generate speech
+                         
         success, audio_bytes, error_msg = tts_service.generate_speech(
             text=text,
             voice=voice,
@@ -421,7 +408,7 @@ def tts_endpoint(request):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         
-        # Calculate processing time
+                                   
         processing_time = int((time.time() - start_time) * 1000)
         
         logger.info(
@@ -429,12 +416,12 @@ def tts_endpoint(request):
             f"({len(audio_bytes)} bytes, cached={use_cache})"
         )
         
-        # Return audio as HTTP response
+                                       
         response = HttpResponse(audio_bytes, content_type='audio/mpeg')
         response['Content-Disposition'] = 'inline; filename="speech.mp3"'
         response['X-Processing-Time-Ms'] = str(processing_time)
         response['X-Audio-Size-Bytes'] = str(len(audio_bytes))
-        response['Cache-Control'] = 'public, max-age=604800'  # 7 days
+        response['Cache-Control'] = 'public, max-age=604800'          
         
         return response
     
@@ -517,10 +504,10 @@ def _log_conversation(
     FIXED: Now handles UUID session_id correctly by using anonymous_session_id field.
     """
     try:
-        # FIXED: Use anonymous_session_id for UUID strings instead of session_id
+                                                                                
         ConversationLog.objects.create(
             user_id=user_id,
-            anonymous_session_id=session_id,  # Changed from session_id to anonymous_session_id
+            anonymous_session_id=session_id,                                                   
             message=message,
             final_reply=reply,
             confidence=confidence,
@@ -554,7 +541,7 @@ def session_status(request, session_id):
     }
     """
     try:
-        # NEW: Validate session ID
+                                  
         is_valid, error = validate_session_id(session_id)
         if not is_valid:
             return Response(
@@ -562,7 +549,7 @@ def session_status(request, session_id):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Get session
+                     
         try:
             session = ConversationSession.objects.get(session_id=session_id)
         except ConversationSession.DoesNotExist:
@@ -571,16 +558,16 @@ def session_status(request, session_id):
                 status=status.HTTP_404_NOT_FOUND
             )
         
-        # Initialize manager to get summary
+                                           
         conv_manager = ConversationManager(session_id)
         summary = conv_manager.get_conversation_summary()
         
-        # Add active status
+                           
         summary['is_active'] = session.is_active()
         summary['session_id'] = session_id
         summary['state'] = session.current_state
         
-        # NEW: Add formatted summary
+                                    
         summary['formatted_summary'] = format_conversation_summary(summary)
         
         return Response(summary, status=status.HTTP_200_OK)
@@ -609,7 +596,7 @@ def reset_session(request, session_id):
     }
     """
     try:
-        # NEW: Validate session ID
+                                  
         is_valid, error = validate_session_id(session_id)
         if not is_valid:
             return Response(
@@ -617,7 +604,7 @@ def reset_session(request, session_id):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Initialize manager and reset
+                                      
         conv_manager = ConversationManager(session_id)
         conv_manager.reset_session()
         
@@ -664,7 +651,7 @@ def list_sessions(request):
     }
     """
     try:
-        # Get user's sessions
+                             
         if request.user.is_authenticated:
             sessions = ConversationSession.objects.filter(
                 user=request.user,
@@ -676,7 +663,7 @@ def list_sessions(request):
                 status=status.HTTP_401_UNAUTHORIZED
             )
         
-        # Build session list with summaries
+                                           
         session_list = []
         for session in sessions:
             try:
@@ -686,7 +673,7 @@ def list_sessions(request):
                 summary['last_activity'] = session.last_activity.isoformat()
                 summary['is_active'] = session.is_active()
                 
-                # NEW: Add formatted summary
+                                            
                 summary['formatted_summary'] = format_conversation_summary(summary)
                 summary['assistant_lane'] = session.assistant_lane
                 summary['conversation_title'] = session.conversation_title
@@ -694,7 +681,7 @@ def list_sessions(request):
                 session_list.append(summary)
             except Exception as e:
                 logger.error(f"Failed to get summary for session {session.session_id}: {e}")
-                # Add basic info as fallback
+                                            
                 session_list.append({
                     'session_id': session.session_id,
                     'state': session.current_state,
@@ -742,7 +729,7 @@ def health_check(request):
         from assistant.ai import get_module_info
         from assistant.flows import get_module_info as get_flows_info
         
-        # Check core components
+                               
         query_processor = QueryProcessor()
         
         components = {
@@ -751,10 +738,10 @@ def health_check(request):
             'llm': query_processor.llm.is_available() if query_processor.llm else False,
             'ai_modules': True,
             'flow_modules': True,
-            'utils': True  # NEW
+            'utils': True       
         }
         
-        # Get version info
+                          
         ai_info = get_module_info()
         flows_info = get_flows_info()
         
@@ -780,7 +767,7 @@ def health_check(request):
         )
 
 
-# LEGACY ENDPOINT: Backward compatibility
+                                         
 @csrf_exempt
 @require_http_methods(["POST"])
 def legacy_chat_endpoint(request):
@@ -795,7 +782,7 @@ def legacy_chat_endpoint(request):
     try:
         data = json.loads(request.body)
         
-        # Create DRF-style request object
+                                         
         class FakeRequest:
             def __init__(self, data, user):
                 self.data = data
@@ -803,10 +790,10 @@ def legacy_chat_endpoint(request):
         
         fake_request = FakeRequest(data, request.user)
         
-        # Call new endpoint
+                           
         response = chat_endpoint(fake_request)
         
-        # Convert to JsonResponse for legacy clients
+                                                    
         return JsonResponse(response.data, status=response.status_code)
     
     except Exception as e:
@@ -837,7 +824,7 @@ def ask_assistant(request):
         question = request.data.get('question', '').strip()
         user_id = request.user.id if request.user.is_authenticated else None
         
-        # NEW: Validate message
+                               
         is_valid, error = validate_message(question)
         if not is_valid:
             return Response(
@@ -845,13 +832,13 @@ def ask_assistant(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Process with query processor
+                                      
         query_processor = QueryProcessor()
         result = query_processor.process(question)
         
         processing_time = int((time.time() - start_time) * 1000)
         
-        # Log for analytics - FIXED VERSION
+                                           
         if user_id:
             _log_conversation(
                 user_id=user_id,
@@ -898,7 +885,7 @@ def create_report(request):
         report_type = request.data.get('report_type', 'dispute')
         description = request.data.get('description', '').strip()
         
-        # Build report data
+                           
         report_data = {
             'message': description,
             'report_type': report_type,
@@ -910,7 +897,7 @@ def create_report(request):
             }
         }
         
-        # NEW: Validate report data
+                                   
         is_valid, error = validate_report_data(report_data)
         if not is_valid:
             return Response(
@@ -918,7 +905,7 @@ def create_report(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Create report
+                       
         report_data['status'] = 'pending'
         
         if user_id:
@@ -1014,7 +1001,7 @@ def upload_report_evidence(request, report_id):
     try:
         validate_dispute_media_task.delay(media.id)
     except Exception:
-        # Fail-safe: still keep pending, worker can pick it later
+                                                                 
         logger.exception('Failed to enqueue dispute media validation task')
 
     audit_event(request, action='assistant.report.evidence_uploaded', extra={'report_id': report.id, 'media_id': media.id, 'media_type': media_type})
@@ -1151,7 +1138,7 @@ def recent_reports(request):
         )
 
 
-# Alias for backward compatibility
+                                  
 chat = chat_endpoint
 
 
@@ -1212,9 +1199,7 @@ def api_documentation(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def about_page(request):
-    """
-    About page with information about the AI system
-    """
+    """About page endpoint."""
     return Response({
         'project': 'Zunto AI Assistant',
         'version': SYSTEM_VERSION,
@@ -1247,9 +1232,9 @@ def about_page(request):
     }, status=status.HTTP_200_OK)
 
 
-# LOCAL TESTING ONLY: Simple HTML interface
-# PRODUCTION: Remove this and use React frontend on Render
-@csrf_exempt  # Only for local testing
+                                           
+                                                          
+@csrf_exempt                          
 def chat_interface(request):
     """
     LOCAL TESTING ONLY: Serve simple chat.html

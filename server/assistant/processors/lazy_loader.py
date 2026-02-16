@@ -1,11 +1,7 @@
-"""
-Lazy loading for AI models - loads only when needed.
-"""
-class LazyAILoader:
-    """
-    Loads AI models only when first used, not at import time.
-    This prevents memory usage at startup.
-    """
+#server/assistant/processors/lazy_loader.py
+"""Lazy loading for models."""
+class LazyLoader:
+    """Loads models only when first used."""
     def __init__(self):
         self._sentence_model = None
         self._faiss_index = None
@@ -17,10 +13,10 @@ class LazyAILoader:
             print("🔄 Loading sentence transformer model...")
             try:
                 from sentence_transformers import SentenceTransformer
-                # Use smallest model possible
+                                             
                 self._sentence_model = SentenceTransformer(
-                    'paraphrase-MiniLM-L3-v2',  # Smallest model (~60MB)
-                    device='cpu'  # Force CPU to avoid GPU memory
+                    'paraphrase-MiniLM-L3-v2',                          
+                    device='cpu'                                 
                 )
                 print("✅ Model loaded successfully")
             except ImportError:
@@ -33,7 +29,7 @@ class LazyAILoader:
 
     @property
     def faiss(self):
-        """Load FAISS only when first accessed"""
+        """Load index backend on first access."""
         if self._faiss_module is None:
             print("🔄 Loading FAISS...")
             try:
@@ -69,8 +65,8 @@ class LazyAILoader:
         import gc
         gc.collect()
         print("✅ Cache cleared")
-# Global singleton instance
-_ai_loader = LazyAILoader()
+                           
+_ai_loader = LazyLoader()
 def get_ai_loader():
-    """Get the global AI loader instance"""
+    """Get the global loader instance"""
     return _ai_loader

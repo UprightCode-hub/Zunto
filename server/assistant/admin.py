@@ -1,6 +1,7 @@
+#server/assistant/admin.py
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Report #ConversationLog
+from .models import Report                 
 
 
 @admin.register(Report)
@@ -48,7 +49,7 @@ class ReportAdmin(admin.ModelAdmin):
     status_badge.short_description = 'Status'
 
 
-@admin.register#(ConversationLog)
+@admin.register                  
 class ConversationLogAdmin(admin.ModelAdmin):
     list_display = ['id', 'user_display', 'message_preview', 'confidence', 'has_rule', 'has_faq', 'used_llm', 'created_at']
     list_filter = ['created_at', 'confidence']

@@ -1,5 +1,4 @@
-# assistant/processors/query_processor.py
-
+#server/assistant/processors/query_processor.py
 import logging
 import time
 from typing import Dict, Tuple, Optional, List

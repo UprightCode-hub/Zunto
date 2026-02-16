@@ -1,3 +1,4 @@
+#server/assistant/management/commands/cleanup_assistant_archives.py
 from datetime import timedelta
 
 from django.core.management.base import BaseCommand

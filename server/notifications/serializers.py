@@ -1,4 +1,4 @@
-# notifications/serializers.py
+#server/notifications/serializers.py
 from rest_framework import serializers
 from .models import EmailTemplate, EmailLog, NotificationPreference, Notification
 

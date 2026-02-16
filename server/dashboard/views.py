@@ -1,5 +1,4 @@
-# dashboard/views.py
-
+#server/dashboard/views.py
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.utils.decorators import method_decorator
@@ -90,7 +89,7 @@ def sales_report_api(request):
     """API endpoint for sales report"""
     data = {
         'page_title': 'Sales Report',
-        # Add your actual report data here
+                                          
     }
     return JsonResponse(data)
 
@@ -100,7 +99,7 @@ def products_list_api(request):
     """API endpoint for products list"""
     data = {
         'page_title': 'Products',
-        # Add products data here
+                                
     }
     return JsonResponse(data)
 
@@ -110,7 +109,7 @@ def orders_list_api(request):
     """API endpoint for orders list"""
     data = {
         'page_title': 'Orders',
-        # Add orders data here
+                              
     }
     return JsonResponse(data)
 
@@ -120,7 +119,7 @@ def customers_list_api(request):
     """API endpoint for customers list"""
     data = {
         'page_title': 'Customers',
-        # Add customers data here
+                                 
     }
     return JsonResponse(data)
 
@@ -130,6 +129,6 @@ def analytics_api(request):
     """API endpoint for legacy analytics"""
     data = {
         'page_title': 'Analytics',
-        # Add analytics data here
+                                 
     }
     return JsonResponse(data)

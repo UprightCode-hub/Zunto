@@ -1,4 +1,4 @@
-# orders/permissions.py
+#server/orders/permissions.py
 from rest_framework import permissions
 
 

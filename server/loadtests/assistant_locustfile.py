@@ -1,3 +1,4 @@
+#server/loadtests/assistant_locustfile.py
 """Locust load test profile for assistant/chat APIs (10K readiness baseline)."""
 
 from locust import HttpUser, task, between
@@ -37,7 +38,7 @@ class ChatBurstUser(HttpUser):
 
     @task
     def message_burst(self):
-        # Requires existing conversation id for realistic runs
+                                                              
         self.client.post(
             "/chat/messages/",
             json={

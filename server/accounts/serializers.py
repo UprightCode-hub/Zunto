@@ -1,4 +1,4 @@
-# accounts/serializers.py
+#server/accounts/serializers.py
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
@@ -63,7 +63,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                 "Email is not verified. Complete email verification before logging in."
             )
         
-        # Add custom user data to token response
+                                                
         data['user'] = {
             'id': str(self.user.id),
             'email': self.user.email,

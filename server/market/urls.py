@@ -1,4 +1,4 @@
-# market/urls.py
+#server/market/urls.py
 from django.urls import path
 from .views import (
     CategoryListView,
@@ -23,13 +23,13 @@ from .views import (
 
 
 urlpatterns = [
-    # Categories & Locations
+                            
     path('categories/', CategoryListView.as_view(), name='category_list'),
     path('locations/', LocationListView.as_view(), name='location_list'),
     
-    # Products
+              
     path('products/', ProductListCreateView.as_view(), name='product_list_create'),
-    # path('product_list/', product_list, name='product_list'),
+                                                               
     path('products/my-products/', MyProductsView.as_view(), name='my_products'),
     path('products/featured/', FeaturedProductsView.as_view(), name='featured_products'),
     path('products/boosted/', BoostedProductsView.as_view(), name='boosted_products'),
@@ -41,20 +41,20 @@ urlpatterns = [
     path('products/<slug:product_slug>/reactivate/', reactivate_product, name='reactivate_product'),
     path('products/<slug:product_slug>/share/', share_product, name='share_product'),
     
-    # Media uploads
+                   
     path('products/<slug:product_slug>/images/', ProductImageUploadView.as_view(), name='product_image_upload'),
     path('products/<slug:product_slug>/images/<uuid:image_id>/', ProductImageUploadView.as_view(), name='product_image_delete'),
     path('products/<slug:product_slug>/videos/', ProductVideoUploadView.as_view(), name='product_video_upload'),
     
-    # Favorites
+               
     path('products/<slug:product_slug>/favorite/', FavoriteToggleView.as_view(), name='favorite_toggle'),
     path('favorites/', FavoriteListView.as_view(), name='favorite_list'),
     
-    # Reports
+             
     path('products/<slug:product_slug>/report/', ProductReportCreateView.as_view(), name='product_report'),
 ]
-# path('products/', ProductListCreateView.as_view(), name='product_list_create'),
+                                                                                 
 
-#  {% url 'deals' %}
-#  {% url 'cart' %}'
-#  {% url 'home' %}
+                    
+                    
+                   

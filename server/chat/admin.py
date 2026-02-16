@@ -1,4 +1,4 @@
-# chat/admin.py
+#server/chat/admin.py
 from django.contrib import admin
 from django.utils.html import format_html
 from django.urls import reverse
@@ -23,7 +23,7 @@ class ConversationAdmin(admin.ModelAdmin):
         'created_at',
         'updated_at',
         ('product__status' ),
-        # ('product__status', admin.FieldListFilter),
+                                                     
     ]
     search_fields = [
         'id',

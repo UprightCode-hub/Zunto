@@ -1,3 +1,4 @@
+#server/assistant/ninja_urls.py
 from django.urls import path
 
 urlpatterns = []
@@ -13,5 +14,5 @@ try:
         path('', api.urls),
     ]
 except Exception:
-    # Keep project bootable even when django-ninja is not installed yet.
+                                                                        
     urlpatterns = []

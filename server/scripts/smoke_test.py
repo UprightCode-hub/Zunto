@@ -1,3 +1,4 @@
+#server/scripts/smoke_test.py
 """
 Smoke Test for Zunto Hybrid Assistant
 
@@ -10,11 +11,11 @@ import os
 import sys
 from pathlib import Path
 
-# Add project root to path
+                          
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-# Setup Django
+              
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ZuntoProject.settings')
 import django
 django.setup()
@@ -34,7 +35,7 @@ def test_rule_engine():
     print(f"✓ Rules loaded: {rule_count}")
     assert rule_count > 0, "No rules loaded!"
     
-    # Test threat detection
+                           
     threat_msg = "I'm going to hurt the seller"
     result = engine.match(threat_msg)
     
@@ -45,7 +46,7 @@ def test_rule_engine():
         print("✗ FAILED: Threat not detected")
         return False
     
-    # Test safe message
+                       
     safe_msg = "How do I create an account?"
     result = engine.match(safe_msg)
     
@@ -75,7 +76,7 @@ def test_rag_retriever():
     print(f"✓ Index loaded: {stats['num_faqs']} FAQs")
     print(f"✓ Model: {stats['model']}")
     
-    # Test with multiple queries that should match your FAQs
+                                                            
     test_queries = [
         "How do I create an account?",
         "What is verification?",
@@ -92,7 +93,7 @@ def test_rag_retriever():
             print(f"    ✓ Found {len(results)} results")
             print(f"    Top match: '{results[0]['question'][:50]}...' (score: {results[0]['score']:.3f})")
             
-            # Check if top result makes sense
+                                             
             if results[0]['score'] > 0.5:
                 print(f"    ✓ High confidence match")
                 at_least_one_passed = True
@@ -102,7 +103,7 @@ def test_rag_retriever():
             print(f"    ⚠️  No results above threshold")
             print(f"    This might mean threshold is too high or query doesn't match FAQs")
     
-    # Now test with a query that definitely shouldn't match
+                                                           
     print(f"\n  Test 2.4: Edge case - gibberish query")
     results = rag.search("xyzabc nonsense query 12345", k=3)
     if not results:
@@ -137,7 +138,7 @@ def test_local_model():
         print(f"✓ Model available: {info['model_type']}")
         print(f"  Path: {info['model_path']}")
         
-        # Test generation
+                         
         print("  Testing generation (this may take a few seconds)...")
         result = llm.generate(
             "What is Zunto?",
@@ -169,7 +170,7 @@ def test_query_processor():
         processor = QueryProcessor()
         print("✓ QueryProcessor initialized")
         
-        # Test 1: Normal query
+                              
         print("\n📝 Test 4.1: Normal FAQ query")
         result = processor.process("How do I create an account on Zunto?")
         
@@ -182,7 +183,7 @@ def test_query_processor():
         assert result['reply'], "No reply generated"
         assert result['confidence'] > 0, "Zero confidence"
         
-        # Test 2: Threatening message (should block)
+                                                    
         print("\n📝 Test 4.2: Threatening message (should block)")
         result = processor.process("I'm going to hurt this seller")
         
@@ -194,7 +195,7 @@ def test_query_processor():
         if result['rule']:
             assert result['rule']['severity'] in ['high', 'critical'], "Threat not severe"
         
-        # Test 3: Empty message
+                               
         print("\n📝 Test 4.3: Empty message handling")
         result = processor.process("")
         
@@ -228,13 +229,13 @@ def main():
     
     results = []
     
-    # Run tests
+               
     results.append(("RuleEngine", test_rule_engine()))
     results.append(("RAGRetriever", test_rag_retriever()))
     results.append(("LocalModelAdapter", test_local_model()))
     results.append(("QueryProcessor", test_query_processor()))
     
-    # Summary
+             
     print("\n" + "="*60)
     print("📊 TEST SUMMARY")
     print("="*60)

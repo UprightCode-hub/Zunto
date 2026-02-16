@@ -1,4 +1,4 @@
-# market/filters.py
+#server/market/filters.py
 import django_filters
 from .models import Product
 

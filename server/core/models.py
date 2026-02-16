@@ -1,4 +1,4 @@
-# core/models.py
+#server/core/models.py
 from django.db import models
 from django.utils import timezone
 
@@ -47,24 +47,23 @@ class SoftDeleteModel(models.Model):
         class Product(SoftDeleteModel):
             name = models.CharField(max_length=100)
         
-        # Soft delete (keeps in database)
+        Soft delete (keeps in database)
         product.delete()
         
-        # Hard delete (removes from database)
+        Hard delete (removes from database)
         product.delete(hard=True)
-        # or
         product.hard_delete()
         
-        # Restore soft-deleted object
+        Restore soft-deleted object
         product.restore()
         
-        # Query only non-deleted
+        Query only non-deleted
         Product.objects.all()  # Returns alive objects
         
-        # Query including deleted
+        Query including deleted
         Product.all_objects.all()  # Returns all objects
         
-        # Query only deleted
+        Query only deleted
         Product.objects.deleted()
     """
     

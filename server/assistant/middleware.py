@@ -1,3 +1,4 @@
+#server/assistant/middleware.py
 """
 Custom Middleware for Zunto Assistant API
 Production-safe CSRF handling
@@ -16,7 +17,7 @@ class DisableCSRFForAPIMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        # List of endpoints that are truly public and don't need CSRF
+                                                                     
         public_endpoints = [
             '/assistant/api/chat/health/',
             '/assistant/api/tts/health/',
@@ -24,7 +25,7 @@ class DisableCSRFForAPIMiddleware:
             '/assistant/api/about/',
         ]
         
-        # Disable CSRF only for explicitly public endpoints
+                                                           
         if request.path in public_endpoints:
             setattr(request, '_dont_enforce_csrf_checks', True)
         
