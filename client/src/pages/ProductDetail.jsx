@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Star, ShoppingCart, Heart, Truck, Shield, RefreshCw, Plus, Minus } from 'lucide-react';
-import { getProductDetail, getProductReviews, toggleFavorite, createProductReview } from '../services/api';
+import { Star, ShoppingCart, Heart, Share2, Truck, Shield, RefreshCw, Plus, Minus } from 'lucide-react';
+import { getProductDetail, getProductReviews, toggleFavorite, createProductReview, shareProduct } from '../services/api';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
+import { getProductImage, getProductTitle } from '../utils/product';
 
 export default function ProductDetail() {
   const { slug } = useParams();
@@ -73,6 +74,35 @@ export default function ProductDetail() {
     }
   };
 
+
+  const handleShareProduct = async () => {
+    if (!user) {
+      alert('Please login to share this product');
+      return;
+    }
+
+    try {
+      await shareProduct(slug, { shared_via: 'link' });
+      const shareUrl = `${window.location.origin}/product/${slug}`;
+
+      if (navigator.share) {
+        await navigator.share({
+          title: getProductTitle(product),
+          text: product.description || getProductTitle(product),
+          url: shareUrl,
+        });
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+        alert('Product link copied to clipboard');
+      } else {
+        alert(shareUrl);
+      }
+    } catch (error) {
+      console.error('Error sharing product:', error);
+      alert(error?.data?.error || 'Unable to share this product');
+    }
+  };
+
   const handleSubmitReview = async () => {
     if (!user) {
       alert('Please login to submit a review');
@@ -134,7 +164,10 @@ export default function ProductDetail() {
     );
   }
 
-  const images = product.images || [product.image];
+  const productTitle = getProductTitle(product);
+  const images = Array.isArray(product.images) && product.images.length > 0
+    ? product.images.map((image) => (typeof image === 'string' ? image : image.image)).filter(Boolean)
+    : [getProductImage(product)];
 
   return (
     <div className="min-h-screen pt-20 pb-12">
@@ -145,7 +178,7 @@ export default function ProductDetail() {
           <span>/</span>
           <Link to="/shop" className="hover:text-[#2c77d1]">Shop</Link>
           <span>/</span>
-          <span className="text-white">{product.name}</span>
+          <span className="text-white">{productTitle}</span>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
@@ -153,8 +186,8 @@ export default function ProductDetail() {
           <div>
             <div className="bg-gradient-to-br from-[#2c77d1]/20 to-[#9426f4]/20 rounded-2xl aspect-square mb-4 overflow-hidden">
               <img
-                src={images[selectedImage] || '/placeholder.png'}
-                alt={product.name}
+                src={images[selectedImage] || '/placeholder.svg'}
+                alt={productTitle}
                 className="w-full h-full object-cover"
               />
             </div>
@@ -168,7 +201,7 @@ export default function ProductDetail() {
                       selectedImage === idx ? 'border-[#2c77d1]' : 'border-[#2c77d1]/20'
                     }`}
                   >
-                    <img src={img} alt={`${product.name} ${idx + 1}`} className="w-full h-full object-cover" />
+                    <img src={img} alt={`${productTitle} ${idx + 1}`} className="w-full h-full object-cover" />
                   </button>
                 ))}
               </div>
@@ -182,7 +215,7 @@ export default function ProductDetail() {
                 On Sale
               </span>
             )}
-            <h1 className="text-4xl font-bold mb-4">{product.name}</h1>
+            <h1 className="text-4xl font-bold mb-4">{productTitle}</h1>
             
             <div className="flex items-center gap-4 mb-6">
               <div className="flex items-center gap-2">
@@ -275,6 +308,13 @@ export default function ProductDetail() {
                 }`}
               >
                 <Heart className={`w-6 h-6 ${isFavorite ? 'fill-red-500 text-red-500' : ''}`} />
+              </button>
+              <button
+                onClick={handleShareProduct}
+                className="p-4 border-2 border-[#2c77d1] rounded-full hover:bg-[#2c77d1]/10 transition"
+                title="Share product"
+              >
+                <Share2 className="w-6 h-6" />
               </button>
             </div>
 

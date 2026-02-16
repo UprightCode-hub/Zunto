@@ -1,62 +1,66 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Star, Truck, Shield, Headphones, Zap } from 'lucide-react';
-import { getProducts, getCategories } from '../services/api';
+import { ArrowRight, Star, Truck, Shield, Headphones, Zap, Megaphone } from 'lucide-react';
+import { getFeaturedProducts, getAdProducts, getCategories } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { getProductImage, getProductTitle } from '../utils/product';
 
 export default function Home() {
   const [featuredProducts, setFeaturedProducts] = useState([]);
+  const [adProducts, setAdProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
   useEffect(() => {
+    const fetchHomeData = async () => {
+      try {
+        setLoading(true);
+        const [featuredData, adsData, categoriesData] = await Promise.all([
+          getFeaturedProducts(),
+          getAdProducts(),
+          getCategories(),
+        ]);
+
+        setFeaturedProducts(featuredData.results || featuredData);
+        setAdProducts(adsData.results || adsData);
+        setCategories(categoriesData.results || categoriesData);
+      } catch (error) {
+        console.error('Error fetching home data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchHomeData();
   }, []);
 
-  const fetchHomeData = async () => {
-    try {
-      setLoading(true);
-      const [productsData, categoriesData] = await Promise.all([
-        getProducts({ featured: true, limit: 8 }),
-        getCategories()
-      ]);
-      setFeaturedProducts(productsData.results || productsData);
-      setCategories(categoriesData.results || categoriesData);
-    } catch (error) {
-      console.error('Error fetching home data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const features = [
-    { icon: Truck, title: 'Free Shipping', description: 'On orders over $50' },
-    { icon: Shield, title: 'Secure Payment', description: '100% safe transactions' },
-    { icon: Headphones, title: '24/7 Support', description: 'Dedicated customer service' },
-    { icon: Zap, title: 'Fast Delivery', description: 'Express shipping available' },
+    { icon: Truck, title: 'Fast Shipping', description: 'Tracked delivery across all major locations' },
+    { icon: Shield, title: 'Secure Payment', description: 'Protected checkout and verified sellers' },
+    { icon: Headphones, title: '24/7 Support', description: 'Dedicated support for buyers and sellers' },
+    { icon: Zap, title: 'Promoted Listings', description: 'High-visibility slots for premium product ads' },
   ];
 
   if (loading) {
     return (
       <div className="min-h-screen bg-white dark:bg-gray-900 flex items-center justify-center pt-20">
-        <div className="w-16 h-16 border-4 border-blue-600 dark:border-[#2c77d1] border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-16 h-16 border-4 border-blue-600 dark:border-[#2c77d1] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900 transition-colors duration-300 pt-20">
-      {/* Hero Section */}
       <section className="relative overflow-hidden px-4 py-20 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
             <div className="z-10">
               <h1 className="text-5xl md:text-6xl font-bold text-gray-900 dark:text-white mb-6 leading-tight">
-                Shop <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Amazing</span> Products
+                Shop <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Premium</span> Products
               </h1>
               <p className="text-xl text-gray-600 dark:text-gray-300 mb-8">
-                Discover our curated collection of premium products. Fast shipping, secure payment, and 24/7 support.
+                Discover verified listings, boosted deals, and trusted sellers across the marketplace.
               </p>
               <div className="flex gap-4 flex-wrap">
                 <Link
@@ -77,33 +81,55 @@ export default function Home() {
                   to="/seller"
                   className="inline-flex items-center gap-2 border-2 border-blue-600 dark:border-purple-600 text-blue-600 dark:text-purple-400 font-bold px-8 py-4 rounded-lg hover:bg-blue-50 dark:hover:bg-gray-800 transition-colors"
                 >
-                  Become a Seller
+                  Promote Your Products
                 </Link>
               </div>
             </div>
             <div className="relative h-96 md:h-full">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-200 via-purple-200 to-pink-200 dark:from-blue-900 dark:via-purple-900 dark:to-pink-900 rounded-3xl opacity-20 blur-3xl"></div>
-              <div className="relative w-full h-full bg-gray-200 dark:bg-gray-700 rounded-3xl shadow-2xl flex items-center justify-center">
-                <svg className="w-32 h-32 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-                </svg>
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-200 via-purple-200 to-pink-200 dark:from-blue-900 dark:via-purple-900 dark:to-pink-900 rounded-3xl opacity-20 blur-3xl" />
+              <div className="relative w-full h-full bg-gray-200 dark:bg-gray-700 rounded-3xl shadow-2xl overflow-hidden">
+                <img src={getProductImage(adProducts[0] || featuredProducts[0])} alt="Marketplace highlight" className="w-full h-full object-cover" />
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Features Section */}
+      {adProducts.length > 0 && (
+        <section className="px-4 pb-10 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto bg-gradient-to-r from-[#0f172a] via-[#1d4ed8] to-[#6d28d9] rounded-2xl p-6 md:p-8 shadow-xl">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3 text-white">
+                <Megaphone className="w-6 h-6" />
+                <h2 className="text-2xl font-bold">Sponsored & Boosted Products</h2>
+              </div>
+              <Link to="/shop" className="text-white/90 hover:text-white font-semibold">Explore all</Link>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {adProducts.slice(0, 4).map((product) => (
+                <Link key={product.id} to={`/product/${product.slug}`} className="bg-black/30 border border-white/20 rounded-xl overflow-hidden hover:border-white/40 transition">
+                  <img src={getProductImage(product)} alt={getProductTitle(product)} className="h-40 w-full object-cover" />
+                  <div className="p-4 text-white">
+                    <h3 className="font-semibold truncate">{getProductTitle(product)}</h3>
+                    <p className="text-sm text-white/80 mt-1">${product.price}</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       <section className="bg-gray-50 dark:bg-gray-800 py-16 px-4 sm:px-6 lg:px-8 transition-colors">
         <div className="max-w-7xl mx-auto">
           <h2 className="text-3xl font-bold text-gray-900 dark:text-white text-center mb-12">Why Choose Zunto?</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {features.map((feature, index) => {
+            {features.map((feature) => {
               const Icon = feature.icon;
               return (
-                <div key={index} className="bg-white dark:bg-gray-700 p-8 rounded-xl text-center shadow-md hover:shadow-lg transition-shadow">
-                  <Icon className="w-12 h-12 text-blue-600 dark:text-blue-400 mx-auto mb-4" />
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{feature.title}</h3>
+                <div key={feature.title} className="bg-white dark:bg-gray-700 p-8 rounded-xl text-center shadow-md hover:shadow-lg transition-shadow">
+                  <Icon className="w-12 h-12 text-blue-600 dark:text-purple-400 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">{feature.title}</h3>
                   <p className="text-gray-600 dark:text-gray-300">{feature.description}</p>
                 </div>
               );
@@ -112,21 +138,20 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Categories Section */}
       <section className="py-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-12">Shop by Category</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {categories.slice(0, 4).map((category, index) => (
+            {categories.slice(0, 4).map((category) => (
               <Link
-                key={index}
-                to={`/shop?category=${category.name || category}`}
+                key={category.id}
+                to={`/shop?category=${category.id}`}
                 className="group relative overflow-hidden rounded-xl h-48 cursor-pointer"
               >
-                <div className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300 bg-gradient-to-br from-blue-500 to-blue-600"></div>
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-blue-600 opacity-40 group-hover:opacity-60 transition-opacity"></div>
+                <div className="w-full h-full group-hover:scale-110 transition-transform duration-300 bg-gradient-to-br from-blue-500 to-blue-600" />
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-blue-600 opacity-40 group-hover:opacity-60 transition-opacity" />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <h3 className="text-2xl font-bold text-white text-center">{category.name || category}</h3>
+                  <h3 className="text-2xl font-bold text-white text-center">{category.name}</h3>
                 </div>
               </Link>
             ))}
@@ -134,7 +159,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Featured Products Section */}
       <section className="bg-gray-50 dark:bg-gray-800 py-16 px-4 sm:px-6 lg:px-8 transition-colors">
         <div className="max-w-7xl mx-auto">
           <div className="flex justify-between items-center mb-12">
@@ -147,31 +171,25 @@ export default function Home() {
             {featuredProducts.slice(0, 4).map((product) => (
               <Link
                 key={product.id}
-                to={`/product/${product.id}`}
+                to={`/product/${product.slug}`}
                 className="bg-white dark:bg-gray-700 rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all transform hover:-translate-y-1"
               >
                 <div className="relative h-48 overflow-hidden bg-gray-200 dark:bg-gray-600">
                   <img
-                    src={product.image || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22 viewBox=%220 0 200 200%22%3E%3Crect fill=%22%23e5e7eb%22 width=%22200%22 height=%22200%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-family=%22sans-serif%22 font-size=%2214%22 fill=%22%239ca3af%22%3ENo Image%3C/text%3E%3C/svg%3E'}
-                    alt={product.name}
+                    src={getProductImage(product)}
+                    alt={getProductTitle(product)}
                     className="w-full h-full object-cover hover:scale-110 transition-transform duration-300"
                   />
-                  <div className="absolute top-4 right-4 bg-red-500 text-white px-3 py-1 rounded-full text-sm font-semibold">
-                    Sale
-                  </div>
                 </div>
                 <div className="p-6">
-                  <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-2">{product.name}</h3>
+                  <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-2">{getProductTitle(product)}</h3>
                   <div className="flex justify-between items-center">
                     <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">${product.price || '0.00'}</span>
                     <div className="flex items-center gap-1">
                       <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                      <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">4.8</span>
+                      <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{product.average_rating || '4.5'}</span>
                     </div>
                   </div>
-                  <button className="w-full mt-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-2 rounded-lg transition-all">
-                    Add to Cart
-                  </button>
                 </div>
               </Link>
             ))}
@@ -179,11 +197,10 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Newsletter Section */}
       <section className="py-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">Subscribe to Our Newsletter</h2>
-          <p className="text-gray-600 dark:text-gray-300 mb-8">Get exclusive deals, updates, and more delivered to your inbox.</p>
+          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">Subscribe to Marketplace Updates</h2>
+          <p className="text-gray-600 dark:text-gray-300 mb-8">Get new product drops, seller promotions, and buying guides in your inbox.</p>
           <form className="flex gap-4 flex-col sm:flex-row">
             <input
               type="email"

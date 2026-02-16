@@ -353,6 +353,36 @@ class ProductView(models.Model):
         return f"View of {self.product.title}"
 
 
+class ProductShareEvent(models.Model):
+    """Track authorized product shares."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name='share_events'
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='shared_products'
+    )
+    shared_via = models.CharField(max_length=30, default='link')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'product_share_events'
+        ordering = ['-created_at']
+        unique_together = ['product', 'user']
+        indexes = [
+            models.Index(fields=['product', '-created_at']),
+            models.Index(fields=['user', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.email} shared {self.product.title}"
+
+
 class ProductReport(models.Model):
     """Report inappropriate products"""
     
