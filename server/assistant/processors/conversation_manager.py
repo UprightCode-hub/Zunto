@@ -50,10 +50,10 @@ logger = logging.getLogger(__name__)
 
 class ConversationManager:
     
-    def __init__(self, session_id: str, user_id: int = None, assistant_lane: str = 'inbox'):
+    def __init__(self, session_id: str, user_id: int = None, assistant_lane: Optional[str] = None):
         self.session_id = session_id
         self.user_id = user_id
-        self.assistant_lane = assistant_lane if assistant_lane in {'inbox', 'customer_service'} else 'inbox'
+        self.assistant_lane = assistant_lane if assistant_lane in {'inbox', 'customer_service'} else None
         self.session = self._get_or_create_session()
 
         self.query_processor = QueryProcessor()
@@ -74,13 +74,16 @@ class ConversationManager:
 
     def _get_or_create_session(self) -> ConversationSession:
         try:
+            requested_lane = self.assistant_lane
+            initial_lane = requested_lane or 'inbox'
+
             session, created = ConversationSession.objects.get_or_create(
                 session_id=self.session_id,
                 defaults={
                     'user_id': self.user_id,
-                    'assistant_lane': self.assistant_lane,
+                    'assistant_lane': initial_lane,
                     'is_persistent': True,
-                    'current_state': STATE_DISPUTE_MODE if self.assistant_lane == 'customer_service' else STATE_GREETING,
+                    'current_state': STATE_DISPUTE_MODE if initial_lane == 'customer_service' else STATE_GREETING,
                     'context': {}
                 }
             )
@@ -97,13 +100,16 @@ class ConversationManager:
                     session.user_id = self.user_id
                     updates.append('user')
 
-                if session.assistant_lane != self.assistant_lane:
-                    session.assistant_lane = self.assistant_lane
+                if requested_lane and session.assistant_lane != requested_lane:
+                    session.assistant_lane = requested_lane
                     updates.append('assistant_lane')
 
                 if updates:
                     updates.append('updated_at')
                     session.save(update_fields=updates)
+
+            if self.assistant_lane is None:
+                self.assistant_lane = session.assistant_lane
 
             return session
         except Exception as e:
