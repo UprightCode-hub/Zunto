@@ -1,3 +1,4 @@
+// client/src/services/api.js
 const API_BASE_URL = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 const parseResponse = async (response) => {
@@ -359,7 +360,7 @@ export const removeFromCart = (itemId) => {
 
 export const clearCart = () => {
   return apiCall('/api/cart/clear/', {
-    method: 'POST', // Changed to POST based on view definition usually being POST/DELETE, check server
+    method: 'POST',
   });
 };
 
@@ -430,7 +431,7 @@ export const getSellerOrderDetail = (orderNumber) => {
 
 export const updateOrderItemStatus = (itemId, status) => {
   return apiCall(`/api/orders/seller/items/${itemId}/update-status/`, {
-    method: 'POST', // Check if PUT or POST
+    method: 'POST',
     body: JSON.stringify({ status }),
   });
 };
@@ -533,11 +534,6 @@ export const getSellerReviewStats = (sellerId) => {
 
 // Shared Review Actions
 export const updateReview = (reviewId, reviewData) => {
-  // Note: This might be tricky if endpoint differs for product/seller reviews.
-  // Server uses 'product-reviews/<pk>/' and 'seller-reviews/<pk>/'.
-  // We need to know which type it is, or try one. 
-  // For now, assuming product review as default or need separate methods.
-  // Let's split them to be safe.
   return apiCall(`/api/reviews/product-reviews/${reviewId}/`, {
     method: 'PUT',
     body: JSON.stringify(reviewData),
@@ -551,7 +547,6 @@ export const deleteReview = (reviewId) => {
 };
 
 export const markReviewHelpful = (reviewType, reviewId) => {
-  // reviewType: 'product' or 'seller' (matches server <str:review_type>)
   return apiCall(`/api/reviews/reviews/${reviewType}/${reviewId}/helpful/`, {
     method: 'POST',
   });
