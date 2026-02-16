@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Plus, Edit2, Trash2, Eye, TrendingUp, Package, DollarSign, ShoppingCart } from 'lucide-react';
+import { Plus, Edit2, Trash2, Eye, TrendingUp, Package, DollarSign, ShoppingCart, Inbox } from 'lucide-react';
+import MarketplaceInbox from '../components/chat/MarketplaceInbox';
 
 const SellerDashboard = () => {
   const [activeTab, setActiveTab] = useState('products');
@@ -104,7 +105,7 @@ const SellerDashboard = () => {
         {/* Navigation and Add Product Button */}
         <div className="flex justify-between items-center mb-6 gap-4 flex-wrap">
           <div className="border-b border-gray-200 dark:border-gray-700 flex gap-4 flex-grow min-w-max">
-            {['products', 'analytics', 'settings'].map((tab) => (
+            {['products', 'analytics', 'inbox', 'settings'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -118,12 +119,14 @@ const SellerDashboard = () => {
               </button>
             ))}
           </div>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white font-semibold px-6 py-3 rounded-lg transition-colors"
-          >
-            <Plus className="w-5 h-5" /> Add Product
-          </button>
+          {activeTab === 'products' && (
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white font-semibold px-6 py-3 rounded-lg transition-colors"
+            >
+              <Plus className="w-5 h-5" /> Add Product
+            </button>
+          )}
         </div>
 
         {/* Products Tab */}
@@ -219,6 +222,30 @@ const SellerDashboard = () => {
                   ))}
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+
+
+        {/* Inbox Tab */}
+        {activeTab === 'inbox' && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <Inbox className="w-5 h-5" />
+                Seller Inbox
+              </h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                Reply to buyer conversations from your product listings.
+              </p>
+            </div>
+            <div className="p-6">
+              <MarketplaceInbox
+                containerClassName="h-[70vh]"
+                headerTitle="Seller Inbox"
+                emptyListLabel="No buyer conversations yet"
+              />
             </div>
           </div>
         )}

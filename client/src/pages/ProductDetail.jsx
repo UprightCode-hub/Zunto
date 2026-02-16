@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { Star, ShoppingCart, Heart, Share2, Truck, Shield, RefreshCw, Plus, Minus } from 'lucide-react';
-import { getProductDetail, getProductReviews, toggleFavorite, createProductReview, shareProduct } from '../services/api';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { Star, ShoppingCart, Heart, Share2, Truck, Shield, RefreshCw, Plus, Minus, MessageCircle } from 'lucide-react';
+import { getProductDetail, getProductReviews, toggleFavorite, createProductReview, shareProduct, getOrCreateConversation } from '../services/api';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { getProductImage, getProductTitle } from '../utils/product';
 
 export default function ProductDetail() {
   const { slug } = useParams();
+  const navigate = useNavigate();
   const { addToCart } = useCart();
   const { user } = useAuth();
   const [product, setProduct] = useState(null);
@@ -100,6 +101,30 @@ export default function ProductDetail() {
     } catch (error) {
       console.error('Error sharing product:', error);
       alert(error?.data?.error || 'Unable to share this product');
+    }
+  };
+
+
+
+  const handleMessageSeller = async () => {
+    if (!user) {
+      alert('Please login to message this seller');
+      navigate('/login');
+      return;
+    }
+
+    try {
+      const result = await getOrCreateConversation(product.id);
+      const conversationId = result?.conversation?.id;
+
+      if (!conversationId) {
+        throw new Error('Unable to open seller chat');
+      }
+
+      navigate(`/chat?conversation=${conversationId}`);
+    } catch (error) {
+      console.error('Error opening conversation:', error);
+      alert(error?.data?.error || 'Unable to message seller right now');
     }
   };
 
@@ -292,29 +317,39 @@ export default function ProductDetail() {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-4 mb-8">
+            <div className="space-y-3 mb-8">
+              <div className="flex gap-4">
+                <button
+                  onClick={handleAddToCart}
+                  disabled={product.stock === 0 || addingToCart}
+                  className="flex-1 bg-gradient-to-r from-[#2c77d1] to-[#9426f4] py-4 rounded-full font-semibold text-lg flex items-center justify-center gap-2 hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ShoppingCart className="w-5 h-5" />
+                  {addingToCart ? 'Adding...' : 'Add to Cart'}
+                </button>
+                <button
+                  onClick={handleToggleFavorite}
+                  className={`p-4 border-2 rounded-full hover:bg-[#2c77d1]/10 transition ${
+                    isFavorite ? 'border-red-500 bg-red-500/10' : 'border-[#2c77d1]'
+                  }`}
+                >
+                  <Heart className={`w-6 h-6 ${isFavorite ? 'fill-red-500 text-red-500' : ''}`} />
+                </button>
+                <button
+                  onClick={handleShareProduct}
+                  className="p-4 border-2 border-[#2c77d1] rounded-full hover:bg-[#2c77d1]/10 transition"
+                  title="Share product"
+                >
+                  <Share2 className="w-6 h-6" />
+                </button>
+              </div>
+
               <button
-                onClick={handleAddToCart}
-                disabled={product.stock === 0 || addingToCart}
-                className="flex-1 bg-gradient-to-r from-[#2c77d1] to-[#9426f4] py-4 rounded-full font-semibold text-lg flex items-center justify-center gap-2 hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={handleMessageSeller}
+                className="w-full py-3 px-5 rounded-full border border-[#2c77d1]/40 bg-[#2c77d1]/10 hover:bg-[#2c77d1]/20 transition flex items-center justify-center gap-2 font-semibold"
               >
-                <ShoppingCart className="w-5 h-5" />
-                {addingToCart ? 'Adding...' : 'Add to Cart'}
-              </button>
-              <button
-                onClick={handleToggleFavorite}
-                className={`p-4 border-2 rounded-full hover:bg-[#2c77d1]/10 transition ${
-                  isFavorite ? 'border-red-500 bg-red-500/10' : 'border-[#2c77d1]'
-                }`}
-              >
-                <Heart className={`w-6 h-6 ${isFavorite ? 'fill-red-500 text-red-500' : ''}`} />
-              </button>
-              <button
-                onClick={handleShareProduct}
-                className="p-4 border-2 border-[#2c77d1] rounded-full hover:bg-[#2c77d1]/10 transition"
-                title="Share product"
-              >
-                <Share2 className="w-6 h-6" />
+                <MessageCircle className="w-5 h-5" />
+                Message Seller
               </button>
             </div>
 
