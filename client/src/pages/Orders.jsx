@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getMyOrders, cancelOrder } from '../services/api';
 import { Package, Truck, Check, X, ChevronDown, ChevronUp } from 'lucide-react';
@@ -19,6 +20,8 @@ const STATUS_ICONS = {
   delivered: <Check className="w-5 h-5" />,
   cancelled: <X className="w-5 h-5" />,
 };
+
+const formatMoney = (value) => Number(value || 0).toFixed(2);
 
 export default function Orders() {
   useAuth();
@@ -146,7 +149,7 @@ export default function Orders() {
                     </div>
                     <div className="flex flex-wrap gap-6 text-sm text-gray-400">
                       <span>{new Date(order.created_at).toLocaleDateString()}</span>
-                      <span>${order.total_amount.toFixed(2)}</span>
+                      <span>${formatMoney(order.total_amount)}</span>
                       <span>{order.items?.length || 0} item(s)</span>
                     </div>
                   </div>
@@ -167,8 +170,8 @@ export default function Orders() {
                         <div className="space-y-3">
                           {order.items?.map(item => (
                             <div key={item.id} className="flex justify-between text-sm">
-                              <span className="text-gray-300">{item.product?.name || 'Product'} × {item.quantity}</span>
-                              <span className="font-semibold">${(item.price * item.quantity).toFixed(2)}</span>
+                              <span className="text-gray-300">{item.product_name || item.product?.name || 'Product'} × {item.quantity}</span>
+                              <span className="font-semibold">${Number(item.total_price || (item.unit_price * item.quantity) || 0).toFixed(2)}</span>
                             </div>
                           )) || <p className="text-gray-400">No items</p>}
                         </div>
@@ -180,23 +183,23 @@ export default function Orders() {
                         <div className="space-y-2 text-sm mb-4">
                           <div className="flex justify-between text-gray-300">
                             <span>Subtotal</span>
-                            <span>${order.subtotal?.toFixed(2) || order.total_amount.toFixed(2)}</span>
+                            <span>${order.subtotal != null ? formatMoney(order.subtotal) : formatMoney(order.total_amount)}</span>
                           </div>
-                          {order.shipping_cost > 0 && (
+                          {(order.shipping_fee || 0) > 0 && (
                             <div className="flex justify-between text-gray-300">
                               <span>Shipping</span>
-                              <span>${order.shipping_cost.toFixed(2)}</span>
+                              <span>${Number(order.shipping_fee).toFixed(2)}</span>
                             </div>
                           )}
-                          {order.tax > 0 && (
+                          {(order.tax_amount || 0) > 0 && (
                             <div className="flex justify-between text-gray-300">
                               <span>Tax</span>
-                              <span>${order.tax.toFixed(2)}</span>
+                              <span>${Number(order.tax_amount).toFixed(2)}</span>
                             </div>
                           )}
                           <div className="pt-2 border-t border-[#2c77d1]/20 flex justify-between font-semibold">
                             <span>Total</span>
-                            <span className="text-[#2c77d1]">${order.total_amount.toFixed(2)}</span>
+                            <span className="text-[#2c77d1]">${formatMoney(order.total_amount)}</span>
                           </div>
                         </div>
                       </div>
@@ -207,10 +210,10 @@ export default function Orders() {
                       <div className="mb-6 pb-6 border-b border-[#2c77d1]/20">
                         <h4 className="font-semibold mb-3">Shipping Address</h4>
                         <p className="text-gray-300 text-sm">
-                          {order.shipping_address.street_address && `${order.shipping_address.street_address}, `}
-                          {order.shipping_address.city && `${order.shipping_address.city}, `}
-                          {order.shipping_address.state && `${order.shipping_address.state} `}
-                          {order.shipping_address.zip_code && order.shipping_address.zip_code}
+                          {order.shipping_address && `${order.shipping_address}, `}
+                          {order.shipping_city && `${order.shipping_city}, `}
+                          {order.shipping_state && `${order.shipping_state} `}
+                          {order.shipping_postal_code && order.shipping_postal_code}
                         </p>
                       </div>
                     )}
@@ -225,9 +228,9 @@ export default function Orders() {
                           Cancel Order
                         </button>
                       )}
-                      <button className="px-6 py-2 bg-[#2c77d1]/10 text-[#2c77d1] border border-[#2c77d1]/20 rounded-lg hover:bg-[#2c77d1]/20 transition font-medium">
-                        Download Invoice
-                      </button>
+                      <Link to={`/orders/${order.order_number}`} className="px-6 py-2 bg-[#2c77d1]/10 text-[#2c77d1] border border-[#2c77d1]/20 rounded-lg hover:bg-[#2c77d1]/20 transition font-medium">
+                        View Details
+                      </Link>
                     </div>
                   </div>
                 )}

@@ -41,6 +41,11 @@ class User(AbstractUser):
         ('delivery_rider', 'Delivery Rider'),
         ('admin', 'Admin'),
     ]
+
+    SELLER_COMMERCE_MODE_CHOICES = [
+        ('direct', 'Direct Seller (buyer pays seller directly)'),
+        ('managed', 'Managed by Zunto (buyer pays Zunto)'),
+    ]
     
     phone_regex = RegexValidator(
         regex=r'^\+?1?\d{9,15}$',
@@ -70,6 +75,12 @@ class User(AbstractUser):
     # Identity verification
     nin = models.CharField(max_length=11, unique=True, null=True, blank=True, help_text="National Identification Number")
     bvn = models.CharField(max_length=11, unique=True, null=True, blank=True, help_text="Bank Verification Number")
+    seller_commerce_mode = models.CharField(
+        max_length=20,
+        choices=SELLER_COMMERCE_MODE_CHOICES,
+        default='direct',
+        help_text='Direct sellers handle payment off-platform. Managed sellers use Zunto payment, shipping, and refunds.',
+    )
     
     # Address information
     address = models.TextField(blank=True)
@@ -111,6 +122,11 @@ class User(AbstractUser):
     def is_identity_verified(self):
         """Check if user has verified their identity"""
         return bool(self.nin or self.bvn)
+
+    @property
+    def is_managed_seller(self):
+        """Managed sellers are verified sellers that opted into Zunto-managed commerce."""
+        return self.role == 'seller' and self.is_verified and self.seller_commerce_mode == 'managed'
 
 
 class VerificationCode(models.Model):
@@ -154,6 +170,11 @@ class PendingRegistration(models.Model):
     last_name = models.CharField(max_length=150)
     phone = models.CharField(max_length=17, null=True, blank=True)
     role = models.CharField(max_length=20, choices=User.ROLE_CHOICES, default='buyer')
+    seller_commerce_mode = models.CharField(
+        max_length=20,
+        choices=User.SELLER_COMMERCE_MODE_CHOICES,
+        default='direct',
+    )
     password_hash = models.CharField(max_length=128)
     verification_code = models.CharField(max_length=6)
     code_expires_at = models.DateTimeField()

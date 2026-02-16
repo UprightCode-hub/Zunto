@@ -6,6 +6,7 @@ from .models import (
     Payment, Refund, OrderNote
 )
 from cart.models import Cart
+from .commerce import is_managed_order
 
 User = get_user_model()
 
@@ -25,7 +26,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
         read_only_fields = fields
     def get_seller_name(self, obj):
         if obj.seller:
-            return obj.seller.username  # or obj.seller.get_full_name()
+            return obj.seller.get_full_name() or obj.seller.email
         return None
 
     # def get_status(self, obj):
@@ -58,15 +59,19 @@ class OrderListSerializer(serializers.ModelSerializer):
         read_only=True
     )
     total_items = serializers.IntegerField(read_only=True)
+    is_managed_commerce = serializers.SerializerMethodField()
     
     class Meta:
         model = Order
         fields = [
             'id', 'order_number', 'customer', 'customer_name',
             'status', 'payment_status', 'payment_method',
-            'total_items', 'total_amount', 'created_at'
+            'total_items', 'total_amount', 'is_managed_commerce', 'created_at'
         ]
         read_only_fields = fields
+
+    def get_is_managed_commerce(self, obj):
+        return is_managed_order(obj)
 
 
 class OrderDetailSerializer(serializers.ModelSerializer):
@@ -85,6 +90,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
     total_items = serializers.IntegerField(read_only=True)
     can_cancel = serializers.BooleanField(read_only=True)
     is_paid = serializers.BooleanField(read_only=True)
+    is_managed_commerce = serializers.SerializerMethodField()
     
     class Meta:
         model = Order
@@ -93,11 +99,14 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             'status', 'payment_status', 'payment_method', 'payment_reference',
             'subtotal', 'tax_amount', 'shipping_fee', 'discount_amount', 'total_amount',
             'shipping_address', 'shipping_city', 'shipping_state', 'shipping_country',
-            'shipping_phone', 'shipping_email', 'notes', 'tracking_number',
-            'items', 'status_history', 'total_items', 'can_cancel', 'is_paid',
+            'shipping_phone', 'shipping_email', 'shipping_postal_code', 'shipping_full_name', 'notes', 'tracking_number',
+            'items', 'status_history', 'total_items', 'can_cancel', 'is_paid', 'is_managed_commerce',
             'created_at', 'updated_at', 'paid_at', 'shipped_at', 'delivered_at', 'cancelled_at'
         ]
         read_only_fields = fields
+
+    def get_is_managed_commerce(self, obj):
+        return is_managed_order(obj)
 
 
 class CheckoutSerializer(serializers.Serializer):

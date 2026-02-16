@@ -71,6 +71,7 @@ class UserRegistrationView(generics.CreateAPIView):
                 'last_name': data['last_name'],
                 'phone': data.get('phone'),
                 'role': data.get('role', 'buyer'),
+                'seller_commerce_mode': data.get('seller_commerce_mode', 'direct'),
                 'password_hash': make_password(data['password']),
                 'verification_code': code,
                 'code_expires_at': expires_at,
@@ -162,6 +163,7 @@ class VerifyRegistrationView(APIView):
                     last_name=pending.last_name,
                     phone=pending.phone,
                     role=pending.role,
+                    seller_commerce_mode=pending.seller_commerce_mode,
                     is_verified=True,
                 )
                 user.password = pending.password_hash
@@ -194,6 +196,8 @@ class VerifyRegistrationView(APIView):
                     'last_name': user.last_name,
                     'role': user.role,
                     'is_verified': user.is_verified,
+                    'seller_commerce_mode': user.seller_commerce_mode,
+                    'is_managed_seller': user.is_managed_seller,
                     'profile_picture': (
                         user.profile_picture.url if user.profile_picture else None
                     ),
@@ -363,6 +367,8 @@ class GoogleAuthView(APIView):
                         'last_name': user.last_name,
                         'role': user.role,
                         'is_verified': user.is_verified,
+                        'seller_commerce_mode': user.seller_commerce_mode,
+                        'is_managed_seller': user.is_managed_seller,
                         'profile_picture': (
                             user.profile_picture.url if user.profile_picture else None
                         ),

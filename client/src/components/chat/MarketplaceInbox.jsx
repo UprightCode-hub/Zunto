@@ -13,15 +13,28 @@ const getConversationTitle = (conversation) => (
   conversation?.product?.title || conversation?.product?.name || 'Chat'
 );
 
-const getOtherParticipantLabel = (conversation, user) => {
-  const sellerName = conversation?.seller?.username;
-  const buyerName = conversation?.buyer?.username;
+const getPersonLabel = (person) => (
+  person?.full_name
+  || [person?.first_name, person?.last_name].filter(Boolean).join(' ').trim()
+  || person?.email
+  || person?.username
+  || 'Unknown'
+);
 
-  if (!sellerName || !buyerName) {
-    return 'Loading...';
+const getOtherParticipantLabel = (conversation, user) => {
+  const sellerId = conversation?.seller?.id;
+  const buyerId = conversation?.buyer?.id;
+  const isSeller = String(user?.id) === String(sellerId);
+
+  if (isSeller) {
+    return getPersonLabel(conversation?.buyer);
   }
 
-  return sellerName === user?.username ? buyerName : sellerName;
+  if (String(user?.id) === String(buyerId)) {
+    return getPersonLabel(conversation?.seller);
+  }
+
+  return getPersonLabel(conversation?.seller);
 };
 
 export default function MarketplaceInbox({
@@ -55,7 +68,7 @@ export default function MarketplaceInbox({
         }
 
         const matched = initialConversationId
-          ? nextConversations.find((conversation) => conversation.id === Number(initialConversationId))
+          ? nextConversations.find((conversation) => String(conversation.id) === String(initialConversationId))
           : null;
 
         setSelectedConversation(matched || nextConversations[0]);
@@ -266,9 +279,9 @@ export default function MarketplaceInbox({
                     {getConversationTitle(selectedConversation)}
                   </h2>
                   <p className="text-sm text-gray-400 mt-1">
-                    {selectedConversation.seller?.username === user?.username
-                      ? `Buyer: ${selectedConversation.buyer?.username || 'Unknown'}`
-                      : `Seller: ${selectedConversation.seller?.username || 'Unknown'}`}
+                    {String(selectedConversation?.seller?.id) === String(user?.id)
+                      ? `Buyer: ${getPersonLabel(selectedConversation?.buyer)}`
+                      : `Seller: ${getPersonLabel(selectedConversation?.seller)}`}
                   </p>
                 </div>
                 <span

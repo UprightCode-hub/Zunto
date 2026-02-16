@@ -396,6 +396,18 @@ export const verifyPayment = (orderNumber, reference) => {
   });
 };
 
+export const initializeOrderPayment = (orderNumber, callbackUrl = null) => {
+  return apiCall(`/api/payments/initialize/${orderNumber}/`, {
+    method: 'POST',
+    body: JSON.stringify(callbackUrl ? { callback_url: callbackUrl } : {}),
+  });
+};
+
+export const verifyOrderPaymentStatus = (orderNumber, reference = null) => {
+  const queryString = reference ? `?reference=${encodeURIComponent(reference)}` : '';
+  return apiCall(`/api/payments/verify/${orderNumber}/${queryString}`);
+};
+
 export const reorder = (orderNumber) => {
   return apiCall(`/api/orders/orders/${orderNumber}/reorder/`, {
     method: 'POST',
@@ -630,3 +642,27 @@ export const sendAssistantMessage = (message, sessionId = null, userId = null) =
     body: JSON.stringify(payload),
   });
 };
+
+// ==========================================
+// DASHBOARD (dashboard/urls.py)
+// ==========================================
+
+export const getDashboardOverview = () => apiCall('/dashboard/');
+export const getDashboardAnalytics = () => apiCall('/dashboard/analytics/');
+export const getDashboardSales = () => apiCall('/dashboard/sales/');
+
+const buildDashboardQuery = ({ page, pageSize } = {}) => {
+  const params = new URLSearchParams();
+  if (page) {
+    params.set('page', String(page));
+  }
+  if (pageSize) {
+    params.set('page_size', String(pageSize));
+  }
+  const query = params.toString();
+  return query ? `?${query}` : '';
+};
+
+export const getDashboardProducts = (params) => apiCall(`/dashboard/products/${buildDashboardQuery(params)}`);
+export const getDashboardOrders = (params) => apiCall(`/dashboard/orders/${buildDashboardQuery(params)}`);
+export const getDashboardCustomers = (params) => apiCall(`/dashboard/customers/${buildDashboardQuery(params)}`);

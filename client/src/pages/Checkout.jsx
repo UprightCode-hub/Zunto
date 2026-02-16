@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { CreditCard, Truck, MapPin, Lock } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { checkout } from '../services/api';
@@ -56,20 +56,30 @@ export default function Checkout() {
         save_address: false,
       };
 
-      await checkout(payload);
-      
-      alert('Order placed successfully!');
-      navigate('/profile?tab=orders');
-    } catch {
-      alert('Failed to place order. Please try again.');
+      const response = await checkout(payload);
+
+      alert(response?.message || 'Order placed successfully!');
+      const orderNumber = response?.order?.order_number;
+      if (orderNumber) {
+        navigate(`/orders/${orderNumber}`);
+      } else {
+        navigate('/orders');
+      }
+    } catch (error) {
+      const blockedSellers = error?.data?.blocked_sellers;
+      if (Array.isArray(blockedSellers) && blockedSellers.length > 0) {
+        const names = blockedSellers.map((seller) => seller.seller_name).join(', ');
+        alert(`This cart contains direct/unverified sellers (${names}). Zunto checkout works only for managed sellers.`);
+      } else {
+        alert(error?.data?.error || error?.data?.detail || 'Failed to place order. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   if (cart.length === 0) {
-    navigate('/cart');
-    return null;
+    return <Navigate to="/cart" replace />;
   }
 
   return (

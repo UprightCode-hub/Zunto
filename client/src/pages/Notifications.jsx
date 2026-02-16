@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getNotifications, markNotificationAsRead } from '../services/api';
 import { Bell, CheckCircle2, AlertCircle, Info, Trash2 } from 'lucide-react';
@@ -17,8 +18,14 @@ export default function Notifications() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // all, unread, read
   const pollInterval = useRef(null);
+  const inFlightRef = useRef(false);
+
+  const POLL_MS_ACTIVE = 15000;
+  const POLL_MS_BACKGROUND = 45000;
 
   const fetchNotifications = async () => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
     try {
       const data = await getNotifications();
       setNotifications(Array.isArray(data) ? data : data.results || []);
@@ -26,19 +33,34 @@ export default function Notifications() {
     } catch (err) {
       console.error('Error fetching notifications:', err);
       setLoading(false);
+    } finally {
+      inFlightRef.current = false;
     }
   };
 
+  const startPolling = () => {
+    if (pollInterval.current) clearInterval(pollInterval.current);
+    const pollMs = document.visibilityState === 'visible' ? POLL_MS_ACTIVE : POLL_MS_BACKGROUND;
+    pollInterval.current = setInterval(fetchNotifications, pollMs);
+  };
 
   useEffect(() => {
     const startupTimer = setTimeout(fetchNotifications, 0);
 
-    // Poll for new notifications every 5 seconds
-    pollInterval.current = setInterval(fetchNotifications, 5000);
+    startPolling();
+
+    const handleVisibility = () => {
+      startPolling();
+      if (document.visibilityState === 'visible') {
+        fetchNotifications();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
       clearTimeout(startupTimer);
       if (pollInterval.current) clearInterval(pollInterval.current);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, []);
 
@@ -46,7 +68,7 @@ export default function Notifications() {
     e.stopPropagation();
     try {
       await markNotificationAsRead(notificationId);
-      setNotifications(notifications.map(n => 
+      setNotifications(prev => prev.map(n => 
         n.id === notificationId ? { ...n, is_read: true } : n
       ));
     } catch (err) {
@@ -56,7 +78,7 @@ export default function Notifications() {
 
   const handleDeleteNotification = (notificationId, e) => {
     e.stopPropagation();
-    setNotifications(notifications.filter(n => n.id !== notificationId));
+    setNotifications(prev => prev.filter(n => n.id !== notificationId));
   };
 
   const filteredNotifications = notifications.filter(n => {
@@ -73,11 +95,16 @@ export default function Notifications() {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
             <h1 className="text-4xl font-bold">Notifications</h1>
-            {unreadCount > 0 && (
-              <span className="px-3 py-1 bg-red-500 text-white rounded-full text-sm font-semibold">
-                {unreadCount} New
-              </span>
-            )}
+            <div className="flex items-center gap-3">
+              <Link to="/notification-settings" className="text-sm px-3 py-1 rounded-lg border border-[#2c77d1]/30 text-[#2c77d1] hover:bg-[#2c77d1]/10">
+                Preferences
+              </Link>
+              {unreadCount > 0 && (
+                <span className="px-3 py-1 bg-red-500 text-white rounded-full text-sm font-semibold">
+                  {unreadCount} New
+                </span>
+              )}
+            </div>
           </div>
           <p className="text-gray-400">Stay updated with your activities</p>
         </div>
