@@ -1,5 +1,6 @@
 // client/src/context/AuthContext.jsx
-import React, { createContext, useContext, useState, useEffect } from 'react';
+/* eslint-disable react-refresh/only-export-components */
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import {
   login as loginAPI,
   register as registerAPI,
@@ -24,6 +25,22 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState(null);
 
+  const fetchUserProfile = useCallback(async () => {
+    try {
+      const data = await getUserProfile();
+      localStorage.setItem('user', JSON.stringify(data));
+      setUser(data);
+    } catch (error) {
+      console.error('Failed to fetch user profile:', error);
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      setToken(null);
+      setUser(null);
+    }
+  }, []);
+
   useEffect(() => {
     const accessToken = localStorage.getItem('access_token');
     const userData = localStorage.getItem('user');
@@ -38,18 +55,7 @@ export const AuthProvider = ({ children }) => {
     }
 
     setLoading(false);
-  }, []);
-
-  const fetchUserProfile = async () => {
-    try {
-      const data = await getUserProfile();
-      localStorage.setItem('user', JSON.stringify(data));
-      setUser(data);
-    } catch (error) {
-      console.error('Failed to fetch user profile:', error);
-      logout();
-    }
-  };
+  }, [fetchUserProfile]);
 
   const login = async (email, password) => {
     try {

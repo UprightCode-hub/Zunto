@@ -3,13 +3,13 @@ import { BarChart3, Users, Package, ShoppingCart, TrendingUp, Eye, Edit2, Trash2
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
-  const [users, setUsers] = useState([
+  const [users] = useState([
     { id: 1, name: 'John Doe', email: 'john@example.com', role: 'Customer', joined: '2024-01-15' },
     { id: 2, name: 'Jane Smith', email: 'jane@example.com', role: 'Seller', joined: '2024-01-20' },
     { id: 3, name: 'Bob Johnson', email: 'bob@example.com', role: 'Customer', joined: '2024-02-01' },
   ]);
 
-  const [products, setProducts] = useState([
+  const [products] = useState([
     { id: 1, name: 'Premium Headphones', seller: 'TechShop', price: '$199.99', sales: 234, status: 'Active' },
     { id: 2, name: 'Wireless Mouse', seller: 'GadgetMall', price: '$49.99', sales: 567, status: 'Active' },
     { id: 3, name: 'USB-C Cable', seller: 'TechShop', price: '$14.99', sales: 1203, status: 'Active' },

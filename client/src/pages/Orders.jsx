@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { getMyOrders, cancelOrder, getOrderDetail } from '../services/api';
+import { getMyOrders, cancelOrder } from '../services/api';
 import { Package, Truck, Check, X, ChevronDown, ChevronUp } from 'lucide-react';
 
 const STATUS_COLORS = {
@@ -21,7 +21,7 @@ const STATUS_ICONS = {
 };
 
 export default function Orders() {
-  const { user } = useAuth();
+  useAuth();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedOrder, setExpandedOrder] = useState(null);

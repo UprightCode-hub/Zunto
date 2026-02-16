@@ -20,6 +20,11 @@ WEIGHTS = {
 }
 
 
+def _clamp_score(value):
+    """Clamp score value between 0 and 100."""
+    return max(0, min(100, value))
+
+
 def calculate_abandonment_score(user):
     """Calculate score based on abandonment frequency (0-100)"""
     total_carts = Cart.objects.filter(
@@ -36,7 +41,7 @@ def calculate_abandonment_score(user):
     
     # Lower abandonment rate = higher score
     abandonment_rate = abandoned_count / total_carts
-    score = max(0, 100 - (abandonment_rate * 100))
+    score = _clamp_score(100 - (abandonment_rate * 100))
     
     return Decimal(str(round(score, 2)))
 
@@ -110,7 +115,7 @@ def _calculate_time_to_abandon_score(user):
     
     time_deltas = []
     for abandonment in abandonments:
-        time_diff = (abandonment.abandoned_at - abandonment.cart.created_at).total_seconds() / 3600
+        time_diff = abs((abandonment.abandoned_at - abandonment.cart.created_at).total_seconds()) / 3600
         time_deltas.append(time_diff)
     
     if not time_deltas:
@@ -147,7 +152,7 @@ def _calculate_save_ratio_score(user):
     
     # Lower save ratio = less hesitation = higher score
     save_ratio = total_saved / total_added
-    score = max(0, 100 - (save_ratio * 100))
+    score = _clamp_score(100 - (save_ratio * 100))
     
     return round(score, 2)
 
@@ -191,7 +196,7 @@ def calculate_composite_score(user):
         (price_sensitivity * WEIGHTS['price_sensitivity'] / 100)
     )
     
-    return Decimal(str(round(composite, 2)))
+    return Decimal(str(round(_clamp_score(composite), 2)))
 
 
 def calculate_all_scores(user):
@@ -201,5 +206,6 @@ def calculate_all_scores(user):
         'value_score': calculate_value_score(user),
         'conversion_score': calculate_conversion_score(user),
         'hesitation_score': calculate_hesitation_score(user),
+        'price_sensitivity_score': calculate_price_sensitivity_score(user),
         'composite_score': calculate_composite_score(user),
     }
