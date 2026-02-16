@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Report, ConversationLog, ConversationSession
+from .models import Report, ConversationLog, ConversationSession, DisputeMedia
 
 
 class AskRequestSerializer(serializers.Serializer):
@@ -65,6 +65,7 @@ class ConversationSessionSerializer(serializers.ModelSerializer):
         model = ConversationSession
         fields = [
             'id', 'session_id', 'user', 'user_username', 'user_name',
+            'assistant_lane', 'is_persistent', 'conversation_title', 'title_generated_at',
             'current_state', 'context_data', 'conversation_history',
             'message_count', 'sentiment_score', 'satisfaction_score',
             'escalation_level', 'is_escalated', 'created_at',
@@ -113,3 +114,18 @@ class ConversationLogSerializer(serializers.ModelSerializer):
         model = ConversationLog
         fields = '__all__'
         read_only_fields = ['id', 'created_at']
+
+class DisputeMediaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DisputeMedia
+        fields = [
+            'id', 'report', 'media_type', 'file', 'original_filename', 'mime_type',
+            'file_size', 'source_storage', 'storage_key', 'uploaded_by',
+            'validation_status', 'validation_reason', 'validated_at',
+            'retention_expires_at', 'is_deleted', 'deleted_at', 'created_at'
+        ]
+        read_only_fields = [
+            'id', 'source_storage', 'storage_key', 'uploaded_by',
+            'validation_status', 'validation_reason', 'validated_at',
+            'retention_expires_at', 'is_deleted', 'deleted_at', 'created_at'
+        ]

@@ -4,7 +4,7 @@ Production-ready endpoints for ngrok deployment
 Created by Wisdom Ekwugha
 """
 
-from django.urls import path
+from django.urls import path, include
 from . import views
 
 app_name = 'assistant'
@@ -20,6 +20,9 @@ urlpatterns = [
     
     # ============================================================
     # PREMIUM CHAT API - NEW ENDPOINTS
+    # Parallel Ninja endpoints (non-breaking rollout)
+    path('ninja/', include('assistant.ninja_urls')),
+
     # ============================================================
     path('api/chat/', views.chat_endpoint, name='chat'),
     path('api/chat/session/<str:session_id>/', views.session_status, name='session_status'),
@@ -38,6 +41,11 @@ urlpatterns = [
     # ============================================================
     path('api/ask/', views.ask_assistant, name='ask'),
     path('api/report/', views.create_report, name='report'),
+    # Dispute evidence endpoints (Phase 3)
+    path('api/report/<int:report_id>/evidence/', views.upload_report_evidence, name='upload_report_evidence'),
+    path('api/report/<int:report_id>/evidence/list/', views.list_report_evidence, name='list_report_evidence'),
+    path('api/report/<int:report_id>/close/', views.close_report, name='close_report'),
+
     path('api/legacy/chat/', views.legacy_chat_endpoint, name='legacy_chat'),
     
     # ============================================================

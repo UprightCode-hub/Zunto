@@ -14,7 +14,7 @@ from asgiref.sync import async_to_sync
 import logging
 import hashlib
 
-from .models import Conversation, Message
+from .models import Conversation, Message, TransactionConfirmation
 from .serializers import (
     ConversationSerializer,
     ConversationListSerializer,
@@ -22,6 +22,7 @@ from .serializers import (
     MessageSerializer
 )
 from .utils import generate_ws_token
+from core.audit import audit_event
 
 User = get_user_model()
 logger = logging.getLogger('chat')
@@ -37,7 +38,8 @@ class ConversationViewSet(viewsets.ModelViewSet):
         ).select_related(
             'buyer', 
             'seller', 
-            'product'
+            'product',
+            'transaction_confirmation'
         ).prefetch_related(
             'messages',
             'product__images'
@@ -117,6 +119,15 @@ class ConversationViewSet(viewsets.ModelViewSet):
             }
         )
 
+        TransactionConfirmation.objects.get_or_create(
+            conversation=conversation,
+            defaults={
+                'buyer': conversation.buyer,
+                'seller': conversation.seller,
+                'product': conversation.product,
+            }
+        )
+
         ws_token = generate_ws_token(str(conversation.id), str(request.user.id))
 
         logger.info(
@@ -135,6 +146,102 @@ class ConversationViewSet(viewsets.ModelViewSet):
             'created': created,
             'message': 'Conversation created' if created else 'Conversation already exists'
         }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'])
+    def confirm_sale(self, request, pk=None):
+        conversation = self.get_object()
+
+        if request.user != conversation.seller:
+            return Response(
+                {'error': 'Only the seller can confirm sale for this conversation.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        with transaction.atomic():
+            confirmation, _ = TransactionConfirmation.objects.select_for_update().get_or_create(
+                conversation=conversation,
+                defaults={
+                    'buyer': conversation.buyer,
+                    'seller': conversation.seller,
+                    'product': conversation.product,
+                }
+            )
+            confirmation.mark_seller_confirmed()
+            confirmation.finalize_if_ready()
+            confirmation.save()
+            conversation.refresh_from_db(fields=['is_locked'])
+
+        audit_event(request, action='chat.transaction.confirm_sale', session_id=str(conversation.id), extra={'status': confirmation.status, 'chat_locked': conversation.is_locked})
+        return Response({
+            'conversation_id': str(conversation.id),
+            'status': confirmation.status,
+            'seller_confirmed': confirmation.seller_confirmed_at is not None,
+            'buyer_confirmed': confirmation.buyer_confirmed_at is not None,
+            'chat_locked': conversation.is_locked,
+            'message': 'Seller confirmation recorded.'
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'])
+    def confirm_receipt(self, request, pk=None):
+        conversation = self.get_object()
+
+        if request.user != conversation.buyer:
+            return Response(
+                {'error': 'Only the buyer can confirm receipt for this conversation.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        with transaction.atomic():
+            confirmation, _ = TransactionConfirmation.objects.select_for_update().get_or_create(
+                conversation=conversation,
+                defaults={
+                    'buyer': conversation.buyer,
+                    'seller': conversation.seller,
+                    'product': conversation.product,
+                }
+            )
+            confirmation.mark_buyer_confirmed()
+            confirmation.finalize_if_ready()
+            confirmation.save()
+            conversation.refresh_from_db(fields=['is_locked'])
+
+        audit_event(request, action='chat.transaction.confirm_receipt', session_id=str(conversation.id), extra={'status': confirmation.status, 'chat_locked': conversation.is_locked})
+        return Response({
+            'conversation_id': str(conversation.id),
+            'status': confirmation.status,
+            'seller_confirmed': confirmation.seller_confirmed_at is not None,
+            'buyer_confirmed': confirmation.buyer_confirmed_at is not None,
+            'chat_locked': conversation.is_locked,
+            'message': 'Buyer confirmation recorded.'
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get'])
+    def transaction_status(self, request, pk=None):
+        conversation = self.get_object()
+
+        if not conversation.user_is_participant(request.user):
+            return Response(
+                {'error': 'You do not have permission to access this conversation'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        confirmation, _ = TransactionConfirmation.objects.get_or_create(
+            conversation=conversation,
+            defaults={
+                'buyer': conversation.buyer,
+                'seller': conversation.seller,
+                'product': conversation.product,
+            }
+        )
+
+        return Response({
+            'conversation_id': str(conversation.id),
+            'status': confirmation.status,
+            'seller_confirmed_at': confirmation.seller_confirmed_at,
+            'buyer_confirmed_at': confirmation.buyer_confirmed_at,
+            'completed_at': confirmation.completed_at,
+            'chat_locked': conversation.is_locked,
+        }, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['get'])
     def messages(self, request, pk=None):
@@ -393,6 +500,15 @@ class MessageViewSet(viewsets.ModelViewSet):
             return Response(
                 {'error': f'This product is {conversation.product.status} and not available for chat', 'delivered': False},
                 status=status.HTTP_410_GONE
+            )
+
+        if conversation.is_locked:
+            logger.warning(
+                f"message_blocked action=conversation_locked conversation_id={conversation_id} user_id={request.user.id}"
+            )
+            return Response(
+                {'error': 'This chat is locked after dual confirmation. Please use dispute support for further issues.', 'delivered': False},
+                status=status.HTTP_423_LOCKED
             )
 
         allowed, limit_type = self._check_rate_limit(str(request.user.id), str(conversation_id))

@@ -111,3 +111,5 @@ dj-database-url==2.1.0
 whitenoise==6.6.0
 rapidfuzz
 google-auth>=2.23.0
+# Assistant API parallel rollout
+django-ninja==1.3.0

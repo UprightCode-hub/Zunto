@@ -114,6 +114,8 @@ class ConversationListSerializer(serializers.ModelSerializer):
             'product_price',
             'last_message',
             'unread_count',
+            'is_locked',
+            'locked_at',
             'created_at',
             'updated_at'
         ]
@@ -198,6 +200,9 @@ class ConversationDetailSerializer(serializers.ModelSerializer):
             'product_image',
             'messages',
             'unread_count',
+            'is_locked',
+            'locked_at',
+            'lock_reason',
             'created_at',
             'updated_at'
         ]
@@ -256,6 +261,8 @@ class ConversationSerializer(serializers.ModelSerializer):
             'product_image',
             'last_message',
             'unread_count',
+            'is_locked',
+            'locked_at',
             'created_at',
             'updated_at'
         ]

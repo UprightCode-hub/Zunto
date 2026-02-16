@@ -30,6 +30,11 @@ class ConversationSession(models.Model):
         ('closed', 'Closed'),
     ]
 
+    LANE_CHOICES = [
+        ('inbox', 'Inbox Assistant'),
+        ('customer_service', 'Customer Service Assistant'),
+    ]
+
     session_id = models.CharField(
         max_length=100,
         unique=True,
@@ -48,6 +53,26 @@ class ConversationSession(models.Model):
         max_length=200,
         blank=True,
         help_text="User's name collected during conversation"
+    )
+    assistant_lane = models.CharField(
+        max_length=30,
+        choices=LANE_CHOICES,
+        default='inbox',
+        help_text="Assistant lane for this persistent session"
+    )
+    is_persistent = models.BooleanField(
+        default=True,
+        help_text="Persistent sessions are stored and listed in inbox"
+    )
+    conversation_title = models.CharField(
+        max_length=180,
+        blank=True,
+        help_text="Deterministic title generated once from first user message"
+    )
+    title_generated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when conversation title was first set"
     )
     current_state = models.CharField(
         max_length=20,
@@ -249,6 +274,112 @@ class Report(models.Model):
 
     def __str__(self):
         return f"Report #{self.id} - {self.report_type} - {self.severity} - {self.status}"
+
+
+class DisputeMedia(models.Model):
+    MEDIA_TYPE_IMAGE = 'image'
+    MEDIA_TYPE_AUDIO = 'audio'
+
+    MEDIA_TYPE_CHOICES = [
+        (MEDIA_TYPE_IMAGE, 'Image'),
+        (MEDIA_TYPE_AUDIO, 'Audio'),
+    ]
+
+    STORAGE_LOCAL = 'local'
+    STORAGE_OBJECT = 'object_storage'
+
+    STORAGE_CHOICES = [
+        (STORAGE_LOCAL, 'Local Disk'),
+        (STORAGE_OBJECT, 'Object Storage'),
+    ]
+
+    report = models.ForeignKey(
+        Report,
+        on_delete=models.CASCADE,
+        related_name='evidence_files'
+    )
+    VALIDATION_PENDING = 'pending'
+    VALIDATION_APPROVED = 'approved'
+    VALIDATION_REJECTED = 'rejected'
+
+    VALIDATION_STATUS_CHOICES = [
+        (VALIDATION_PENDING, 'Pending'),
+        (VALIDATION_APPROVED, 'Approved'),
+        (VALIDATION_REJECTED, 'Rejected'),
+    ]
+
+    media_type = models.CharField(max_length=20, choices=MEDIA_TYPE_CHOICES)
+    file = models.FileField(upload_to='assistant/dispute_evidence/%Y/%m/%d')
+    original_filename = models.CharField(max_length=255, blank=True)
+    mime_type = models.CharField(max_length=120, blank=True)
+    file_size = models.PositiveIntegerField(default=0)
+
+    source_storage = models.CharField(
+        max_length=30,
+        choices=STORAGE_CHOICES,
+        default=STORAGE_LOCAL,
+        help_text='Storage backend used for this file'
+    )
+    storage_key = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text='Abstract storage key/path for future object storage migration'
+    )
+
+    uploaded_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='uploaded_dispute_media'
+    )
+
+    validation_status = models.CharField(
+        max_length=20,
+        choices=VALIDATION_STATUS_CHOICES,
+        default=VALIDATION_PENDING,
+        db_index=True
+    )
+    validation_reason = models.TextField(blank=True)
+    validated_at = models.DateTimeField(null=True, blank=True)
+
+    retention_expires_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    is_deleted = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['report', '-created_at']),
+            models.Index(fields=['media_type', '-created_at']),
+            models.Index(fields=['retention_expires_at', 'is_deleted']),
+            models.Index(fields=['report', 'validation_status', '-created_at']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['report', 'media_type'],
+                condition=models.Q(media_type='audio', is_deleted=False),
+                name='assistant_single_active_audio_per_report'
+            )
+        ]
+
+    def __str__(self):
+        return f"DisputeMedia #{self.id} ({self.media_type}) - report:{self.report_id}"
+
+    def refresh_retention(self):
+        if self.report.status in {'resolved', 'closed'} and self.report.resolved_at:
+            self.retention_expires_at = self.report.resolved_at + timedelta(days=90)
+
+    def mark_deleted(self):
+        if self.is_deleted:
+            return
+        self.is_deleted = True
+        self.deleted_at = timezone.now()
+        self.save(update_fields=['is_deleted', 'deleted_at', 'updated_at'])
+
 
 
 class ConversationLog(models.Model):
