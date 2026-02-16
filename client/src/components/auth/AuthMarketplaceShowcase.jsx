@@ -8,37 +8,36 @@ import {
   MessageCircle,
 } from 'lucide-react';
 
-// Add your own local slideshow images in: client/public/marketplace-showcase/
-// Expected names (kept out of git by default):
-// - slide-1.jpg
-// - slide-2.jpg
-// - slide-3.jpg
-const heroSlides = [
+const highlights = [
   {
-    src: '/marketplace-showcase/slide-1.jpg',
     title: 'Discover trusted sellers',
     text: 'Verified stores, clear ratings, and straightforward delivery options.',
   },
   {
-    src: '/marketplace-showcase/slide-2.jpg',
     title: 'Shop faster and safer',
     text: 'Smart search, secure checkout, and transparent order tracking.',
   },
   {
-    src: '/marketplace-showcase/slide-3.jpg',
     title: 'Built for marketplace growth',
     text: 'Buyers find deals quickly while sellers reach more customers.',
   },
 ];
 
-const categories = ['Fashion', 'Electronics', 'Home', 'Beauty', 'Food', 'Services'];
+const categories = [
+  'Fashion',
+  'Electronics',
+  'Home',
+  'Beauty',
+  'Food',
+  'Services',
+];
 
 export default function AuthMarketplaceShowcase() {
   const [active, setActive] = useState(0);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      setActive((prev) => (prev + 1) % heroSlides.length);
+      setActive((prev) => (prev + 1) % highlights.length);
     }, 4200);
 
     return () => window.clearInterval(timer);
@@ -58,45 +57,31 @@ export default function AuthMarketplaceShowcase() {
         A cleaner and more professional experience for shoppers and sellers, from discovery to checkout.
       </p>
 
-      <div className="relative rounded-3xl border border-white/15 overflow-hidden p-5 shadow-2xl shadow-black/40">
-        <div className="absolute inset-0 bg-gradient-to-br from-[#132349] to-[#090f20]" />
-
-        {heroSlides.map((slide, index) => (
-          <div
-            key={slide.src}
-            className={`absolute inset-0 bg-cover bg-center transition-opacity duration-1000 ${
-              index === active ? 'opacity-70' : 'opacity-0'
-            }`}
-            style={{ backgroundImage: `url(${slide.src})` }}
-          />
-        ))}
-
-        <div className="absolute inset-0 bg-gradient-to-t from-[#030711]/85 via-[#081027]/65 to-[#0d1735]/65" />
-
-        <div className="relative z-10 grid grid-cols-2 sm:grid-cols-3 gap-2 mb-5">
+      <div className="rounded-3xl border border-white/15 bg-gradient-to-br from-[#0e1a33]/95 to-[#0a1327]/95 p-5 shadow-2xl shadow-black/40">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-5">
           {categories.map((item) => (
             <span
               key={item}
-              className="text-xs sm:text-sm px-3 py-2 rounded-xl bg-white/10 border border-white/15 text-blue-100/90 backdrop-blur-sm"
+              className="text-xs sm:text-sm px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-blue-100/90"
             >
               {item}
             </span>
           ))}
         </div>
 
-        <div className="relative z-10 rounded-2xl border border-white/10 bg-black/30 backdrop-blur-[2px] p-4">
+        <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#2c77d1]/20 flex items-center justify-center border border-[#2c77d1]/30 shrink-0">
               <Store className="w-5 h-5 text-[#79b1ff]" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold mb-1">{heroSlides[active].title}</h3>
-              <p className="text-sm text-blue-100/85">{heroSlides[active].text}</p>
+              <h3 className="text-lg font-semibold mb-1">{highlights[active].title}</h3>
+              <p className="text-sm text-blue-100/85">{highlights[active].text}</p>
             </div>
           </div>
 
           <div className="mt-4 flex items-center gap-2">
-            {heroSlides.map((_, index) => (
+            {highlights.map((_, index) => (
               <button
                 key={index}
                 type="button"
@@ -110,14 +95,14 @@ export default function AuthMarketplaceShowcase() {
           </div>
         </div>
 
-        <div className="relative z-10 mt-5 grid grid-cols-3 gap-2 text-[11px] sm:text-xs text-blue-100/85">
-          <div className="rounded-lg bg-white/10 border border-white/15 p-2.5 flex items-center gap-2 backdrop-blur-sm">
+        <div className="mt-5 grid grid-cols-3 gap-2 text-[11px] sm:text-xs text-blue-100/85">
+          <div className="rounded-lg bg-white/5 border border-white/10 p-2.5 flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-emerald-300" /> Secure payments
           </div>
-          <div className="rounded-lg bg-white/10 border border-white/15 p-2.5 flex items-center gap-2 backdrop-blur-sm">
+          <div className="rounded-lg bg-white/5 border border-white/10 p-2.5 flex items-center gap-2">
             <Truck className="w-4 h-4 text-sky-300" /> Fast delivery
           </div>
-          <div className="rounded-lg bg-white/10 border border-white/15 p-2.5 flex items-center gap-2 backdrop-blur-sm">
+          <div className="rounded-lg bg-white/5 border border-white/10 p-2.5 flex items-center gap-2">
             <BadgePercent className="w-4 h-4 text-violet-300" /> Daily deals
           </div>
         </div>
