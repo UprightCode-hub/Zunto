@@ -585,6 +585,13 @@ export const getChatRooms = () => {
   return apiCall('/chat/conversations/');
 };
 
+export const getOrCreateConversation = (productId) => {
+  return apiCall('/chat/conversations/get_or_create/', {
+    method: 'POST',
+    body: JSON.stringify({ product_id: productId }),
+  });
+};
+
 export const getChatMessages = (conversationId) => {
   return apiCall(`/chat/conversations/${conversationId}/messages/`);
 };
