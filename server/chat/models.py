@@ -28,6 +28,9 @@ class Conversation(models.Model):
 
     created_at = models.DateTimeField(default=timezone.now, db_index=True)
     updated_at = models.DateTimeField(auto_now=True, db_index=True)
+    is_locked = models.BooleanField(default=False, db_index=True)
+    locked_at = models.DateTimeField(null=True, blank=True)
+    lock_reason = models.CharField(max_length=50, blank=True)
 
     class Meta:
         db_table = 'chat_conversations'
@@ -39,6 +42,7 @@ class Conversation(models.Model):
             models.Index(fields=['buyer', '-updated_at']),
             models.Index(fields=['seller', '-updated_at']),
             models.Index(fields=['product']),
+            models.Index(fields=['is_locked', '-updated_at']),
             models.Index(fields=['-updated_at']),
         ]
 
@@ -70,6 +74,100 @@ class Conversation(models.Model):
         unread_messages = self.messages.filter(is_read=False).exclude(sender=user)
         count = unread_messages.update(is_read=True)
         return count
+
+    def lock_conversation(self, reason: str = 'dual_confirmation'):
+        if self.is_locked:
+            return
+        self.is_locked = True
+        self.locked_at = timezone.now()
+        self.lock_reason = reason
+        self.save(update_fields=['is_locked', 'locked_at', 'lock_reason', 'updated_at'])
+
+
+class TransactionConfirmation(models.Model):
+    STATUS_PENDING = 'pending'
+    STATUS_COMPLETED = 'completed'
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_COMPLETED, 'Completed'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    conversation = models.OneToOneField(
+        Conversation,
+        on_delete=models.CASCADE,
+        related_name='transaction_confirmation'
+    )
+    buyer = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='buyer_confirmations'
+    )
+    seller = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='seller_confirmations'
+    )
+    product = models.ForeignKey(
+        'market.Product',
+        on_delete=models.CASCADE,
+        related_name='transaction_confirmations'
+    )
+
+    seller_confirmed_at = models.DateTimeField(null=True, blank=True)
+    buyer_confirmed_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True, db_index=True)
+
+    class Meta:
+        db_table = 'chat_transaction_confirmations'
+        ordering = ['-updated_at']
+        indexes = [
+            models.Index(fields=['buyer', 'status']),
+            models.Index(fields=['seller', 'status']),
+            models.Index(fields=['product', 'status']),
+            models.Index(fields=['status', '-updated_at']),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['buyer', 'seller', 'product'],
+                name='chat_unique_confirmation_pair_per_product'
+            )
+        ]
+
+    def __str__(self):
+        return f"TransactionConfirmation({self.conversation_id}, {self.status})"
+
+    def mark_seller_confirmed(self):
+        if not self.seller_confirmed_at:
+            self.seller_confirmed_at = timezone.now()
+
+    def mark_buyer_confirmed(self):
+        if not self.buyer_confirmed_at:
+            self.buyer_confirmed_at = timezone.now()
+
+    def finalize_if_ready(self):
+        if self.status == self.STATUS_COMPLETED:
+            return False
+        if self.seller_confirmed_at and self.buyer_confirmed_at:
+            self.status = self.STATUS_COMPLETED
+            self.completed_at = timezone.now()
+            self.conversation.lock_conversation(reason='dual_confirmation')
+            return True
+        return False
+
+
+def has_completed_confirmation(*, buyer, seller, product) -> bool:
+    return TransactionConfirmation.objects.filter(
+        buyer=buyer,
+        seller=seller,
+        product=product,
+        status=TransactionConfirmation.STATUS_COMPLETED
+    ).exists()
 
 
 class Message(models.Model):

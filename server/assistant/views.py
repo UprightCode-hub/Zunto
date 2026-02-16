@@ -18,20 +18,22 @@ import uuid
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import render
+from django.utils import timezone
 from django.http import HttpResponse
 
 from assistant.utils.tts_utils import get_tts_service
-from assistant.models import ConversationSession, ConversationLog, Report
+from assistant.models import ConversationSession, ConversationLog, Report, DisputeMedia
 from assistant.processors.conversation_manager import ConversationManager
 from assistant.serializers import (
     ConversationSessionSerializer,
     ConversationLogSerializer,
-    ReportSerializer
+    ReportSerializer,
+    DisputeMediaSerializer
 )
 
 # NEW: Import utils
@@ -48,6 +50,17 @@ from assistant.utils.validators import (
     validate_session_id,
     validate_report_data
 )
+from assistant.services.dispute_storage import dispute_storage
+from assistant.tasks import validate_dispute_media_task
+from assistant.throttles import (
+    AssistantChatAnonThrottle,
+    AssistantChatUserThrottle,
+    DisputeReportAnonThrottle,
+    DisputeReportUserThrottle,
+    DisputeEvidenceUploadUserThrottle,
+)
+from core.audit import audit_event
+
 from assistant.utils.formatters import (
     format_processing_time,
     format_conversation_summary,
@@ -56,9 +69,116 @@ from assistant.utils.formatters import (
 
 logger = logging.getLogger(__name__)
 
+def _resolve_assistant_lane(request_data):
+    lane = (request_data.get('assistant_lane') or 'inbox').strip().lower()
+    if lane in {'customer_service', 'dispute'}:
+        return 'customer_service'
+    return 'inbox'
+
+
+def _looks_like_dispute_request(message: str) -> bool:
+    text = (message or '').lower()
+    keywords = {
+        'dispute', 'complaint', 'issue', 'problem', 'refund', 'scam',
+        'seller', 'buyer', 'order issue', 'did not receive', 'not delivered',
+        'damaged', 'chargeback', 'wrong item', 'fake product'
+    }
+    return any(keyword in text for keyword in keywords)
+
+
+def _customer_service_redirect_message() -> str:
+    return (
+        "For disputes, please use the Customer Service button (top-right or Settings). "
+        "The regular assistant cannot process dispute workflows."
+    )
+
+
+def _build_title_from_first_message(message, product_name=None):
+    snippet = (message or '').strip()[:80].strip()
+    if len(snippet) >= 8:
+        return snippet
+    return f"Conversation about {product_name or 'support'}"
+
+
+def _handle_ephemeral_chat(message: str, lane: str):
+    """Logged-out assistant flow: temporary session, no DB writes."""
+    if lane == 'customer_service':
+        if not _looks_like_dispute_request(message):
+            return {
+                'reply': "Customer Service mode handles disputes only. Please describe the dispute (what happened, product/order, and timeline).",
+                'state': 'dispute_mode',
+                'confidence': 0.9,
+                'escalated': False,
+                'metadata': {
+                    'assistant_lane': lane,
+                    'persistence': 'temporary',
+                    'expires_after_minutes': 15,
+                    'conversation_title': _build_title_from_first_message(message),
+                    'mode': 'dispute_only'
+                }
+            }
+
+        return {
+            'reply': (
+                "You're in Customer Service mode. Please share your dispute details: "
+                "what happened, which product/order is affected, and the timeline. "
+                "You can also upload screenshots and OPUS/WAV audio evidence after opening the dispute."
+            ),
+            'state': 'dispute_mode',
+            'confidence': 0.95,
+            'escalated': False,
+            'metadata': {
+                'assistant_lane': lane,
+                'persistence': 'temporary',
+                'expires_after_minutes': 15,
+                'conversation_title': _build_title_from_first_message(message),
+                'mode': 'dispute_only'
+            }
+        }
+
+    if _looks_like_dispute_request(message):
+        return {
+            'reply': _customer_service_redirect_message(),
+            'state': 'chat_mode',
+            'confidence': 0.95,
+            'escalated': False,
+            'metadata': {
+                'assistant_lane': lane,
+                'persistence': 'temporary',
+                'expires_after_minutes': 15,
+                'conversation_title': _build_title_from_first_message(message),
+                'mode': 'redirect_to_customer_service'
+            }
+        }
+
+    processor = QueryProcessor()
+    result = processor.process(
+        message=message,
+        session_id=None,
+        user_name=None,
+        context={}
+    )
+
+    reply = result.get('reply') or ERROR_MSG_PROCESSING_FAILED
+
+    return {
+        'reply': reply,
+        'state': 'chat_mode',
+        'confidence': result.get('confidence', 0.5),
+        'escalated': False,
+        'metadata': {
+            'assistant_lane': lane,
+            'persistence': 'temporary',
+            'expires_after_minutes': 15,
+            'conversation_title': _build_title_from_first_message(message),
+            'processing_time_ms': result.get('metadata', {}).get('processing_time_ms', 0)
+        }
+    }
+
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([AssistantChatAnonThrottle, AssistantChatUserThrottle])
 def chat_endpoint(request):
     """
     Main chat endpoint with premium AI processing.
@@ -102,18 +222,34 @@ def chat_endpoint(request):
         
         # Extract validated data
         message = sanitized_data['message']
-        session_id = sanitized_data.get('session_id') or str(uuid.uuid4())
+        cookie_session = request.COOKIES.get('assistant_temp_session')
+        session_id = sanitized_data.get('session_id') or cookie_session or str(uuid.uuid4())
         user_id = sanitized_data.get('user_id')
-        
+        assistant_lane = _resolve_assistant_lane(request.data)
+
         if 'session_id' not in sanitized_data:
             logger.info(f"New session created: {session_id[:8]}")
-        
+
+        # Logged-out users are always ephemeral (no DB writes)
+        if not request.user.is_authenticated:
+            ephemeral_response = _handle_ephemeral_chat(message=message, lane=assistant_lane)
+            ephemeral_response['session_id'] = session_id
+            response = Response(ephemeral_response, status=status.HTTP_200_OK)
+            response.set_cookie(
+                'assistant_temp_session',
+                session_id,
+                max_age=15 * 60,
+                httponly=False,
+                samesite='Lax'
+            )
+            audit_event(request, action='assistant.chat.ephemeral', session_id=session_id, extra={'assistant_lane': assistant_lane})
+            return response
+
         # Get authenticated user if available
-        if request.user.is_authenticated:
-            user_id = request.user.id
-        
+        user_id = request.user.id
+
         # Initialize conversation manager (with premium modules!)
-        conv_manager = ConversationManager(session_id, user_id)
+        conv_manager = ConversationManager(session_id, user_id, assistant_lane=assistant_lane)
         
         logger.info(
             f"Processing message [session={session_id[:8]}, "
@@ -150,7 +286,10 @@ def chat_endpoint(request):
                 'user_name': conv_manager.get_user_name(),
                 'message_count': summary.get('message_count', 0),
                 'sentiment': summary.get('sentiment', 'neutral'),
-                'escalation_level': summary.get('escalation_level', 0)
+                'escalation_level': summary.get('escalation_level', 0),
+                'assistant_lane': assistant_lane,
+                'persistence': 'persistent',
+                'conversation_title': conv_manager.session.conversation_title
             }
         }
         
@@ -169,6 +308,7 @@ def chat_endpoint(request):
             f"[state={response_data['state']}, escalated={is_escalated}]"
         )
         
+        audit_event(request, action='assistant.chat.persistent', session_id=session_id, extra={'assistant_lane': assistant_lane})
         return Response(response_data, status=status.HTTP_200_OK)
     
     except Exception as e:
@@ -527,7 +667,8 @@ def list_sessions(request):
         # Get user's sessions
         if request.user.is_authenticated:
             sessions = ConversationSession.objects.filter(
-                user=request.user
+                user=request.user,
+                is_persistent=True
             ).order_by('-last_activity')[:20]
         else:
             return Response(
@@ -547,7 +688,9 @@ def list_sessions(request):
                 
                 # NEW: Add formatted summary
                 summary['formatted_summary'] = format_conversation_summary(summary)
-                
+                summary['assistant_lane'] = session.assistant_lane
+                summary['conversation_title'] = session.conversation_title
+
                 session_list.append(summary)
             except Exception as e:
                 logger.error(f"Failed to get summary for session {session.session_id}: {e}")
@@ -557,7 +700,9 @@ def list_sessions(request):
                     'state': session.current_state,
                     'user_name': session.user_name,
                     'last_activity': session.last_activity.isoformat(),
-                    'is_active': session.is_active()
+                    'is_active': session.is_active(),
+                    'assistant_lane': session.assistant_lane,
+                    'conversation_title': session.conversation_title
                 })
         
         return Response(
@@ -690,7 +835,7 @@ def ask_assistant(request):
         from assistant.processors.query_processor import QueryProcessor
         
         question = request.data.get('question', '').strip()
-        user_id = request.data.get('user_id')
+        user_id = request.user.id if request.user.is_authenticated else None
         
         # NEW: Validate message
         is_valid, error = validate_message(question)
@@ -743,12 +888,13 @@ def ask_assistant(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([DisputeReportAnonThrottle, DisputeReportUserThrottle])
 def create_report(request):
     """
     Legacy endpoint: Create a dispute/scam report.
     """
     try:
-        user_id = request.data.get('user_id')
+        user_id = request.user.id if request.user.is_authenticated else None
         report_type = request.data.get('report_type', 'dispute')
         description = request.data.get('description', '').strip()
         
@@ -756,9 +902,12 @@ def create_report(request):
         report_data = {
             'message': description,
             'report_type': report_type,
-            'seller_name': request.data.get('seller_name', ''),
-            'order_id': request.data.get('order_id', ''),
-            'evidence': request.data.get('evidence', '')
+            'category': request.data.get('category', ''),
+            'meta': {
+                'seller_name': request.data.get('seller_name', ''),
+                'order_id': request.data.get('order_id', ''),
+                'evidence_note': request.data.get('evidence', ''),
+            }
         }
         
         # NEW: Validate report data
@@ -770,7 +919,6 @@ def create_report(request):
             )
         
         # Create report
-        report_data['description'] = description
         report_data['status'] = 'pending'
         
         if user_id:
@@ -779,6 +927,7 @@ def create_report(request):
         report = Report.objects.create(**report_data)
         
         logger.info(f"Report created: ID={report.id}, Type={report_type}")
+        audit_event(request, action='assistant.report.created', extra={'report_id': report.id, 'report_type': report_type})
         
         return Response(
             {
@@ -797,6 +946,137 @@ def create_report(request):
         )
 
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@throttle_classes([DisputeEvidenceUploadUserThrottle])
+def upload_report_evidence(request, report_id):
+    """Upload evidence (max 5 images, 1 audio) for dispute reports."""
+    try:
+        report = Report.objects.get(id=report_id)
+    except Report.DoesNotExist:
+        return Response({'error': 'Report not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    if report.report_type != 'dispute':
+        return Response({'error': 'Evidence uploads are only supported for dispute reports.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if request.user.is_authenticated and report.user_id and report.user_id != request.user.id and not request.user.is_staff:
+        return Response({'error': 'You do not have permission to upload evidence to this report.'}, status=status.HTTP_403_FORBIDDEN)
+
+    uploaded_file = request.FILES.get('file')
+    media_type = (request.data.get('media_type') or '').strip().lower()
+
+    if not uploaded_file:
+        return Response({'error': 'file is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if media_type not in {'image', 'audio'}:
+        return Response({'error': "media_type must be 'image' or 'audio'"}, status=status.HTTP_400_BAD_REQUEST)
+
+    mime_type = getattr(uploaded_file, 'content_type', '') or ''
+    file_size = getattr(uploaded_file, 'size', 0) or 0
+
+    max_image_mb = 5
+    max_audio_mb = 15
+
+    if media_type == 'image':
+        image_count = report.evidence_files.filter(media_type='image', is_deleted=False).count()
+        if image_count >= 5:
+            return Response({'error': 'Maximum 5 image evidence files allowed per dispute.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not mime_type.startswith('image/'):
+            return Response({'error': 'Invalid image content type.'}, status=status.HTTP_400_BAD_REQUEST)
+        if file_size > max_image_mb * 1024 * 1024:
+            return Response({'error': f'Image evidence must be <= {max_image_mb}MB.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if media_type == 'audio':
+        allowed_audio = {'audio/ogg', 'audio/opus', 'audio/wav', 'audio/x-wav', 'audio/wave'}
+        if mime_type not in allowed_audio:
+            return Response({'error': 'Audio evidence must be OPUS or WAV.'}, status=status.HTTP_400_BAD_REQUEST)
+        if file_size > max_audio_mb * 1024 * 1024:
+            return Response({'error': f'Audio evidence must be <= {max_audio_mb}MB.'}, status=status.HTTP_400_BAD_REQUEST)
+        existing_audio = report.evidence_files.filter(media_type='audio', is_deleted=False).count()
+        if existing_audio >= 1:
+            return Response({'error': 'Only one audio evidence file is allowed per dispute.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    media = DisputeMedia(
+        report=report,
+        media_type=media_type,
+        file=uploaded_file,
+        original_filename=uploaded_file.name[:255],
+        mime_type=mime_type,
+        file_size=file_size,
+        uploaded_by=request.user if request.user.is_authenticated else None,
+    )
+    media.source_storage = dispute_storage.backend_name
+    media.storage_key = dispute_storage.build_storage_key(uploaded_file.name)
+    media.refresh_retention()
+    media.validation_status = DisputeMedia.VALIDATION_PENDING
+    media.save()
+
+    try:
+        validate_dispute_media_task.delay(media.id)
+    except Exception:
+        # Fail-safe: still keep pending, worker can pick it later
+        logger.exception('Failed to enqueue dispute media validation task')
+
+    audit_event(request, action='assistant.report.evidence_uploaded', extra={'report_id': report.id, 'media_id': media.id, 'media_type': media_type})
+    serializer = DisputeMediaSerializer(media, context={'request': request})
+    return Response(serializer.data, status=status.HTTP_202_ACCEPTED)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def list_report_evidence(request, report_id):
+    """List evidence files for a dispute report."""
+    try:
+        report = Report.objects.get(id=report_id)
+    except Report.DoesNotExist:
+        return Response({'error': 'Report not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.user.is_authenticated and report.user_id and report.user_id != request.user.id and not request.user.is_staff:
+        return Response({'error': 'You do not have permission to view evidence for this report.'}, status=status.HTTP_403_FORBIDDEN)
+
+    limit = min(int(request.GET.get('limit', 20)), 100)
+    files = report.evidence_files.filter(is_deleted=False, validation_status=DisputeMedia.VALIDATION_APPROVED).order_by('-created_at')[:limit]
+    serializer = DisputeMediaSerializer(files, many=True, context={'request': request})
+
+    return Response({'report_id': report.id, 'evidence_files': serializer.data}, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def close_report(request, report_id):
+    """Resolve/close report and set media retention to 90 days."""
+    try:
+        report = Report.objects.get(id=report_id)
+    except Report.DoesNotExist:
+        return Response({'error': 'Report not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    if not request.user.is_authenticated or (not request.user.is_staff and report.user_id != request.user.id):
+        return Response({'error': 'You do not have permission to close this report.'}, status=status.HTTP_403_FORBIDDEN)
+
+    if report.status not in {'resolved', 'closed'}:
+        report.status = 'resolved'
+        report.resolved_at = timezone.now()
+        update_fields = ['status', 'resolved_at']
+        if request.user.is_staff:
+            report.resolved_by = request.user
+            update_fields.append('resolved_by')
+        report.save(update_fields=update_fields)
+
+    updated = 0
+    for evidence in report.evidence_files.filter(is_deleted=False):
+        evidence.refresh_retention()
+        evidence.save(update_fields=['retention_expires_at', 'updated_at'])
+        updated += 1
+
+    audit_event(request, action='assistant.report.closed', extra={'report_id': report.id, 'retention_files_updated': updated})
+    return Response({
+        'report_id': report.id,
+        'status': report.status,
+        'resolved_at': report.resolved_at,
+        'retention_files_updated': updated
+    }, status=status.HTTP_200_OK)
+
+
 @api_view(['GET'])
 def recent_logs(request):
     """Admin endpoint: Get recent conversation logs."""
@@ -810,7 +1090,7 @@ def recent_logs(request):
         limit = min(int(request.GET.get('limit', 50)), 200)
         user_id = request.GET.get('user_id')
         
-        queryset = ConversationLog.objects.all().order_by('-timestamp')
+        queryset = ConversationLog.objects.all().order_by('-created_at')
         
         if user_id:
             queryset = queryset.filter(user_id=user_id)

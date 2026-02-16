@@ -50,9 +50,10 @@ logger = logging.getLogger(__name__)
 
 class ConversationManager:
     
-    def __init__(self, session_id: str, user_id: int = None):
+    def __init__(self, session_id: str, user_id: int = None, assistant_lane: str = 'inbox'):
         self.session_id = session_id
         self.user_id = user_id
+        self.assistant_lane = assistant_lane if assistant_lane in {'inbox', 'customer_service'} else 'inbox'
         self.session = self._get_or_create_session()
 
         self.query_processor = QueryProcessor()
@@ -77,7 +78,9 @@ class ConversationManager:
                 session_id=self.session_id,
                 defaults={
                     'user_id': self.user_id,
-                    'current_state': STATE_GREETING,
+                    'assistant_lane': self.assistant_lane,
+                    'is_persistent': True,
+                    'current_state': STATE_DISPUTE_MODE if self.assistant_lane == 'customer_service' else STATE_GREETING,
                     'context': {}
                 }
             )
@@ -85,10 +88,48 @@ class ConversationManager:
             if created:
                 logger.info(f"New session created: {self.session_id}")
 
+            if not created:
+                if self.user_id and session.user_id and session.user_id != self.user_id:
+                    raise PermissionError('Session does not belong to the authenticated user')
+
+                updates = []
+                if self.user_id and session.user_id is None:
+                    session.user_id = self.user_id
+                    updates.append('user')
+
+                if session.assistant_lane != self.assistant_lane:
+                    session.assistant_lane = self.assistant_lane
+                    updates.append('assistant_lane')
+
+                if updates:
+                    updates.append('updated_at')
+                    session.save(update_fields=updates)
+
             return session
         except Exception as e:
             logger.error(f"Session creation error: {e}", exc_info=True)
             raise
+
+    def _ensure_conversation_title(self, message: str):
+        """Set deterministic title once using first user message snippet."""
+        if self.session.conversation_title:
+            return
+
+        trimmed = (message or '').strip()
+        title = trimmed[:80].strip()
+
+        if len(title) < 8:
+            product_name = (
+                self.session.context.get('product_name')
+                or self.session.context_data.get('product_name')
+                or 'support'
+            )
+            title = f"Conversation about {product_name}"
+
+        self.session.conversation_title = title
+        from django.utils import timezone
+        self.session.title_generated_at = timezone.now()
+        self.session.save(update_fields=['conversation_title', 'title_generated_at', 'updated_at'])
 
     def process_message(self, message: str) -> str:
         try:
@@ -103,8 +144,18 @@ class ConversationManager:
 
             message = sanitize_message(message)
             message = clean_message(message)
+            self._ensure_conversation_title(message)
 
             current_state = self.session.current_state
+
+            if self.assistant_lane == 'customer_service' and current_state != STATE_DISPUTE_MODE:
+                self.dispute_flow.enter_dispute_mode()
+                current_state = self.session.current_state
+
+            if self.assistant_lane == 'inbox' and current_state == STATE_DISPUTE_MODE:
+                self.session.current_state = STATE_CHAT_MODE
+                self.session.save(update_fields=['current_state', 'updated_at'])
+                current_state = STATE_CHAT_MODE
 
             logger.info(f"Processing message in state '{current_state}': {message[:50]}...")
 
@@ -161,6 +212,22 @@ class ConversationManager:
             logger.debug(f"Intent retrieved from cache")
         
         return self._message_intent_cache[message]
+
+    def _customer_service_redirect_message(self) -> str:
+        return (
+            "For dispute resolution, please use the Customer Service button "
+            "(top-right or Settings). This assistant lane handles normal conversations only."
+        )
+
+    def _is_dispute_request(self, message: str, intent_value: str = '') -> bool:
+        text = (message or '').lower()
+        keywords = {
+            'dispute', 'complaint', 'issue', 'problem', 'refund', 'scam',
+            'chargeback', 'not delivered', 'wrong item', 'damaged', 'fake'
+        }
+        if intent_value in {'dispute', 'complaint', 'issue'}:
+            return True
+        return any(keyword in text for keyword in keywords)
 
     def _handle_greeting(self) -> str:
         try:
@@ -234,6 +301,8 @@ class ConversationManager:
                 return intro
 
             elif message_lower in ['2', 'dispute', 'report', 'problem', 'issue']:
+                if self.assistant_lane != 'customer_service':
+                    return self._customer_service_redirect_message()
                 intro = self.dispute_flow.enter_dispute_mode()
                 self.context_mgr.add_message('assistant', intro, confidence=1.0)
                 return intro
@@ -250,6 +319,8 @@ class ConversationManager:
                 logger.info(f"Menu selection: intent={intent.value}, emotion={emotion}")
 
                 if intent.value in ['dispute', 'complaint', 'issue']:
+                    if self.assistant_lane != 'customer_service':
+                        return self._customer_service_redirect_message()
                     intro = self.dispute_flow.enter_dispute_mode()
                     return intro
 
@@ -331,12 +402,24 @@ class ConversationManager:
             intent, conf, metadata = self._get_or_classify_intent(message)
             emotion = metadata.get('emotion', 'neutral')
 
+            if self.assistant_lane != 'customer_service' and self._is_dispute_request(message, intent.value):
+                return self._customer_service_redirect_message()
+
+            if self.assistant_lane == 'customer_service' and not self._is_dispute_request(message, intent.value):
+                return (
+                    "Customer Service mode is dedicated to dispute handling. "
+                    "Please describe the dispute, product/order affected, and timeline."
+                )
+
             self.context_mgr.add_message(
                 role='user',
                 content=message,
                 intent=intent.value,
                 emotion=emotion
             )
+
+            if self.assistant_lane != 'customer_service' and self._is_dispute_request(message, intent.value):
+                return self._customer_service_redirect_message()
 
             reply, faq_metadata = self.faq_flow.handle_faq_query(message)
 
@@ -364,8 +447,20 @@ class ConversationManager:
 
     def _handle_dispute_mode(self, message: str) -> str:
         try:
+            if self.assistant_lane != 'customer_service':
+                return self._customer_service_redirect_message()
+
             intent, conf, metadata = self._get_or_classify_intent(message)
             emotion = metadata.get('emotion', 'neutral')
+
+            if self.assistant_lane != 'customer_service' and self._is_dispute_request(message, intent.value):
+                return self._customer_service_redirect_message()
+
+            if self.assistant_lane == 'customer_service' and not self._is_dispute_request(message, intent.value):
+                return (
+                    "Customer Service mode is dedicated to dispute handling. "
+                    "Please describe the dispute, product/order affected, and timeline."
+                )
 
             self.context_mgr.add_message(
                 role='user',
@@ -406,6 +501,15 @@ class ConversationManager:
         try:
             intent, conf, metadata = self._get_or_classify_intent(message)
             emotion = metadata.get('emotion', 'neutral')
+
+            if self.assistant_lane != 'customer_service' and self._is_dispute_request(message, intent.value):
+                return self._customer_service_redirect_message()
+
+            if self.assistant_lane == 'customer_service' and not self._is_dispute_request(message, intent.value):
+                return (
+                    "Customer Service mode is dedicated to dispute handling. "
+                    "Please describe the dispute, product/order affected, and timeline."
+                )
 
             self.context_mgr.add_message(
                 role='user',
@@ -461,6 +565,15 @@ class ConversationManager:
 
             intent, conf, metadata = self._get_or_classify_intent(message)
             emotion = metadata.get('emotion', 'neutral')
+
+            if self.assistant_lane != 'customer_service' and self._is_dispute_request(message, intent.value):
+                return self._customer_service_redirect_message()
+
+            if self.assistant_lane == 'customer_service' and not self._is_dispute_request(message, intent.value):
+                return (
+                    "Customer Service mode is dedicated to dispute handling. "
+                    "Please describe the dispute, product/order affected, and timeline."
+                )
 
             self.context_mgr.add_message(
                 role='user',

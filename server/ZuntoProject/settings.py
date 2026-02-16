@@ -84,6 +84,7 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
+    'core.middleware.CorrelationIdMiddleware',
     'assistant.middleware.DisableCSRFForAPIMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -219,6 +220,13 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 50,
+    'DEFAULT_THROTTLE_RATES': {
+        'assistant_chat_anon': '10/min',
+        'assistant_chat_user': '60/min',
+        'assistant_report_anon': '2/hour',
+        'assistant_report_user': '20/hour',
+        'assistant_evidence_upload_user': '10/hour',
+    },
 }
 
 # ============================================
@@ -328,6 +336,14 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'cart.tasks.cleanup_old_guest_carts',
         'schedule': crontab(hour=5, minute=0, day_of_week=0),  # Weekly Sunday 5 AM
         'kwargs': {'days': 30}
+    },
+    'cleanup-dispute-media': {
+        'task': 'assistant.tasks.cleanup_expired_dispute_media_task',
+        'schedule': crontab(hour=6, minute=0),
+    },
+    'cleanup-assistant-artifacts': {
+        'task': 'assistant.tasks.cleanup_assistant_archives_task',
+        'schedule': crontab(hour=6, minute=30),
     },
 }
 # ============================================
@@ -446,6 +462,14 @@ LOGGING = {
             'backupCount': 5,
             'formatter': 'verbose',
         },
+        'audit_file': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': BASE_DIR / 'logs' / 'audit.log',
+            'maxBytes': 1024 * 1024 * 20,
+            'backupCount': 10,
+            'formatter': 'simple',
+        },
     },
     'root': {
         'handlers': ['console'],
@@ -460,6 +484,11 @@ LOGGING = {
         'django.request': {
             'handlers': ['file'],
             'level': 'ERROR',
+            'propagate': False,
+        },
+        'audit': {
+            'handlers': ['console', 'audit_file'],
+            'level': 'INFO',
             'propagate': False,
         },
     },
