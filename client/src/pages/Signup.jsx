@@ -1,9 +1,10 @@
 // client/src/pages/signup.jsx
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, User, Eye, EyeOff, Phone, ArrowRight, ShoppingBag } from 'lucide-react';
+import { Mail, Lock, User, Eye, EyeOff, Phone, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import GoogleAuthButton from '../components/auth/GoogleAuthButton';
+import AuthMarketplaceShowcase from '../components/auth/AuthMarketplaceShowcase';
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -85,15 +86,7 @@ export default function Signup() {
         <div className="absolute -top-24 -left-24 w-96 h-96 bg-[#2c77d1]/30 rounded-full blur-3xl opacity-50" />
         <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-[#9426f4]/30 rounded-full blur-3xl opacity-50" />
         
-        <div className="relative z-10 p-12 text-center max-w-lg">
-          <div className="w-20 h-20 bg-gradient-to-r from-[#2c77d1] to-[#9426f4] rounded-2xl mx-auto mb-8 flex items-center justify-center shadow-lg shadow-[#2c77d1]/20">
-            <ShoppingBag className="w-10 h-10 text-white" />
-          </div>
-          <h2 className="text-4xl font-bold mb-6 text-white">Join the Revolution</h2>
-          <p className="text-xl text-gray-300 leading-relaxed">
-            Create an account to unlock exclusive deals, personalized recommendations, and a seamless shopping experience.
-          </p>
-        </div>
+        <AuthMarketplaceShowcase />
       </div>
 
       {/* Right Side - Form */}
