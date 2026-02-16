@@ -244,6 +244,25 @@ class ConversationViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['get'])
+    def ws_token(self, request, pk=None):
+        conversation = self.get_object()
+
+        if not conversation.user_is_participant(request.user):
+            return Response(
+                {'error': 'You do not have permission to access this conversation'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        token = generate_ws_token(str(conversation.id), str(request.user.id))
+        return Response(
+            {
+                'conversation_id': str(conversation.id),
+                'ws_token': token,
+            },
+            status=status.HTTP_200_OK
+        )
+
+    @action(detail=True, methods=['get'])
     def messages(self, request, pk=None):
         conversation = self.get_object()
 
@@ -379,9 +398,15 @@ class MessageViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        return Message.objects.filter(
+        queryset = Message.objects.filter(
             Q(conversation__buyer=user) | Q(conversation__seller=user)
         ).select_related('conversation', 'sender')
+
+        conversation_id = self.request.query_params.get('conversation')
+        if conversation_id:
+            queryset = queryset.filter(conversation_id=conversation_id)
+
+        return queryset
 
     def _check_rate_limit(self, user_id, conversation_id):
         user_key = f"chat_msg_rate:{user_id}"

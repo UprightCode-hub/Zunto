@@ -13,10 +13,12 @@ from .views import (
     ProductReportCreateView,
     FeaturedProductsView,
     BoostedProductsView,
+    AdsProductsView,
     SimilarProductsView,
     ProductStatsView,
     mark_as_sold,
     reactivate_product,
+    share_product,
 )
 
 
@@ -31,11 +33,13 @@ urlpatterns = [
     path('products/my-products/', MyProductsView.as_view(), name='my_products'),
     path('products/featured/', FeaturedProductsView.as_view(), name='featured_products'),
     path('products/boosted/', BoostedProductsView.as_view(), name='boosted_products'),
+    path('products/ads/', AdsProductsView.as_view(), name='ads_products'),
     path('products/<slug:slug>/', ProductDetailView.as_view(), name='product_detail'),
     path('products/<slug:product_slug>/similar/', SimilarProductsView.as_view(), name='similar_products'),
     path('products/<slug:product_slug>/stats/', ProductStatsView.as_view(), name='product_stats'),
     path('products/<slug:product_slug>/mark-sold/', mark_as_sold, name='mark_as_sold'),
     path('products/<slug:product_slug>/reactivate/', reactivate_product, name='reactivate_product'),
+    path('products/<slug:product_slug>/share/', share_product, name='share_product'),
     
     # Media uploads
     path('products/<slug:product_slug>/images/', ProductImageUploadView.as_view(), name='product_image_upload'),

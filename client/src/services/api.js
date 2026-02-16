@@ -1,46 +1,103 @@
-// Use Vite environment variables when available for flexibility in dev/prod
-// Accept either VITE_API_BASE or VITE_API_BASE_URL to match .env.example
-const API_BASE_URL = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'; // Django backend URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
-// Helper function for API calls
-const apiCall = async (endpoint, options = {}) => {
-  const token = localStorage.getItem('token');
+const parseResponse = async (response) => {
+  if (response.status === 204) {
+    return null;
+  }
+
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    return response.json();
+  }
+
+  const text = await response.text();
+  return text ? { detail: text } : {};
+};
+
+const shouldSkipRefresh = (endpoint) => (
+  endpoint.includes('/api/accounts/login/')
+  || endpoint.includes('/api/accounts/token/refresh/')
+  || endpoint.includes('/api/accounts/register/')
+);
+
+const performTokenRefresh = async () => {
+  const refresh = localStorage.getItem('refresh_token');
+  if (!refresh) {
+    return null;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/accounts/token/refresh/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh }),
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const data = await parseResponse(response);
+  if (!data?.access) {
+    return null;
+  }
+
+  localStorage.setItem('access_token', data.access);
+  localStorage.setItem('token', data.access);
+  return data.access;
+};
+
+const buildHeaders = (options = {}, accessToken = null) => {
   const isForm = options.body instanceof FormData;
   const defaultHeaders = isForm ? {} : { 'Content-Type': 'application/json' };
   const headers = {
     ...defaultHeaders,
-    ...(token && { Authorization: `Bearer ${token}` }),
+    ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
     ...options.headers,
   };
+
   if (headers['Content-Type'] === undefined) {
     delete headers['Content-Type'];
   }
 
-  const config = { ...options, headers };
+  return headers;
+};
+
+const apiCall = async (endpoint, options = {}) => {
+  let accessToken = localStorage.getItem('access_token') || localStorage.getItem('token');
+
+  const sendRequest = (token) => {
+    const headers = buildHeaders(options, token);
+    const config = { ...options, headers };
+    return fetch(`${API_BASE_URL}${endpoint}`, config);
+  };
 
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-    
-    // Handle 204 No Content
-    if (response.status === 204) {
-      return null;
+    let response = await sendRequest(accessToken);
+
+    if (response.status === 401 && !shouldSkipRefresh(endpoint)) {
+      const refreshedAccess = await performTokenRefresh();
+      if (refreshedAccess) {
+        accessToken = refreshedAccess;
+        response = await sendRequest(accessToken);
+      }
     }
-    let data = null;
-    const contentType = response.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
-      data = await response.json();
-    } else {
-      const text = await response.text();
-      data = text ? { detail: text } : {};
-    }
-    
+
+    const data = await parseResponse(response);
+
     if (!response.ok) {
-      const error = new Error(data.message || data.detail || 'Something went wrong');
+      if (response.status === 401) {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
+
+      const error = new Error(data?.message || data?.detail || 'Something went wrong');
       error.status = response.status;
       error.data = data;
       throw error;
     }
-    
+
     return data;
   } catch (error) {
     console.error('API Error:', error);
@@ -169,6 +226,10 @@ export const getBoostedProducts = () => {
   return apiCall('/api/market/products/boosted/');
 };
 
+export const getAdProducts = () => {
+  return apiCall('/api/market/products/ads/');
+};
+
 export const getProductDetail = (slug) => {
   return apiCall(`/api/market/products/${slug}/`);
 };
@@ -258,6 +319,13 @@ export const reportProduct = (slug, reportData) => {
   return apiCall(`/api/market/products/${slug}/report/`, {
     method: 'POST',
     body: JSON.stringify(reportData),
+  });
+};
+
+export const shareProduct = (slug, payload = { shared_via: 'link' }) => {
+  return apiCall(`/api/market/products/${slug}/share/`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
   });
 };
 
@@ -518,7 +586,16 @@ export const getChatRooms = () => {
 };
 
 export const getChatMessages = (conversationId) => {
-  return apiCall(`/chat/messages/?conversation=${conversationId}`);
+  return apiCall(`/chat/conversations/${conversationId}/messages/`);
+};
+
+export const getConversationWsToken = (conversationId) => {
+  return apiCall(`/chat/conversations/${conversationId}/ws_token/`);
+};
+
+export const getChatWebSocketUrl = (conversationId, wsToken) => {
+  const wsBase = API_BASE_URL.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
+  return `${wsBase}/ws/chat/${conversationId}/?token=${encodeURIComponent(wsToken)}`;
 };
 
 export const sendMarketplaceChatMessage = (conversationId, content, messageType = 'text') => {

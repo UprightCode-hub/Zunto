@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Star, ShoppingBag, Heart } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
+import { getProductImage, getProductTitle } from '../../utils/product';
 
 export default function ProductCard({ product, viewMode = 'grid' }) {
   const { addToCart } = useCart();
@@ -37,8 +38,8 @@ export default function ProductCard({ product, viewMode = 'grid' }) {
       >
         <div className="relative bg-gradient-to-br from-[#2c77d1]/20 to-[#9426f4]/20 w-48 h-48 shrink-0">
           <img
-            src={product.image || '/placeholder.png'}
-            alt={product.name}
+            src={getProductImage(product)}
+            alt={getProductTitle(product)}
             className="w-full h-full object-cover"
           />
           {product.on_sale && (
@@ -56,7 +57,7 @@ export default function ProductCard({ product, viewMode = 'grid' }) {
         <div className="p-4 flex-1 flex flex-col justify-between">
           <div>
             <h3 className="font-semibold text-lg mb-2 group-hover:text-[#2c77d1] transition">
-              {product.name}
+              {getProductTitle(product)}
             </h3>
             <p className="text-gray-400 text-sm mb-3 line-clamp-2">
               {product.description}
@@ -102,8 +103,8 @@ export default function ProductCard({ product, viewMode = 'grid' }) {
     >
       <div className="relative bg-gradient-to-br from-[#2c77d1]/20 to-[#9426f4]/20 aspect-square overflow-hidden">
         <img
-          src={product.image || '/placeholder.png'}
-          alt={product.name}
+          src={getProductImage(product)}
+          alt={getProductTitle(product)}
           className="w-full h-full object-cover group-hover:scale-110 transition duration-500"
         />
         {product.on_sale && (
@@ -120,7 +121,7 @@ export default function ProductCard({ product, viewMode = 'grid' }) {
       </div>
       <div className="p-4 flex-1 flex flex-col">
         <h3 className="font-semibold text-lg mb-1 group-hover:text-[#2c77d1] transition truncate">
-          {product.name}
+          {getProductTitle(product)}
         </h3>
         <div className="flex items-center gap-2 mb-2">
           <div className="flex items-center gap-1 text-yellow-400">
