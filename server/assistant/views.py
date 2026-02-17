@@ -2,6 +2,8 @@
 import logging
 import time
 import uuid
+import json
+from pathlib import Path
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
@@ -55,6 +57,51 @@ from assistant.utils.formatters import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+FAQ_FILE_PATH = Path(__file__).resolve().parent / 'data' / 'updated_faq.json'
+
+
+FAQ_SECTION_RULES = [
+    ('account', 'Account & Access', ('account', 'sign up', 'login', 'password', 'verify', 'verification', 'profile')),
+    ('buying', 'Buying & Orders', ('buy', 'order', 'checkout', 'payment', 'cancel', 'purchase', 'invoice')),
+    ('shipping', 'Shipping & Delivery', ('ship', 'delivery', 'delivered', 'tracking', 'location', 'address')),
+    ('returns', 'Returns, Refunds & Disputes', ('refund', 'return', 'dispute', 'complaint', 'damaged', 'wrong item', 'not delivered')),
+    ('selling', 'Selling on Zunto', ('sell', 'seller', 'listing', 'promote', 'boost', 'commission', 'withdraw')),
+    ('safety', 'Security & Trust', ('scam', 'fraud', 'safe', 'security', 'report', 'suspicious', 'ban')),
+]
+
+
+def _load_faq_records():
+    with FAQ_FILE_PATH.open('r', encoding='utf-8') as faq_file:
+        payload = json.load(faq_file)
+    return payload.get('faqs', [])
+
+
+def _find_faq_section(question_text):
+    text = (question_text or '').lower()
+    for section_id, _section_title, triggers in FAQ_SECTION_RULES:
+        if any(trigger in text for trigger in triggers):
+            return section_id
+    return 'general'
+
+
+def _build_faq_sections(records):
+    sections = {
+        section_id: {'id': section_id, 'title': section_title, 'faqs': []}
+        for section_id, section_title, _triggers in FAQ_SECTION_RULES
+    }
+    sections['general'] = {'id': 'general', 'title': 'General Marketplace Questions', 'faqs': []}
+
+    for faq in records:
+        section_id = _find_faq_section(faq.get('question', ''))
+        sections[section_id]['faqs'].append({
+            'id': faq.get('id'),
+            'question': faq.get('question', ''),
+            'answer': faq.get('answer', ''),
+        })
+
+    return [section for section in sections.values() if section['faqs']]
 
 def _resolve_assistant_lane(request_data):
     lane = (request_data.get('assistant_lane') or 'inbox').strip().lower()
@@ -163,9 +210,29 @@ def _handle_ephemeral_chat(message: str, lane: str):
     }
 
 
-@api_view(['POST'])
+
+
+@api_view(['GET'])
 @permission_classes([AllowAny])
-@throttle_classes([AssistantChatAnonThrottle, AssistantChatUserThrottle])
+def faq_sections(request):
+    try:
+        faq_records = _load_faq_records()
+        sections = _build_faq_sections(faq_records)
+        return Response({
+            'count': len(faq_records),
+            'sections': sections,
+        }, status=status.HTTP_200_OK)
+    except FileNotFoundError:
+        logger.error('FAQ file not found at %s', FAQ_FILE_PATH)
+        return Response({'detail': 'FAQ data is not available right now.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    except Exception as exc:
+        logger.error('FAQ endpoint error: %s', exc, exc_info=True)
+        return Response({'detail': 'Unable to load FAQs right now.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@throttle_classes([AssistantChatUserThrottle])
 def chat_endpoint(request):
     """
     Main chat endpoint.
@@ -218,21 +285,6 @@ def chat_endpoint(request):
             logger.info(f"New session created: {session_id[:8]}")
 
                                                               
-        if not request.user.is_authenticated:
-            ephemeral_response = _handle_ephemeral_chat(message=message, lane=assistant_lane)
-            ephemeral_response['session_id'] = session_id
-            response = Response(ephemeral_response, status=status.HTTP_200_OK)
-            response.set_cookie(
-                'assistant_temp_session',
-                session_id,
-                max_age=15 * 60,
-                httponly=False,
-                samesite='Lax'
-            )
-            audit_event(request, action='assistant.chat.ephemeral', session_id=session_id, extra={'assistant_lane': assistant_lane})
-            return response
-
-                                             
         user_id = request.user.id
 
                                                                  
@@ -323,7 +375,7 @@ def chat_endpoint(request):
 
 @csrf_exempt
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def tts_endpoint(request):
     """
     Text-to-Speech endpoint for assistant messages.
@@ -519,7 +571,7 @@ def _log_conversation(
 
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def session_status(request, session_id):
     """
     Get current session status and conversation summary.
@@ -581,7 +633,7 @@ def session_status(request, session_id):
 
 
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def reset_session(request, session_id):
     """
     Reset session to initial state.
@@ -628,6 +680,7 @@ def reset_session(request, session_id):
 
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def list_sessions(request):
     """
     List all sessions for authenticated user.
@@ -809,7 +862,7 @@ Legacy View Functions - Backward compatibility for existing API clients.
 """
 
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def ask_assistant(request):
     """
     Legacy endpoint: Simple Q&A without conversation context.
@@ -874,8 +927,8 @@ def ask_assistant(request):
 
 
 @api_view(['POST'])
-@permission_classes([AllowAny])
-@throttle_classes([DisputeReportAnonThrottle, DisputeReportUserThrottle])
+@permission_classes([IsAuthenticated])
+@throttle_classes([DisputeReportUserThrottle])
 def create_report(request):
     """
     Legacy endpoint: Create a dispute/scam report.

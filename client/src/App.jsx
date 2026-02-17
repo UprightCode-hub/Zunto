@@ -31,6 +31,7 @@ const PaymentVerification = lazy(() => import("./pages/PaymentVerification"));
 const NotificationSettings = lazy(() => import("./pages/NotificationSettings"));
 const Terms = lazy(() => import("./pages/Terms"));
 const Privacy = lazy(() => import("./pages/Privacy"));
+const FAQs = lazy(() => import("./pages/FAQs"));
 
 function AppLayout() {
   const location = useLocation();
@@ -65,7 +66,15 @@ function AppLayout() {
           <Route path="/notification-settings" element={<NotificationSettings />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />
-          <Route path="/chat" element={<Chat />} />
+          <Route path="/faqs" element={<FAQs />} />
+          <Route
+            path="/chat"
+            element={
+              <ProtectedRoute>
+                <Chat />
+              </ProtectedRoute>
+            }
+          />
           <Route 
             path="/admin" 
             element={

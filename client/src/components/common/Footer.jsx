@@ -57,9 +57,9 @@ export default function Footer() {
               <a href="#" className="hover:text-blue-400 transition">
                 Contact Us
               </a>
-              <a href="#" className="hover:text-blue-400 transition">
+              <Link to="/faqs" className="hover:text-blue-400 transition">
                 FAQs
-              </a>
+              </Link>
               <a href="#" className="hover:text-blue-400 transition">
                 Shipping Info
               </a>
