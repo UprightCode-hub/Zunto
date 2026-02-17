@@ -1,4 +1,4 @@
-# orders/payment_views.py
+#server/orders/payment_views.py
 from rest_framework import status, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
@@ -34,20 +34,20 @@ class InitializePaymentView(APIView):
                 'error': 'Platform payment is only available for Zunto managed-commerce orders.'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Check if order is already paid
+                                        
         if order.payment_status == 'paid':
             return Response({
                 'error': 'Order has already been paid.'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Generate payment reference
+                                    
         payment_reference = order.generate_payment_reference()
         
-        # Get callback URL from request or use default
-        callback_url = request.data.get('callback_url') or \
+                                                      
+        callback_url = request.data.get('callback_url') or\
                       f"{request.scheme}://{request.get_host()}/payment/verify/{order_number}/"
         
-        # Prepare metadata
+                          
         metadata = {
             'order_number': order.order_number,
             'customer_id': str(order.customer.id),
@@ -55,7 +55,7 @@ class InitializePaymentView(APIView):
             'items_count': order.total_items,
         }
         
-        # Initialize payment with Paystack
+                                          
         paystack = PaystackService()
         result = paystack.initialize_transaction(
             email=order.customer.email,
@@ -68,7 +68,7 @@ class InitializePaymentView(APIView):
         if result['success']:
             data = result['data']['data']
             
-            # Create or update payment record
+                                             
             payment, created = Payment.objects.get_or_create(
                 order=order,
                 gateway_reference=payment_reference,
@@ -123,7 +123,7 @@ class VerifyPaymentView(APIView):
                 'error': 'Platform payment verification is only available for managed-commerce orders.'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Get reference from query params or use order's reference
+                                                                  
         reference = request.query_params.get('reference') or order.payment_reference
         
         if not reference:
@@ -131,7 +131,7 @@ class VerifyPaymentView(APIView):
                 'error': 'Payment reference not found.'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Verify transaction with Paystack
+                                          
         paystack = PaystackService()
         result = paystack.verify_transaction(reference)
         
@@ -143,9 +143,9 @@ class VerifyPaymentView(APIView):
         
         data = result['data']['data']
         
-        # Check if payment was successful
+                                         
         if data['status'] == 'success':
-            # Update payment record
+                                   
             payment = Payment.objects.filter(
                 order=order,
                 gateway_reference=reference
@@ -157,7 +157,7 @@ class VerifyPaymentView(APIView):
                 payment.gateway_response = data
                 payment.save()
             else:
-                # Create payment record if it doesn't exist
+                                                           
                 payment = Payment.objects.create(
                     order=order,
                     payment_method='paystack',
@@ -168,14 +168,14 @@ class VerifyPaymentView(APIView):
                     gateway_response=data
                 )
             
-            # Update order
+                          
             old_status = order.status
             order.payment_status = 'paid'
             order.status = 'processing'
             order.paid_at = timezone.now()
             order.save(update_fields=['payment_status', 'status', 'paid_at'])
             
-            # Create status history
+                                   
             OrderStatusHistory.objects.create(
                 order=order,
                 old_status=old_status,
@@ -184,7 +184,7 @@ class VerifyPaymentView(APIView):
                 changed_by=request.user
             )
             
-            # TODO: Send order confirmation email
+                                                 
             EmailService.send_payment_success_email(order)
             
             return Response({
@@ -198,7 +198,7 @@ class VerifyPaymentView(APIView):
             }, status=status.HTTP_200_OK)
         
         else:
-            # Payment failed
+                            
             payment = Payment.objects.filter(
                 order=order,
                 gateway_reference=reference
@@ -222,11 +222,11 @@ class VerifyPaymentView(APIView):
 class PaystackWebhookView(APIView):
     """Handle Paystack webhook events"""
     
-    permission_classes = []  # No authentication required for webhooks
+    permission_classes = []                                           
     
     @transaction.atomic
     def post(self, request):
-        # Get signature from headers
+                                    
         signature = request.META.get('HTTP_X_PAYSTACK_SIGNATURE')
         
         if not signature:
@@ -234,13 +234,13 @@ class PaystackWebhookView(APIView):
                 'error': 'No signature provided'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Verify webhook signature
+                                  
         if not PaystackService.verify_webhook_signature(request.body, signature):
             return Response({
                 'error': 'Invalid signature'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Parse webhook data
+                            
         try:
             payload = json.loads(request.body)
         except json.JSONDecodeError:
@@ -251,7 +251,7 @@ class PaystackWebhookView(APIView):
         event = payload.get('event')
         data = payload.get('data', {})
         
-        # Handle different event types
+                                      
         if event == 'charge.success':
             return self.handle_charge_success(data)
         
@@ -264,7 +264,7 @@ class PaystackWebhookView(APIView):
         elif event == 'refund.failed':
             return self.handle_refund_failed(data)
         
-        # Return success for unhandled events
+                                             
         return Response({'status': 'received'}, status=status.HTTP_200_OK)
     
     def handle_charge_success(self, data):
@@ -277,13 +277,13 @@ class PaystackWebhookView(APIView):
             )
             order = payment.order
             
-            # Update payment
+                            
             payment.status = 'success'
             payment.paid_at = timezone.now()
             payment.gateway_response = data
             payment.save()
             
-            # Update order
+                          
             if order.payment_status != 'paid':
                 old_status = order.status
                 order.payment_status = 'paid'
@@ -291,7 +291,7 @@ class PaystackWebhookView(APIView):
                 order.paid_at = timezone.now()
                 order.save(update_fields=['payment_status', 'status', 'paid_at'])
                 
-                # Create status history
+                                       
                 OrderStatusHistory.objects.create(
                     order=order,
                     old_status=old_status,
@@ -299,7 +299,7 @@ class PaystackWebhookView(APIView):
                     notes='Payment confirmed via webhook'
                 )
                 
-            # TODO: Send order confirmation email
+                                                 
             EmailService.send_payment_success_email(order)
 
             return Response({'status': 'success'}, status=status.HTTP_200_OK)
@@ -319,16 +319,16 @@ class PaystackWebhookView(APIView):
             )
             order = payment.order
             
-            # Update payment
+                            
             payment.status = 'failed'
             payment.gateway_response = data
             payment.save()
             
-            # Update order
+                          
             order.payment_status = 'failed'
             order.save(update_fields=['payment_status'])
             
-            # TODO: Send payment failure notification
+                                                     
             
             return Response({'status': 'success'}, status=status.HTTP_200_OK)
         
@@ -346,7 +346,7 @@ class PaystackWebhookView(APIView):
                 gateway_reference=transaction_reference
             )
             
-            # Find refund request
+                                 
             refund = Refund.objects.filter(
                 payment=payment,
                 status='pending'
@@ -359,13 +359,13 @@ class PaystackWebhookView(APIView):
                 refund.processed_at = timezone.now()
                 refund.save()
                 
-                # Update order
+                              
                 order = payment.order
                 order.status = 'refunded'
                 order.payment_status = 'refunded'
                 order.save(update_fields=['status', 'payment_status'])
                 
-                # Create status history
+                                       
                 OrderStatusHistory.objects.create(
                     order=order,
                     old_status=order.status,
@@ -373,7 +373,7 @@ class PaystackWebhookView(APIView):
                     notes='Refund processed successfully'
                 )
                 
-                # TODO: Send refund confirmation email
+                                                      
             
             return Response({'status': 'success'}, status=status.HTTP_200_OK)
         
@@ -389,7 +389,7 @@ class PaystackWebhookView(APIView):
         try:
             payment = Payment.objects.get(gateway_reference=transaction_reference)
             
-            # Find refund request
+                                 
             refund = Refund.objects.filter(
                 payment=payment,
                 status='processing'
@@ -400,7 +400,7 @@ class PaystackWebhookView(APIView):
                 refund.gateway_response = data
                 refund.save()
                 
-                # TODO: Send refund failure notification
+                                                        
             
             return Response({'status': 'success'}, status=status.HTTP_200_OK)
         
@@ -424,14 +424,14 @@ class ProcessRefundView(APIView):
                 'error': f'Refund is already {refund.status}'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Get payment
+                     
         payment = refund.payment
         if not payment:
             return Response({
                 'error': 'Payment not found for this refund'
             }, status=status.HTTP_404_NOT_FOUND)
         
-        # Process refund through Paystack
+                                         
         paystack = PaystackService()
         result = paystack.create_refund(
             transaction_reference=payment.gateway_reference,
@@ -441,7 +441,7 @@ class ProcessRefundView(APIView):
         if result['success']:
             data = result['data']['data']
             
-            # Update refund
+                           
             refund.status = 'processing'
             refund.refund_reference = data.get('id')
             refund.gateway_response = data

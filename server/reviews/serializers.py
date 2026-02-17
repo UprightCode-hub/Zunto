@@ -1,4 +1,4 @@
-# reviews/serializers.py
+#server/reviews/serializers.py
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.db.models import Avg
@@ -91,7 +91,7 @@ class ProductReviewSerializer(serializers.ModelSerializer):
         return value
     
     def validate(self, attrs):
-        # Check if user already reviewed this product
+                                                     
         request = self.context.get('request')
         product = attrs.get('product')
         
@@ -103,7 +103,7 @@ class ProductReviewSerializer(serializers.ModelSerializer):
                 "You have already reviewed this product."
             )
         
-        # User cannot review their own product
+                                              
         if product.seller == request.user:
             raise serializers.ValidationError(
                 "You cannot review your own product."
@@ -183,13 +183,13 @@ class SellerReviewSerializer(serializers.ModelSerializer):
         seller = attrs.get('seller')
         product = attrs.get('product')
         
-        # User cannot review themselves
+                                       
         if seller == request.user:
             raise serializers.ValidationError(
                 "You cannot review yourself."
             )
         
-        # Check if user already reviewed this seller for this product
+                                                                     
         if product and SellerReview.objects.filter(
             seller=seller,
             reviewer=request.user,
@@ -239,7 +239,7 @@ class ReviewFlagSerializer(serializers.ModelSerializer):
         ]
     
     def validate(self, attrs):
-        # Must flag either product review or seller review, not both
+                                                                    
         if not attrs.get('product_review') and not attrs.get('seller_review'):
             raise serializers.ValidationError(
                 "Must specify either product_review or seller_review."

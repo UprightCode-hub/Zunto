@@ -1,7 +1,8 @@
+#server/orders/admin.py
 from django.contrib import admin
 
-# Register your models here.
-# orders/admin.py
+                            
+                 
 from django.contrib import admin
 from django.utils.html import format_html
 from .models import (
@@ -101,20 +102,20 @@ class OrderAdmin(admin.ModelAdmin):
         )
     status_badge.short_description = 'Status'
     
-    # def payment_status_badge(self, obj):
-    #     colors = {
-    #         'pending': 'orange',
-    #         'paid': 'green',
-    #         'failed': 'red',
-    #         'refunded': 'gray',
-    #     }
-    #     color = colors.get(obj.payment_status, 'gray')
-    #     return format_html(
-    #         '<span style="background-color: {}; color: white; padding: 3px 10px; border-radius: 3px;">{}</span>',
-    #         color,
-    #         obj.get_payment_status_display()
-    #     )
-    # payment_status_badge.short_description = 'Payment Status'
+                                          
+                    
+                                  
+                              
+                              
+                                 
+           
+                                                        
+                             
+                                                                                                                   
+                    
+                                              
+           
+                                                               
     
     def total_items(self, obj):
         return obj.total_items

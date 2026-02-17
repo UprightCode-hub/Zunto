@@ -1,10 +1,5 @@
-"""
-Creator Information Module
-Stores details about Wisdom Ekwugha (AI Creator) and Zunto Team
-
-When users ask "Who made you?" or "Tell me about your creator",
-the AI references this module for accurate, detailed responses.
-"""
+#server/assistant/ai/creator_info.py
+"""Creator and team profile data used for attribution responses."""
 from typing import Dict, List, Optional
 from datetime import datetime
 
@@ -14,13 +9,13 @@ class CreatorInfo:
     Complete information about the creator and development team.
     """
     
-    # Primary Creator (AI Developer)
+                                    
     CREATOR = {
         'name': 'Wisdom Ekwugha',
         'role': 'AI Systems Developer & Creator of Gigi',
         'title': 'Lead AI Engineer',
         
-        # Filled in based on user-provided details (self-taught + student)
+                                                                          
         'background': {
             'education': 'Self-taught AI & Software Developer; currently a university student',
             'experience_years': '2 years',
@@ -101,9 +96,9 @@ class CreatorInfo:
             ),
         },
         
-        # How AI should talk about you
+                                      
         'tone_guidelines': {
-            'preferred_tone': 'professional_humble',  # Options: professional_humble, proud, casual
+            'preferred_tone': 'professional_humble',                                               
             'emphasis': [
                 'Technical expertise in AI/ML',
                 'Focus on practical solutions',
@@ -116,7 +111,7 @@ class CreatorInfo:
         }
     }
     
-    # Development Team
+                      
     TEAM = {
         'name': 'Zunto Team',
         'role': 'Marketplace Platform Developers',
@@ -132,11 +127,11 @@ class CreatorInfo:
         }
     }
     
-    # Project Timeline (auto-generated)
+                                       
     TIMELINE = {
-        'project_start': datetime(2025, 5, 1),  # May 2025
-        'ai_development_start': datetime(2025, 9, 1),  # September 2025
-        'first_version_deployed': datetime(2025, 12, 1),  # Dec 1, 2025 (initial production test)
+        'project_start': datetime(2025, 5, 1),            
+        'ai_development_start': datetime(2025, 9, 1),                  
+        'first_version_deployed': datetime(2025, 12, 1),                                         
         'current_version': '2.0',
         'milestones': [
             {'date': datetime(2025, 5, 1), 'event': 'Project concept & planning (Zunto)'},
@@ -148,7 +143,7 @@ class CreatorInfo:
         ]
     }
     
-    # Fun facts users might enjoy
+                                 
     FUN_FACTS = [
         "Gigi can process 346 FAQs in under 0.04 seconds!",
         "The name 'Gigi' was chosen to be friendly and memorable.",
@@ -189,7 +184,7 @@ class CreatorInfo:
                 f"Technical stack: {', '.join(proj['technologies_used'][:7])}."
             )
         
-        else:  # balanced
+        else:            
             return (
                 f"{creator['name']} is the creator of Gigi, Zunto's AI assistant. "
                 f"As an AI systems developer specializing in conversational AI and "
@@ -265,7 +260,7 @@ class CreatorInfo:
         """
         query_lower = user_query.lower()
         
-        # Determine detail level from query
+                                           
         if 'more about' in query_lower or 'tell me about' in query_lower or 'detailed' in query_lower:
             detail_level = 'detailed'
         elif 'briefly' in query_lower or 'quick' in query_lower or 'short' in query_lower:
@@ -273,10 +268,10 @@ class CreatorInfo:
         else:
             detail_level = 'balanced'
         
-        # Generate response
+                           
         bio = cls.get_creator_bio(detail_level)
         
-        # Personalize if we have user's name
+                                            
         if user_name:
             return f"{user_name}, {bio}"
         else:
@@ -302,7 +297,7 @@ class CreatorInfo:
                     cls.CREATOR[key] = value
 
 
-# Convenience functions
+                       
 def get_creator_info(detail: str = 'balanced') -> str:
     """Quick access to creator bio."""
     return CreatorInfo.get_creator_bio(detail)
@@ -318,21 +313,19 @@ def answer_creator_question(query: str, user_name: str = None) -> str:
     return CreatorInfo.get_response_for_creator_query(query, user_name)
 
 
-# TODO: WISDOM, FILL THIS IN!
-# After you answer the questions, update the CREATOR dict above with your real details.
-# Then the AI will have accurate information about you to share with users.
+                             
+                                                                                       
+                                                                           
 
-# Contact Information
+                     
 contact_info = {
     "email": "ZuntoProject@gmail.com",
     "github": "https://github.com/UprightCode-hub"
 }
 
-# ============================================================================
-# EXPORTS - Required by assistant/ai/__init__.py
-# ============================================================================
+                                                
 
-# Export CREATOR_INFO as a dictionary (backward compatibility)
+                                                              
 CREATOR_INFO = CreatorInfo.CREATOR
 
 
@@ -352,7 +345,7 @@ def get_creator_bio(detail_level: str = 'balanced', user_name: Optional[str] = N
         'Wisdom Ekwugha is the creator and lead developer of Gigi...'
         
         >>> get_creator_bio('detailed', 'John')
-        'John, Wisdom Ekwugha is a 2 years AI systems developer...'
+        'John, Wisdom Ekwugha is a 2 years systems developer...'
     """
     bio = CreatorInfo.get_creator_bio(detail_level)
     
@@ -369,7 +362,7 @@ def format_creator_card() -> str:
         Formatted string with creator attribution and quick facts
     
     Example Output:
-        "I'm Gigi, created by Wisdom Ekwugha. He's an AI systems developer
+        "I'm Gigi, created by Wisdom Ekwugha. He's a systems developer
         who built me specifically for Zunto Marketplace..."
     """
     attribution = CreatorInfo.get_attribution()
@@ -400,7 +393,7 @@ def get_detailed_creator_response(user_query: str, user_name: Optional[str] = No
         'Wisdom Ekwugha is the creator of Gigi...'
         
         >>> get_detailed_creator_response("tell me more about wisdom", "Sarah")
-        'Sarah, Wisdom Ekwugha is a 2 years AI systems developer...'
+        'Sarah, Wisdom Ekwugha is a 2 years systems developer...'
     """
     return CreatorInfo.get_response_for_creator_query(user_query, user_name)
 
@@ -424,9 +417,7 @@ def should_mention_creator(user_query: str) -> bool:
     return CreatorInfo.should_mention_creator(user_query)
 
 
-# ============================================================================
-# ADDITIONAL HELPER FUNCTIONS
-# ============================================================================
+                             
 
 def get_team_info() -> str:
     """Get information about the Zunto development team."""

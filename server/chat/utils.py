@@ -1,3 +1,4 @@
+#server/chat/utils.py
 import hmac
 import hashlib
 from django.conf import settings

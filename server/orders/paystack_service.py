@@ -1,4 +1,4 @@
-# orders/paystack_service.py
+#server/orders/paystack_service.py
 import requests
 import hmac
 import hashlib
@@ -34,7 +34,7 @@ class PaystackService:
         """
         url = f"{self.BASE_URL}/transaction/initialize"
         
-        # Convert amount to kobo (smallest currency unit)
+                                                         
         if isinstance(amount, (int, float, Decimal)):
             amount_in_kobo = int(float(amount) * 100)
         else:
@@ -58,13 +58,13 @@ class PaystackService:
                 url, 
                 json=payload, 
                 headers=self.headers,
-                timeout=30  # ADD TIMEOUT
+                timeout=30               
             )
             response.raise_for_status()
             
             data = response.json()
             
-            # Check if response has expected structure
+                                                      
             if not data.get('status'):
                 return {
                     'success': False,
@@ -190,7 +190,7 @@ class PaystackService:
         """
         url = f"{self.BASE_URL}/transaction/charge_authorization"
         
-        # Convert amount to kobo
+                                
         if isinstance(amount, (int, float, Decimal)):
             amount_in_kobo = int(float(amount) * 100)
         else:

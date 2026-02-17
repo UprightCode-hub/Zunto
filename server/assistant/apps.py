@@ -1,3 +1,4 @@
+#server/assistant/apps.py
 """
 Assistant App Configuration
 
@@ -18,7 +19,7 @@ class AssistantConfig(AppConfig):
         
         logger = logging.getLogger(__name__)
         
-        # Pre-load components for faster response times
+                                                       
         if getattr(settings, 'ASSISTANT_PRELOAD_DATA', True):
             try:
                 from assistant.processors.rag_retriever import RAGRetriever
@@ -27,11 +28,11 @@ class AssistantConfig(AppConfig):
                 
                 logger.info("Preloading assistant components...")
                 
-                # Initialize RuleEngine singleton
+                                                 
                 rule_engine = RuleEngine.get_instance()
                 logger.info(f"✓ RuleEngine loaded: {rule_engine.get_rule_count()} rules")
                 
-                # Initialize RAGRetriever singleton
+                                                   
                 rag = RAGRetriever.get_instance()
                 if rag.is_ready():
                     stats = rag.get_stats()
@@ -39,7 +40,7 @@ class AssistantConfig(AppConfig):
                 else:
                     logger.warning("⚠ RAGRetriever: Index not found. Run 'python scripts/build_rag_index.py'")
                 
-                # Initialize LocalModelAdapter (optional - graceful degradation)
+                                                                                
                 try:
                     llm = LocalModelAdapter.get_instance()
                     if llm.is_available():

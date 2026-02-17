@@ -1,3 +1,4 @@
+#server/assistant/utils/formatters.py
 """
 Formatters - Text and data formatting utilities for Zunto Assistant.
 
@@ -14,9 +15,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 
 
-# ============================================================================
-# MESSAGE FORMATTING
-# ============================================================================
+                    
 
 def format_greeting(name: str = "there") -> str:
     """
@@ -130,9 +129,7 @@ Type 1, 2, 3, or describe what you need!"""
     return base
 
 
-# ============================================================================
-# DATA FORMATTING
-# ============================================================================
+                 
 
 def format_confidence_display(confidence: float) -> str:
     """
@@ -242,9 +239,7 @@ def format_escalation_level(level: int) -> str:
     return levels.get(level, '⚪ Unknown')
 
 
-# ============================================================================
-# LIST FORMATTING
-# ============================================================================
+                 
 
 def format_numbered_list(items: List[str], start: int = 1) -> str:
     """
@@ -304,9 +299,7 @@ def format_faq_suggestions(faqs: List[Dict], max_items: int = 3) -> str:
     return result
 
 
-# ============================================================================
-# TIME/DATE FORMATTING
-# ============================================================================
+                      
 
 def format_datetime(dt: datetime, include_time: bool = True) -> str:
     """
@@ -380,9 +373,7 @@ def format_duration(minutes: int) -> str:
         return result
 
 
-# ============================================================================
-# DRAFT MESSAGE FORMATTING
-# ============================================================================
+                          
 
 def format_email_draft(subject: str, body: str, recipient: str = None) -> str:
     """
@@ -455,9 +446,7 @@ def format_whatsapp_draft(message: str, contact: str = '+234-XXX-XXX-XXXX') -> s
 Send this to: {contact}"""
 
 
-# ============================================================================
-# CONVERSATION SUMMARY FORMATTING
-# ============================================================================
+                                 
 
 def format_conversation_summary(summary: Dict) -> str:
     """
@@ -480,7 +469,7 @@ def format_conversation_summary(summary: Dict) -> str:
         f"🚨 Escalation: {format_escalation_level(summary.get('escalation_level', 0))}",
     ]
     
-    # Add topics if available
+                             
     topics = summary.get('topics_discussed', [])
     if topics:
         lines.append(f"📚 Topics: {', '.join(topics[:5])}")
@@ -488,9 +477,7 @@ def format_conversation_summary(summary: Dict) -> str:
     return "\n".join(lines)
 
 
-# ============================================================================
-# TEXT CLEANING & SANITIZATION
-# ============================================================================
+                              
 
 def clean_message(message: str) -> str:
     """
@@ -502,13 +489,13 @@ def clean_message(message: str) -> str:
     Returns:
         Cleaned message
     """
-    # Remove excessive whitespace
+                                 
     message = re.sub(r'\s+', ' ', message)
     
-    # Remove leading/trailing whitespace
+                                        
     message = message.strip()
     
-    # Remove excessive punctuation
+                                  
     message = re.sub(r'([!?.]){3,}', r'\1\1', message)
     
     return message
@@ -542,23 +529,21 @@ def capitalize_name(name: str) -> str:
     Returns:
         Properly capitalized name
     """
-    # Handle hyphenated names
+                             
     if '-' in name:
         parts = name.split('-')
         return '-'.join(part.capitalize() for part in parts)
     
-    # Handle apostrophes (O'Brien)
+                                  
     if "'" in name:
         parts = name.split("'")
         return "'".join(part.capitalize() for part in parts)
     
-    # Standard capitalization
+                             
     return name.capitalize()
 
 
-# ============================================================================
-# RESPONSE BUILDERS
-# ============================================================================
+                   
 
 def build_error_response(
     error_type: str,

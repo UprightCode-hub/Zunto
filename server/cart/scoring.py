@@ -1,5 +1,4 @@
-# cart/scoring.py - Core scoring calculation logic
-
+#server/cart/scoring.py
 from django.db.models import Count, Avg, Sum, Q, F
 from django.utils import timezone
 from datetime import timedelta
@@ -10,7 +9,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-# Score weights (must sum to 100)
+                                 
 WEIGHTS = {
     'abandonment': 30,
     'value': 25,
@@ -32,14 +31,14 @@ def calculate_abandonment_score(user):
     ).distinct().count()
     
     if total_carts == 0:
-        return Decimal('50.00')  # Neutral score for new users
+        return Decimal('50.00')                               
     
     abandoned_count = CartAbandonment.objects.filter(user=user).count()
     
     if abandoned_count == 0:
-        return Decimal('100.00')  # Perfect score
+        return Decimal('100.00')                 
     
-    # Lower abandonment rate = higher score
+                                           
     abandonment_rate = abandoned_count / total_carts
     score = _clamp_score(100 - (abandonment_rate * 100))
     
@@ -53,10 +52,10 @@ def calculate_value_score(user):
     ).aggregate(avg=Avg('total_value'))['avg']
     
     if not avg_value:
-        return Decimal('50.00')  # Neutral score for no data
+        return Decimal('50.00')                             
     
-    # Normalize against benchmarks (adjust based on your product prices)
-    # Example: ₦50,000 = 100 score, scales down from there
+                                                                        
+                                                          
     benchmark_high = 50000
     benchmark_low = 5000
     
@@ -65,7 +64,7 @@ def calculate_value_score(user):
     elif avg_value <= benchmark_low:
         score = 20.00
     else:
-        # Linear scale between low and high benchmarks
+                                                      
         score = 20 + ((avg_value - benchmark_low) / (benchmark_high - benchmark_low) * 80)
     
     return Decimal(str(round(score, 2)))
@@ -76,14 +75,14 @@ def calculate_conversion_score(user):
     total_abandoned = CartAbandonment.objects.filter(user=user).count()
     
     if total_abandoned == 0:
-        return Decimal('50.00')  # Neutral for no abandonment history
+        return Decimal('50.00')                                      
     
     recovered_count = CartAbandonment.objects.filter(
         user=user,
         recovered=True
     ).count()
     
-    # Higher recovery rate = higher score
+                                         
     recovery_rate = recovered_count / total_abandoned
     score = recovery_rate * 100
     
@@ -92,13 +91,13 @@ def calculate_conversion_score(user):
 
 def calculate_hesitation_score(user):
     """Calculate score based on time-to-abandon and save-for-later behavior (0-100)"""
-    # Component 1: Average time to abandon (70% of hesitation score)
+                                                                    
     time_score = _calculate_time_to_abandon_score(user)
     
-    # Component 2: Save-for-later ratio (30% of hesitation score)
+                                                                 
     save_ratio_score = _calculate_save_ratio_score(user)
     
-    # Weighted combination
+                          
     hesitation_score = (time_score * 0.7) + (save_ratio_score * 0.3)
     
     return Decimal(str(round(hesitation_score, 2)))
@@ -111,7 +110,7 @@ def _calculate_time_to_abandon_score(user):
     ).select_related('cart')
     
     if not abandonments.exists():
-        return 50.00  # Neutral
+        return 50.00           
     
     time_deltas = []
     for abandonment in abandonments:
@@ -123,8 +122,8 @@ def _calculate_time_to_abandon_score(user):
     
     avg_hours = sum(time_deltas) / len(time_deltas)
     
-    # Shorter time = less hesitation = higher score
-    # Example: <1 hour = 100, >48 hours = 20
+                                                   
+                                            
     if avg_hours <= 1:
         score = 100.00
     elif avg_hours >= 48:
@@ -143,14 +142,14 @@ def _calculate_save_ratio_score(user):
     ).count()
     
     if total_added == 0:
-        return 50.00  # Neutral for no activity
+        return 50.00                           
     
     total_saved = CartEvent.objects.filter(
         user=user,
         event_type='cart_item_saved'
     ).count()
     
-    # Lower save ratio = less hesitation = higher score
+                                                       
     save_ratio = total_saved / total_added
     score = _clamp_score(100 - (save_ratio * 100))
     
@@ -159,10 +158,10 @@ def _calculate_save_ratio_score(user):
 
 def calculate_price_sensitivity_score(user):
     """Calculate score based on price sensitivity indicators (0-100)"""
-    # For now, use a placeholder that can be enhanced later
-    # Future: track if user waits for price drops, uses discount codes, etc.
+                                                           
+                                                                            
     
-    # Simple heuristic: users with higher value carts are less price sensitive
+                                                                              
     avg_value = CartAbandonment.objects.filter(
         user=user
     ).aggregate(avg=Avg('total_value'))['avg']
@@ -170,7 +169,7 @@ def calculate_price_sensitivity_score(user):
     if not avg_value:
         return Decimal('50.00')
     
-    # Higher cart value suggests lower price sensitivity
+                                                        
     benchmark = 30000
     if avg_value >= benchmark:
         score = 80.00

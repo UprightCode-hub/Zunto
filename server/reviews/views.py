@@ -1,4 +1,4 @@
-# reviews/views.py
+#server/reviews/views.py
 from rest_framework import generics, status, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
@@ -45,7 +45,7 @@ class ProductReviewListCreateView(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         review = serializer.save()
         
-        # Send email to seller
+                              
         EmailService.send_seller_review_email(review)
 
 class ProductReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -93,7 +93,7 @@ class SellerReviewListCreateView(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         review = serializer.save()
         
-        # Send email to seller
+                              
         EmailService.send_seller_review_email(review)
 
 class SellerReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -140,24 +140,24 @@ class ReviewResponseCreateView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def post(self, request, review_type, review_id):
-        # Get the review
+                        
         if review_type == 'product':
             review = get_object_or_404(ProductReview, id=review_id)
-            # Only product seller can respond
+                                             
             if review.product.seller != request.user:
                 return Response({
                     'error': 'Only the product seller can respond to this review.'
                 }, status=status.HTTP_403_FORBIDDEN)
             
-            # Check if response already exists
+                                              
             if hasattr(review, 'response'):
-                # Update existing response
+                                          
                 review.response.response = request.data.get('response')
                 review.response.save()
                 serializer = ReviewResponseSerializer(review.response)
                 return Response(serializer.data, status=status.HTTP_200_OK)
             
-            # Create new response
+                                 
             response_obj = ReviewResponse.objects.create(
                 product_review=review,
                 responder=request.user,
@@ -166,21 +166,21 @@ class ReviewResponseCreateView(APIView):
         
         elif review_type == 'seller':
             review = get_object_or_404(SellerReview, id=review_id)
-            # Only the seller being reviewed can respond
+                                                        
             if review.seller != request.user:
                 return Response({
                     'error': 'Only the seller can respond to this review.'
                 }, status=status.HTTP_403_FORBIDDEN)
             
-            # Check if response already exists
+                                              
             if hasattr(review, 'response'):
-                # Update existing response
+                                          
                 review.response.response = request.data.get('response')
                 review.response.save()
                 serializer = ReviewResponseSerializer(review.response)
                 return Response(serializer.data, status=status.HTTP_200_OK)
             
-            # Create new response
+                                 
             response_obj = ReviewResponse.objects.create(
                 seller_review=review,
                 responder=request.user,
@@ -201,7 +201,7 @@ class ReviewHelpfulToggleView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     
     def post(self, request, review_type, review_id):
-        vote_type = request.data.get('vote')  # 'helpful' or 'not_helpful'
+        vote_type = request.data.get('vote')                              
         
         if vote_type not in ['helpful', 'not_helpful']:
             return Response({
@@ -216,14 +216,14 @@ class ReviewHelpfulToggleView(APIView):
             ).first()
             
             if existing_vote:
-                # Update vote
+                             
                 old_vote = existing_vote.vote
                 existing_vote.vote
                 old_vote = existing_vote.vote
                 existing_vote.vote = vote_type
                 existing_vote.save()
                 
-                # Update counts
+                               
                 if old_vote == 'helpful':
                     review.helpful_count -= 1
                 else:
@@ -241,14 +241,14 @@ class ReviewHelpfulToggleView(APIView):
                     'vote': vote_type
                 }, status=status.HTTP_200_OK)
             else:
-                # Create new vote
+                                 
                 ReviewHelpful.objects.create(
                     product_review=review,
                     user=request.user,
                     vote=vote_type
                 )
                 
-                # Update counts
+                               
                 if vote_type == 'helpful':
                     review.helpful_count += 1
                 else:
@@ -269,12 +269,12 @@ class ReviewHelpfulToggleView(APIView):
             ).first()
             
             if existing_vote:
-                # Update vote
+                             
                 old_vote = existing_vote.vote
                 existing_vote.vote = vote_type
                 existing_vote.save()
                 
-                # Update counts
+                               
                 if old_vote == 'helpful':
                     review.helpful_count -= 1
                 else:
@@ -292,14 +292,14 @@ class ReviewHelpfulToggleView(APIView):
                     'vote': vote_type
                 }, status=status.HTTP_200_OK)
             else:
-                # Create new vote
+                                 
                 ReviewHelpful.objects.create(
                     seller_review=review,
                     user=request.user,
                     vote=vote_type
                 )
                 
-                # Update counts
+                               
                 if vote_type == 'helpful':
                     review.helpful_count += 1
                 else:
@@ -327,7 +327,7 @@ class ReviewImageUploadView(APIView):
         if review_type == 'product':
             review = get_object_or_404(ProductReview, id=review_id, reviewer=request.user)
             
-            # Check max images (e.g., 5 images per review)
+                                                          
             if review.images.count() >= 5:
                 return Response({
                     'error': 'Maximum 5 images allowed per review.'
@@ -343,7 +343,7 @@ class ReviewImageUploadView(APIView):
         elif review_type == 'seller':
             review = get_object_or_404(SellerReview, id=review_id, reviewer=request.user)
             
-            # Check max images
+                              
             if review.images.count() >= 5:
                 return Response({
                     'error': 'Maximum 5 images allowed per review.'
@@ -382,7 +382,7 @@ class ProductReviewStatsView(APIView):
             is_approved=True
         )
         
-        # Calculate statistics
+                              
         total_reviews = reviews.count()
         
         if total_reviews == 0:
@@ -397,7 +397,7 @@ class ProductReviewStatsView(APIView):
         
         average_rating = reviews.aggregate(avg=Avg('rating'))['avg']
         
-        # Rating distribution
+                             
         rating_distribution = {
             '5': reviews.filter(rating=5).count(),
             '4': reviews.filter(rating=4).count(),
@@ -432,7 +432,7 @@ class SellerReviewStatsView(APIView):
             is_approved=True
         )
         
-        # Calculate statistics
+                              
         total_reviews = reviews.count()
         
         if total_reviews == 0:
@@ -450,7 +450,7 @@ class SellerReviewStatsView(APIView):
         
         average_rating = reviews.aggregate(avg=Avg('rating'))['avg']
         
-        # Rating distribution
+                             
         rating_distribution = {
             '5': reviews.filter(rating=5).count(),
             '4': reviews.filter(rating=4).count(),
@@ -459,7 +459,7 @@ class SellerReviewStatsView(APIView):
             '1': reviews.filter(rating=1).count(),
         }
         
-        # Detailed ratings averages
+                                   
         avg_communication = reviews.aggregate(
             avg=Avg('communication_rating')
         )['avg'] or 0
@@ -496,7 +496,7 @@ def top_rated_products(request):
     from market.models import Product
     from market.serializers import ProductListSerializer
     
-    # Get products with reviews and high ratings
+                                                
     products = Product.objects.filter(
         status='active',
         reviews__is_approved=True
@@ -504,8 +504,8 @@ def top_rated_products(request):
         avg_rating=Avg('reviews__rating'),
         review_count=Count('reviews')
     ).filter(
-        review_count__gte=5,  # At least 5 reviews
-        avg_rating__gte=4.0   # Rating >= 4.0
+        review_count__gte=5,                      
+        avg_rating__gte=4.0                  
     ).order_by('-avg_rating', '-review_count')[:20]
     
     serializer = ProductListSerializer(products, many=True, context={'request': request})
@@ -519,7 +519,7 @@ def top_rated_sellers(request):
     
     from accounts.serializers import SellerInfoSerializer
     
-    # Get sellers with reviews and high ratings
+                                               
     sellers = User.objects.filter(
         role__in=['seller', 'service_provider'],
         seller_reviews_received__is_approved=True
@@ -527,8 +527,8 @@ def top_rated_sellers(request):
         avg_rating=Avg('seller_reviews_received__rating'),
         review_count=Count('seller_reviews_received')
     ).filter(
-        review_count__gte=5,  # At least 5 reviews
-        avg_rating__gte=4.0   # Rating >= 4.0
+        review_count__gte=5,                      
+        avg_rating__gte=4.0                  
     ).order_by('-avg_rating', '-review_count')[:20]
     
     serializer = SellerInfoSerializer(sellers, many=True)

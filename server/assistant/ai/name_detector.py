@@ -1,3 +1,4 @@
+#server/assistant/ai/name_detector.py
 """
 Name detection with validation, correction handling, and avoidance detection.
 """

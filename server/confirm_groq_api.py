@@ -1,3 +1,4 @@
+#server/confirm_groq_api.py
 """
 Improved GROQ API Diagnostic Test
 Properly loads Django settings before testing
@@ -7,16 +8,16 @@ import os
 import sys
 from pathlib import Path
 
-# Add project to path
+                     
 project_root = Path(__file__).resolve().parent
 sys.path.insert(0, str(project_root))
 
-# Setup Django environment
+                          
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ZuntoProject.settings')
 import django
 django.setup()
 
-# Now import Django settings and other dependencies
+                                                   
 from django.conf import settings
 from groq import Groq
 
@@ -32,7 +33,7 @@ def test_groq_api():
     print("🔍 IMPROVED GROQ API DIAGNOSTIC TEST")
     print("=" * 60)
     
-    # Step 1: Check Django Settings
+                                   
     print("\n1️⃣ Checking Django Settings...")
     groq_key = getattr(settings, 'GROQ_API_KEY', '')
     
@@ -50,20 +51,20 @@ def test_groq_api():
         print(f"   💡 Check your .env file and python-decouple configuration")
         return False
     
-    # Step 2: Check .env file
+                             
     print("\n2️⃣ Checking .env file...")
     env_path = project_root / '.env'
     
     if env_path.exists():
         print(f"   ✅ .env file exists at: {env_path}")
         
-        # Read .env to verify
+                             
         with open(env_path, 'r') as f:
             env_contents = f.read()
             if 'GROQ_API_KEY' in env_contents:
                 print(f"   ✅ GROQ_API_KEY found in .env")
                 
-                # Extract the key from .env
+                                           
                 for line in env_contents.split('\n'):
                     if line.startswith('GROQ_API_KEY='):
                         env_key = line.split('=', 1)[1].strip()
@@ -78,7 +79,7 @@ def test_groq_api():
     else:
         print(f"   ❌ .env file not found at: {env_path}")
     
-    # Step 3: Test API Connection
+                                 
     print("\n3️⃣ Testing Groq API Connection...")
     
     try:
@@ -129,7 +130,7 @@ def test_groq_api():
         return False
     
     finally:
-        # Step 4: Environment Variables Check
+                                             
         print("\n4️⃣ Checking Environment Variables...")
         env_groq_key = os.environ.get('GROQ_API_KEY', '')
         

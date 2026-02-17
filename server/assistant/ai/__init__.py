@@ -1,57 +1,45 @@
-"""
-AI Module - Premium conversational AI components.
-
-This module contains intelligent processing components:
-- name_detector: Multi-language name detection with typo correction
-- intent_classifier: 10-intent classification with emotion detection
-- context_manager: Conversation context tracking and learning
-- response_personalizer: Dynamic response personalization
-- creator_info: Project and creator information
-
-All components are production-ready and optimized for performance.
-"""
-
-# Version info
+#server/assistant/ai/__init__.py
+              
 __version__ = '2.0.0'
 __author__ = 'Wisdom Ekwugha'
 __email__ = 'ZuntoProject@gmail.com'
 
-# Import core AI components
+                           
 from .name_detector import detect_name, NameDetector
 from .intent_classifier import classify_intent, Intent, IntentClassifier
 from .context_manager import ContextManager
 from .response_personalizer import ResponsePersonalizer
 from .creator_info import CREATOR_INFO, get_creator_bio, format_creator_card
 
-# Public API
+            
 __all__ = [
-    # Name detection
+                    
     'detect_name',
     'NameDetector',
     
-    # Intent classification
+                           
     'classify_intent',
     'Intent',
     'IntentClassifier',
     
-    # Context management
+                        
     'ContextManager',
     
-    # Response personalization
+                              
     'ResponsePersonalizer',
     
-    # Creator info
+                  
     'CREATOR_INFO',
     'get_creator_bio',
     'format_creator_card',
 ]
 
 
-# Quick start examples
+                      
 USAGE_EXAMPLES = {
     'name_detection': """
-# Detect user's name from input
-from assistant.ai import detect_name
+Detect user's name from input
+from assistant import detect_name
 
 is_name, name, metadata = detect_name("Hi, I'm John Smith")
 if is_name:
@@ -60,8 +48,8 @@ if is_name:
 """,
     
     'intent_classification': """
-# Classify user intent with emotion
-from assistant.ai import classify_intent
+Classify user intent with emotion
+from assistant import classify_intent
 
 intent, confidence, metadata = classify_intent(
     "I want to report a scam seller!",
@@ -71,8 +59,7 @@ print(f"Intent: {intent.value}, Emotion: {metadata['emotion']}")
 """,
     
     'context_tracking': """
-# Track conversation context
-from assistant.ai import ContextManager
+from assistant import ContextManager
 
 context_mgr = ContextManager(session)
 context_mgr.add_message(
@@ -82,15 +69,13 @@ context_mgr.add_message(
     emotion='frustrated'
 )
 
-# Get personalization hints
 hints = context_mgr.get_personalization_hints()
 if context_mgr.is_escalated():
     print("User needs escalation!")
 """,
     
     'response_personalization': """
-# Personalize responses
-from assistant.ai import ResponsePersonalizer
+from assistant import ResponsePersonalizer
 
 personalizer = ResponsePersonalizer(session)
 final_response = personalizer.personalize(
@@ -102,32 +87,26 @@ final_response = personalizer.personalize(
 """,
     
     'complete_pipeline': """
-# Complete AI pipeline integration
-from assistant.ai import (
+from assistant import (
     detect_name,
     classify_intent,
     ContextManager,
     ResponsePersonalizer
 )
 
-# 1. Detect name (if greeting)
 if state == 'awaiting_name':
     is_name, name, _ = detect_name(user_input)
     if is_name:
         session.user_name = name
 
-# 2. Classify intent
 intent, conf, metadata = classify_intent(user_input, session.context)
 emotion = metadata['emotion']
 
-# 3. Track in context
 context_mgr = ContextManager(session)
 context_mgr.add_message('user', user_input, intent.value, emotion)
 
-# 4. Process query (your existing pipeline)
 result = query_processor.process(user_input)
 
-# 5. Personalize response
 personalizer = ResponsePersonalizer(session)
 hints = context_mgr.get_personalization_hints()
 
@@ -138,7 +117,6 @@ final_response = personalizer.personalize(
     formality=hints['formality']
 )
 
-# 6. Add assistant message to context
 context_mgr.add_message('assistant', final_response, confidence=result['confidence'])
 
 return final_response
@@ -173,11 +151,11 @@ def get_module_info() -> dict:
         'components': len(__all__),
         'component_list': __all__,
         'examples_available': list(USAGE_EXAMPLES.keys()),
-        'description': 'Premium AI components for Zunto conversational assistant'
+        'description': 'Conversational assistant components'
     }
 
 
-# Validate imports on module load
+                                 
 def _validate_imports():
     """Validate that all components imported successfully."""
     import logging
@@ -195,7 +173,7 @@ def _validate_imports():
         logger.info(f"✅ AI module v{__version__} loaded successfully - {len(__all__)} components ready")
 
 
-# Run validation
+                
 try:
     _validate_imports()
 except Exception as e:

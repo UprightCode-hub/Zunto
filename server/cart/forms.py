@@ -1,9 +1,10 @@
+#server/cart/forms.py
 from django import forms
 from .models import CartItem, SavedForLater, Cart
 from market.models import Product
 
 
-# ---------- Add to Cart ----------
+                                   
 class AddToCartForm(forms.Form):
     product_id = forms.UUIDField()
     quantity = forms.IntegerField(min_value=1, max_value=100, initial=1)
@@ -26,7 +27,7 @@ class AddToCartForm(forms.Form):
         return qty
 
 
-# ---------- Update Cart Item ----------
+                                        
 class UpdateCartItemForm(forms.ModelForm):
     class Meta:
         model = CartItem
@@ -41,14 +42,14 @@ class UpdateCartItemForm(forms.ModelForm):
         return qty
 
 
-# ---------- Saved for Later ----------
+                                       
 class SavedForLaterForm(forms.ModelForm):
     class Meta:
         model = SavedForLater
-        fields = []  # automatically handled
+        fields = []                         
 
 
-# ---------- Cart Summary Helper ----------
+                                           
 def cart_summary(cart):
     """
     Returns a dictionary with cart totals and stock info,
@@ -57,9 +58,9 @@ def cart_summary(cart):
     total_items = sum(item.quantity for item in cart.items.all())
     subtotal = sum(item.quantity * item.product.price for item in cart.items.all())
     
-    # Example tax/shipping calculations
-    estimated_tax = subtotal * 0.075  # 7.5%
-    estimated_shipping = 500  # flat shipping fee
+                                       
+    estimated_tax = subtotal * 0.075        
+    estimated_shipping = 500                     
     
     total = subtotal + estimated_tax + estimated_shipping
 
@@ -78,7 +79,7 @@ def cart_summary(cart):
     }
 
 
-# ---------- Cart Item Product Helper ----------
+                                                
 def cart_item_product_data(cart_item, request=None):
     """
     Returns a dictionary with product info for template rendering,

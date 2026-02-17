@@ -21,8 +21,6 @@ export default function Signup() {
     phone: '',
     password: '',
     passwordConfirm: '',
-    role: 'buyer',
-    sellerCommerceMode: 'direct',
   });
 
   const handleChange = (e) => {
@@ -62,8 +60,6 @@ export default function Signup() {
         phone: formData.phone || '',
         password: formData.password,
         password_confirm: formData.passwordConfirm,
-        role: formData.role,
-        seller_commerce_mode: formData.role === 'seller' ? formData.sellerCommerceMode : 'direct',
       });
       
       if (result.success) {
@@ -160,12 +156,13 @@ export default function Signup() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-300 ml-1">Phone Number (Optional)</label>
+              <label className="text-sm font-medium text-gray-300 ml-1">Phone Number</label>
               <div className="relative group">
                 <input
                   type="tel"
                   name="phone"
                   value={formData.phone}
+                  required
                   onChange={handleChange}
                   placeholder="+1 (555) 000-0000"
                   className="w-full bg-[#0f172a] border border-gray-800 rounded-xl pl-12 pr-4 py-3.5 text-white placeholder-gray-500 focus:outline-none focus:border-[#2c77d1] focus:ring-1 focus:ring-[#2c77d1] transition-all duration-200"
@@ -173,39 +170,6 @@ export default function Signup() {
                 <Phone className="absolute left-4 top-3.5 w-5 h-5 text-gray-500 group-focus-within:text-[#2c77d1] transition-colors" />
               </div>
             </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-300 ml-1">Account Type</label>
-              <select
-                name="role"
-                value={formData.role}
-                onChange={handleChange}
-                className="w-full bg-[#0f172a] border border-gray-800 rounded-xl px-4 py-3.5 text-white placeholder-gray-500 focus:outline-none focus:border-[#2c77d1] focus:ring-1 focus:ring-[#2c77d1] transition-all duration-200"
-              >
-                <option value="buyer">Buyer</option>
-                <option value="seller">Seller</option>
-              </select>
-            </div>
-
-            {formData.role === 'seller' && (
-              <div className="space-y-3 rounded-xl border border-[#2c77d1]/20 bg-[#0f172a] p-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-300">Seller Commerce Option</label>
-                  <select
-                    name="sellerCommerceMode"
-                    value={formData.sellerCommerceMode}
-                    onChange={handleChange}
-                    className="mt-2 w-full bg-[#020617] border border-gray-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#2c77d1]"
-                  >
-                    <option value="direct">Direct selling (buyer pays me directly)</option>
-                    <option value="managed">Managed by Zunto (buyer pays Zunto first)</option>
-                  </select>
-                </div>
-                <p className="text-xs text-gray-400 leading-relaxed">
-                  Managed sellers use Zunto checkout, delivery support, and refunds. Direct sellers handle payment and delivery directly with buyers.
-                </p>
-              </div>
-            )}
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-300 ml-1">Password</label>

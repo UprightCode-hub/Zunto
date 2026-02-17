@@ -1,4 +1,4 @@
-# accounts/views.py
+#server/accounts/views.py
 from datetime import timedelta
 import random
 
@@ -6,6 +6,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password
 from django.db import IntegrityError, transaction
+from django.core.cache import cache
 from django.shortcuts import render
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -19,7 +20,11 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from notifications.email_service import EmailService
-from notifications.tasks import send_verification_email_task, send_welcome_email_task
+from notifications.tasks import (
+    send_verification_email_task,
+    send_verification_email_to_recipient_task,
+    send_welcome_email_task,
+)
 from .models import PendingRegistration, VerificationCode
 from .serializers import (
     ChangePasswordSerializer,
@@ -37,12 +42,40 @@ from .serializers import (
 try:
     from google.oauth2 import id_token
     from google.auth.transport import requests as google_requests
-except Exception:  # pragma: no cover
+except Exception:                    
     id_token = None
     google_requests = None
 
 
 User = get_user_model()
+
+
+RESEND_COOLDOWN_SECONDS = getattr(settings, 'REGISTRATION_RESEND_COOLDOWN_SECONDS', 60)
+
+
+def _queue_verification_email(recipient_email, recipient_name, code):
+    """Queue verification email job, fallback to sync send if broker unavailable."""
+    try:
+        send_verification_email_to_recipient_task.delay(recipient_email, recipient_name, code)
+        return True
+    except Exception:
+        return EmailService.send_verification_email_to_recipient(
+            recipient_email=recipient_email,
+            recipient_name=recipient_name,
+            code=code,
+        )
+
+
+def _resend_cooldown_key(email):
+    return f"registration_resend_cooldown:{email}"
+
+
+def _resend_available(email):
+    return cache.get(_resend_cooldown_key(email)) is None
+
+
+def _set_resend_cooldown(email):
+    cache.set(_resend_cooldown_key(email), True, timeout=RESEND_COOLDOWN_SECONDS)
 
 
 @method_decorator(ratelimit(key='ip', rate='50/h', method='POST'), name='post')
@@ -78,9 +111,10 @@ class UserRegistrationView(generics.CreateAPIView):
             },
         )
 
-        email_sent = EmailService.send_verification_email_to_recipient(
+        recipient_name = f"{data['first_name']} {data['last_name']}".strip()
+        email_sent = _queue_verification_email(
             recipient_email=data['email'],
-            recipient_name=f"{data['first_name']} {data['last_name']}".strip(),
+            recipient_name=recipient_name,
             code=code,
         )
 
@@ -234,13 +268,24 @@ class ResendRegistrationCodeView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        if not _resend_available(email):
+            return Response(
+                {
+                    'error': (
+                        f'Resend cooldown active. Please wait {RESEND_COOLDOWN_SECONDS} seconds before trying again.'
+                    )
+                },
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
         pending.verification_code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
         pending.code_expires_at = timezone.now() + timedelta(minutes=15)
         pending.save()
 
-        email_sent = EmailService.send_verification_email_to_recipient(
+        recipient_name = f"{pending.first_name} {pending.last_name}".strip()
+        email_sent = _queue_verification_email(
             recipient_email=pending.email,
-            recipient_name=f"{pending.first_name} {pending.last_name}".strip(),
+            recipient_name=recipient_name,
             code=pending.verification_code,
         )
 
@@ -255,6 +300,7 @@ class ResendRegistrationCodeView(APIView):
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
+        _set_resend_cooldown(email)
         return Response(
             {'message': 'Verification code resent successfully.'},
             status=status.HTTP_200_OK,
