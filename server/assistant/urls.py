@@ -42,4 +42,5 @@ urlpatterns = [
                           
     path('api/docs/', views.api_documentation, name='api_docs'),
     path('api/about/', views.about_page, name='about'),
+    path('api/faqs/sections/', views.faq_sections, name='faq_sections'),
 ]

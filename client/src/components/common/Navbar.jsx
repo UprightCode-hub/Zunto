@@ -27,12 +27,17 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link 
-            to="/" 
-            className="text-2xl font-bold bg-gradient-to-r from-blue-600 dark:from-[#2c77d1] to-purple-600 dark:to-[#9426f4] bg-clip-text text-transparent hover:opacity-80 transition"
-          >
-            ZUNTO
-          </Link>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Link 
+              to="/" 
+              className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-600 dark:from-[#2c77d1] to-purple-600 dark:to-[#9426f4] bg-clip-text text-transparent hover:opacity-80 transition"
+            >
+              ZUNTO
+            </Link>
+            <span className="hidden sm:inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+              GIGI AI
+            </span>
+          </div>
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-8">
@@ -41,6 +46,9 @@ export default function Navbar() {
             </Link>
             <Link to="/shop" className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition">
               Shop
+            </Link>
+            <Link to="/faqs" className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition">
+              FAQs
             </Link>
             {user && user.role === 'admin' && (
               <Link to="/admin" className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition">
@@ -155,6 +163,13 @@ export default function Navbar() {
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Shop
+              </Link>
+              <Link 
+                to="/faqs" 
+                className="py-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                FAQs
               </Link>
               {user && user.role === 'admin' && (
                 <Link 
