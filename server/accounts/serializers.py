@@ -34,7 +34,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     
     def validate_phone(self, value):
         if not value:
-            return None
+            raise serializers.ValidationError("Phone number is required.")
         if User.objects.filter(phone=value).exists():
             raise serializers.ValidationError("A user with this phone number already exists.")
         return value
@@ -145,7 +145,7 @@ class RegistrationInitiateSerializer(serializers.Serializer):
     password_confirm = serializers.CharField(write_only=True, required=True)
     first_name = serializers.CharField(required=True, max_length=150)
     last_name = serializers.CharField(required=True, max_length=150)
-    phone = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=17)
+    phone = serializers.CharField(required=True, allow_blank=False, max_length=17)
     role = serializers.ChoiceField(required=False, choices=User.ROLE_CHOICES, default='buyer')
     seller_commerce_mode = serializers.ChoiceField(
         required=False,
@@ -173,7 +173,7 @@ class RegistrationInitiateSerializer(serializers.Serializer):
 
     def validate_phone(self, value):
         if not value:
-            return None
+            raise serializers.ValidationError("Phone number is required.")
         if User.objects.filter(phone=value).exists():
             raise serializers.ValidationError("A user with this phone number already exists.")
         return value

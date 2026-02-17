@@ -2,46 +2,97 @@
 from celery import shared_task
 from .email_service import EmailService
 import logging
+import time
+import json
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
 
-@shared_task
-def send_welcome_email_task(user_id):
+
+def _log_task_metric(task_name, started_at, success, extra=None):
+    duration_ms = int((time.monotonic() - started_at) * 1000)
+    payload = {
+        'event': 'email_task_metric',
+        'task': task_name,
+        'duration_ms': duration_ms,
+        'success': success,
+    }
+    if extra:
+        payload.update(extra)
+
+    warn_ms = getattr(settings, 'EMAIL_TASK_WARN_DURATION_MS', 2000)
+    if not success:
+        logger.error(json.dumps(payload, default=str))
+    elif duration_ms >= warn_ms:
+        logger.warning(json.dumps(payload, default=str))
+    else:
+        logger.info(json.dumps(payload, default=str))
+
+
+
+@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_jitter=True, retry_kwargs={'max_retries': 5})
+def send_welcome_email_task(self, user_id):
     """Send welcome email asynchronously"""
     from django.contrib.auth import get_user_model
     User = get_user_model()
-    
+    started_at = time.monotonic()
+
     try:
         user = User.objects.get(id=user_id)
         sent = EmailService.send_welcome_email(user)
+        _log_task_metric('send_welcome_email_task', started_at, bool(sent), {'user_id': str(user_id)})
         if sent:
             logger.info(f"Welcome email sent to {user.email}")
         else:
             logger.error(f"Welcome email failed for {user.email}")
     except User.DoesNotExist:
+        _log_task_metric('send_welcome_email_task', started_at, False, {'user_id': str(user_id), 'error': 'user_not_found'})
         logger.error(f"User with id {user_id} not found")
     except Exception as e:
+        _log_task_metric('send_welcome_email_task', started_at, False, {'user_id': str(user_id), 'error': str(e)})
         logger.error(f"Failed to send welcome email: {str(e)}")
 
 
-@shared_task
-def send_verification_email_task(user_id, code):
+@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_jitter=True, retry_kwargs={'max_retries': 5})
+def send_verification_email_task(self, user_id, code):
     """Send verification email asynchronously"""
     from django.contrib.auth import get_user_model
     User = get_user_model()
-    
+    started_at = time.monotonic()
+
     try:
         user = User.objects.get(id=user_id)
         sent = EmailService.send_verification_email(user, code)
+        _log_task_metric('send_verification_email_task', started_at, bool(sent), {'user_id': str(user_id)})
         if sent:
             logger.info(f"Verification email sent to {user.email}")
         else:
             logger.error(f"Verification email failed for {user.email}")
     except User.DoesNotExist:
+        _log_task_metric('send_verification_email_task', started_at, False, {'user_id': str(user_id), 'error': 'user_not_found'})
         logger.error(f"User with id {user_id} not found")
     except Exception as e:
+        _log_task_metric('send_verification_email_task', started_at, False, {'user_id': str(user_id), 'error': str(e)})
         logger.error(f"Failed to send verification email: {str(e)}")
+
+
+
+
+@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_jitter=True, retry_kwargs={'max_retries': 5})
+def send_verification_email_to_recipient_task(self, recipient_email, recipient_name, code):
+    """Send verification email to a pending-registration recipient asynchronously."""
+    started_at = time.monotonic()
+    sent = EmailService.send_verification_email_to_recipient(
+        recipient_email=recipient_email,
+        recipient_name=recipient_name,
+        code=code,
+    )
+    _log_task_metric('send_verification_email_to_recipient_task', started_at, bool(sent), {'recipient_email': recipient_email})
+    if not sent:
+        raise RuntimeError(f"Verification email failed for {recipient_email}")
+    logger.info(f"Verification email sent to {recipient_email}")
+    return True
 
 
 @shared_task

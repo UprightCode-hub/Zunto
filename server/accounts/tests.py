@@ -72,6 +72,61 @@ class AuthenticationFlowTestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('message', response.data)
 
+
+    def test_registration_requires_phone_number(self):
+        payload = self.user_data.copy()
+        payload.pop('phone')
+
+        response = self.client.post(self.register_url, payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('phone', response.data)
+
+    def test_registration_sends_verification_email(self):
+        from django.core import mail
+
+        response = self.client.post(self.register_url, self.user_data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertGreaterEqual(len(mail.outbox), 1)
+        self.assertIn(self.user_data['email'], mail.outbox[-1].to)
+
+    def test_resend_registration_sends_email(self):
+        from django.core import mail
+
+        initiate = self.client.post(self.register_url, self.user_data, format='json')
+        self.assertEqual(initiate.status_code, status.HTTP_200_OK)
+        initial_count = len(mail.outbox)
+
+        response = self.client.post(
+            self.resend_registration_url,
+            {'email': self.user_data['email']},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertGreater(len(mail.outbox), initial_count)
+        self.assertIn(self.user_data['email'], mail.outbox[-1].to)
+
+
+    def test_resend_registration_code_respects_cooldown(self):
+        initiate = self.client.post(self.register_url, self.user_data, format='json')
+        self.assertEqual(initiate.status_code, status.HTTP_200_OK)
+
+        first = self.client.post(
+            self.resend_registration_url,
+            {'email': self.user_data['email']},
+            format='json',
+        )
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+
+        second = self.client.post(
+            self.resend_registration_url,
+            {'email': self.user_data['email']},
+            format='json',
+        )
+        self.assertEqual(second.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
     def test_login_blocks_unverified_user(self):
         User.objects.create_user(
             email='unverified@example.com',
