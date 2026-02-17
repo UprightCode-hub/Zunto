@@ -1,4 +1,4 @@
-// client/src/pages/signup.jsx
+// client/src/pages/Signup.jsx
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, User, Eye, EyeOff, Phone, ArrowRight } from 'lucide-react';
@@ -232,9 +232,7 @@ export default function Signup() {
             </button>
           </form>
 
-          {/* ↓↓↓ GOOGLE AUTH SECTION ↓↓↓ */}
           <div className="mt-6">
-            {/* Divider */}
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-gray-800"></div>
@@ -244,7 +242,6 @@ export default function Signup() {
               </div>
             </div>
 
-            {/* Google Sign-Up Button */}
             <GoogleAuthButton 
               mode="signup"
               onSuccess={async (data) => {
@@ -260,7 +257,6 @@ export default function Signup() {
               }}
             />
           </div>
-          {/* ↑↑↑ END GOOGLE AUTH SECTION ↑↑↑ */}
 
           <div className="mt-8 pt-8 border-t border-gray-800 text-center">
             <p className="text-gray-500 text-sm">
