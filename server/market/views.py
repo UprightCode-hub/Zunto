@@ -22,6 +22,9 @@ from .serializers import (
 from .permissions import IsSellerOrReadOnly
 from .filters import ProductFilter
 
+MAX_PRODUCT_IMAGES = 5
+MAX_PRODUCT_VIDEOS = 2
+MAX_PRODUCT_VIDEO_SIZE_BYTES = 20 * 1024 * 1024
 
 class CategoryListView(generics.ListAPIView):
     """List all active categories"""
@@ -153,9 +156,9 @@ class ProductImageUploadView(APIView):
         product = get_object_or_404(Product, slug=product_slug, seller=request.user)
         
                                                            
-        if product.images.count() >= 10:
+        if product.images.count() >= MAX_PRODUCT_IMAGES:
             return Response({
-                'error': 'Maximum 10 images allowed per product.'
+                'error': f'Maximum {MAX_PRODUCT_IMAGES} images allowed per product.'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         serializer = ProductImageSerializer(data=request.data)
@@ -183,11 +186,17 @@ class ProductVideoUploadView(APIView):
         product = get_object_or_404(Product, slug=product_slug, seller=request.user)
         
                                                           
-        if product.videos.count() >= 3:
+        if product.videos.count() >= MAX_PRODUCT_VIDEOS:
             return Response({
-                'error': 'Maximum 3 videos allowed per product.'
+                'error': f'Maximum {MAX_PRODUCT_VIDEOS} videos allowed per product.'
             }, status=status.HTTP_400_BAD_REQUEST)
         
+        video_file = request.FILES.get('video')
+        if video_file and video_file.size > MAX_PRODUCT_VIDEO_SIZE_BYTES:
+            return Response({
+                'error': 'Video file must not exceed 20MB.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         serializer = ProductVideoSerializer(data=request.data)
         
         if serializer.is_valid():

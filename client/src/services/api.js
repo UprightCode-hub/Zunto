@@ -633,29 +633,16 @@ export const sendMarketplaceChatMessage = (conversationId, content, messageType 
   });
 };
 
-export const sendAssistantMessage = (
-  message,
-  sessionId = null,
-  userId = null,
-  assistantMode = 'inbox_general',
-) => {
-  const payload = {
-    message,
-    assistant_mode: assistantMode,
-  };
-
-  const legacyLaneByMode = {
-    homepage_reco: 'inbox',
-    inbox_general: 'inbox',
-    customer_service: 'customer_service',
-  };
-  payload.assistant_lane = legacyLaneByMode[assistantMode] || 'inbox';
-
+export const sendAssistantMessage = (message, sessionId = null, userId = null, assistantLane = 'inbox') => {
+  const payload = { message };
   if (sessionId) {
     payload.session_id = sessionId;
   }
   if (userId) {
     payload.user_id = userId;
+  }
+  if (assistantLane && assistantLane !== 'inbox') {
+    payload.assistant_lane = assistantLane;
   }
 
   return apiCall('/assistant/api/chat/', {

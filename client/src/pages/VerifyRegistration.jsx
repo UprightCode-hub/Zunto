@@ -36,7 +36,7 @@ export default function VerifyRegistration() {
     setLoading(false);
 
     if (result.success) {
-      navigate('/dashboard');
+      navigate('/', { replace: true });
       return;
     }
 

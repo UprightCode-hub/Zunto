@@ -31,6 +31,7 @@ const NotificationSettings = lazy(() => import("./pages/NotificationSettings"));
 const Terms = lazy(() => import("./pages/Terms"));
 const Privacy = lazy(() => import("./pages/Privacy"));
 const FAQs = lazy(() => import("./pages/FAQs"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 function AppLayout() {
   const location = useLocation();
@@ -98,6 +99,7 @@ function AppLayout() {
               </ProtectedRoute>
             }
           />
+          <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>
       </main>

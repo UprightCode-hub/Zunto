@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import axios from 'axios';
+import { normalizeApiBaseUrl } from '../../utils/network';
 
 const GoogleAuthButton = ({ onSuccess, onError, mode = 'signup' }) => {
   const [loading, setLoading] = useState(false);

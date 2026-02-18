@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
   Star,
@@ -13,6 +13,7 @@ import {
   Bot,
   Mail,
   WandSparkles,
+  ChevronRight,
 } from 'lucide-react';
 import { getFeaturedProducts, getAdProducts, getCategories } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -32,13 +33,58 @@ const placeholderProducts = [
   { id: 'placeholder-4', slug: 'shop', name: 'Electronics Deals', price: 'From $49' },
 ];
 
+
+const marketplaceCategories = [
+  'Apparel & Accessories',
+  'Consumer Electronics',
+  'Sports & Entertainment',
+  'Beauty',
+  'Jewelry, Eyewear & Watches',
+  'Home & Garden',
+  'Sportswear & Outdoor Apparel',
+  'Shoes & Accessories',
+  'Luggage, Bags & Cases',
+  'Packaging & Printing',
+  'Parents, Kids & Toys',
+  'Personal Care & Home Care',
+  'Health & Medical',
+  'Gifts & Crafts',
+  'Pet Supplies',
+  'School & Office Supplies',
+  'Industrial Machinery',
+  'Commercial Equipment & Machinery',
+  'Construction & Building Machinery',
+  'Construction & Real Estate',
+  'Furniture',
+  'Lights & Lighting',
+  'Home Appliances',
+  'Automotive Supplies & Tools',
+  'Vehicle Parts & Accessories',
+  'Tools & Hardware',
+  'Renewable Energy',
+  'Electrical Equipment & Supplies',
+  'Safety & Security',
+  'Material Handling',
+  'Testing Instrument & Equipment',
+  'Power Transmission',
+  'Electronic Components',
+  'Vehicles & Transportation',
+  'Agriculture, Food & Beverage',
+  'Raw Materials',
+  'Fabrication Services',
+  'Service',
+];
+
 export default function Home() {
+  const navigate = useNavigate();
   const [featuredProducts, setFeaturedProducts] = useState([]);
   const [adProducts, setAdProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [recentlyViewedProducts, setRecentlyViewedProducts] = useState([]);
+  const [heroSearchTerm, setHeroSearchTerm] = useState('');
+  const [aiSearchMode, setAiSearchMode] = useState('ai');
   const { user } = useAuth();
 
   useEffect(() => {
@@ -98,6 +144,12 @@ export default function Home() {
   const heroProduct = adProducts[0] || featuredProducts[0] || null;
   const hasHeroImage = Boolean(heroProduct && getProductImage(heroProduct));
 
+  useEffect(() => {
+    if (heroProduct) {
+      setHeroSearchTerm(getProductTitle(heroProduct));
+    }
+  }, [heroProduct]);
+
   const displayedCategories = (categories.length ? categories.slice(0, 4) : placeholderCategories);
   const hasLiveCategories = categories.length > 0;
 
@@ -137,6 +189,34 @@ export default function Home() {
       subtitle: 'The storefront stays polished while inventory is being staged.',
     };
   }, [user?.role, recentlyViewedProducts.length, hasLiveFeatured]);
+
+  const personalizedCategoryLinks = useMemo(() => {
+    const liveCategoryMap = new Map(
+      categories
+        .filter((category) => category?.name)
+        .map((category) => [category.name.toLowerCase(), category]),
+    );
+
+    const mergedNames = [...new Set([...categories.map((category) => category?.name).filter(Boolean), ...marketplaceCategories])];
+    const maxItems = isMobileViewport ? 10 : 22;
+
+    return mergedNames.slice(0, maxItems).map((name) => {
+      const matchedLiveCategory = liveCategoryMap.get(name.toLowerCase());
+      if (matchedLiveCategory?.id) {
+        return {
+          name,
+          href: `/shop?category=${encodeURIComponent(matchedLiveCategory.id)}`,
+          isLiveCategory: true,
+        };
+      }
+
+      return {
+        name,
+        href: `/shop?search=${encodeURIComponent(name)}`,
+        isLiveCategory: false,
+      };
+    });
+  }, [categories, isMobileViewport]);
 
   const personalizedProducts = useMemo(() => {
     if (hasLiveFeatured) {
@@ -298,6 +378,98 @@ export default function Home() {
         </div>
       </section>
 
+
+      <section className="px-4 pb-10 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <aside className="lg:col-span-4 xl:col-span-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#0b1222] p-4 shadow-sm">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">Categories for {user?.first_name || 'you'}</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Based on live marketplace inventory and discovery trends.</p>
+            <div className="max-h-[440px] overflow-y-auto pr-1 space-y-1">
+              {personalizedCategoryLinks.map((categoryItem) => (
+                <Link
+                  key={categoryItem.name}
+                  to={categoryItem.href}
+                  className="flex items-center justify-between rounded-lg px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#111b32] hover:text-blue-600 dark:hover:text-blue-300 transition"
+                >
+                  <span>{categoryItem.name}</span>
+                  <span className="flex items-center gap-2">
+                    {categoryItem.isLiveCategory && <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300">Live</span>}
+                    <ChevronRight className="w-4 h-4" />
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </aside>
+
+          <div className="lg:col-span-8 xl:col-span-9 space-y-6">
+            <div className="rounded-2xl border border-[#2c77d1]/25 dark:border-[#2c77d1]/40 bg-white dark:bg-[#0b1222] p-5 sm:p-6 shadow-sm">
+              <div className="flex flex-wrap items-center gap-2 mb-4">
+                <button
+                  type="button"
+                  onClick={() => setAiSearchMode('ai')}
+                  className={`px-4 py-2 rounded-full text-sm font-semibold transition ${
+                    aiSearchMode === 'ai'
+                      ? 'bg-gradient-to-r from-[#2c77d1] to-[#9426f4] text-white'
+                      : 'bg-gray-100 dark:bg-[#121c34] text-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  AI Mode
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAiSearchMode('products')}
+                  className={`px-4 py-2 rounded-full text-sm font-semibold transition ${
+                    aiSearchMode === 'products'
+                      ? 'bg-gradient-to-r from-[#2c77d1] to-[#9426f4] text-white'
+                      : 'bg-gray-100 dark:bg-[#121c34] text-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  Products
+                </button>
+                <span className="text-xs text-gray-500 dark:text-gray-400 sm:ml-2">
+                  {aiSearchMode === 'products' ? 'Search available listings instantly.' : 'Ask GIGI AI for recommendations from marketplace data.'}
+                </span>
+              </div>
+              <form onSubmit={(event) => {
+                event.preventDefault();
+                const value = heroSearchTerm.trim() || 'Popular products';
+                if (aiSearchMode === 'ai') {
+                  navigate(`/chat?mode=assistant&q=${encodeURIComponent(value)}`);
+                  return;
+                }
+                navigate(`/shop?search=${encodeURIComponent(value)}`);
+              }} className="rounded-2xl border border-[#2c77d1]/30 bg-gray-50 dark:bg-[#111827] p-4 flex flex-col sm:flex-row gap-3 sm:items-center">
+                <input
+                  type="text"
+                  value={heroSearchTerm}
+                  onChange={(event) => setHeroSearchTerm(event.target.value)}
+                  placeholder={aiSearchMode === 'products' ? 'Search products in marketplace' : 'Ask AI for product recommendations'}
+                  className="flex-1 bg-transparent text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none"
+                />
+                <button type="submit" className="inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-gradient-to-r from-[#2c77d1] to-[#9426f4] text-white font-semibold hover:opacity-90 transition">
+                  {aiSearchMode === 'products' ? 'Search' : 'Ask AI'}
+                </button>
+              </form>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Link to="/shop" className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#0f172a] p-4 hover:border-blue-400 transition">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Discover</p>
+                <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Featured selections</h4>
+              </Link>
+              <Link to="/checkout" className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#0f172a] p-4 hover:border-blue-400 transition">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Safety</p>
+                <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Order protections</h4>
+              </Link>
+              <Link to="/faqs" className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#0f172a] p-4 hover:border-blue-400 transition">
+                <p className="text-sm text-gray-500 dark:text-gray-400">Support</p>
+                <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Help Center</h4>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {adProducts.length > 0 && (
         <section className="px-4 pb-10 sm:px-6 lg:px-8">
           <div className="max-w-7xl mx-auto bg-gradient-to-r from-[#0f172a] via-[#1d4ed8] to-[#6d28d9] rounded-2xl p-6 md:p-8 shadow-xl">
@@ -322,24 +494,6 @@ export default function Home() {
           </div>
         </section>
       )}
-
-      <section className="bg-gray-50 dark:bg-gray-800 py-16 px-4 sm:px-6 lg:px-8 transition-colors">
-        <div className="max-w-7xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white text-center mb-10 sm:mb-12">Why Choose Zunto?</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {features.map((feature) => {
-              const Icon = feature.icon;
-              return (
-                <div key={feature.title} className="bg-white dark:bg-gray-700 p-6 sm:p-8 rounded-xl text-center shadow-md hover:shadow-lg transition-shadow">
-                  <Icon className="w-10 h-10 sm:w-12 sm:h-12 text-blue-600 dark:text-purple-400 mx-auto mb-3 sm:mb-4" />
-                  <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-2">{feature.title}</h3>
-                  <p className="text-gray-600 dark:text-gray-300">{feature.description}</p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
 
       {merchandisingSections.map((section) => (
         <section key={section.title} className="py-12 px-4 sm:px-6 lg:px-8">
@@ -374,6 +528,25 @@ export default function Home() {
           </div>
         </section>
       ))}
+
+      <section className="bg-gray-50 dark:bg-gray-800 py-16 px-4 sm:px-6 lg:px-8 transition-colors">
+        <div className="max-w-7xl mx-auto">
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white text-center mb-10 sm:mb-12">Why Choose Zunto?</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {features.map((feature) => {
+              const Icon = feature.icon;
+              return (
+                <div key={feature.title} className="bg-white dark:bg-gray-700 p-6 sm:p-8 rounded-xl text-center shadow-md hover:shadow-lg transition-shadow">
+                  <Icon className="w-10 h-10 sm:w-12 sm:h-12 text-blue-600 dark:text-purple-400 mx-auto mb-3 sm:mb-4" />
+                  <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-2">{feature.title}</h3>
+                  <p className="text-gray-600 dark:text-gray-300">{feature.description}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
 
       <section className="py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
@@ -532,7 +705,7 @@ export default function Home() {
           <div className="grid grid-cols-3 gap-2 text-center text-xs font-semibold">
             <Link to="/shop" className="py-2 rounded-lg bg-blue-50 dark:bg-gray-700 text-blue-700 dark:text-blue-300">Shop</Link>
             <Link to="/faqs" className="py-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200">FAQs</Link>
-            <button type="button" className="py-2 rounded-lg bg-purple-600 text-white">GIGI AI</button>
+            <Link to="/chat" className="py-2 rounded-lg bg-purple-600 text-white">Inbox</Link>
           </div>
         </div>
       </div>
