@@ -1,11 +1,9 @@
 #server/assistant/flows/greeting_flow.py
-"""Greeting flow handling name collection and menu presentation."""
-from typing import Tuple, Dict
+"""Greeting flow handling menu presentation for authenticated users."""
+from typing import Dict
 import logging
-from datetime import datetime
 
-from assistant.ai import detect_name
-from assistant.utils.constants import STATE_AWAITING_NAME, STATE_MENU
+from assistant.utils.constants import STATE_MENU
 
 logger = logging.getLogger(__name__)
 
@@ -19,16 +17,17 @@ class GreetingFlow:
         logger.debug(f"GreetingFlow initialized for session {session.session_id[:8]}")
 
     def start_conversation(self) -> str:
-        self.session.current_state = STATE_AWAITING_NAME
-        self.session.save()
+        self.session.current_state = STATE_MENU
+        self.session.save(update_fields=['current_state', 'updated_at'])
 
         is_returning = self._is_returning_user()
         time_greeting = self._get_time_based_greeting()
 
-        if is_returning:
-            greeting = self._get_returning_user_greeting(time_greeting)
-        else:
-            greeting = self._get_first_time_greeting(time_greeting)
+        greeting = (
+            self._get_returning_user_greeting(time_greeting)
+            if is_returning
+            else self._get_first_time_greeting(time_greeting)
+        )
 
         self.context_mgr.add_message(
             role='assistant',
@@ -73,83 +72,68 @@ class GreetingFlow:
             return "Hello"
 
     def _get_first_time_greeting(self, time_greeting: str) -> str:
+        user_name = self._resolve_user_name()
         return (
             f"👋 **{time_greeting}! Welcome to Zunto Marketplace!**\n\n"
-            f"I'm **Gigi**, your intelligent AI assistant powered by advanced natural language processing. "
-            f"I can help you with:\n\n"
-            f"✨ **Smart Answers** - Lightning-fast responses to your questions (0.03s!)\n"
-            f"🛡️ **Dispute Resolution** - Professional help with order issues\n"
-            f"💬 **Natural Conversation** - I understand context and remember our chat\n"
-            f"🎨 **Creator Insights** - Learn about the AI technology behind me\n\n"
-            f"I'm here to make your marketplace experience smooth and enjoyable.\n\n"
-            f"**Before we begin, may I know your name?**\n"
-            f"*(This helps me personalize our conversation - I support names in any language!)*"
+            "I'm your Zunto support assistant. I can help you with:\n\n"
+            "✨ **Smart Answers** - Lightning-fast responses to your questions (0.03s!)\n"
+            "🛡️ **Dispute Resolution** - Professional help with order issues\n"
+            "💬 **Natural Conversation** - I understand context and remember our chat\n"
+            "📦 **Marketplace Support** - Guidance on orders, shipping, and policies\n\n"
+            "I'm here to make your marketplace experience smooth and enjoyable.\n\n"
+            f"**How can I help you today, {user_name}?**"
         )
 
     def _get_returning_user_greeting(self, time_greeting: str) -> str:
+        user_name = self._resolve_user_name()
         return (
             f"👋 **{time_greeting}! Welcome back to Zunto!**\n\n"
-            f"Great to see you again! I'm **Gigi**, and I'm ready to help you today.\n\n"
-            f"I remember our previous conversations and can pick up right where we left off.\n\n"
-            f"**What's your name?** *(Or type 'same' if you've told me before!)*"
+            f"Great to see you again, **{user_name}**! I'm ready to help you today.\n\n"
+            "I remember our previous conversations and can pick up right where we left off.\n\n"
+            "**What would you like to do?**"
         )
-
-    def handle_name_input(self, message: str) -> Tuple[str, Dict]:
-        """Handle name collection and show unified menu."""
-        name, confidence = detect_name(message)
-
-        if name:
-            self.session.user_name = name
-            self.session.current_state = STATE_MENU
-            self.session.save()
-
-            response = self._build_unified_menu(name)
-
-            return response, {
-                'name_detected': True,
-                'name': name,
-                'confidence': confidence
-            }
-        else:
-            return (
-                "I didn't quite catch that. Could you please share your name? "
-                "(Just your first name is fine!)"
-            ), {'name_detected': False, 'confidence': 0.0}
 
     def _build_unified_menu(self, name: str) -> str:
         """Build personalized menu with dynamic formality."""
-        hints = self.context_mgr.get_personalization_hints()
+        hints: Dict = self.context_mgr.get_personalization_hints()
         formality = hints.get('formality', 'casual')
 
         if formality == 'formal':
-            greeting = f"Pleased to meet you, **{name}**."
+            greeting = f"Pleased to assist you, **{name}**."
         else:
-            greeting = f"Nice to meet you, **{name}**! 😊"
+            greeting = f"Great to assist you, **{name}**! 😊"
 
         menu = (
             f"{greeting}\n\n"
-            f"Here's how I can assist you today:\n\n"
-            f"**1️⃣ Ask Questions (FAQ)**\n"
-            f"   → Get instant answers about orders, payments, shipping, refunds\n"
-            f"   → Powered by AI semantic search (0.03s response time!)\n\n"
-            f"**2️⃣ Report a Dispute**\n"
-            f"   → Report issues with sellers, scams, or order problems\n"
-            f"   → I'll help you draft a professional message\n\n"
-            f"**3️⃣ Share Feedback**\n"
-            f"   → Tell us about your experience or suggest improvements\n"
-            f"   → Your input helps us improve!\n\n"
-            f"**4️⃣ About My Creator** 🎨\n"
-            f"   → Learn about Wisdom Ekwugha, the AI engineer who built me\n"
-            f"   → Discover the technology and innovation behind this assistant\n\n"
-            f"---\n\n"
-            f"💡 **Pro Tip:** You can type a number (1-4) OR just describe what you need!\n\n"
-            f"*Examples:*\n"
-            f"• \"How do I track my order?\" → I'll help immediately!\n"
-            f"• \"I have a problem with a seller\" → I'll start the dispute process\n"
-            f"• \"Who created you?\" → I'll tell you about Wisdom!\n\n"
-            f"**What would you like to do?**"
+            "Here's how I can assist you today:\n\n"
+            "**1️⃣ Ask Questions (FAQ)**\n"
+            "   → Get instant answers about orders, payments, shipping, refunds\n"
+            "   → Powered by AI semantic search (0.03s response time!)\n\n"
+            "**2️⃣ Report a Dispute**\n"
+            "   → Report issues with sellers, scams, or order problems\n"
+            "   → I'll help you draft a professional message\n\n"
+            "**3️⃣ Share Feedback**\n"
+            "   → Tell us about your experience or suggest improvements\n"
+            "   → Your input helps us improve!\n\n"
+            "---\n\n"
+            "💡 **Pro Tip:** You can type a number (1-3) OR just describe what you need!\n\n"
+            "*Examples:*\n"
+            "• \"How do I track my order?\" → I'll help immediately!\n"
+            "• \"I have a problem with a seller\" → I'll start the dispute process\n\n"
+            "**What would you like to do?**"
         )
 
         logger.info(f"Smart menu shown to {name} (formality={formality})")
 
         return menu
+
+    def _resolve_user_name(self) -> str:
+        user = getattr(self.session, 'user', None)
+        if user:
+            full_name = user.get_full_name().strip()
+            if full_name:
+                return full_name
+            first_name = getattr(user, 'first_name', '').strip()
+            if first_name:
+                return first_name
+        return "there"

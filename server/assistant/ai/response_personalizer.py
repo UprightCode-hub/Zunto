@@ -96,7 +96,7 @@ class ResponsePersonalizer:
 
     def __init__(self, session: Optional[ConversationSession] = None):
         self.session = session
-        self.user_name = session.user_name if session else None
+        self.user_name = self._resolve_user_name(session)
         self.context = session.context if session else {}
         self.message_count = len(self.context.get('message_history', []))
 

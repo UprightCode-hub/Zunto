@@ -36,6 +36,12 @@ class ConversationSession(models.Model):
         ('customer_service', 'Customer Service Assistant'),
     ]
 
+    MODE_CHOICES = [
+        ('homepage_reco', 'Homepage Recommendation Assistant'),
+        ('inbox_general', 'Inbox General Assistant'),
+        ('customer_service', 'Customer Service Assistant'),
+    ]
+
     session_id = models.CharField(
         max_length=100,
         unique=True,
@@ -59,7 +65,13 @@ class ConversationSession(models.Model):
         max_length=30,
         choices=LANE_CHOICES,
         default='inbox',
-        help_text="Assistant lane for this persistent session"
+        help_text="Legacy assistant lane for backward compatibility"
+    )
+    assistant_mode = models.CharField(
+        max_length=30,
+        choices=MODE_CHOICES,
+        default='inbox_general',
+        help_text="Canonical assistant mode for policy and routing"
     )
     is_persistent = models.BooleanField(
         default=True,

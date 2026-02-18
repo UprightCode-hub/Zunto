@@ -15,7 +15,7 @@ from .lazy_loader import get_ai_loader
 
 logger = logging.getLogger(__name__)
 
-FAQ_MATCH_THRESHOLD = getattr(settings, 'FAQ_MATCH_THRESHOLD', 0.55)
+FAQ_MATCH_THRESHOLD = getattr(settings, 'FAQ_MATCH_THRESHOLD', 0.5)
 TOP_K = 5
 
 
@@ -221,44 +221,57 @@ class RAGRetriever:
                 normalize_embeddings=True
             ).astype('float32')
 
-            scores, indices = index.search(query_embedding, k)
+            distances, indices = index.search(query_embedding, k)
 
-            if len(scores[0]) > 0:
-                top_scores = scores[0][:min(3, len(scores[0]))]
-                logger.info(f"Top {len(top_scores)} search scores: {[f'{s:.3f}' for s in top_scores]}")
-                logger.info(f"Threshold: {FAQ_MATCH_THRESHOLD}")
+            if len(distances[0]) > 0:
+                top_distances = distances[0][:min(3, len(distances[0]))]
+                logger.info(f"Top {len(top_distances)} L2 distances: {[f'{d:.3f}' for d in top_distances]}")
+                logger.info(f"Confidence threshold: {FAQ_MATCH_THRESHOLD}")
 
             results = []
-            for score, idx in zip(scores[0], indices[0]):
+            for distance, idx in zip(distances[0], indices[0]):
                 if idx < len(self.faqs):
                     faq = self.faqs[idx]
+                    confidence = self._distance_to_confidence(float(distance))
                     result = {
                         'id': faq.get('id', idx),
                         'question': faq['question'],
                         'answer': faq['answer'],
                         'keywords': faq.get('keywords', []),
-                        'score': float(score)
+                        'score': confidence,
+                        'distance': float(distance)
                     }
                     results.append(result)
-                    logger.debug(f"  Match: {faq['question'][:60]}... (score: {score:.3f})")
+                    logger.debug(
+                        f"  Match: {faq['question'][:60]}... "
+                        f"(distance: {distance:.3f}, confidence: {confidence:.3f})"
+                    )
 
-            results_before_filter = len(results)
+            results.sort(key=lambda item: item['score'], reverse=True)
             results = [r for r in results if r['score'] >= FAQ_MATCH_THRESHOLD]
 
             if results:
                 logger.info(f"Found {len(results)} relevant FAQs above threshold "
                           f"(top score: {results[0]['score']:.3f})")
             else:
-                best_score = scores[0][0] if len(scores[0]) > 0 else None
-                if best_score is not None:
-                    logger.warning(f"No results above threshold {FAQ_MATCH_THRESHOLD}. "
-                                 f"Best match: {best_score:.3f}")
+                best_distance = distances[0][0] if len(distances[0]) > 0 else None
+                if best_distance is not None:
+                    best_confidence = self._distance_to_confidence(float(best_distance))
+                    logger.warning(
+                        f"No results above threshold {FAQ_MATCH_THRESHOLD}. "
+                        f"Best confidence: {best_confidence:.3f} (distance: {best_distance:.3f})"
+                    )
 
             return results
 
         except Exception as e:
             logger.error(f"Search failed: {e}", exc_info=True)
             return self._fallback_search(query, k)
+
+
+    def _distance_to_confidence(self, distance: float) -> float:
+        """Convert FAISS L2 distance to normalized confidence where higher is better."""
+        return max(0.0, min(1.0, 1.0 / (1.0 + max(distance, 0.0))))
 
     def _fallback_search(self, query: str, k: int = TOP_K) -> List[Dict]:
         """

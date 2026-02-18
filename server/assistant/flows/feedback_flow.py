@@ -113,7 +113,7 @@ Type 1, 2, 3, or describe what you need!"""
         self.session = session
         self.context_manager = context_manager
         self.intent_classifier = intent_classifier
-        self.name = session.user_name or "there"
+        self.name = self._resolve_user_name(session)
         
                                    
         self.context = session.context or {}

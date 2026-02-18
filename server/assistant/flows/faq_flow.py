@@ -51,7 +51,7 @@ Just type your question or choose an option!"""
         self.session = session
         self.query_processor = query_processor
         self.context_manager = context_manager
-        self.name = session.user_name or "there"
+        self.name = self._resolve_user_name(session)
 
     def enter_faq_mode(self) -> str:
         """

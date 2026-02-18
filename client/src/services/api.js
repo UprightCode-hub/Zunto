@@ -651,6 +651,18 @@ export const sendAssistantMessage = (message, sessionId = null, userId = null, a
   });
 };
 
+export const sendHomepageRecommendationMessage = (message, sessionId = null, userId = null) => (
+  sendAssistantMessage(message, sessionId, userId, 'homepage_reco')
+);
+
+export const sendInboxAssistantMessage = (message, sessionId = null, userId = null) => (
+  sendAssistantMessage(message, sessionId, userId, 'inbox_general')
+);
+
+export const sendCustomerServiceMessage = (message, sessionId = null, userId = null) => (
+  sendAssistantMessage(message, sessionId, userId, 'customer_service')
+);
+
 // ==========================================
 // DASHBOARD (dashboard/urls.py)
 // ==========================================

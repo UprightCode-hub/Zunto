@@ -295,8 +295,7 @@ def validate_state_transition(
     """
                               
     valid_transitions = {
-        'greeting': ['awaiting_name'],
-        'awaiting_name': ['menu', 'awaiting_name'],             
+        'greeting': ['menu', 'chat_mode'],
         'menu': ['faq_mode', 'dispute_mode', 'feedback_mode', 'chat_mode', 'menu'],
         'faq_mode': ['menu', 'faq_mode'],
         'dispute_mode': ['menu', 'dispute_mode'],

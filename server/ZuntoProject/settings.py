@@ -143,8 +143,16 @@ REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}'
 if IS_PRODUCTION:
     CACHES = {
         'default': {
-            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-            'LOCATION': 'zunto-dev',
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': config('REDIS_URL', default=REDIS_URL + '/0'),
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                'SOCKET_CONNECT_TIMEOUT': 3,
+                'SOCKET_TIMEOUT': 3,
+                'IGNORE_EXCEPTIONS': True,
+            },
+            'TIMEOUT': 300,
+            'KEY_PREFIX': 'zunto',
         }
     }
 else:
@@ -375,8 +383,13 @@ CORS_ALLOW_HEADERS = [
 
 GROQ_API_KEY = config('GROQ_API_KEY', default='')
 GROQ_MODEL = config('GROQ_MODEL', default='llama-3.3-70b-versatile')
+GROQ_TIMEOUT_SECONDS = config('GROQ_TIMEOUT_SECONDS', default=8, cast=int)
+GROQ_BULKHEAD_LIMIT = config('GROQ_BULKHEAD_LIMIT', default=16, cast=int)
+GROQ_RATE_LIMIT_COOLDOWN_SECONDS = config('GROQ_RATE_LIMIT_COOLDOWN_SECONDS', default=30, cast=int)
+LLM_MAX_PROMPT_TOKENS = config('LLM_MAX_PROMPT_TOKENS', default=900, cast=int)
+LLM_MAX_OUTPUT_TOKENS = config('LLM_MAX_OUTPUT_TOKENS', default=500, cast=int)
 
-FAQ_MATCH_THRESHOLD = config('FAQ_MATCH_THRESHOLD', default=0.7, cast=float)
+FAQ_MATCH_THRESHOLD = config('FAQ_MATCH_THRESHOLD', default=0.5, cast=float)
 SENTENCE_TRANSFORMER_MODEL = config(
     'SENTENCE_TRANSFORMER_MODEL', 
     default='all-MiniLM-L6-v2'

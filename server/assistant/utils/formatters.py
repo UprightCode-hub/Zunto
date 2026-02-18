@@ -29,7 +29,7 @@ def format_greeting(name: str = "there") -> str:
     """
     return f"""Hello! Welcome to Zunto Marketplace! 🎉
 
-I'm Gigi, your virtual assistant. I'm here to help you with anything related to buying, selling, or using our platform.
+I'm your Zunto virtual assistant. I'm here to help you with anything related to buying, selling, or using our platform.
 
 Before we begin, may I know your name?"""
 

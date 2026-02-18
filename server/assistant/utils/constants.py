@@ -1,13 +1,12 @@
 #server/assistant/utils/constants.py
               
 SYSTEM_VERSION = '2.0.0'
-SYSTEM_NAME = 'Gigi (Zunto AI Assistant)'
-CREATOR_NAME = 'Wisdom Ekwugha'
-ORGANIZATION = 'Gigi Development Engine (GDE)'
+SYSTEM_NAME = 'Zunto AI Assistant'
+CREATOR_NAME = ''
+ORGANIZATION = 'Zunto'
 
                      
 STATE_GREETING = 'greeting'
-STATE_AWAITING_NAME = 'awaiting_name'
 STATE_MENU = 'menu'
 STATE_FAQ_MODE = 'faq_mode'
 STATE_DISPUTE_MODE = 'dispute_mode'
@@ -16,7 +15,6 @@ STATE_CHAT_MODE = 'chat_mode'
 
 ALL_STATES = [
     STATE_GREETING,
-    STATE_AWAITING_NAME,
     STATE_MENU,
     STATE_FAQ_MODE,
     STATE_DISPUTE_MODE,
@@ -30,8 +28,8 @@ class ConfidenceConfig:
     """Centralized confidence thresholds."""
     
     RAG = {
-        'high': 0.65,
-        'medium': 0.40,
+        'high': 0.50,
+        'medium': 0.35,
         'low': 0.0
     }
     
