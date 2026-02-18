@@ -14,7 +14,6 @@ const Signup = lazy(() => import("./pages/Signup"));
 const Profile = lazy(() => import("./pages/Profile"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const SellerDashboard = lazy(() => import("./pages/SellerDashboard"));
-import AssistantChat from "./components/common/AssistantChat";
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Orders = lazy(() => import("./pages/Orders"));
 const Reviews = lazy(() => import("./pages/Reviews"));
@@ -32,6 +31,7 @@ const NotificationSettings = lazy(() => import("./pages/NotificationSettings"));
 const Terms = lazy(() => import("./pages/Terms"));
 const Privacy = lazy(() => import("./pages/Privacy"));
 const FAQs = lazy(() => import("./pages/FAQs"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 function AppLayout() {
   const location = useLocation();
@@ -99,11 +99,11 @@ function AppLayout() {
               </ProtectedRoute>
             }
           />
+          <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>
       </main>
 
-      {!isDashboard && <AssistantChat />}
       {!isDashboard && <Footer />}
     </div>
   );

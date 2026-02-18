@@ -633,13 +633,16 @@ export const sendMarketplaceChatMessage = (conversationId, content, messageType 
   });
 };
 
-export const sendAssistantMessage = (message, sessionId = null, userId = null) => {
+export const sendAssistantMessage = (message, sessionId = null, userId = null, assistantLane = 'inbox') => {
   const payload = { message };
   if (sessionId) {
     payload.session_id = sessionId;
   }
   if (userId) {
     payload.user_id = userId;
+  }
+  if (assistantLane && assistantLane !== 'inbox') {
+    payload.assistant_lane = assistantLane;
   }
 
   return apiCall('/assistant/api/chat/', {
