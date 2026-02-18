@@ -5,12 +5,12 @@ import { normalizeApiBaseUrl } from '../../utils/network';
 
 const GoogleAuthButton = ({ onSuccess, onError, mode = 'signup' }) => {
   const [loading, setLoading] = useState(false);
-  const apiBaseUrl = normalizeApiBaseUrl(
+  const apiBaseUrl = (
     import.meta.env.VITE_API_BASE
     || import.meta.env.VITE_API_BASE_URL
     || import.meta.env.VITE_API_URL
     || ''
-  );
+  ).replace(/\/+$/, '');
 
   const handleGoogleSuccess = async (credentialResponse) => {
     setLoading(true);

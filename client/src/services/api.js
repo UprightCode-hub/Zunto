@@ -1,12 +1,10 @@
 // client/src/services/api.js
-import { buildWebSocketBaseUrl, normalizeApiBaseUrl } from '../utils/network';
-
 const rawApiBaseUrl = import.meta.env.VITE_API_BASE
   || import.meta.env.VITE_API_BASE_URL
   || import.meta.env.VITE_API_URL
   || '';
 
-const API_BASE_URL = normalizeApiBaseUrl(rawApiBaseUrl);
+const API_BASE_URL = rawApiBaseUrl.replace(/\/+$/, '');
 
 const parseResponse = async (response) => {
   if (response.status === 204) {
@@ -615,7 +613,12 @@ export const getConversationWsToken = (conversationId) => {
 };
 
 export const getChatWebSocketUrl = (conversationId, wsToken) => {
-  const wsBase = buildWebSocketBaseUrl(API_BASE_URL);
+  const browserWsBase = typeof window !== 'undefined'
+    ? window.location.origin.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:')
+    : 'ws://localhost:8000';
+  const wsBase = (API_BASE_URL || browserWsBase)
+    .replace(/^http:/, 'ws:')
+    .replace(/^https:/, 'wss:');
   return `${wsBase}/ws/chat/${conversationId}/?token=${encodeURIComponent(wsToken)}`;
 };
 
