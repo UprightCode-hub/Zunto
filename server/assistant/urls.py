@@ -38,6 +38,7 @@ urlpatterns = [
                                   
     path('api/admin/logs/', views.recent_logs, name='recent_logs'),
     path('api/admin/reports/', views.recent_reports, name='recent_reports'),
+    path('api/admin/metrics/', views.assistant_metrics_summary, name='assistant_metrics_summary'),
     
                           
     path('api/docs/', views.api_documentation, name='api_docs'),

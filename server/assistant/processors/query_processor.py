@@ -1,7 +1,7 @@
 #server/assistant/processors/query_processor.py
 import logging
 import time
-from typing import Dict, Tuple, Optional, List
+from typing import Dict, Tuple, Optional, List, Any
 
 from django.conf import settings
 
@@ -10,6 +10,7 @@ from assistant.processors.rule_engine import RuleEngine
 from assistant.processors.rag_retriever import RAGRetriever
 from assistant.processors.local_model import LocalModelAdapter
 from assistant.utils.constants import ConfidenceConfig
+from assistant.utils import metrics
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +18,8 @@ logger = logging.getLogger(__name__)
 class QueryProcessor:
 
     def __init__(self):
-        self.rule_engine = RuleEngine()
-        self.rag_retriever = RAGRetriever()
+        self.rule_engine = RuleEngine.get_instance()
+        self.rag_retriever = RAGRetriever.get_instance()
         self.llm = LocalModelAdapter.get_instance()
 
         logger.info("QueryProcessor initialized with 3-tier system")
@@ -31,12 +32,15 @@ class QueryProcessor:
         context: Optional[Dict] = None
     ) -> Dict:
         start_time = time.time()
-        
+        metrics.incr('requests.total')
+
         try:
             return self._process_internal(message, session_id, user_name, context, start_time)
         except Exception as e:
             logger.error(f"QueryProcessor critical error: {e}", exc_info=True)
+            metrics.incr('errors.total')
             processing_time = int((time.time() - start_time) * 1000)
+            metrics.observe_ms('request_latency', processing_time)
             
             return {
                 'reply': (
@@ -89,7 +93,9 @@ class QueryProcessor:
 
             logger.info(f"✅ Rule matched: {rule_result['rule']['id']}")
             self._log_conversation(session_id, message, result)
+            metrics.incr('routing.rule_engine')
             processing_time = int((time.time() - start_time) * 1000)
+            metrics.observe_ms('request_latency', processing_time)
             result['metadata']['processing_time_ms'] = processing_time
             return result
 
@@ -108,9 +114,9 @@ class QueryProcessor:
         use_unified_confidence = getattr(settings, 'PHASE1_UNIFIED_CONFIDENCE', True)
         
         if use_unified_confidence:
-            should_use_rag = ConfidenceConfig.should_use_rag_directly(top_result['confidence'])
+            should_use_rag = self._should_use_rag(top_result, rag_results)
         else:
-            should_use_rag = top_result['confidence'] >= 0.65
+            should_use_rag = top_result['confidence'] >= ConfidenceConfig.RAG['high']
         
         if should_use_rag:
             result['reply'] = top_result['answer']
@@ -125,12 +131,16 @@ class QueryProcessor:
             result['metadata'] = {
                 'matched_question': top_result['question'],
                 'search_method': top_result['method'],
-                'context_boost': top_result.get('context_boost', 0.0)
+                'context_boost': top_result.get('context_boost', 0.0),
+                'routing_decision': 'rag_direct'
             }
 
             logger.info(f"✅ FAQ matched with {top_result['confidence']:.2f} confidence")
             self._log_conversation(session_id, message, result)
+            metrics.incr('routing.rag_direct')
+            metrics.incr('faq.hit')
             processing_time = int((time.time() - start_time) * 1000)
+            metrics.observe_ms('request_latency', processing_time)
             result['metadata']['processing_time_ms'] = processing_time
             return result
 
@@ -153,14 +163,41 @@ class QueryProcessor:
             'time_ms': llm_result.get('time_ms', 0),
             'model': llm_result.get('model', 'unknown'),
             'context_provided': llm_result.get('context_provided', {}),
-            'rag_references_used': llm_result.get('rag_references_used', [])
+            'rag_references_used': llm_result.get('rag_references_used', []),
+            'routing_decision': 'llm_fallback',
+            'llm_error': llm_result.get('llm_error'),
+            'fallback_used': llm_result.get('fallback_used', False),
+            'prompt_estimated_tokens': llm_result.get('context_provided', {}).get('prompt_estimated_tokens', 0),
+            'dropped_context_sections': llm_result.get('context_provided', {}).get('dropped_sections', []),
         }
 
         logger.info(f"✅ LLM response with {llm_result['confidence']:.2f} confidence")
         self._log_conversation(session_id, message, result)
+
+        if llm_result.get('fallback_used'):
+            metrics.incr('routing.llm_fallback')
+        else:
+            metrics.incr('routing.llm_direct')
+        if llm_result.get('llm_error'):
+            metrics.incr('llm.errors')
+
         processing_time = int((time.time() - start_time) * 1000)
+        metrics.observe_ms('request_latency', processing_time)
         result['metadata']['processing_time_ms'] = processing_time
         return result
+
+    def _should_use_rag(self, top_result: Dict, rag_results: List[Dict]) -> bool:
+        """Adaptive routing: direct RAG for high confidence or stable medium-confidence lead."""
+        top_conf = top_result.get('confidence', 0.0)
+        if top_conf >= ConfidenceConfig.RAG['high']:
+            return True
+
+        if top_conf < ConfidenceConfig.RAG['medium']:
+            return False
+
+        second_conf = rag_results[1].get('confidence', 0.0) if len(rag_results) > 1 else 0.0
+        separation = top_conf - second_conf
+        return separation >= 0.08
 
     def _check_rules(self, message: str, context: Dict) -> Dict:
         try:
@@ -218,13 +255,16 @@ class QueryProcessor:
                 elif user_name:
                     answer = answer.replace('{user_name}', user_name)
 
+                keywords = match.get('keywords', []) or []
                 processed_results.append({
                     'id': match.get('id', ''),
                     'question': match['question'],
                     'answer': answer,
                     'confidence': boosted_score,
                     'method': 'faiss_semantic_search',
-                    'context_boost': boost_amount
+                    'context_boost': boost_amount,
+                    'category': keywords[0] if keywords else 'general',
+                    'policy_type': 'faq'
                 })
 
             return processed_results
@@ -280,13 +320,30 @@ class QueryProcessor:
             )
 
             start_time = time.time()
+            llm_max_output_tokens = int(getattr(settings, 'LLM_MAX_OUTPUT_TOKENS', 500))
             llm_output = self.llm.generate(
                 prompt=message,
                 system_prompt=system_prompt,
-                max_tokens=500,
+                max_tokens=llm_max_output_tokens,
                 temperature=0.7
             )
             time_ms = int((time.time() - start_time) * 1000)
+
+            metrics.observe_ms('llm_latency', time_ms)
+            llm_error = llm_output.get('error') if isinstance(llm_output, dict) else None
+            if llm_error:
+                fallback = self._build_llm_error_fallback(message=message, rag_results=rag_results)
+                return {
+                    'response': fallback['response'],
+                    'confidence': fallback['confidence'],
+                    'tokens': 0,
+                    'time_ms': int((time.time() - start_time) * 1000),
+                    'model': self.llm.model_name,
+                    'context_provided': context_info,
+                    'rag_references_used': fallback.get('rag_references_used', []),
+                    'llm_error': llm_error,
+                    'fallback_used': True,
+                }
 
             response_text = llm_output.get('response', '') if isinstance(llm_output, dict) else str(llm_output)
             confidence = self._estimate_llm_confidence(response_text, message)
@@ -295,10 +352,13 @@ class QueryProcessor:
             if rag_results:
                 rag_ids = [r.get('id', '') for r in rag_results if r.get('id')]
 
+            output_tokens = llm_output.get('tokens_generated', len(response_text.split())) if isinstance(llm_output, dict) else len(response_text.split())
+            metrics.incr('llm.tokens', int(output_tokens or 0))
+
             return {
                 'response': response_text,
                 'confidence': confidence,
-                'tokens': llm_output.get('tokens_generated', len(response_text.split())) if isinstance(llm_output, dict) else len(response_text.split()),
+                'tokens': output_tokens,
                 'time_ms': int((llm_output.get('generation_time', 0) or 0) * 1000) if isinstance(llm_output, dict) else time_ms,
                 'model': llm_output.get('model', self.llm.model_name) if isinstance(llm_output, dict) else self.llm.model_name,
                 'context_provided': context_info,
@@ -321,93 +381,186 @@ class QueryProcessor:
             }
 
     def _build_enriched_system_prompt(
-        self, 
+        self,
         message: str,
-        context: Dict, 
+        context: Dict,
         user_name: Optional[str] = None,
         rag_results: Optional[List[Dict]] = None,
         rule_result: Optional[Dict] = None
     ) -> Tuple[str, Dict]:
-        
         context_info = {
             'conversation_history': False,
             'rag_attempts': False,
             'user_sentiment': 'neutral',
-            'escalation_level': 0
+            'escalation_level': 0,
+            'context_sections': [],
         }
 
-        prompt_parts = []
-        prompt_parts.append(
-            "You are Gigi, a helpful AI assistant for Zunto Marketplace. "
-            "Provide clear, concise, and friendly responses to user queries. "
-            "Focus on e-commerce topics like orders, payments, shipping, and refunds."
-        )
+        metadata_info = context.get('metadata', {}) if isinstance(context, dict) else {}
+        sentiment_data = context.get('sentiment', {}) if isinstance(context, dict) else {}
+        escalation_data = context.get('escalation', {}) if isinstance(context, dict) else {}
+        history = context.get('history', []) if isinstance(context, dict) else []
 
-        if user_name:
-            prompt_parts.append(f"The user's name is {user_name}.")
-
-        sentiment_data = context.get('sentiment', {})
         current_sentiment = sentiment_data.get('current', 'neutral')
-        context_info['user_sentiment'] = current_sentiment
-        
-        escalation_data = context.get('escalation', {})
         escalation_level = escalation_data.get('level', 0)
+        context_info['user_sentiment'] = current_sentiment
         context_info['escalation_level'] = escalation_level
 
-        if current_sentiment == 'frustrated':
-            prompt_parts.append("IMPORTANT: The user seems frustrated. Be especially empathetic and helpful.")
-        elif current_sentiment == 'angry':
-            prompt_parts.append("URGENT: The user is upset. Acknowledge their concern professionally and prioritize resolution.")
-        elif current_sentiment == 'confused':
-            prompt_parts.append("The user seems confused. Provide clear, step-by-step explanations.")
+        sections: Dict[str, List[str]] = {}
+        sections['system_role'] = [
+            'SYSTEM_ROLE:',
+            'assistant=zunto_marketplace_support; style=clear_friendly_concise; '
+            'scope=orders,payments,shipping,refunds,disputes',
+        ]
 
-        if escalation_level >= 2:
-            prompt_parts.append(f"ESCALATION LEVEL {escalation_level}: This is an escalated situation requiring immediate attention.")
+        if user_name:
+            sections['user_profile'] = ['USER_PROFILE:', f'display_name={user_name}']
 
-        history = context.get('history', [])
-        if len(history) >= 3:
+        product_packets = self._build_product_context_packets(context)
+        if product_packets:
+            product_lines = ['PRODUCT_CONTEXT:']
+            for idx, packet in enumerate(product_packets, 1):
+                product_lines.append(f'PRODUCT_PACKET_{idx}: {packet}')
+            sections['product_context'] = product_lines
+            context_info['product_packets'] = len(product_packets)
+
+        sections['conversation_state'] = [
+            'CONVERSATION_STATE:',
+            (
+                f'sentiment={current_sentiment}; escalation_level={escalation_level}; '
+                f"empathy_required={'yes' if current_sentiment in ['frustrated', 'angry'] else 'no'}"
+            ),
+        ]
+
+        short_summary = metadata_info.get('short_memory_summary', {})
+        if short_summary:
+            sections['memory_summary'] = ['MEMORY_SUMMARY:', str(short_summary)]
+
+        if len(history) >= 2:
             context_info['conversation_history'] = True
-            prompt_parts.append("\nCONVERSATION HISTORY:")
-            recent_messages = history[-5:] if len(history) > 5 else history
+            recent_messages = history[-2:]
+            recent_lines = ['RECENT_TURNS:']
             for msg in recent_messages:
                 role = msg.get('role', 'user')
-                content = msg.get('content', '')[:100]
-                if role == 'user':
-                    prompt_parts.append(f"User: {content}")
-                else:
-                    prompt_parts.append(f"Assistant: {content}")
+                content = msg.get('content', '')[:120]
+                recent_lines.append(f'{role}={content}')
+            sections['recent_turns'] = recent_lines
 
         if rag_results and len(rag_results) > 0:
             context_info['rag_attempts'] = True
-            top_confidence = rag_results[0].get('confidence', 0)
-            
-            prompt_parts.append(f"\nFAQ SEARCH RESULTS (confidence: {top_confidence:.2f}):")
-            
-            if top_confidence >= ConfidenceConfig.RAG['medium']:
-                prompt_parts.append("We found relevant FAQs but they didn't fully match. Use these as reference:")
-            else:
-                prompt_parts.append("No strong FAQ matches found. These are the closest:")
-            
+            rag_lines = ['RETRIEVAL_EVIDENCE:']
             for i, result in enumerate(rag_results[:3], 1):
-                q = result.get('question', '')
-                a = result.get('answer', '')[:150]
-                conf = result.get('confidence', 0)
-                prompt_parts.append(f"{i}. Q: {q}")
-                prompt_parts.append(f"   A: {a}... (confidence: {conf:.2f})")
-            
-            prompt_parts.append("\nYour task: Provide a more complete answer, expanding on these FAQs if relevant.")
+                packet = {
+                    'id': result.get('id', ''),
+                    'category': result.get('category', 'general'),
+                    'policy_type': result.get('policy_type', 'faq'),
+                    'similarity_score': round(result.get('confidence', 0.0), 4),
+                    'question': result.get('question', ''),
+                    'answer': result.get('answer', '')[:220],
+                }
+                rag_lines.append(f'FAQ_PACKET_{i}: {packet}')
+            sections['retrieval_evidence'] = rag_lines
 
         if rule_result and rule_result.get('matched'):
             rule = rule_result.get('rule', {})
-            prompt_parts.append(f"\nSAFETY NOTE: Message matched rule '{rule.get('id', 'unknown')}' ({rule.get('severity', 'medium')} severity).")
+            sections['safety_policy'] = [
+                'SAFETY_POLICY:',
+                f"rule_id={rule.get('id', 'unknown')}; severity={rule.get('severity', 'medium')}",
+            ]
 
-        metadata_info = context.get('metadata', {})
         message_count = metadata_info.get('message_count', 0)
         if message_count > 5:
-            prompt_parts.append("This is an ongoing conversation. Maintain consistency with previous context.")
+            sections['context_directive'] = ['CONTEXT_DIRECTIVE: maintain_response_consistency=yes']
 
-        final_prompt = "\n".join(prompt_parts)
+        section_priority = [
+            'system_role',
+            'product_context',
+            'retrieval_evidence',
+            'conversation_state',
+            'memory_summary',
+            'recent_turns',
+            'user_profile',
+            'safety_policy',
+            'context_directive',
+        ]
+
+        max_prompt_tokens = int(getattr(settings, 'LLM_MAX_PROMPT_TOKENS', 900))
+        used_chars = 0
+        prompt_parts: List[str] = []
+        dropped_sections: List[str] = []
+
+        for section_name in section_priority:
+            lines = sections.get(section_name)
+            if not lines:
+                continue
+            section_text = '\n'.join(lines)
+            projected_tokens = (used_chars + len(section_text)) // 4
+            if projected_tokens > max_prompt_tokens and section_name not in {'system_role', 'product_context'}:
+                dropped_sections.append(section_name)
+                continue
+
+            prompt_parts.extend(lines)
+            used_chars += len(section_text)
+            context_info['context_sections'].append(section_name)
+
+        context_info['prompt_estimated_tokens'] = max(1, used_chars // 4)
+        context_info['prompt_max_tokens'] = max_prompt_tokens
+        context_info['dropped_sections'] = dropped_sections
+
+        final_prompt = '\n'.join(prompt_parts)
         return final_prompt, context_info
+
+    def _build_product_context_packets(self, context: Dict) -> List[Dict[str, Any]]:
+        # Build deterministic product packets from DB-backed product IDs only.
+        candidate_ids: List[Any] = []
+        metadata = context.get('metadata', {}) if isinstance(context, dict) else {}
+
+        for key in ('product_id', 'product_ids'):
+            value = context.get(key) if isinstance(context, dict) else None
+            if value is None:
+                value = metadata.get(key)
+            if value is None:
+                continue
+            if isinstance(value, list):
+                candidate_ids.extend(value)
+            else:
+                candidate_ids.append(value)
+
+        normalized_ids: List[int] = []
+        for raw_id in candidate_ids:
+            try:
+                normalized_ids.append(int(raw_id))
+            except (TypeError, ValueError):
+                logger.debug(f"Skipping non-numeric product identifier: {raw_id}")
+
+        if not normalized_ids:
+            return []
+
+        try:
+            from market.models import Product
+
+            products = Product.objects.filter(id__in=normalized_ids).select_related('seller', 'category')
+            packets: List[Dict[str, Any]] = []
+            for product in products:
+                packets.append({
+                    'id': int(product.id),
+                    'name': product.title,
+                    'price': str(product.price),
+                    'stock': int(product.stock_quantity),
+                    'attributes': {
+                        'category': getattr(product.category, 'name', ''),
+                        'condition': getattr(product, 'condition', ''),
+                        'location': getattr(product, 'location', ''),
+                    },
+                    'policy_flags': {
+                        'is_active': bool(product.is_active),
+                        'is_approved': bool(product.is_approved),
+                    },
+                })
+            return packets
+        except Exception as exc:
+            logger.warning(f"Failed to build product context packets: {exc}")
+            return []
 
     def _estimate_llm_confidence(self, response: str, query: str) -> float:
         try:

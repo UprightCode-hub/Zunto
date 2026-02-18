@@ -633,8 +633,24 @@ export const sendMarketplaceChatMessage = (conversationId, content, messageType 
   });
 };
 
-export const sendAssistantMessage = (message, sessionId = null, userId = null) => {
-  const payload = { message };
+export const sendAssistantMessage = (
+  message,
+  sessionId = null,
+  userId = null,
+  assistantMode = 'inbox_general',
+) => {
+  const payload = {
+    message,
+    assistant_mode: assistantMode,
+  };
+
+  const legacyLaneByMode = {
+    homepage_reco: 'inbox',
+    inbox_general: 'inbox',
+    customer_service: 'customer_service',
+  };
+  payload.assistant_lane = legacyLaneByMode[assistantMode] || 'inbox';
+
   if (sessionId) {
     payload.session_id = sessionId;
   }
@@ -647,6 +663,18 @@ export const sendAssistantMessage = (message, sessionId = null, userId = null) =
     body: JSON.stringify(payload),
   });
 };
+
+export const sendHomepageRecommendationMessage = (message, sessionId = null, userId = null) => (
+  sendAssistantMessage(message, sessionId, userId, 'homepage_reco')
+);
+
+export const sendInboxAssistantMessage = (message, sessionId = null, userId = null) => (
+  sendAssistantMessage(message, sessionId, userId, 'inbox_general')
+);
+
+export const sendCustomerServiceMessage = (message, sessionId = null, userId = null) => (
+  sendAssistantMessage(message, sessionId, userId, 'customer_service')
+);
 
 // ==========================================
 // DASHBOARD (dashboard/urls.py)

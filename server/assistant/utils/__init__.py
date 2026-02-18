@@ -20,7 +20,6 @@ from .constants import (
     
             
     STATE_GREETING,
-    STATE_AWAITING_NAME,
     STATE_MENU,
     STATE_FAQ_MODE,
     STATE_DISPUTE_MODE,
@@ -176,7 +175,6 @@ __all__ = [
     'CREATOR_NAME',
     'ORGANIZATION',
     'STATE_GREETING',
-    'STATE_AWAITING_NAME',
     'STATE_MENU',
     'STATE_FAQ_MODE',
     'STATE_DISPUTE_MODE',

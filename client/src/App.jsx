@@ -14,7 +14,6 @@ const Signup = lazy(() => import("./pages/Signup"));
 const Profile = lazy(() => import("./pages/Profile"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const SellerDashboard = lazy(() => import("./pages/SellerDashboard"));
-import AssistantChat from "./components/common/AssistantChat";
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Orders = lazy(() => import("./pages/Orders"));
 const Reviews = lazy(() => import("./pages/Reviews"));
@@ -103,7 +102,6 @@ function AppLayout() {
         </Suspense>
       </main>
 
-      {!isDashboard && <AssistantChat />}
       {!isDashboard && <Footer />}
     </div>
   );

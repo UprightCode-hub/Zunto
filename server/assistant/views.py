@@ -18,6 +18,12 @@ from django.http import HttpResponse
 from assistant.utils.tts_utils import get_tts_service
 from assistant.models import ConversationSession, ConversationLog, Report, DisputeMedia
 from assistant.processors.conversation_manager import ConversationManager
+from assistant.utils.assistant_modes import (
+    normalize_assistant_mode,
+    resolve_legacy_lane,
+    mode_gate_response,
+    is_dispute_message,
+)
 from assistant.serializers import (
     ConversationSessionSerializer,
     ConversationLogSerializer,
@@ -55,6 +61,7 @@ from assistant.utils.formatters import (
     format_conversation_summary,
     build_error_response
 )
+from assistant.utils import metrics
 
 logger = logging.getLogger(__name__)
 
@@ -103,21 +110,16 @@ def _build_faq_sections(records):
 
     return [section for section in sections.values() if section['faqs']]
 
+def _resolve_assistant_mode(request_data):
+    return normalize_assistant_mode(request_data)
+
+
 def _resolve_assistant_lane(request_data):
-    lane = (request_data.get('assistant_lane') or 'inbox').strip().lower()
-    if lane in {'customer_service', 'dispute'}:
-        return 'customer_service'
-    return 'inbox'
+    return resolve_legacy_lane(_resolve_assistant_mode(request_data))
 
 
 def _looks_like_dispute_request(message: str) -> bool:
-    text = (message or '').lower()
-    keywords = {
-        'dispute', 'complaint', 'issue', 'problem', 'refund', 'scam',
-        'seller', 'buyer', 'order issue', 'did not receive', 'not delivered',
-        'damaged', 'chargeback', 'wrong item', 'fake product'
-    }
-    return any(keyword in text for keyword in keywords)
+    return is_dispute_message(message)
 
 
 def _customer_service_redirect_message() -> str:
@@ -134,24 +136,26 @@ def _build_title_from_first_message(message, product_name=None):
     return f"Conversation about {product_name or 'support'}"
 
 
-def _handle_ephemeral_chat(message: str, lane: str):
+def _handle_ephemeral_chat(message: str, assistant_mode: str, lane: str):
     """Logged-out assistant flow: temporary session, no DB writes."""
-    if lane == 'customer_service':
-        if not _looks_like_dispute_request(message):
-            return {
-                'reply': "Customer Service mode handles disputes only. Please describe the dispute (what happened, product/order, and timeline).",
-                'state': 'dispute_mode',
-                'confidence': 0.9,
-                'escalated': False,
-                'metadata': {
-                    'assistant_lane': lane,
-                    'persistence': 'temporary',
-                    'expires_after_minutes': 15,
-                    'conversation_title': _build_title_from_first_message(message),
-                    'mode': 'dispute_only'
-                }
+    gate_reply = mode_gate_response(assistant_mode, message)
+    if gate_reply:
+        return {
+            'reply': gate_reply,
+            'state': 'chat_mode',
+            'confidence': 0.92,
+            'escalated': False,
+            'metadata': {
+                'assistant_mode': assistant_mode,
+                'assistant_lane': lane,
+                'persistence': 'temporary',
+                'expires_after_minutes': 15,
+                'conversation_title': _build_title_from_first_message(message),
+                'mode': 'policy_gate'
             }
+        }
 
+    if lane == 'customer_service':
         return {
             'reply': (
                 "You're in Customer Service mode. Please share your dispute details: "
@@ -162,6 +166,7 @@ def _handle_ephemeral_chat(message: str, lane: str):
             'confidence': 0.95,
             'escalated': False,
             'metadata': {
+                'assistant_mode': assistant_mode,
                 'assistant_lane': lane,
                 'persistence': 'temporary',
                 'expires_after_minutes': 15,
@@ -177,6 +182,7 @@ def _handle_ephemeral_chat(message: str, lane: str):
             'confidence': 0.95,
             'escalated': False,
             'metadata': {
+                'assistant_mode': assistant_mode,
                 'assistant_lane': lane,
                 'persistence': 'temporary',
                 'expires_after_minutes': 15,
@@ -184,6 +190,8 @@ def _handle_ephemeral_chat(message: str, lane: str):
                 'mode': 'redirect_to_customer_service'
             }
         }
+
+    from assistant.processors.query_processor import QueryProcessor
 
     processor = QueryProcessor()
     result = processor.process(
@@ -201,6 +209,7 @@ def _handle_ephemeral_chat(message: str, lane: str):
         'confidence': result.get('confidence', 0.5),
         'escalated': False,
         'metadata': {
+            'assistant_mode': assistant_mode,
             'assistant_lane': lane,
             'persistence': 'temporary',
             'expires_after_minutes': 15,
@@ -208,7 +217,6 @@ def _handle_ephemeral_chat(message: str, lane: str):
             'processing_time_ms': result.get('metadata', {}).get('processing_time_ms', 0)
         }
     }
-
 
 
 
@@ -279,7 +287,8 @@ def chat_endpoint(request):
         cookie_session = request.COOKIES.get('assistant_temp_session')
         session_id = sanitized_data.get('session_id') or cookie_session or str(uuid.uuid4())
         user_id = sanitized_data.get('user_id')
-        assistant_lane = _resolve_assistant_lane(request.data)
+        assistant_mode = _resolve_assistant_mode(request.data)
+        assistant_lane = resolve_legacy_lane(assistant_mode)
 
         if 'session_id' not in sanitized_data:
             logger.info(f"New session created: {session_id[:8]}")
@@ -288,7 +297,7 @@ def chat_endpoint(request):
         user_id = request.user.id
 
                                                                  
-        conv_manager = ConversationManager(session_id, user_id, assistant_lane=assistant_lane)
+        conv_manager = ConversationManager(session_id, user_id, assistant_mode=assistant_mode)
         
         logger.info(
             f"Processing message [session={session_id[:8]}, "
@@ -326,6 +335,7 @@ def chat_endpoint(request):
                 'message_count': summary.get('message_count', 0),
                 'sentiment': summary.get('sentiment', 'neutral'),
                 'escalation_level': summary.get('escalation_level', 0),
+                'assistant_mode': assistant_mode,
                 'assistant_lane': assistant_lane,
                 'persistence': 'persistent',
                 'conversation_title': conv_manager.session.conversation_title
@@ -347,7 +357,7 @@ def chat_endpoint(request):
             f"[state={response_data['state']}, escalated={is_escalated}]"
         )
         
-        audit_event(request, action='assistant.chat.persistent', session_id=session_id, extra={'assistant_lane': assistant_lane})
+        audit_event(request, action='assistant.chat.persistent', session_id=session_id, extra={'assistant_mode': assistant_mode, 'assistant_lane': assistant_lane})
         return Response(response_data, status=status.HTTP_200_OK)
     
     except Exception as e:
@@ -709,7 +719,13 @@ def list_sessions(request):
             sessions = ConversationSession.objects.filter(
                 user=request.user,
                 is_persistent=True
-            ).order_by('-last_activity')[:20]
+            )
+
+            requested_mode = (request.query_params.get('assistant_mode') or '').strip().lower()
+            if requested_mode:
+                sessions = sessions.filter(assistant_mode=requested_mode)
+
+            sessions = sessions.order_by('-last_activity')[:20]
         else:
             return Response(
                 {'error': 'Authentication required'},
@@ -728,6 +744,7 @@ def list_sessions(request):
                 
                                             
                 summary['formatted_summary'] = format_conversation_summary(summary)
+                summary['assistant_mode'] = getattr(session, 'assistant_mode', 'inbox_general')
                 summary['assistant_lane'] = session.assistant_lane
                 summary['conversation_title'] = session.conversation_title
 
@@ -738,9 +755,10 @@ def list_sessions(request):
                 session_list.append({
                     'session_id': session.session_id,
                     'state': session.current_state,
-                    'user_name': session.user_name,
+                    'user_name': session.user.get_full_name() if session.user else 'there',
                     'last_activity': session.last_activity.isoformat(),
                     'is_active': session.is_active(),
+                    'assistant_mode': getattr(session, 'assistant_mode', 'inbox_general'),
                     'assistant_lane': session.assistant_lane,
                     'conversation_title': session.conversation_title
                 })
@@ -756,6 +774,44 @@ def list_sessions(request):
             {'error': 'Failed to retrieve sessions'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def assistant_metrics_summary(request):
+    # Lightweight runtime assistant metrics for observability dashboards.
+    if not request.user.is_staff:
+        return Response({'detail': 'Admin access required.'}, status=status.HTTP_403_FORBIDDEN)
+
+    snapshot = metrics.get_snapshot({
+        'requests_total': 'requests.total',
+        'errors_total': 'errors.total',
+        'routing_rule_engine': 'routing.rule_engine',
+        'routing_rag_direct': 'routing.rag_direct',
+        'routing_llm_direct': 'routing.llm_direct',
+        'routing_llm_fallback': 'routing.llm_fallback',
+        'faq_hit': 'faq.hit',
+        'llm_errors': 'llm.errors',
+        'llm_tokens': 'llm.tokens',
+        'request_latency_count': 'request_latency.count',
+        'request_latency_sum_ms': 'request_latency.sum_ms',
+        'llm_latency_count': 'llm_latency.count',
+        'llm_latency_sum_ms': 'llm_latency.sum_ms',
+    })
+
+    request_count = snapshot.get('request_latency_count', 0) or 0
+    llm_count = snapshot.get('llm_latency_count', 0) or 0
+
+    snapshot['request_latency_avg_ms'] = (
+        int(snapshot.get('request_latency_sum_ms', 0) / request_count)
+        if request_count else 0
+    )
+    snapshot['llm_latency_avg_ms'] = (
+        int(snapshot.get('llm_latency_sum_ms', 0) / llm_count)
+        if llm_count else 0
+    )
+
+    return Response({'metrics': snapshot}, status=status.HTTP_200_OK)
 
 
 @api_view(['GET'])
@@ -1243,7 +1299,6 @@ def api_documentation(request):
     return Response({
         'title': 'Zunto AI Assistant API Documentation',
         'version': SYSTEM_VERSION,
-        'creator': 'Wisdom Ekwugha',
         'endpoints': endpoints,
         'base_url': request.build_absolute_uri('/assistant/'),
     }, status=status.HTTP_200_OK)
@@ -1256,12 +1311,6 @@ def about_page(request):
     return Response({
         'project': 'Zunto AI Assistant',
         'version': SYSTEM_VERSION,
-        'creator': {
-            'name': 'Wisdom Ekwugha',
-            'role': 'AI Engineer & Full-Stack Developer',
-            'linkedin': 'https://www.linkedin.com/in/wisdom-ekwugha',
-            'github': 'https://github.com/wisdomekwugha',
-        },
         'description': 'An intelligent conversational AI assistant for e-commerce support, '
                       'featuring advanced NLP, sentiment analysis, and escalation detection.',
         'features': [

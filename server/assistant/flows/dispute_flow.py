@@ -91,7 +91,7 @@ Type "menu" to see options or ask another question."""
         self.session = session
         self.llm = local_model_adapter
         self.context_manager = context_manager
-        self.name = session.user_name or "there"
+        self.name = self._resolve_user_name(session)
 
                                    
         self.context = session.context or {}

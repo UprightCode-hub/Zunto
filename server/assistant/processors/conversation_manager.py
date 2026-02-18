@@ -1,7 +1,6 @@
 #server/assistant/processors/conversation_manager.py
 import logging
 from typing import Dict, Tuple, Optional
-from functools import lru_cache
 import gc
 
 from django.conf import settings
@@ -11,7 +10,6 @@ from assistant.processors.query_processor import QueryProcessor
 from assistant.processors.local_model import LocalModelAdapter
 
 from assistant.ai import (
-    detect_name,
     classify_intent,
     ContextManager,
     ResponsePersonalizer
@@ -26,7 +24,6 @@ from assistant.flows import (
 
 from assistant.utils.constants import (
     STATE_GREETING,
-    STATE_AWAITING_NAME,
     STATE_MENU,
     STATE_FAQ_MODE,
     STATE_DISPUTE_MODE,
@@ -43,16 +40,24 @@ from assistant.utils.validators import (
 from assistant.utils.formatters import (
     clean_message
 )
+from assistant.utils.assistant_modes import (
+    resolve_legacy_lane,
+    mode_gate_response,
+    ASSISTANT_MODE_CUSTOMER_SERVICE,
+    ASSISTANT_MODE_INBOX_GENERAL,
+    ASSISTANT_MODE_HOMEPAGE_RECO,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class ConversationManager:
     
-    def __init__(self, session_id: str, user_id: int = None, assistant_lane: str = 'inbox'):
+    def __init__(self, session_id: str, user_id: int = None, assistant_mode: str = ASSISTANT_MODE_INBOX_GENERAL):
         self.session_id = session_id
         self.user_id = user_id
-        self.assistant_lane = assistant_lane if assistant_lane in {'inbox', 'customer_service'} else 'inbox'
+        self.assistant_mode = assistant_mode
+        self.assistant_lane = resolve_legacy_lane(assistant_mode)
         self.session = self._get_or_create_session()
 
         self.query_processor = QueryProcessor()
@@ -78,6 +83,7 @@ class ConversationManager:
                 defaults={
                     'user_id': self.user_id,
                     'assistant_lane': self.assistant_lane,
+                    'assistant_mode': self.assistant_mode,
                     'is_persistent': True,
                     'current_state': STATE_DISPUTE_MODE if self.assistant_lane == 'customer_service' else STATE_GREETING,
                     'context': {}
@@ -95,6 +101,15 @@ class ConversationManager:
                 if self.user_id and session.user_id is None:
                     session.user_id = self.user_id
                     updates.append('user')
+
+                persisted_mode = getattr(session, 'assistant_mode', None)
+                if persisted_mode:
+                    # Preserve session origin mode once created; do not mutate by caller context.
+                    self.assistant_mode = persisted_mode
+                    self.assistant_lane = resolve_legacy_lane(persisted_mode)
+                else:
+                    session.assistant_mode = self.assistant_mode
+                    updates.append('assistant_mode')
 
                 if session.assistant_lane != self.assistant_lane:
                     session.assistant_lane = self.assistant_lane
@@ -147,11 +162,11 @@ class ConversationManager:
 
             current_state = self.session.current_state
 
-            if self.assistant_lane == 'customer_service' and current_state != STATE_DISPUTE_MODE:
+            if self.assistant_mode == ASSISTANT_MODE_CUSTOMER_SERVICE and current_state != STATE_DISPUTE_MODE:
                 self.dispute_flow.enter_dispute_mode()
                 current_state = self.session.current_state
 
-            if self.assistant_lane == 'inbox' and current_state == STATE_DISPUTE_MODE:
+            if self.assistant_mode != ASSISTANT_MODE_CUSTOMER_SERVICE and current_state == STATE_DISPUTE_MODE:
                 self.session.current_state = STATE_CHAT_MODE
                 self.session.save(update_fields=['current_state', 'updated_at'])
                 current_state = STATE_CHAT_MODE
@@ -160,9 +175,6 @@ class ConversationManager:
 
             if current_state == STATE_GREETING:
                 return self._handle_greeting()
-
-            elif current_state == STATE_AWAITING_NAME:
-                return self._handle_name_input(message)
 
             elif current_state == STATE_MENU:
                 return self._handle_menu_selection(message)
@@ -219,80 +231,29 @@ class ConversationManager:
         )
 
     def _is_dispute_request(self, message: str, intent_value: str = '') -> bool:
-        text = (message or '').lower()
-        keywords = {
-            'dispute', 'complaint', 'issue', 'problem', 'refund', 'scam',
-            'chargeback', 'not delivered', 'wrong item', 'damaged', 'fake'
-        }
         if intent_value in {'dispute', 'complaint', 'issue'}:
             return True
-        return any(keyword in text for keyword in keywords)
+        return mode_gate_response(ASSISTANT_MODE_CUSTOMER_SERVICE, message) is None
+
+    def _apply_mode_gate(self, message: str) -> Optional[str]:
+        return mode_gate_response(self.assistant_mode, message)
 
     def _handle_greeting(self) -> str:
         try:
             return self.greeting_flow.start_conversation()
         except Exception as e:
             logger.error(f"Greeting flow error: {e}", exc_info=True)
-            return "Hello! I'm Gigi, your AI assistant. How can I help you today?"
+            return "Hello! I'm your Zunto support assistant. How can I help you today?"
 
     def _handle_name_input(self, message: str) -> str:
-        try:
-            name, confidence = detect_name(message)
-
-            if name:
-                self.session.user_name = name
-                self.session.current_state = STATE_MENU
-                self.session.save()
-
-                response, metadata = self.greeting_flow.handle_name_input(message)
-
-                self.context_mgr.add_message(
-                    role='user',
-                    content=message,
-                    intent='greeting',
-                    emotion='neutral'
-                )
-
-                self.context_mgr.add_message(
-                    role='assistant',
-                    content=response,
-                    confidence=confidence
-                )
-
-                return response
-
-            else:
-                return (
-                    "I didn't quite catch that. Could you please share your name? "
-                    "(Just your first name is fine!)"
-                )
-        except Exception as e:
-            logger.error(f"Name input error: {e}", exc_info=True)
-            return "What's your name so I can assist you better?"
+        logger.info("Name input state is deprecated; routing to menu selection")
+        self.session.current_state = STATE_MENU
+        self.session.save(update_fields=['current_state', 'updated_at'])
+        return self._handle_menu_selection(message)
 
     def _handle_menu_selection(self, message: str) -> str:
         try:
             message_lower = message.lower().strip()
-
-            creator_keywords = [
-                'creator', 'developer', 'wisdom', 'who made', 'who built',
-                'who created', 'about you', 'technology', 'ai behind',
-                'how do you work', 'who is your creator', 'who developed',
-                'made you', 'built you', 'created you', 'your creator'
-            ]
-
-            is_creator_query = (
-                message_lower == '4' or 
-                any(keyword in message_lower for keyword in creator_keywords)
-            )
-
-            if is_creator_query:
-                logger.info(f"🎨 User selected creator option: {message[:30]}")
-                self.session.current_state = STATE_CHAT_MODE
-                self.session.context['mode'] = 'creator_info'
-                self.session.save()
-
-                return self._get_creator_info()
 
             if message_lower in ['1', 'faq', 'question', 'questions', 'ask']:
                 intro = self.faq_flow.enter_faq_mode()
@@ -300,7 +261,7 @@ class ConversationManager:
                 return intro
 
             elif message_lower in ['2', 'dispute', 'report', 'problem', 'issue']:
-                if self.assistant_lane != 'customer_service':
+                if self.assistant_mode != ASSISTANT_MODE_CUSTOMER_SERVICE:
                     return self._customer_service_redirect_message()
                 intro = self.dispute_flow.enter_dispute_mode()
                 self.context_mgr.add_message('assistant', intro, confidence=1.0)
@@ -318,7 +279,7 @@ class ConversationManager:
                 logger.info(f"Menu selection: intent={intent.value}, emotion={emotion}")
 
                 if intent.value in ['dispute', 'complaint', 'issue']:
-                    if self.assistant_lane != 'customer_service':
+                    if self.assistant_mode != ASSISTANT_MODE_CUSTOMER_SERVICE:
                         return self._customer_service_redirect_message()
                     intro = self.dispute_flow.enter_dispute_mode()
                     return intro
@@ -337,74 +298,21 @@ class ConversationManager:
                     return self._handle_chat_mode(message)
         except Exception as e:
             logger.error(f"Menu selection error: {e}", exc_info=True)
-            return "Please select an option (1-4) or describe what you need help with."
-
-    @lru_cache(maxsize=1)
-    def _get_cached_creator_info(self) -> str:
-        user_name = self.session.user_name or "there"
-
-        response = (
-            f"### 🎨 About My Creator - Wisdom Ekwugha\n\n"
-            f"Great question, {user_name}! I was built by **Wisdom Ekwugha**, "
-            f"an AI Engineer and Full-Stack Developer at **Illuminat XO**, "
-            f"passionate about creating intelligent, user-friendly systems.\n\n"
-            f"**🏢 Development:**\n"
-            f"• Created by: **Gigi Development Engine (GDE)** - Illuminat XO's AI division\n"
-            f"• Parent Company: **Illuminat XO**\n"
-            f"• Project: **Zunto Marketplace AI Assistant**\n\n"
-            f"**🔧 Technologies Behind Me:**\n"
-            f"• **Django & Python** - Backend architecture\n"
-            f"• **NLP & Machine Learning** - Intent classification, sentiment analysis\n"
-            f"• **RAG (Retrieval-Augmented Generation)** - Fast FAQ retrieval (0.03s!)\n"
-            f"• **FAISS Vector Search** - Semantic similarity matching\n"
-            f"• **WebSockets & Real-time Processing** - Instant responses\n"
-            f"• **Context Management** - Tracks conversation history\n\n"
-            f"**💡 What Makes Me Special:**\n"
-            f"• Multi-turn conversation flow with state management\n"
-            f"• Emotion detection and personalized responses\n"
-            f"• Smart escalation for complex issues\n"
-            f"• 3-tier processing (Rules → RAG → LLM) for efficiency\n"
-            f"• Modular AI architecture for easy updates\n\n"
-            f"**👨‍💻 About Wisdom:**\n"
-            f"• LinkedIn: [linkedin.com/in/wisdom-ekwugha](https://linkedin.com/in/wisdom-ekwugha)\n"
-            f"• GitHub: [github.com/wisdomekwugha](https://github.com/wisdomekwugha)\n"
-            f"• Specializes in: AI/ML, NLP, Full-Stack Development\n"
-            f"• Location: Lagos, Nigeria\n\n"
-            f"**🌐 Connect with Zunto Project:**\n"
-            f"• Twitter/X: [@ZuntoProject](https://x.com/ZuntoProject)\n"
-            f"• Instagram: [@zuntoproject](https://www.instagram.com/zuntoproject)\n"
-            f"• Email: zuntoproject@gmail.com\n\n"
-            f"**🌐 Illuminat XO:**\n"
-            f"• Twitter/X: [@IlluminatXO](https://x.com/IlluminatXO)\n"
-            f"• Email: xoilluminate@gmail.com\n\n"
-            f"---\n\n"
-            f"Want to know more? Ask me:\n"
-            f"• \"What projects has Wisdom worked on?\"\n"
-            f"• \"How do you process questions so fast?\"\n"
-            f"• \"What AI models do you use?\"\n\n"
-            f"Or type **'menu'** to go back to the main options!"
-        )
-
-        return response
-
-    def _get_creator_info(self) -> str:
-        try:
-            self.session.context['last_topic'] = 'creator'
-            self.session.save()
-            return self._get_cached_creator_info()
-        except Exception as e:
-            logger.error(f"Creator info error: {e}", exc_info=True)
-            return "I was created by Wisdom Ekwugha, an AI Engineer at Illuminat XO. Type 'menu' to see other options."
+            return "Please select an option (1-3) or describe what you need help with."
 
     def _handle_faq_mode(self, message: str) -> str:
         try:
+            gate_reply = self._apply_mode_gate(message)
+            if gate_reply:
+                return gate_reply
+
             intent, conf, metadata = self._get_or_classify_intent(message)
             emotion = metadata.get('emotion', 'neutral')
 
-            if self.assistant_lane != 'customer_service' and self._is_dispute_request(message, intent.value):
+            if self.assistant_mode != ASSISTANT_MODE_CUSTOMER_SERVICE and self._is_dispute_request(message, intent.value):
                 return self._customer_service_redirect_message()
 
-            if self.assistant_lane == 'customer_service' and not self._is_dispute_request(message, intent.value):
+            if self.assistant_mode == ASSISTANT_MODE_CUSTOMER_SERVICE and not self._is_dispute_request(message, intent.value):
                 return (
                     "Customer Service mode is dedicated to dispute handling. "
                     "Please describe the dispute, product/order affected, and timeline."
@@ -417,7 +325,7 @@ class ConversationManager:
                 emotion=emotion
             )
 
-            if self.assistant_lane != 'customer_service' and self._is_dispute_request(message, intent.value):
+            if self.assistant_mode != ASSISTANT_MODE_CUSTOMER_SERVICE and self._is_dispute_request(message, intent.value):
                 return self._customer_service_redirect_message()
 
             reply, faq_metadata = self.faq_flow.handle_faq_query(message)
@@ -446,16 +354,20 @@ class ConversationManager:
 
     def _handle_dispute_mode(self, message: str) -> str:
         try:
-            if self.assistant_lane != 'customer_service':
+            if self.assistant_mode != ASSISTANT_MODE_CUSTOMER_SERVICE:
                 return self._customer_service_redirect_message()
+
+            gate_reply = self._apply_mode_gate(message)
+            if gate_reply:
+                return gate_reply
 
             intent, conf, metadata = self._get_or_classify_intent(message)
             emotion = metadata.get('emotion', 'neutral')
 
-            if self.assistant_lane != 'customer_service' and self._is_dispute_request(message, intent.value):
+            if self.assistant_mode != ASSISTANT_MODE_CUSTOMER_SERVICE and self._is_dispute_request(message, intent.value):
                 return self._customer_service_redirect_message()
 
-            if self.assistant_lane == 'customer_service' and not self._is_dispute_request(message, intent.value):
+            if self.assistant_mode == ASSISTANT_MODE_CUSTOMER_SERVICE and not self._is_dispute_request(message, intent.value):
                 return (
                     "Customer Service mode is dedicated to dispute handling. "
                     "Please describe the dispute, product/order affected, and timeline."
@@ -498,13 +410,17 @@ class ConversationManager:
 
     def _handle_feedback_mode(self, message: str) -> str:
         try:
+            gate_reply = self._apply_mode_gate(message)
+            if gate_reply:
+                return gate_reply
+
             intent, conf, metadata = self._get_or_classify_intent(message)
             emotion = metadata.get('emotion', 'neutral')
 
-            if self.assistant_lane != 'customer_service' and self._is_dispute_request(message, intent.value):
+            if self.assistant_mode != ASSISTANT_MODE_CUSTOMER_SERVICE and self._is_dispute_request(message, intent.value):
                 return self._customer_service_redirect_message()
 
-            if self.assistant_lane == 'customer_service' and not self._is_dispute_request(message, intent.value):
+            if self.assistant_mode == ASSISTANT_MODE_CUSTOMER_SERVICE and not self._is_dispute_request(message, intent.value):
                 return (
                     "Customer Service mode is dedicated to dispute handling. "
                     "Please describe the dispute, product/order affected, and timeline."
@@ -548,27 +464,24 @@ class ConversationManager:
 
     def _handle_chat_mode(self, message: str) -> str:
         try:
+            gate_reply = self._apply_mode_gate(message)
+            if gate_reply:
+                return gate_reply
+
             message_lower = message.lower()
 
             if message_lower in ['menu', 'main menu', 'options', 'back', 'go back']:
                 self.session.current_state = STATE_MENU
                 self.session.save()
-                return self.greeting_flow._build_unified_menu(self.session.user_name)
-
-            is_creator_query = self._is_creator_related(message)
-            is_followup = self._is_creator_followup(message)
-
-            if is_creator_query or is_followup:
-                logger.info(f"🎨 Creator question detected in chat mode")
-                return self._handle_creator_followup(message)
+                return self.greeting_flow._build_unified_menu(self.get_user_name())
 
             intent, conf, metadata = self._get_or_classify_intent(message)
             emotion = metadata.get('emotion', 'neutral')
 
-            if self.assistant_lane != 'customer_service' and self._is_dispute_request(message, intent.value):
+            if self.assistant_mode != ASSISTANT_MODE_CUSTOMER_SERVICE and self._is_dispute_request(message, intent.value):
                 return self._customer_service_redirect_message()
 
-            if self.assistant_lane == 'customer_service' and not self._is_dispute_request(message, intent.value):
+            if self.assistant_mode == ASSISTANT_MODE_CUSTOMER_SERVICE and not self._is_dispute_request(message, intent.value):
                 return (
                     "Customer Service mode is dedicated to dispute handling. "
                     "Please describe the dispute, product/order affected, and timeline."
@@ -585,7 +498,7 @@ class ConversationManager:
             
             result = self.query_processor.process(
                 message=message,
-                user_name=self.session.user_name or None,
+                user_name=self.get_user_name(),
                 context=self.session.context if use_context else {}
             )
 
@@ -635,79 +548,19 @@ class ConversationManager:
             logger.warning(f"Personalization check failed: {e}")
             return False
 
-    def _is_creator_related(self, message: str) -> bool:
-        creator_keywords = [
-            'creator', 'developer', 'wisdom', 'who made', 'who built',
-            'who created', 'technology', 'ai behind', 'how do you work',
-            'made you', 'built you', 'created you'
-        ]
-        message_lower = message.lower()
-        return any(keyword in message_lower for keyword in creator_keywords)
-
-    def _is_creator_followup(self, message: str) -> bool:
-        last_topic = self.session.context.get('last_topic')
-        if last_topic != 'creator':
-            return False
-
-        followup_patterns = [
-            'tell me more', 'more about', 'what else', 'his background',
-            'his experience', 'his achievements', 'his projects',
-            'more info', 'continue', 'go on', 'elaborate', 'details'
-        ]
-
-        message_lower = message.lower()
-        return any(pattern in message_lower for pattern in followup_patterns)
-
-    def _handle_creator_followup(self, message: str) -> str:
-        try:
-            from assistant.ai.creator_info import (
-                get_creator_bio,
-                get_creator_achievements,
-                get_creator_projects
-            )
-
-            user_name = self.session.user_name or "there"
-            message_lower = message.lower()
-
-            if any(word in message_lower for word in ['project', 'work', 'built', 'portfolio']):
-                projects = get_creator_projects()
-                response = f"**Wisdom's Recent Projects:**\n\n"
-                for proj in projects[:3]:
-                    response += f"**{proj['name']}** - {proj['description']}\n"
-                    response += f"*Tech:* {', '.join(proj['tech'])}\n\n"
-
-            elif any(word in message_lower for word in ['achievement', 'accomplish', 'success']):
-                achievements = get_creator_achievements()
-                response = f"**Wisdom's Key Achievements:**\n\n"
-                response += "\n".join(f"• {a}" for a in achievements)
-
-            elif any(word in message_lower for word in ['experience', 'background', 'skill']):
-                response = get_creator_bio('detailed', user_name)
-
-            else:
-                response = (
-                    f"I'd be happy to tell you more about Wisdom, {user_name}!\n\n"
-                    f"You can ask me:\n"
-                    f"• \"What projects has he worked on?\"\n"
-                    f"• \"What are his key achievements?\"\n"
-                    f"• \"Tell me about his technical skills\"\n"
-                    f"• \"How can I contact him?\"\n\n"
-                    f"Or type **'menu'** to return to main options!"
-                )
-
-            self.session.context['last_topic'] = 'creator'
-            self.session.save()
-
-            return response
-        except Exception as e:
-            logger.error(f"Creator followup error: {e}", exc_info=True)
-            return "I'd be happy to tell you more about my creator. Type 'menu' to see other options."
-
     def get_current_state(self) -> str:
         return self.session.current_state
 
     def get_user_name(self) -> str:
-        return self.session.user_name or "there"
+        user = getattr(self.session, 'user', None)
+        if user:
+            full_name = user.get_full_name().strip()
+            if full_name:
+                return full_name
+            first_name = getattr(user, 'first_name', '').strip()
+            if first_name:
+                return first_name
+        return "there"
 
     def get_conversation_summary(self) -> Dict:
         try:
@@ -719,7 +572,6 @@ class ConversationManager:
     def reset_session(self):
         try:
             self.session.current_state = STATE_GREETING
-            self.session.user_name = ''
             self.session.context = {}
             self.session.save()
 

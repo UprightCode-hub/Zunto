@@ -62,7 +62,9 @@ def main():
     
            
     base_dir = project_root / 'assistant'
-    faq_json_path = base_dir / 'data' / 'updated_faq.json'
+    default_faq_path = base_dir / 'data' / 'updated_faq.json'
+    deduped_faq_path = base_dir / 'data' / 'updated_faq_deduped.json'
+    faq_json_path = deduped_faq_path if deduped_faq_path.exists() else default_faq_path
     index_dir = base_dir / 'data' / 'rag_index'
     
                               

@@ -38,12 +38,23 @@ class ContextManager:
             self._initialize_context()
             self._save()
 
+    def _resolve_user_name(self) -> str:
+        user = getattr(self.session, 'user', None)
+        if user:
+            full_name = user.get_full_name().strip()
+            if full_name:
+                return full_name
+            first_name = getattr(user, 'first_name', '').strip()
+            if first_name:
+                return first_name
+        return ''
+
     def _initialize_context(self):
         self.context = {
             'history': [],
 
             'traits': {
-                'name': self.session.user_name or '',
+                'name': self._resolve_user_name(),
                 'formality_preference': 'neutral',
                 'emoji_preference': 'moderate',
                 'response_length_preference': 'medium',
@@ -73,7 +84,13 @@ class ContextManager:
                 'topics_discussed': [],
                 'modes_used': [],
                 'successful_resolutions': 0,
-                'failed_queries': 0
+                'failed_queries': 0,
+                'short_memory_summary': {
+                    'last_user_goal': '',
+                    'last_assistant_action': '',
+                    'active_topics': [],
+                    'recent_intents': []
+                }
             }
         }
 
@@ -116,6 +133,7 @@ class ContextManager:
                 self._update_traits(content, intent)
                 self._track_sentiment(content, emotion, message_num)
 
+            self._update_short_memory_summary(role=role, content=content, intent=intent)
             self._save()
             logger.info(f"Message {message_num} added ({role}): {content[:50]}...")
         except Exception as e:
@@ -248,6 +266,34 @@ class ContextManager:
         except Exception as e:
             logger.warning(f"Escalation tracking failed: {e}")
 
+    def _update_short_memory_summary(self, role: str, content: str, intent: Optional[str]):
+        try:
+            metadata = self.context.get('metadata', {})
+            summary = metadata.get('short_memory_summary', {
+                'last_user_goal': '',
+                'last_assistant_action': '',
+                'active_topics': [],
+                'recent_intents': []
+            })
+
+            clipped = (content or '').strip()[:180]
+            if role == 'user':
+                summary['last_user_goal'] = clipped
+                if intent:
+                    recent_intents = summary.get('recent_intents', [])
+                    recent_intents.append(intent)
+                    summary['recent_intents'] = recent_intents[-5:]
+
+                topics = metadata.get('topics_discussed', [])
+                summary['active_topics'] = topics[-5:]
+            else:
+                summary['last_assistant_action'] = clipped
+
+            metadata['short_memory_summary'] = summary
+            self.context['metadata'] = metadata
+        except Exception as e:
+            logger.warning(f"Short memory summary update failed: {e}")
+
     def get_personalization_hints(self) -> Dict:
         try:
             traits = self.context['traits']
@@ -299,7 +345,8 @@ class ContextManager:
                 'satisfaction_score': self.context['sentiment']['overall_satisfaction'],
                 'escalation_level': self.context['escalation']['level'],
                 'common_intents': self.context['traits'].get('common_intents', []),
-                'topics_discussed': self.context['metadata'].get('topics_discussed', [])
+                'topics_discussed': self.context['metadata'].get('topics_discussed', []),
+                'short_memory_summary': self.context['metadata'].get('short_memory_summary', {})
             }
         except Exception as e:
             logger.error(f"Conversation summary failed: {e}", exc_info=True)
