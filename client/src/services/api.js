@@ -1,5 +1,12 @@
 // client/src/services/api.js
-const API_BASE_URL = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+import { buildWebSocketBaseUrl, normalizeApiBaseUrl } from '../utils/network';
+
+const rawApiBaseUrl = import.meta.env.VITE_API_BASE
+  || import.meta.env.VITE_API_BASE_URL
+  || import.meta.env.VITE_API_URL
+  || '';
+
+const API_BASE_URL = normalizeApiBaseUrl(rawApiBaseUrl);
 
 const parseResponse = async (response) => {
   if (response.status === 204) {
@@ -608,7 +615,7 @@ export const getConversationWsToken = (conversationId) => {
 };
 
 export const getChatWebSocketUrl = (conversationId, wsToken) => {
-  const wsBase = API_BASE_URL.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
+  const wsBase = buildWebSocketBaseUrl(API_BASE_URL);
   return `${wsBase}/ws/chat/${conversationId}/?token=${encodeURIComponent(wsToken)}`;
 };
 
@@ -623,13 +630,16 @@ export const sendMarketplaceChatMessage = (conversationId, content, messageType 
   });
 };
 
-export const sendAssistantMessage = (message, sessionId = null, userId = null) => {
+export const sendAssistantMessage = (message, sessionId = null, userId = null, assistantLane = 'inbox') => {
   const payload = { message };
   if (sessionId) {
     payload.session_id = sessionId;
   }
   if (userId) {
     payload.user_id = userId;
+  }
+  if (assistantLane && assistantLane !== 'inbox') {
+    payload.assistant_lane = assistantLane;
   }
 
   return apiCall('/assistant/api/chat/', {

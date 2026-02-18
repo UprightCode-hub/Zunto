@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, Search, MessageCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ChevronDown, Search, MessageCircle, Headset } from 'lucide-react';
 import { getFaqSections } from '../services/api';
 
 export default function FAQs() {
@@ -132,14 +133,22 @@ export default function FAQs() {
         <div className="mt-12 rounded-2xl bg-gradient-to-r from-blue-600 to-purple-600 p-5 sm:p-6 text-white flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h3 className="text-lg font-semibold">Still need help?</h3>
-            <p className="text-white/90 text-sm">Use the assistant chat at the bottom-right for quick support.</p>
+            <p className="text-white/90 text-sm">Use GIGI AI for help-center questions or open Customer Service AI for dispute support.</p>
           </div>
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 rounded-lg bg-white text-blue-700 px-4 py-2 font-semibold"
-          >
-            <MessageCircle className="w-4 h-4" /> Open Assistant Chat
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              to="/chat?mode=assistant"
+              className="inline-flex items-center gap-2 rounded-lg bg-white text-blue-700 px-4 py-2 font-semibold hover:bg-blue-50 transition"
+            >
+              <MessageCircle className="w-4 h-4" /> Open GIGI AI
+            </Link>
+            <Link
+              to="/chat?mode=customer-service"
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-900/70 text-white px-4 py-2 font-semibold hover:bg-blue-900 transition"
+            >
+              <Headset className="w-4 h-4" /> Customer Service
+            </Link>
+          </div>
         </div>
       </div>
     </div>

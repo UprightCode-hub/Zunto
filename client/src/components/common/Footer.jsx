@@ -16,16 +16,16 @@ export default function Footer() {
               Your one-stop shop for amazing products at unbeatable prices.
             </p>
             <div className="flex gap-4">
-              <a href="#" className="text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition">
+              <a href="https://facebook.com" target="_blank" rel="noreferrer" aria-label="Facebook" className="text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition">
                 <Facebook className="w-5 h-5" />
               </a>
-              <a href="#" className="text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition">
+              <a href="https://x.com" target="_blank" rel="noreferrer" aria-label="X" className="text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition">
                 <Twitter className="w-5 h-5" />
               </a>
-              <a href="#" className="text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition">
+              <a href="https://instagram.com" target="_blank" rel="noreferrer" aria-label="Instagram" className="text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition">
                 <Instagram className="w-5 h-5" />
               </a>
-              <a href="#" className="text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition">
+              <a href="https://youtube.com" target="_blank" rel="noreferrer" aria-label="YouTube" className="text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition">
                 <Youtube className="w-5 h-5" />
               </a>
             </div>
@@ -54,18 +54,18 @@ export default function Footer() {
           <div>
             <h4 className="font-semibold text-white mb-4">Support</h4>
             <div className="flex flex-col gap-2 text-gray-400">
-              <a href="#" className="hover:text-blue-400 transition">
+              <Link to="/chat" className="hover:text-blue-400 transition">
                 Contact Us
-              </a>
+              </Link>
               <Link to="/faqs" className="hover:text-blue-400 transition">
                 FAQs
               </Link>
-              <a href="#" className="hover:text-blue-400 transition">
+              <Link to="/shipping-addresses" className="hover:text-blue-400 transition">
                 Shipping Info
-              </a>
-              <a href="#" className="hover:text-blue-400 transition">
+              </Link>
+              <Link to="/refunds" className="hover:text-blue-400 transition">
                 Returns
-              </a>
+              </Link>
             </div>
           </div>
 
@@ -73,15 +73,15 @@ export default function Footer() {
           <div>
             <h4 className="font-semibold text-white mb-4">Company</h4>
             <div className="flex flex-col gap-2 text-gray-400">
-              <a href="#" className="hover:text-blue-400 transition">
-                About Us
-              </a>
-              <a href="#" className="hover:text-blue-400 transition">
-                Blog
-              </a>
-              <a href="#" className="hover:text-blue-400 transition">
-                Careers
-              </a>
+              <Link to="/profile" className="hover:text-blue-400 transition">
+                My Profile
+              </Link>
+              <Link to="/orders" className="hover:text-blue-400 transition">
+                Order History
+              </Link>
+              <Link to="/notifications" className="hover:text-blue-400 transition">
+                Notifications
+              </Link>
               <Link to="/seller" className="hover:text-blue-400 transition">
                 Become a Seller
               </Link>
@@ -96,10 +96,10 @@ export default function Footer() {
                 <Phone className="w-4 h-4" />
                 <span>+1 (555) 123-4567</span>
               </div>
-              <div className="flex items-center gap-2">
+              <a href="mailto:support@zunto.com" className="flex items-center gap-2 hover:text-blue-400 transition">
                 <Mail className="w-4 h-4" />
                 <span>support@zunto.com</span>
-              </div>
+              </a>
               <div className="flex items-start gap-2">
                 <MapPin className="w-4 h-4 mt-1" />
                 <span>123 Business St, City, State 12345</span>
@@ -115,9 +115,9 @@ export default function Footer() {
             &copy; 2024 Zunto. All rights reserved.
           </p>
           <div className="flex gap-6 text-gray-400 text-sm">
-            <a href="#" className="hover:text-blue-400 transition">Privacy Policy</a>
-            <a href="#" className="hover:text-blue-400 transition">Terms of Service</a>
-            <a href="#" className="hover:text-blue-400 transition">Cookie Policy</a>
+            <Link to="/privacy" className="hover:text-blue-400 transition">Privacy Policy</Link>
+            <Link to="/terms" className="hover:text-blue-400 transition">Terms of Service</Link>
+            <Link to="/faqs" className="hover:text-blue-400 transition">Help Center</Link>
           </div>
         </div>
       </div>

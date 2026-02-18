@@ -1,99 +1,317 @@
-import React, { useState } from 'react';
-import { Plus, Edit2, Trash2, Eye, TrendingUp, Package, DollarSign, ShoppingCart, Inbox } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Plus,
+  Trash2,
+  TrendingUp,
+  Package,
+  DollarSign,
+  ShoppingCart,
+  Inbox,
+  RefreshCw,
+  ImagePlus,
+  Video,
+  X,
+} from 'lucide-react';
 import MarketplaceInbox from '../components/chat/MarketplaceInbox';
+import { useAuth } from '../context/AuthContext';
+import {
+  createProduct,
+  deleteProduct,
+  deleteProductImage,
+  getCategories,
+  getLocations,
+  getMyProducts,
+  getProductDetail,
+  updateUserProfile,
+  uploadProductImage,
+  uploadProductVideo,
+} from '../services/api';
+
+const INITIAL_FORM = {
+  title: '',
+  description: '',
+  category: '',
+  location: '',
+  price: '',
+  quantity: '1',
+  listing_type: 'product',
+  condition: 'new',
+  brand: '',
+  negotiable: false,
+  status: 'active',
+};
+
+const MAX_IMAGES = 5;
+const MAX_VIDEOS = 2;
+const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
 
 const SellerDashboard = () => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('products');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [products, setProducts] = useState([
-    {
-      id: 1,
-      name: 'Premium Headphones',
-      category: 'Electronics',
-      price: '$199.99',
-      stock: 45,
-      sales: 234,
-      rating: 4.8,
-      image: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22 viewBox=%220 0 100 100%22%3E%3Crect fill=%22%23e5e7eb%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-family=%22sans-serif%22 font-size=%227%22 fill=%22%239ca3af%22%3EImage%3C/text%3E%3C/svg%3E',
-      status: 'Active',
-    },
-    {
-      id: 2,
-      name: 'Wireless Mouse',
-      category: 'Electronics',
-      price: '$49.99',
-      stock: 120,
-      sales: 567,
-      rating: 4.6,
-      image: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22 viewBox=%220 0 100 100%22%3E%3Crect fill=%22%23e5e7eb%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-family=%22sans-serif%22 font-size=%227%22 fill=%22%239ca3af%22%3EImage%3C/text%3E%3C/svg%3E',
-      status: 'Active',
-    },
-    {
-      id: 3,
-      name: 'USB-C Cable',
-      category: 'Accessories',
-      price: '$14.99',
-      stock: 500,
-      sales: 1203,
-      rating: 4.9,
-      image: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22 viewBox=%220 0 100 100%22%3E%3Crect fill=%22%23e5e7eb%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-family=%22sans-serif%22 font-size=%227%22 fill=%22%239ca3af%22%3EImage%3C/text%3E%3C/svg%3E',
-      status: 'Active',
-    },
-  ]);
-
-  const [formData, setFormData] = useState({
-    name: '',
-    category: '',
-    price: '',
-    stock: '',
-    description: '',
+  const [showMediaModal, setShowMediaModal] = useState(false);
+  const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [locations, setLocations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [formError, setFormError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [formData, setFormData] = useState(INITIAL_FORM);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [mediaLoading, setMediaLoading] = useState(false);
+  const [mediaError, setMediaError] = useState('');
+  const [mediaSuccess, setMediaSuccess] = useState('');
+  const [storeSettings, setStoreSettings] = useState({
+    seller_commerce_mode: Boolean(user?.seller_commerce_mode),
+    bio: user?.bio || '',
   });
+  const [savingSettings, setSavingSettings] = useState(false);
 
-  const stats = [
-    { label: 'Total Products', value: products.length.toString(), icon: Package, change: '+2' },
-    { label: 'Total Sales', value: products.reduce((sum, p) => sum + parseInt(p.sales), 0).toString(), icon: ShoppingCart, change: '+450' },
-    { label: 'Revenue', value: '$12,450', icon: DollarSign, change: '+$2,500' },
-    { label: 'Avg Rating', value: '4.8★', icon: TrendingUp, change: '+0.2' },
-  ];
+  const fetchDashboardData = async (showLoader = true) => {
+    try {
+      if (showLoader) {
+        setLoading(true);
+      }
+      setRefreshing(!showLoader);
+      setError('');
 
-  const handleAddProduct = (e) => {
-    e.preventDefault();
-    const newProduct = {
-      id: products.length + 1,
-      ...formData,
-      sales: Math.floor(Math.random() * 1000),
-      rating: (Math.random() * 1 + 4).toFixed(1),
-      image: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22 viewBox=%220 0 100 100%22%3E%3Crect fill=%22%23e5e7eb%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-family=%22sans-serif%22 font-size=%227%22 fill=%22%239ca3af%22%3EImage%3C/text%3E%3C/svg%3E',
-      stock: parseInt(formData.stock),
-      status: 'Active',
-    };
-    setProducts([...products, newProduct]);
-    setFormData({ name: '', category: '', price: '', stock: '', description: '' });
-    setShowCreateModal(false);
+      const [productsData, categoriesData, locationsData] = await Promise.all([
+        getMyProducts(),
+        getCategories(),
+        getLocations(),
+      ]);
+
+      setProducts(productsData?.results || productsData || []);
+      setCategories(categoriesData?.results || categoriesData || []);
+      setLocations(locationsData?.results || locationsData || []);
+    } catch (fetchError) {
+      setError(fetchError?.message || 'Unable to load seller dashboard data.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   };
 
-  const handleDeleteProduct = (id) => {
-    setProducts(products.filter(p => p.id !== id));
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  useEffect(() => {
+    setStoreSettings({
+      seller_commerce_mode: Boolean(user?.seller_commerce_mode),
+      bio: user?.bio || '',
+    });
+  }, [user]);
+
+  const stats = useMemo(() => {
+    const totalProducts = products.length;
+    const totalViews = products.reduce((sum, item) => sum + Number(item.views_count || 0), 0);
+    const totalFavorites = products.reduce((sum, item) => sum + Number(item.favorites_count || 0), 0);
+    const activeCount = products.filter((item) => item.status === 'active').length;
+
+    return [
+      { label: 'Total Products', value: totalProducts.toString(), icon: Package, accent: 'text-blue-600 dark:text-blue-400' },
+      { label: 'Active Listings', value: activeCount.toString(), icon: ShoppingCart, accent: 'text-green-600 dark:text-green-400' },
+      { label: 'Total Views', value: totalViews.toString(), icon: TrendingUp, accent: 'text-purple-600 dark:text-purple-400' },
+      { label: 'Favorites', value: totalFavorites.toString(), icon: DollarSign, accent: 'text-amber-600 dark:text-amber-400' },
+    ];
+  }, [products]);
+
+  const closeModal = () => {
+    setShowCreateModal(false);
+    setFormError('');
+    setFormData(INITIAL_FORM);
+  };
+
+  const handleAddProduct = async (event) => {
+    event.preventDefault();
+    setFormError('');
+    setSuccessMessage('');
+
+    try {
+      setSubmitting(true);
+      await createProduct({
+        ...formData,
+        category: Number(formData.category),
+        location: Number(formData.location),
+        price: Number(formData.price),
+        quantity: Number(formData.quantity),
+      });
+      closeModal();
+      await fetchDashboardData(false);
+      setSuccessMessage('Product created successfully.');
+    } catch (createError) {
+      setFormError(createError?.message || 'Unable to create product.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteProduct = async (slug) => {
+    const confirmed = window.confirm('Delete this product? This action cannot be undone.');
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setSuccessMessage('');
+      await deleteProduct(slug);
+      setProducts((current) => current.filter((item) => item.slug !== slug));
+      setSuccessMessage('Product deleted successfully.');
+    } catch (deleteError) {
+      setError(deleteError?.message || 'Unable to delete product.');
+    }
+  };
+
+  const openMediaManager = async (slug) => {
+    try {
+      setMediaError('');
+      setMediaSuccess('');
+      setMediaLoading(true);
+      const detail = await getProductDetail(slug);
+      setSelectedProduct(detail);
+      setShowMediaModal(true);
+    } catch (detailError) {
+      setError(detailError?.message || 'Unable to load product media manager.');
+    } finally {
+      setMediaLoading(false);
+    }
+  };
+
+  const reloadSelectedProduct = async () => {
+    if (!selectedProduct?.slug) {
+      return;
+    }
+
+    const detail = await getProductDetail(selectedProduct.slug);
+    setSelectedProduct(detail);
+  };
+
+  const handleImageUpload = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !selectedProduct?.slug) {
+      return;
+    }
+
+    const currentImages = selectedProduct?.images?.length || 0;
+    if (currentImages >= MAX_IMAGES) {
+      setMediaError(`Maximum ${MAX_IMAGES} images allowed.`);
+      return;
+    }
+
+    try {
+      setMediaLoading(true);
+      setMediaError('');
+      await uploadProductImage(selectedProduct.slug, file);
+      await reloadSelectedProduct();
+      setMediaSuccess('Image uploaded successfully.');
+    } catch (uploadError) {
+      setMediaError(uploadError?.message || 'Unable to upload image.');
+    } finally {
+      setMediaLoading(false);
+    }
+  };
+
+  const handleVideoUpload = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !selectedProduct?.slug) {
+      return;
+    }
+
+    const currentVideos = selectedProduct?.videos?.length || 0;
+    if (currentVideos >= MAX_VIDEOS) {
+      setMediaError(`Maximum ${MAX_VIDEOS} videos allowed.`);
+      return;
+    }
+
+    if (file.size > MAX_VIDEO_BYTES) {
+      setMediaError('Video file must not exceed 20MB.');
+      return;
+    }
+
+    try {
+      setMediaLoading(true);
+      setMediaError('');
+      await uploadProductVideo(selectedProduct.slug, file);
+      await reloadSelectedProduct();
+      setMediaSuccess('Video uploaded successfully.');
+    } catch (uploadError) {
+      setMediaError(uploadError?.message || 'Unable to upload video.');
+    } finally {
+      setMediaLoading(false);
+    }
+  };
+
+  const handleDeleteImage = async (imageId) => {
+    if (!selectedProduct?.slug) {
+      return;
+    }
+
+    try {
+      setMediaLoading(true);
+      await deleteProductImage(selectedProduct.slug, imageId);
+      await reloadSelectedProduct();
+      setMediaSuccess('Image removed successfully.');
+    } catch (deleteError) {
+      setMediaError(deleteError?.message || 'Unable to remove image.');
+    } finally {
+      setMediaLoading(false);
+    }
+  };
+
+  const handleStoreSettingsSave = async (event) => {
+    event.preventDefault();
+
+    try {
+      setSavingSettings(true);
+      setError('');
+      setSuccessMessage('');
+      const updated = await updateUserProfile({
+        seller_commerce_mode: storeSettings.seller_commerce_mode,
+        bio: storeSettings.bio,
+      });
+      localStorage.setItem('user', JSON.stringify(updated));
+      setSuccessMessage('Seller settings saved successfully.');
+    } catch (saveError) {
+      setError(saveError?.message || 'Unable to save seller settings.');
+    } finally {
+      setSavingSettings(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 px-4">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">Seller Dashboard</h1>
-          <p className="text-gray-600 dark:text-gray-400">Manage your products and sales</p>
+        <div className="mb-8 flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">Seller Dashboard</h1>
+            <p className="text-gray-600 dark:text-gray-400">Manage your products, media, and buyer conversations</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => fetchDashboardData(false)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
         </div>
 
-        {/* Stats Grid */}
+        {error && <p className="mb-4 rounded-lg bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 px-4 py-3">{error}</p>}
+        {successMessage && <p className="mb-4 rounded-lg bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 px-4 py-3">{successMessage}</p>}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {stats.map((stat, index) => {
+          {stats.map((stat) => {
             const Icon = stat.icon;
             return (
-              <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-                <div className="flex justify-between items-start mb-4">
-                  <Icon className="w-8 h-8 text-green-600 dark:text-green-400" />
-                  <span className="text-green-600 text-sm font-semibold">{stat.change}</span>
+              <div key={stat.label} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+                <div className="flex justify-between items-start mb-3">
+                  <Icon className={`w-8 h-8 ${stat.accent}`} />
                 </div>
                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">{stat.label}</p>
                 <p className="text-3xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
@@ -102,10 +320,9 @@ const SellerDashboard = () => {
           })}
         </div>
 
-        {/* Navigation and Add Product Button */}
         <div className="flex justify-between items-center mb-6 gap-4 flex-wrap">
-          <div className="border-b border-gray-200 dark:border-gray-700 flex gap-4 flex-grow min-w-max">
-            {['products', 'analytics', 'inbox', 'settings'].map((tab) => (
+          <div className="border-b border-gray-200 dark:border-gray-700 flex gap-4">
+            {['products', 'inbox', 'settings'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -122,69 +339,51 @@ const SellerDashboard = () => {
           {activeTab === 'products' && (
             <button
               onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white font-semibold px-6 py-3 rounded-lg transition-colors"
+              className="bg-green-600 hover:bg-green-700 text-white font-semibold px-5 py-2 rounded-lg transition-colors flex items-center gap-2"
             >
-              <Plus className="w-5 h-5" /> Add Product
+              <Plus className="w-4 h-4" /> Add Product
             </button>
           )}
         </div>
 
-        {/* Products Tab */}
         {activeTab === 'products' && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Your Products</h2>
-            </div>
-            <div className="overflow-x-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-x-auto">
+            {loading ? (
+              <div className="p-10 text-center text-gray-500 dark:text-gray-400">Loading products...</div>
+            ) : products.length === 0 ? (
+              <div className="p-10 text-center text-gray-500 dark:text-gray-400">No products yet. Create your first listing.</div>
+            ) : (
               <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
                   <tr>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Product</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Category</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Price</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Stock</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Sales</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Rating</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">Actions</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">Product</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">Category</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">Price</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">Views</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">Favorites</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {products.map((product) => (
-                    <tr key={product.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                      <td className="px-6 py-4 text-sm">
-                        <div className="flex items-center gap-3">
-                          <img src={product.image} alt={product.name} className="w-10 h-10 rounded object-cover" />
-                          <span className="text-gray-900 dark:text-white font-medium">{product.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{product.category}</td>
-                      <td className="px-6 py-4 text-sm font-semibold text-gray-900 dark:text-white">{product.price}</td>
-                      <td className="px-6 py-4 text-sm">
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          product.stock > 100
-                            ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
-                            : product.stock > 0
-                            ? 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200'
-                            : 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200'
-                        }`}>
-                          {product.stock}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{product.sales}</td>
-                      <td className="px-6 py-4 text-sm">
-                        <span className="text-yellow-500">★</span>
-                        <span className="text-gray-900 dark:text-white font-semibold">{product.rating}</span>
-                      </td>
+                    <tr key={product.slug} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-white font-medium">{product.title || product.name}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">{product.category_name || 'N/A'}</td>
+                      <td className="px-6 py-4 text-sm font-semibold text-gray-900 dark:text-white">${product.price}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">{product.views_count || 0}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">{product.favorites_count || 0}</td>
                       <td className="px-6 py-4 text-sm flex gap-2">
-                        <button className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 p-1">
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <button className="text-yellow-600 hover:text-yellow-800 dark:text-yellow-400 dark:hover:text-yellow-300 p-1">
-                          <Edit2 className="w-4 h-4" />
+                        <button
+                          onClick={() => openMediaManager(product.slug)}
+                          className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 p-1"
+                          aria-label={`Manage media for ${product.title || product.name}`}
+                        >
+                          <ImagePlus className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => handleDeleteProduct(product.id)}
+                          onClick={() => handleDeleteProduct(product.slug)}
                           className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 p-1"
+                          aria-label={`Delete ${product.title || product.name}`}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -193,42 +392,10 @@ const SellerDashboard = () => {
                   ))}
                 </tbody>
               </table>
-            </div>
+            )}
           </div>
         )}
 
-        {/* Analytics Tab */}
-        {activeTab === 'analytics' && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="p-6 border border-gray-200 dark:border-gray-700 rounded-lg">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Sales Trend</h3>
-                <div className="h-40 bg-gradient-to-r from-green-100 to-green-50 dark:from-green-900 dark:to-gray-800 rounded flex items-end justify-around p-4">
-                  {[30, 45, 60, 55, 70, 85, 90].map((value, i) => (
-                    <div key={i} className="flex flex-col items-center">
-                      <div className="w-6 bg-green-600 rounded-t" style={{ height: `${value}%` }}></div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="p-6 border border-gray-200 dark:border-gray-700 rounded-lg">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Top Products</h3>
-                <div className="space-y-3">
-                  {products.slice(0, 3).map((product) => (
-                    <div key={product.id} className="flex justify-between items-center pb-3 border-b border-gray-200 dark:border-gray-700 last:border-0">
-                      <span className="text-gray-600 dark:text-gray-400">{product.name}</span>
-                      <span className="font-semibold text-gray-900 dark:text-white">{product.sales} sales</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-
-
-        {/* Inbox Tab */}
         {activeTab === 'inbox' && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
@@ -236,9 +403,6 @@ const SellerDashboard = () => {
                 <Inbox className="w-5 h-5" />
                 Seller Inbox
               </h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                Reply to buyer conversations from your product listings.
-              </p>
             </div>
             <div className="p-6">
               <MarketplaceInbox
@@ -250,111 +414,218 @@ const SellerDashboard = () => {
           </div>
         )}
 
-        {/* Settings Tab */}
         {activeTab === 'settings' && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Seller Settings</h2>
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">Store Name</label>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Seller Settings</h2>
+            <form onSubmit={handleStoreSettingsSave} className="space-y-5 max-w-3xl">
+              <label className="flex items-center justify-between gap-4 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                <span>
+                  <span className="block font-semibold text-gray-900 dark:text-white">Seller commerce mode</span>
+                  <span className="block text-sm text-gray-500 dark:text-gray-400">Enable seller-focused controls across buyer and profile experiences.</span>
+                </span>
                 <input
-                  type="text"
-                  defaultValue="My Store"
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:border-green-600"
+                  type="checkbox"
+                  checked={storeSettings.seller_commerce_mode}
+                  onChange={(event) => setStoreSettings((current) => ({ ...current, seller_commerce_mode: event.target.checked }))}
+                  className="w-5 h-5"
                 />
-              </div>
+              </label>
+
               <div>
-                <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">Description</label>
+                <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">Store bio</label>
                 <textarea
-                  defaultValue="My amazing store description..."
                   rows="4"
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:border-green-600"
+                  value={storeSettings.bio}
+                  onChange={(event) => setStoreSettings((current) => ({ ...current, bio: event.target.value }))}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  placeholder="Tell buyers about your store, quality, and response times."
                 />
               </div>
-              <button className="bg-green-600 hover:bg-green-700 text-white font-semibold px-6 py-2 rounded-lg transition-colors">
-                Save Settings
+
+              <button
+                type="submit"
+                disabled={savingSettings}
+                className="bg-green-600 hover:bg-green-700 disabled:opacity-70 text-white font-semibold px-6 py-2 rounded-lg transition-colors"
+              >
+                {savingSettings ? 'Saving...' : 'Save Seller Settings'}
               </button>
-            </div>
+            </form>
           </div>
         )}
 
-        {/* Create Product Modal */}
         {showCreateModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Add New Product</h2>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-xl w-full p-6 max-h-[90vh] overflow-auto">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-5">Add New Product</h2>
               <form onSubmit={handleAddProduct} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">Product Name</label>
+                  <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">Title</label>
                   <input
                     type="text"
                     required
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:border-green-600"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">Category</label>
-                  <select
-                    required
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:border-green-600"
-                  >
-                    <option value="">Select Category</option>
-                    <option value="Electronics">Electronics</option>
-                    <option value="Accessories">Accessories</option>
-                    <option value="Fashion">Fashion</option>
-                    <option value="Home">Home</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">Price</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.price}
-                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                    placeholder="$0.00"
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:border-green-600"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">Stock Quantity</label>
-                  <input
-                    type="number"
-                    required
-                    value={formData.stock}
-                    onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:border-green-600"
+                    value={formData.title}
+                    onChange={(event) => setFormData((current) => ({ ...current, title: event.target.value }))}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">Description</label>
                   <textarea
                     rows="3"
+                    required
                     value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:border-green-600"
+                    onChange={(event) => setFormData((current) => ({ ...current, description: event.target.value }))}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   />
                 </div>
-                <div className="flex gap-4 pt-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">Category</label>
+                    <select
+                      required
+                      value={formData.category}
+                      onChange={(event) => setFormData((current) => ({ ...current, category: event.target.value }))}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                      <option value="">Select Category</option>
+                      {categories.map((category) => (
+                        <option key={category.id} value={category.id}>{category.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">Location</label>
+                    <select
+                      required
+                      value={formData.location}
+                      onChange={(event) => setFormData((current) => ({ ...current, location: event.target.value }))}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                      <option value="">Select Location</option>
+                      {locations.map((location) => (
+                        <option key={location.id} value={location.id}>{location.full_address || `${location.city}, ${location.state}`}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">Price</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      required
+                      value={formData.price}
+                      onChange={(event) => setFormData((current) => ({ ...current, price: event.target.value }))}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">Quantity</label>
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      value={formData.quantity}
+                      onChange={(event) => setFormData((current) => ({ ...current, quantity: event.target.value }))}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">Brand (optional)</label>
+                  <input
+                    type="text"
+                    value={formData.brand}
+                    onChange={(event) => setFormData((current) => ({ ...current, brand: event.target.value }))}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                </div>
+                {formError && <p className="text-sm text-red-600 dark:text-red-300">{formError}</p>}
+                <div className="flex gap-4 pt-2">
                   <button
                     type="button"
-                    onClick={() => setShowCreateModal(false)}
-                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    onClick={closeModal}
+                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors"
+                    disabled={submitting}
+                    className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-70 text-white rounded-lg font-semibold"
                   >
-                    Add Product
+                    {submitting ? 'Saving...' : 'Create Product'}
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {showMediaModal && selectedProduct && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+            <div className="w-full max-w-5xl bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-h-[90vh] overflow-auto">
+              <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">Media Manager</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{selectedProduct.title}</p>
+                </div>
+                <button onClick={() => setShowMediaModal(false)} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
+                  <X className="w-5 h-5 text-gray-700 dark:text-gray-300" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                {mediaError && <p className="rounded-lg bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 px-4 py-2">{mediaError}</p>}
+                {mediaSuccess && <p className="rounded-lg bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 px-4 py-2">{mediaSuccess}</p>}
+                {mediaLoading && <p className="text-sm text-gray-500 dark:text-gray-400">Processing media request...</p>}
+
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-semibold text-gray-900 dark:text-white">Images ({selectedProduct.images?.length || 0}/{MAX_IMAGES})</h4>
+                    <label className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white cursor-pointer hover:bg-blue-700 transition">
+                      <ImagePlus className="w-4 h-4" /> Upload Image
+                      <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {(selectedProduct.images || []).map((image) => (
+                      <div key={image.id} className="relative border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                        <img src={image.image} alt={image.caption || 'Product image'} className="w-full h-32 object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteImage(image.id)}
+                          className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1 hover:bg-black/80"
+                          aria-label="Delete image"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="font-semibold text-gray-900 dark:text-white">Videos ({selectedProduct.videos?.length || 0}/{MAX_VIDEOS})</h4>
+                    <label className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-600 text-white cursor-pointer hover:bg-purple-700 transition">
+                      <Video className="w-4 h-4" /> Upload Video
+                      <input type="file" accept="video/*" className="hidden" onChange={handleVideoUpload} />
+                    </label>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Video files must be 20MB or smaller.</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {(selectedProduct.videos || []).map((video) => (
+                      <video key={video.id} controls preload="metadata" className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-black">
+                        <source src={video.video} type="video/mp4" />
+                        Your browser does not support video playback.
+                      </video>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}

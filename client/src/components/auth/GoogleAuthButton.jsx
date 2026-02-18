@@ -1,10 +1,16 @@
 import React, { useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import axios from 'axios';
+import { normalizeApiBaseUrl } from '../../utils/network';
 
 const GoogleAuthButton = ({ onSuccess, onError, mode = 'signup' }) => {
   const [loading, setLoading] = useState(false);
-  const apiBaseUrl = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  const apiBaseUrl = normalizeApiBaseUrl(
+    import.meta.env.VITE_API_BASE
+    || import.meta.env.VITE_API_BASE_URL
+    || import.meta.env.VITE_API_URL
+    || ''
+  );
 
   const handleGoogleSuccess = async (credentialResponse) => {
     setLoading(true);

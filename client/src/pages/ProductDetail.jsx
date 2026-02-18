@@ -194,6 +194,12 @@ export default function ProductDetail() {
     ? product.images.map((image) => (typeof image === 'string' ? image : image.image)).filter(Boolean)
     : [getProductImage(product)];
 
+  const productVideos = Array.isArray(product.videos)
+    ? product.videos
+      .map((video) => (typeof video === 'string' ? video : video.video))
+      .filter(Boolean)
+    : [];
+
   return (
     <div className="min-h-screen pt-20 pb-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -229,6 +235,27 @@ export default function ProductDetail() {
                     <img src={img} alt={`${productTitle} ${idx + 1}`} className="w-full h-full object-cover" />
                   </button>
                 ))}
+              </div>
+            )}
+
+            {productVideos.length > 0 && (
+              <div className="mt-6 rounded-2xl border border-[#2c77d1]/20 bg-[#050d1b]/60 p-4">
+                <h3 className="text-lg font-semibold mb-3">Product Videos</h3>
+                <div className="space-y-3">
+                  {productVideos.map((videoUrl, index) => (
+                    <video
+                      key={videoUrl}
+                      controls
+                      preload="metadata"
+                      className="w-full rounded-xl border border-[#2c77d1]/20 bg-black"
+                      aria-label={`Product video ${index + 1}`}
+                    >
+                      <source src={videoUrl} type="video/mp4" />
+                      Your browser does not support product video playback.
+                    </video>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-400 mt-2">Sellers can upload up to 2 videos (max 20MB each).</p>
               </div>
             )}
           </div>
