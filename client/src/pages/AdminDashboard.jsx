@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { BarChart3, Users, Package, ShoppingCart, TrendingUp, RefreshCw } from 'lucide-react';
 import {
   getDashboardAnalytics,
@@ -41,7 +41,7 @@ export default function AdminDashboard() {
     orders: { page: 1, ...normalizePaginated(null) },
   });
 
-  const loadOverview = async () => {
+  const loadOverview = useCallback(async () => {
     try {
       setLoadingOverview(true);
       setError('');
@@ -57,9 +57,9 @@ export default function AdminDashboard() {
     } finally {
       setLoadingOverview(false);
     }
-  };
+  }, []);
 
-  const loadTab = async (tab, page = 1) => {
+  const loadTab = useCallback(async (tab, page = 1) => {
     if (!['customers', 'products', 'orders'].includes(tab)) {
       return;
     }
@@ -88,7 +88,7 @@ export default function AdminDashboard() {
     } finally {
       setLoadingTab(false);
     }
-  };
+  }, []);
 
   const refreshCurrentView = async () => {
     await loadOverview();
@@ -100,7 +100,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     loadOverview();
-  }, []);
+  }, [loadOverview]);
 
   useEffect(() => {
     if (activeTab === 'overview') {
@@ -110,7 +110,7 @@ export default function AdminDashboard() {
     if ((tabData[activeTab]?.results || []).length === 0) {
       loadTab(activeTab, 1);
     }
-  }, [activeTab]);
+  }, [activeTab, loadTab, tabData]);
 
   const statCards = useMemo(
     () => [

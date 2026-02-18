@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Package, RefreshCw } from 'lucide-react';
 import { cancelOrder, getOrderDetail, initializeOrderPayment, reorder } from '../services/api';
@@ -20,7 +20,7 @@ export default function OrderDetail() {
   const [busyAction, setBusyAction] = useState('');
   const [error, setError] = useState('');
 
-  const loadOrder = async () => {
+  const loadOrder = useCallback(async () => {
     try {
       setLoading(true);
       const data = await getOrderDetail(orderNumber);
@@ -31,11 +31,11 @@ export default function OrderDetail() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [orderNumber]);
 
   useEffect(() => {
     loadOrder();
-  }, [orderNumber]);
+  }, [loadOrder]);
 
   const handleCancel = async () => {
     if (!window.confirm('Cancel this order?')) return;

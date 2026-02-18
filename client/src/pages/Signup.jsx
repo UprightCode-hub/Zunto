@@ -13,6 +13,7 @@ export default function Signup() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [acceptedPolicies, setAcceptedPolicies] = useState(false);
   
   const [formData, setFormData] = useState({
     firstName: '',
@@ -50,6 +51,11 @@ export default function Signup() {
       setError('First and last name are required');
       return;
     }
+
+    if (!acceptedPolicies) {
+      setError('You must accept the Terms of Service and Privacy Policy to continue.');
+      return;
+    }
     
     try {
       setLoading(true);
@@ -73,6 +79,20 @@ export default function Signup() {
       setLoading(false);
     }
   };
+
+
+  const hasRequiredFields = [
+    formData.firstName,
+    formData.lastName,
+    formData.email,
+    formData.phone,
+    formData.password,
+    formData.passwordConfirm,
+  ].every((value) => value.trim().length > 0);
+
+  const passwordsMatch = formData.password === formData.passwordConfirm;
+  const hasValidPasswordLength = formData.password.length >= 8;
+  const canSubmit = hasRequiredFields && passwordsMatch && hasValidPasswordLength && acceptedPolicies && !loading;
 
   return (
     <div className="min-h-screen flex">
@@ -217,10 +237,28 @@ export default function Signup() {
               </div>
             </div>
 
+            <label className="flex items-start gap-3 rounded-xl border border-gray-800 bg-[#0b1220] p-3 text-sm text-gray-300">
+              <input
+                type="checkbox"
+                checked={acceptedPolicies}
+                onChange={(event) => {
+                  setAcceptedPolicies(event.target.checked);
+                  setError('');
+                }}
+                className="mt-1 h-4 w-4 rounded border-gray-600 bg-[#020617] text-[#2c77d1] focus:ring-[#2c77d1]"
+              />
+              <span>
+                I agree to the{' '}
+                <Link to="/terms" className="text-[#2c77d1] hover:text-[#9426f4] underline">Terms of Service</Link>
+                {' '}and{' '}
+                <Link to="/privacy" className="text-[#2c77d1] hover:text-[#9426f4] underline">Privacy Policy</Link>.
+              </span>
+            </label>
+
             <button
               type="submit"
-              disabled={loading}
-              className="w-full bg-gradient-to-r from-[#2c77d1] to-[#9426f4] hover:opacity-90 text-white font-semibold py-4 rounded-xl transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-[#2c77d1]/25 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none"
+              disabled={!canSubmit}
+              className="w-full bg-gradient-to-r from-[#2c77d1] to-[#9426f4] hover:opacity-90 text-white font-semibold py-4 rounded-xl transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-[#2c77d1]/25 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
               {loading ? (
                 <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
