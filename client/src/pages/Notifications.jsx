@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getNotifications, markNotificationAsRead } from '../services/api';
@@ -23,7 +23,7 @@ export default function Notifications() {
   const POLL_MS_ACTIVE = 15000;
   const POLL_MS_BACKGROUND = 45000;
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
     try {
@@ -36,13 +36,13 @@ export default function Notifications() {
     } finally {
       inFlightRef.current = false;
     }
-  };
+  }, []);
 
-  const startPolling = () => {
+  const startPolling = useCallback(() => {
     if (pollInterval.current) clearInterval(pollInterval.current);
     const pollMs = document.visibilityState === 'visible' ? POLL_MS_ACTIVE : POLL_MS_BACKGROUND;
     pollInterval.current = setInterval(fetchNotifications, pollMs);
-  };
+  }, [fetchNotifications]);
 
   useEffect(() => {
     const startupTimer = setTimeout(fetchNotifications, 0);
@@ -62,7 +62,7 @@ export default function Notifications() {
       if (pollInterval.current) clearInterval(pollInterval.current);
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, []);
+  }, [fetchNotifications, startPolling]);
 
   const handleMarkAsRead = async (notificationId, e) => {
     e.stopPropagation();
