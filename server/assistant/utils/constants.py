@@ -1,31 +1,12 @@
-# assistant/utils/constants.py
-
-"""
-Constants - System-wide configuration constants for Zunto Assistant.
-
-Contains:
-- Confidence thresholds
-- State definitions
-- Message limits
-- Timeout values
-- API configuration
-- Contact information
-- Feature flags
-"""
-
-# ============================================================================
-# VERSION INFO
-# ============================================================================
+#server/assistant/utils/constants.py
+              
 SYSTEM_VERSION = '2.0.0'
-SYSTEM_NAME = 'Gigi (Zunto AI Assistant)'
-CREATOR_NAME = 'Wisdom Ekwugha'
-ORGANIZATION = 'Gigi Development Engine (GDE)'
+SYSTEM_NAME = 'Zunto AI Assistant'
+CREATOR_NAME = ''
+ORGANIZATION = 'Zunto'
 
-# ============================================================================
-# CONVERSATION STATES
-# ============================================================================
+                     
 STATE_GREETING = 'greeting'
-STATE_AWAITING_NAME = 'awaiting_name'
 STATE_MENU = 'menu'
 STATE_FAQ_MODE = 'faq_mode'
 STATE_DISPUTE_MODE = 'dispute_mode'
@@ -34,7 +15,6 @@ STATE_CHAT_MODE = 'chat_mode'
 
 ALL_STATES = [
     STATE_GREETING,
-    STATE_AWAITING_NAME,
     STATE_MENU,
     STATE_FAQ_MODE,
     STATE_DISPUTE_MODE,
@@ -42,16 +22,14 @@ ALL_STATES = [
     STATE_CHAT_MODE
 ]
 
-# ============================================================================
-# UNIFIED CONFIDENCE CONFIGURATION
-# ============================================================================
+                                  
 
 class ConfidenceConfig:
-    """Centralized confidence thresholds for all AI components."""
+    """Centralized confidence thresholds."""
     
     RAG = {
-        'high': 0.65,
-        'medium': 0.40,
+        'high': 0.50,
+        'medium': 0.35,
         'low': 0.0
     }
     
@@ -108,7 +86,7 @@ class ConfidenceConfig:
         return score < cls.RAG['medium']
 
 
-# Legacy constants for backward compatibility
+                                             
 CONFIDENCE_HIGH = ConfidenceConfig.RAG['high']
 CONFIDENCE_MEDIUM = ConfidenceConfig.RAG['medium']
 CONFIDENCE_LOW = ConfidenceConfig.RAG['low']
@@ -118,9 +96,7 @@ QUALITY_GOOD = 0.65
 QUALITY_FAIR = 0.40
 QUALITY_POOR = 0.40
 
-# ============================================================================
-# MESSAGE LIMITS & VALIDATION
-# ============================================================================
+                             
 MESSAGE_MIN_LENGTH = 1
 MESSAGE_MAX_LENGTH = 2048
 MESSAGE_WARNING_LENGTH = 1500
@@ -132,9 +108,7 @@ SESSION_TIMEOUT_MINUTES = 30
 MAX_MESSAGES_PER_SESSION = 100
 MAX_CONTEXT_HISTORY = 20
 
-# ============================================================================
-# RAG CONFIGURATION
-# ============================================================================
+                   
 RAG_TOP_K = 5
 RAG_EMBEDDING_MODEL = 'BAAI/bge-small-en-v1.5'
 RAG_DIMENSION = 384
@@ -143,18 +117,14 @@ RAG_INDEX_TYPE = 'HNSW'
 RAG_TARGET_QUERY_TIME_MS = 50
 RAG_CACHE_ENABLED = True
 
-# ============================================================================
-# LLM CONFIGURATION (Groq)
-# ============================================================================
+                          
 LLM_MODEL_NAME = 'llama-3.3-70b-versatile'
 LLM_MAX_TOKENS = 256
 LLM_TEMPERATURE = 0.2
 LLM_TIMEOUT_SECONDS = 10.0
 LLM_MAX_RETRIES = 2
 
-# ============================================================================
-# INTENT TYPES
-# ============================================================================
+              
 INTENT_GREETING = 'greeting'
 INTENT_FAQ = 'faq'
 INTENT_QUESTION = 'question'
@@ -179,9 +149,7 @@ ALL_INTENTS = [
     INTENT_GENERAL
 ]
 
-# ============================================================================
-# EMOTION TYPES
-# ============================================================================
+               
 EMOTION_NEUTRAL = 'neutral'
 EMOTION_HAPPY = 'happy'
 EMOTION_EXCITED = 'excited'
@@ -207,9 +175,7 @@ EMOTION_WEIGHTS = {
     EMOTION_ANGRY: -1.0
 }
 
-# ============================================================================
-# ESCALATION LEVELS
-# ============================================================================
+                   
 ESCALATION_NONE = 0
 ESCALATION_CONCERNED = 1
 ESCALATION_FRUSTRATED = 2
@@ -217,9 +183,7 @@ ESCALATION_CRITICAL = 3
 
 ESCALATION_THRESHOLD = 3
 
-# ============================================================================
-# REPORT TYPES & SEVERITY
-# ============================================================================
+                         
 REPORT_TYPE_DISPUTE = 'dispute'
 REPORT_TYPE_COMPLAINT = 'complaint'
 REPORT_TYPE_FEEDBACK = 'feedback'
@@ -232,9 +196,7 @@ SEVERITY_MEDIUM = 'medium'
 SEVERITY_HIGH = 'high'
 SEVERITY_CRITICAL = 'critical'
 
-# ============================================================================
-# DISPUTE CATEGORIES
-# ============================================================================
+                    
 CATEGORY_SCAM = 'scam'
 CATEGORY_PAYMENT = 'payment'
 CATEGORY_SHIPPING = 'shipping'
@@ -255,9 +217,7 @@ ALL_CATEGORIES = [
     CATEGORY_OTHER
 ]
 
-# ============================================================================
-# CONTACT PLATFORMS
-# ============================================================================
+                   
 PLATFORM_EMAIL = 'email'
 PLATFORM_TWITTER = 'twitter'
 PLATFORM_WHATSAPP = 'whatsapp'
@@ -270,9 +230,7 @@ ALL_PLATFORMS = [
     PLATFORM_NONE
 ]
 
-# ============================================================================
-# ZUNTO CONTACT INFORMATION
-# ============================================================================
+                           
 ZUNTO_SUPPORT_EMAIL = 'zuntoproject@gmail.com'
 ZUNTO_SUPPORT_TWITTER = '@zuntoproject'
 ZUNTO_SUPPORT_WHATSAPP = '+234-815-789-9402'
@@ -280,9 +238,7 @@ ZUNTO_WEBSITE = 'https://zunto.com'
 
 SUPPORT_RESPONSE_TIME_HOURS = 24
 
-# ============================================================================
-# PERSONALIZATION PREFERENCES
-# ============================================================================
+                             
 FORMALITY_FORMAL = 'formal'
 FORMALITY_NEUTRAL = 'neutral'
 FORMALITY_CASUAL = 'casual'
@@ -296,9 +252,7 @@ RESPONSE_LENGTH_SHORT = 'short'
 RESPONSE_LENGTH_MEDIUM = 'medium'
 RESPONSE_LENGTH_LONG = 'long'
 
-# ============================================================================
-# EMOJIS BY CATEGORY
-# ============================================================================
+                    
 EMOJIS = {
     'greeting': ['👋', '😊', '🎉', '✨'],
     'success': ['✅', '🎊', '👍', '💯'],
@@ -311,9 +265,7 @@ EMOJIS = {
     'social': ['🐦', '💬', '📱']
 }
 
-# ============================================================================
-# MENU OPTIONS
-# ============================================================================
+              
 MENU_OPTION_DISPUTE = '1'
 MENU_OPTION_FAQ = '2'
 MENU_OPTION_FEEDBACK = '3'
@@ -324,23 +276,17 @@ MENU_OPTIONS = {
     MENU_OPTION_FEEDBACK: 'Share Feedback'
 }
 
-# ============================================================================
-# EXIT COMMANDS
-# ============================================================================
+               
 EXIT_COMMANDS = [
     'exit', 'quit', 'bye', 'goodbye', 'stop', 
     'menu', 'back', 'cancel', 'done'
 ]
 
-# ============================================================================
-# CONFIRMATION KEYWORDS
-# ============================================================================
+                       
 CONFIRMATION_YES = ['yes', 'y', 'yeah', 'yep', 'sure', 'ok', 'okay', 'fine']
 CONFIRMATION_NO = ['no', 'n', 'nope', 'nah', 'not really']
 
-# ============================================================================
-# LANGUAGE SUPPORT
-# ============================================================================
+                  
 SUPPORTED_LANGUAGES = [
     'english', 'spanish', 'french', 'chinese', 'arabic', 'portuguese'
 ]
@@ -353,18 +299,14 @@ GREETINGS_MULTILANG = {
     'arabic': ['مرحبا', 'السلام عليكم']
 }
 
-# ============================================================================
-# PERFORMANCE TARGETS
-# ============================================================================
+                     
 TARGET_RESPONSE_TIME_MS = 100
 ACCEPTABLE_RESPONSE_TIME_MS = 500
 SLOW_RESPONSE_TIME_MS = 1000
 
 COST_SAVINGS_TARGET = 0.65
 
-# ============================================================================
-# FEATURE FLAGS
-# ============================================================================
+               
 FEATURE_NAME_DETECTION_ENABLED = True
 FEATURE_INTENT_CLASSIFICATION_ENABLED = True
 FEATURE_CONTEXT_TRACKING_ENABLED = True
@@ -374,9 +316,7 @@ FEATURE_AI_DRAFT_GENERATION_ENABLED = True
 FEATURE_SENTIMENT_ANALYSIS_ENABLED = True
 FEATURE_MULTI_LANGUAGE_ENABLED = True
 
-# ============================================================================
-# LOGGING CONFIGURATION
-# ============================================================================
+                       
 LOG_LEVEL_DEBUG = 'DEBUG'
 LOG_LEVEL_INFO = 'INFO'
 LOG_LEVEL_WARNING = 'WARNING'
@@ -387,9 +327,7 @@ LOG_CONTEXT_CHANGES = True
 LOG_ESCALATIONS = True
 LOG_PERFORMANCE_METRICS = True
 
-# ============================================================================
-# ANALYTICS TRACKING
-# ============================================================================
+                    
 TRACK_MESSAGE_COUNT = True
 TRACK_SENTIMENT = True
 TRACK_CONFIDENCE_SCORES = True
@@ -397,9 +335,7 @@ TRACK_PROCESSING_TIME = True
 TRACK_ESCALATIONS = True
 TRACK_RESOLUTION_SUCCESS = True
 
-# ============================================================================
-# ERROR MESSAGES
-# ============================================================================
+                
 ERROR_MSG_EMPTY_MESSAGE = "I didn't receive a valid message. Could you please try again?"
 ERROR_MSG_PROCESSING_FAILED = (
     "I apologize, but I'm having trouble processing your message right now. "
@@ -411,37 +347,27 @@ ERROR_MSG_TOO_MANY_MESSAGES = (
     "Please start a new conversation."
 )
 
-# ============================================================================
-# SUCCESS MESSAGES
-# ============================================================================
+                  
 SUCCESS_MSG_REPORT_SAVED = "Your report has been logged successfully! ✅"
 SUCCESS_MSG_FEEDBACK_SAVED = "Your feedback has been recorded! ✅"
 SUCCESS_MSG_SESSION_RESET = "Session reset successfully. Let's start fresh!"
 
-# ============================================================================
-# RATE LIMITING
-# ============================================================================
+               
 RATE_LIMIT_REQUESTS_PER_MINUTE = 60
 RATE_LIMIT_REQUESTS_PER_HOUR = 1000
 RATE_LIMIT_BURST_SIZE = 10
 
-# ============================================================================
-# CACHE CONFIGURATION
-# ============================================================================
+                     
 CACHE_ENABLED = True
 CACHE_TTL_SECONDS = 3600
 CACHE_MAX_SIZE_MB = 100
 
-# ============================================================================
-# DATABASE QUERY LIMITS
-# ============================================================================
+                       
 MAX_CONVERSATION_LOGS = 10000
 MAX_REPORTS = 1000
 MAX_SESSIONS = 100
 
-# ============================================================================
-# HELPER FUNCTIONS
-# ============================================================================
+                  
 
 def get_confidence_tier(score: float) -> str:
     """Get confidence tier label from score (deprecated - use ConfidenceConfig)."""

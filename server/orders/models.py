@@ -1,4 +1,4 @@
-# orders/models.py
+#server/orders/models.py
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator
@@ -42,7 +42,7 @@ class Order(models.Model):
         default='unpaid'
     )
 
-    # KEPT AS FIELD - This is the stored database value
+                                                       
     subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     shipping_fee = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -122,8 +122,8 @@ class Order(models.Model):
         """
         return self.status in ['pending', 'processing']
 
-    # REMOVED - The @property version of subtotal has been deleted to prevent conflict
-    # The subtotal field above (line 43) is now the single source of truth
+                                                                                      
+                                                                          
 
 
 class OrderItem(models.Model):
@@ -229,7 +229,7 @@ class ShippingAddress(models.Model):
         return f"{self.label} - {self.full_name}"
     
     def save(self, *args, **kwargs):
-        # If this is set as default, unset other defaults
+                                                         
         if self.is_default:
             ShippingAddress.objects.filter(
                 user=self.user,
@@ -257,7 +257,7 @@ class Payment(models.Model):
         related_name='payments'
     )
     
-    # Payment details
+                     
     payment_method = models.CharField(max_length=50)
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     currency = models.CharField(max_length=3, default='NGN')
@@ -267,7 +267,7 @@ class Payment(models.Model):
         default='pending'
     )
     
-    # Gateway information
+                         
     gateway_reference = models.CharField(
         max_length=255,
         unique=True,
@@ -279,11 +279,11 @@ class Payment(models.Model):
         help_text="Full response from payment gateway"
     )
     
-    # Metadata
+              
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.TextField(blank=True)
     
-    # Timestamps
+                
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     paid_at = models.DateTimeField(null=True, blank=True)
@@ -342,11 +342,11 @@ class Refund(models.Model):
         default='pending'
     )
     
-    # Gateway information
+                         
     refund_reference = models.CharField(max_length=255, blank=True)
     gateway_response = models.JSONField(blank=True, null=True)
     
-    # Admin notes
+                 
     admin_notes = models.TextField(blank=True)
     processed_by = models.ForeignKey(
         User,
@@ -402,9 +402,7 @@ class OrderNote(models.Model):
         return f"Note for {self.order.order_number}"
 
 
-# ============================================================================
-# SIGNALS - Automatically update order totals when items change
-# ============================================================================
+                                                               
 
 @receiver([post_save, post_delete], sender=OrderItem)
 def update_order_totals(sender, instance, **kwargs):

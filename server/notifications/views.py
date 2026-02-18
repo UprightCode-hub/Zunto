@@ -1,4 +1,4 @@
-# notifications/views.py
+#server/notifications/views.py
 from rest_framework import generics, status, permissions, viewsets
 from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.response import Response
@@ -75,7 +75,7 @@ class TestEmailView(APIView):
                 'error': 'template_type is required'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Send test email
+                         
         result = EmailService.send_email(
             template_type=template_type,
             recipient_email=request.user.email,

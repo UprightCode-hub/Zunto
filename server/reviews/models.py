@@ -1,4 +1,4 @@
-# reviews/models.py
+#server/reviews/models.py
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator, MaxValueValidator
@@ -23,17 +23,17 @@ class ProductReview(models.Model):
         related_name='product_reviews_given'
     )
     
-    # Rating (1-5 stars)
+                        
     rating = models.PositiveIntegerField(
         validators=[MinValueValidator(1), MaxValueValidator(5)],
         help_text="Rating from 1 to 5 stars"
     )
     
-    # Review content
+                    
     title = models.CharField(max_length=200, blank=True)
     comment = models.TextField()
     
-    # Specific ratings (optional, for detailed feedback)
+                                                        
     quality_rating = models.PositiveIntegerField(
         validators=[MinValueValidator(1), MaxValueValidator(5)],
         null=True,
@@ -53,29 +53,29 @@ class ProductReview(models.Model):
         help_text="Description accuracy rating"
     )
     
-    # Verification
+                  
     is_verified_purchase = models.BooleanField(
         default=False,
         help_text="Did reviewer actually purchase this product?"
     )
     
-    # Status
+            
     is_approved = models.BooleanField(default=True)
     is_flagged = models.BooleanField(default=False)
     flagged_reason = models.TextField(blank=True)
     
-    # Engagement
+                
     helpful_count = models.PositiveIntegerField(default=0)
     not_helpful_count = models.PositiveIntegerField(default=0)
     
-    # Timestamps
+                
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
         db_table = 'product_reviews'
         ordering = ['-created_at']
-        unique_together = ['product', 'reviewer']  # One review per user per product
+        unique_together = ['product', 'reviewer']                                   
         indexes = [
             models.Index(fields=['product', '-created_at']),
             models.Index(fields=['reviewer', '-created_at']),
@@ -112,7 +112,7 @@ class SellerReview(models.Model):
         related_name='seller_reviews_given'
     )
     
-    # Related product (optional, for context)
+                                             
     product = models.ForeignKey(
         'market.Product',
         on_delete=models.SET_NULL,
@@ -121,17 +121,17 @@ class SellerReview(models.Model):
         related_name='seller_reviews'
     )
     
-    # Rating (1-5 stars)
+                        
     rating = models.PositiveIntegerField(
         validators=[MinValueValidator(1), MaxValueValidator(5)],
         help_text="Rating from 1 to 5 stars"
     )
     
-    # Review content
+                    
     title = models.CharField(max_length=200, blank=True)
     comment = models.TextField()
     
-    # Specific ratings for sellers
+                                  
     communication_rating = models.PositiveIntegerField(
         validators=[MinValueValidator(1), MaxValueValidator(5)],
         null=True,
@@ -151,29 +151,29 @@ class SellerReview(models.Model):
         help_text="Professionalism rating"
     )
     
-    # Verification
+                  
     is_verified_transaction = models.BooleanField(
         default=False,
         help_text="Did reviewer actually transact with this seller?"
     )
     
-    # Status
+            
     is_approved = models.BooleanField(default=True)
     is_flagged = models.BooleanField(default=False)
     flagged_reason = models.TextField(blank=True)
     
-    # Engagement
+                
     helpful_count = models.PositiveIntegerField(default=0)
     not_helpful_count = models.PositiveIntegerField(default=0)
     
-    # Timestamps
+                
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
         db_table = 'seller_reviews'
         ordering = ['-created_at']
-        unique_together = ['seller', 'reviewer', 'product']  # One review per seller per product per user
+        unique_together = ['seller', 'reviewer', 'product']                                              
         indexes = [
             models.Index(fields=['seller', '-created_at']),
             models.Index(fields=['reviewer', '-created_at']),
@@ -199,7 +199,7 @@ class ReviewResponse(models.Model):
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     
-    # Can be response to either product or seller review
+                                                        
     product_review = models.OneToOneField(
         ProductReview,
         on_delete=models.CASCADE,
@@ -245,7 +245,7 @@ class ReviewHelpful(models.Model):
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     
-    # Can vote on either product or seller review
+                                                 
     product_review = models.ForeignKey(
         ProductReview,
         on_delete=models.CASCADE,
@@ -286,7 +286,7 @@ class ReviewImage(models.Model):
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     
-    # Can attach to either product or seller review
+                                                   
     product_review = models.ForeignKey(
         ProductReview,
         on_delete=models.CASCADE,
@@ -338,7 +338,7 @@ class ReviewFlag(models.Model):
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     
-    # Can flag either product or seller review
+                                              
     product_review = models.ForeignKey(
         ProductReview,
         on_delete=models.CASCADE,

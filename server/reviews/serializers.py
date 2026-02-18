@@ -1,4 +1,4 @@
-# reviews/serializers.py
+#server/reviews/serializers.py
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.db.models import Avg
@@ -6,6 +6,7 @@ from .models import (
     ProductReview, SellerReview, ReviewResponse, 
     ReviewHelpful, ReviewImage, ReviewFlag
 )
+from chat.models import has_completed_confirmation
 
 User = get_user_model()
 
@@ -90,7 +91,7 @@ class ProductReviewSerializer(serializers.ModelSerializer):
         return value
     
     def validate(self, attrs):
-        # Check if user already reviewed this product
+                                                     
         request = self.context.get('request')
         product = attrs.get('product')
         
@@ -102,16 +103,26 @@ class ProductReviewSerializer(serializers.ModelSerializer):
                 "You have already reviewed this product."
             )
         
-        # User cannot review their own product
+                                              
         if product.seller == request.user:
             raise serializers.ValidationError(
                 "You cannot review your own product."
             )
-        
+
+        if not has_completed_confirmation(
+            buyer=request.user,
+            seller=product.seller,
+            product=product,
+        ):
+            raise serializers.ValidationError(
+                "Review is only available after both buyer and seller confirm completion for this product."
+            )
+
         return attrs
     
     def create(self, validated_data):
         validated_data['reviewer'] = self.context['request'].user
+        validated_data['is_verified_purchase'] = True
         return super().create(validated_data)
 
 
@@ -172,13 +183,13 @@ class SellerReviewSerializer(serializers.ModelSerializer):
         seller = attrs.get('seller')
         product = attrs.get('product')
         
-        # User cannot review themselves
+                                       
         if seller == request.user:
             raise serializers.ValidationError(
                 "You cannot review yourself."
             )
         
-        # Check if user already reviewed this seller for this product
+                                                                     
         if product and SellerReview.objects.filter(
             seller=seller,
             reviewer=request.user,
@@ -187,11 +198,26 @@ class SellerReviewSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "You have already reviewed this seller for this product."
             )
-        
+
+        if product and product.seller != seller:
+            raise serializers.ValidationError(
+                "Selected product does not belong to the selected seller."
+            )
+
+        if product and not has_completed_confirmation(
+            buyer=request.user,
+            seller=seller,
+            product=product,
+        ):
+            raise serializers.ValidationError(
+                "Seller review is only available after both buyer and seller confirm completion for this product."
+            )
+
         return attrs
     
     def create(self, validated_data):
         validated_data['reviewer'] = self.context['request'].user
+        validated_data['is_verified_transaction'] = True
         return super().create(validated_data)
 
 
@@ -213,7 +239,7 @@ class ReviewFlagSerializer(serializers.ModelSerializer):
         ]
     
     def validate(self, attrs):
-        # Must flag either product review or seller review, not both
+                                                                    
         if not attrs.get('product_review') and not attrs.get('seller_review'):
             raise serializers.ValidationError(
                 "Must specify either product_review or seller_review."

@@ -1,3 +1,4 @@
+#server/assistant/processors/rule_engine.py
 """
 Rule Engine - Fuzzy matching against safety/support rules.
 Matches user messages against rules.yaml using rapidfuzz for robustness.
@@ -75,17 +76,17 @@ class RuleEngine:
         phrase_lower = phrase.lower().strip()
         message_lower = message.lower().strip()
 
-        # Direct substring match = perfect score
+                                                
         if phrase_lower in message_lower:
             return 1.0
 
         if not HAS_RAPIDFUZZ:
             return 0.0
 
-        # Partial ratio for subsequence matching
+                                                
         partial_score = fuzz.partial_ratio(phrase_lower, message_lower) / 100.0
 
-        # Token set ratio for word-order-insensitive matching
+                                                             
         token_score = fuzz.token_set_ratio(phrase_lower, message_lower) / 100.0
 
         return max(partial_score, token_score)
@@ -134,7 +135,7 @@ class RuleEngine:
                         'description': description
                     }
 
-                    # Early exit for critical blocks
+                                                    
                     if action in ['block', 'freeze_account', 'escalate_urgent'] and confidence >= BLOCK_THRESHOLD:
                         logger.warning(f"BLOCKING: Rule '{rule_id}' matched with {confidence:.2f} confidence")
                         return best_match

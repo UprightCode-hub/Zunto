@@ -1,10 +1,10 @@
-# market/admin.py
+#server/market/admin.py
 from django.contrib import admin
 from .models import (
     Category, Location, Product, ProductImage, 
     ProductVideo, Favorite, ProductView, ProductReport
 )
-# from analytics.admin import admin_site
+                                        
 
 
 @admin.register(Category)

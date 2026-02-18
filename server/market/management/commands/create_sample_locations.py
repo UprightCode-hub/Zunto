@@ -1,4 +1,4 @@
-# market/management/commands/create_sample_locations.py
+#server/market/management/commands/create_sample_locations.py
 from django.core.management.base import BaseCommand
 from market.models import Location
 

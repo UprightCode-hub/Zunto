@@ -1,17 +1,15 @@
-"""
-FAQ Flow - Smart FAQ question handling with RAG integration.
-"""
+#server/assistant/flows/faq_flow.py
+"""FAQ flow for question handling with retrieval support."""
 import logging
 from typing import Dict, Optional, Tuple, List
+
+from assistant.utils.constants import ConfidenceConfig, STATE_FAQ_MODE, STATE_MENU
 
 logger = logging.getLogger(__name__)
 
 
 class FAQFlow:
-    """
-    Premium FAQ flow handler with smart RAG integration.
-    Leverages your 0.03s FAISS + BGE-small-en-v1.5 setup.
-    """
+    """FAQ flow handler with retrieval-based responses."""
 
     FAQ_MODE_INTRO = """Perfect {name}! 📚 I'm ready to answer your questions about Zunto.
 
@@ -53,7 +51,7 @@ Just type your question or choose an option!"""
         self.session = session
         self.query_processor = query_processor
         self.context_manager = context_manager
-        self.name = session.user_name or "there"
+        self.name = self._resolve_user_name(session)
 
     def enter_faq_mode(self) -> str:
         """
@@ -62,7 +60,7 @@ Just type your question or choose an option!"""
         Returns:
             Intro message
         """
-        self.session.current_state = 'faq_mode'
+        self.session.current_state = STATE_FAQ_MODE
         self.session.save()
 
         if self.context_manager:
@@ -91,11 +89,11 @@ Just type your question or choose an option!"""
         """
         msg_lower = message.lower().strip()
 
-        # Check for exit commands
+                                 
         if msg_lower in ['menu', 'main menu', 'back', 'exit']:
             return self._exit_to_menu(), {'success': True, 'action': 'exit'}
 
-        # Check for yes/no follow-up responses
+                                              
         if msg_lower in ['yes', 'y', 'yeah', 'yep', 'that helped', 'thanks', 'thank you']:
             if self.context_manager:
                 self.context_manager.mark_resolution(success=True)
@@ -114,7 +112,7 @@ Just type your question or choose an option!"""
 
         confidence = result['confidence']
         tier = self._determine_tier(confidence)
-        faq_hit = result.get('faq')
+        faq_hit = result.get('faq_hit')
 
         if tier == 'high':
             reply = self._build_high_confidence_response(result, faq_hit)
@@ -126,7 +124,7 @@ Just type your question or choose an option!"""
             needs_followup = True
             success = True
 
-        else:  # low tier
+        else:            
             reply = self._build_low_confidence_response(result)
             needs_followup = True
             success = False
@@ -154,9 +152,9 @@ Just type your question or choose an option!"""
 
     def _determine_tier(self, confidence: float) -> str:
         """Determine confidence tier based on your thresholds."""
-        if confidence >= 0.65:
+        if confidence >= ConfidenceConfig.RAG['high']:
             return 'high'
-        elif confidence >= 0.40:
+        elif confidence >= ConfidenceConfig.RAG['medium']:
             return 'medium'
         else:
             return 'low'
@@ -214,7 +212,7 @@ Just type your question or choose an option!"""
 
     def _exit_to_menu(self) -> str:
         """Exit FAQ mode and return to menu."""
-        self.session.current_state = 'menu'
+        self.session.current_state = STATE_MENU
         self.session.save()
 
         logger.info(f"User {self.name} exited FAQ mode")
@@ -241,7 +239,7 @@ Type 1, 2, 3, or describe what you need!"""
             List of popular FAQ dicts
         """
         try:
-            rag = self.query_processor.rag
+            rag = self.query_processor.rag_retriever
 
             popular_keywords = ['refund', 'payment', 'shipping', 'seller', 'order']
             popular_faqs = []

@@ -1,3 +1,4 @@
+#server/orders/services.py
 from django.db import transaction
 from .models import Order, OrderItem
 
@@ -6,7 +7,7 @@ def create_order_from_cart(cart, payment_method='paystack'):
     if cart.is_empty:
         raise ValueError("Cart is empty")
 
-    # Get default shipping address
+                                  
     default_shipping = cart.user.shipping_addresses.filter(is_default=True).first()
 
     order = Order.objects.create(

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getProductReviews, getMyProductReviews, updateReview, deleteReview, getMyProducts } from '../services/api';
 import { Star, Trash2, Edit2, MessageSquare } from 'lucide-react';
@@ -30,7 +30,7 @@ export default function Reviews() {
     }
   };
 
-  const fetchReviews = async () => {
+  const fetchReviews = useCallback(async () => {
     if (!selectedProductSlug && activeTab === 'browse') {
       setReviews([]);
       return;
@@ -51,11 +51,11 @@ export default function Reviews() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeTab, selectedProductSlug]);
 
   useEffect(() => {
     fetchReviews();
-  }, [selectedProductSlug, activeTab]);
+  }, [fetchReviews]);
 
   const handleEditReview = (review) => {
     setEditingId(review.id);
@@ -72,7 +72,7 @@ export default function Reviews() {
       setEditingId(null);
       fetchReviews();
       alert('Review updated successfully!');
-    } catch (error) {
+    } catch {
       alert('Failed to update review');
     }
   };
@@ -84,7 +84,7 @@ export default function Reviews() {
       await deleteReview(reviewId);
       fetchReviews();
       alert('Review deleted successfully!');
-    } catch (error) {
+    } catch {
       alert('Failed to delete review');
     }
   };

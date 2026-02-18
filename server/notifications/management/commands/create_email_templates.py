@@ -1,4 +1,4 @@
-# notifications/management/commands/create_email_templates.py
+#server/notifications/management/commands/create_email_templates.py
 from django.core.management.base import BaseCommand
 from notifications.models import EmailTemplate
 

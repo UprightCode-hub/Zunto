@@ -1,4 +1,4 @@
-# accounts/admin.py
+#server/accounts/admin.py
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.html import format_html
@@ -84,7 +84,7 @@ class UserAdmin(BaseUserAdmin):
     ordering = ['-created_at']
     date_hierarchy = 'created_at'
     
-    # Enable actions
+                    
     actions = ['verify_users', 'suspend_users', 'activate_users']
     
     fieldsets = (
@@ -97,7 +97,7 @@ class UserAdmin(BaseUserAdmin):
         }),
         (_('Address'), {
             'fields': ('address', 'city', 'state', 'country'),
-            'classes': ('collapse',)  # Collapsible section
+            'classes': ('collapse',)                       
         }),
         (_('Permissions'), {
             'fields': (
@@ -129,7 +129,7 @@ class UserAdmin(BaseUserAdmin):
         }),
     )
     
-    # Custom display methods
+                            
     @admin.display(description='Full Name')
     def full_name_display(self, obj):
         """Display full name or email if name not set"""
@@ -170,7 +170,7 @@ class UserAdmin(BaseUserAdmin):
             phone_color, phone_icon
         )
     
-    # Custom actions
+                    
     @admin.action(description='Verify selected users (email)')
     def verify_users(self, request, queryset):
         """Mark selected users as verified"""
@@ -209,7 +209,7 @@ class UserAdmin(BaseUserAdmin):
     def get_queryset(self, request):
         """Optimize queryset with select_related if needed"""
         qs = super().get_queryset(request)
-        # Add any optimizations here
+                                    
         return qs
 
 

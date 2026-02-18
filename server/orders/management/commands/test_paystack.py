@@ -1,4 +1,4 @@
-# orders/management/commands/test_paystack.py
+#server/orders/management/commands/test_paystack.py
 from django.core.management.base import BaseCommand
 from orders.paystack_service import PaystackService
 
@@ -9,11 +9,11 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         paystack = PaystackService()
         
-        # Test initialize transaction
+                                     
         self.stdout.write("Testing transaction initialization...")
         result = paystack.initialize_transaction(
             email='test@example.com',
-            amount=10000,  # 100 Naira in kobo
+            amount=10000,                     
             reference='TEST-REF-123'
         )
         
@@ -29,7 +29,7 @@ class Command(BaseCommand):
                 self.style.ERROR(f'✗ Failed: {result.get("error")}')
             )
         
-        # Test verify transaction (will fail if not actually paid)
+                                                                  
         self.stdout.write("\nTesting transaction verification...")
         verify_result = paystack.verify_transaction('TEST-REF-123')
         

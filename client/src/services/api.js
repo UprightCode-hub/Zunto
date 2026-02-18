@@ -1,37 +1,109 @@
-// Use Vite environment variables when available for flexibility in dev/prod
-// Accept either VITE_API_BASE or VITE_API_BASE_URL to match .env.example
-const API_BASE_URL = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'; // Django backend URL
+// client/src/services/api.js
+const rawApiBaseUrl = import.meta.env.VITE_API_BASE
+  || import.meta.env.VITE_API_BASE_URL
+  || import.meta.env.VITE_API_URL
+  || '';
 
-// Helper function for API calls
-const apiCall = async (endpoint, options = {}) => {
-  const token = localStorage.getItem('token');
+const API_BASE_URL = rawApiBaseUrl.replace(/\/+$/, '');
+
+const parseResponse = async (response) => {
+  if (response.status === 204) {
+    return null;
+  }
+
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    return response.json();
+  }
+
+  const text = await response.text();
+  return text ? { detail: text } : {};
+};
+
+const shouldSkipRefresh = (endpoint) => (
+  endpoint.includes('/api/accounts/login/')
+  || endpoint.includes('/api/accounts/token/refresh/')
+  || endpoint.includes('/api/accounts/register/')
+);
+
+const performTokenRefresh = async () => {
+  const refresh = localStorage.getItem('refresh_token');
+  if (!refresh) {
+    return null;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/api/accounts/token/refresh/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh }),
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const data = await parseResponse(response);
+  if (!data?.access) {
+    return null;
+  }
+
+  localStorage.setItem('access_token', data.access);
+  localStorage.setItem('token', data.access);
+  return data.access;
+};
+
+const buildHeaders = (options = {}, accessToken = null) => {
   const isForm = options.body instanceof FormData;
   const defaultHeaders = isForm ? {} : { 'Content-Type': 'application/json' };
   const headers = {
     ...defaultHeaders,
-    ...(token && { Authorization: `Bearer ${token}` }),
+    ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
     ...options.headers,
   };
+
   if (headers['Content-Type'] === undefined) {
     delete headers['Content-Type'];
   }
 
-  const config = { ...options, headers };
+  return headers;
+};
+
+const apiCall = async (endpoint, options = {}) => {
+  let accessToken = localStorage.getItem('access_token') || localStorage.getItem('token');
+
+  const sendRequest = (token) => {
+    const headers = buildHeaders(options, token);
+    const config = { ...options, headers };
+    return fetch(`${API_BASE_URL}${endpoint}`, config);
+  };
 
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-    
-    // Handle 204 No Content
-    if (response.status === 204) {
-      return null;
+    let response = await sendRequest(accessToken);
+
+    if (response.status === 401 && !shouldSkipRefresh(endpoint)) {
+      const refreshedAccess = await performTokenRefresh();
+      if (refreshedAccess) {
+        accessToken = refreshedAccess;
+        response = await sendRequest(accessToken);
+      }
     }
 
-    const data = await response.json();
-    
+    const data = await parseResponse(response);
+
     if (!response.ok) {
-      throw new Error(data.message || data.detail || 'Something went wrong');
+      if (response.status === 401) {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
+
+      const error = new Error(data?.message || data?.detail || 'Something went wrong');
+      error.status = response.status;
+      error.data = data;
+      throw error;
     }
-    
+
     return data;
   } catch (error) {
     console.error('API Error:', error);
@@ -44,80 +116,93 @@ const apiCall = async (endpoint, options = {}) => {
 // ==========================================
 
 export const register = (userData) => {
-  return apiCall('/accounts/register/', {
+  return apiCall('/api/accounts/register/', {
     method: 'POST',
     body: JSON.stringify(userData),
   });
 };
 
+export const verifyRegistration = (email, code) => {
+  return apiCall('/api/accounts/register/verify/', {
+    method: 'POST',
+    body: JSON.stringify({ email, code }),
+  });
+};
+
+export const resendRegistrationCode = (email) => {
+  return apiCall('/api/accounts/register/resend/', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+};
+
 export const login = (email, password) => {
-  return apiCall('/accounts/login/', {
+  return apiCall('/api/accounts/login/', {
     method: 'POST',
     body: JSON.stringify({ email, password }),
   });
 };
 
 export const logout = (refreshToken) => {
-  return apiCall('/accounts/logout/', {
+  return apiCall('/api/accounts/logout/', {
     method: 'POST',
     body: JSON.stringify({ refresh_token: refreshToken }),
   });
 };
 
 export const refreshToken = (refreshToken) => {
-  return apiCall('/accounts/token/refresh/', {
+  return apiCall('/api/accounts/token/refresh/', {
     method: 'POST',
     body: JSON.stringify({ refresh: refreshToken }),
   });
 };
 
 export const getUserProfile = () => {
-  return apiCall('/accounts/profile/', {
+  return apiCall('/api/accounts/profile/', {
     method: 'GET',
   });
 };
 
 export const updateUserProfile = (userData) => {
-  return apiCall('/accounts/profile/', {
-    method: 'PUT', // or PATCH
+  return apiCall('/api/accounts/profile/', {
+    method: 'PUT',
     body: JSON.stringify(userData),
   });
 };
 
 export const changePassword = (passwordData) => {
-  return apiCall('/accounts/change-password/', {
+  return apiCall('/api/accounts/change-password/', {
     method: 'POST',
     body: JSON.stringify(passwordData),
   });
 };
 
 export const verifyEmail = (code) => {
-  return apiCall('/accounts/verify-email/', {
+  return apiCall('/api/accounts/verify-email/', {
     method: 'POST',
     body: JSON.stringify({ code }),
   });
 };
 
 export const resendVerificationEmail = () => {
-  return apiCall('/accounts/resend-verification/', {
+  return apiCall('/api/accounts/resend-verification/', {
     method: 'POST',
   });
 };
 
 export const requestPasswordReset = (email) => {
-  return apiCall('/accounts/password-reset/request/', {
+  return apiCall('/api/accounts/password-reset/request/', {
     method: 'POST',
     body: JSON.stringify({ email }),
   });
 };
 
 export const confirmPasswordReset = (data) => {
-  return apiCall('/accounts/password-reset/confirm/', {
+  return apiCall('/api/accounts/password-reset/confirm/', {
     method: 'POST',
     body: JSON.stringify(data),
   });
 };
-
 // ==========================================
 // MARKET / PRODUCTS (market/urls.py)
 // ==========================================
@@ -145,6 +230,10 @@ export const getFeaturedProducts = () => {
 
 export const getBoostedProducts = () => {
   return apiCall('/api/market/products/boosted/');
+};
+
+export const getAdProducts = () => {
+  return apiCall('/api/market/products/ads/');
 };
 
 export const getProductDetail = (slug) => {
@@ -239,6 +328,13 @@ export const reportProduct = (slug, reportData) => {
   });
 };
 
+export const shareProduct = (slug, payload = { shared_via: 'link' }) => {
+  return apiCall(`/api/market/products/${slug}/share/`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+};
+
 // ==========================================
 // CART (cart/urls.py)
 // ==========================================
@@ -269,7 +365,7 @@ export const removeFromCart = (itemId) => {
 
 export const clearCart = () => {
   return apiCall('/api/cart/clear/', {
-    method: 'POST', // Changed to POST based on view definition usually being POST/DELETE, check server
+    method: 'POST',
   });
 };
 
@@ -306,6 +402,18 @@ export const verifyPayment = (orderNumber, reference) => {
   });
 };
 
+export const initializeOrderPayment = (orderNumber, callbackUrl = null) => {
+  return apiCall(`/api/payments/initialize/${orderNumber}/`, {
+    method: 'POST',
+    body: JSON.stringify(callbackUrl ? { callback_url: callbackUrl } : {}),
+  });
+};
+
+export const verifyOrderPaymentStatus = (orderNumber, reference = null) => {
+  const queryString = reference ? `?reference=${encodeURIComponent(reference)}` : '';
+  return apiCall(`/api/payments/verify/${orderNumber}/${queryString}`);
+};
+
 export const reorder = (orderNumber) => {
   return apiCall(`/api/orders/orders/${orderNumber}/reorder/`, {
     method: 'POST',
@@ -328,7 +436,7 @@ export const getSellerOrderDetail = (orderNumber) => {
 
 export const updateOrderItemStatus = (itemId, status) => {
   return apiCall(`/api/orders/seller/items/${itemId}/update-status/`, {
-    method: 'POST', // Check if PUT or POST
+    method: 'POST',
     body: JSON.stringify({ status }),
   });
 };
@@ -431,11 +539,6 @@ export const getSellerReviewStats = (sellerId) => {
 
 // Shared Review Actions
 export const updateReview = (reviewId, reviewData) => {
-  // Note: This might be tricky if endpoint differs for product/seller reviews.
-  // Server uses 'product-reviews/<pk>/' and 'seller-reviews/<pk>/'.
-  // We need to know which type it is, or try one. 
-  // For now, assuming product review as default or need separate methods.
-  // Let's split them to be safe.
   return apiCall(`/api/reviews/product-reviews/${reviewId}/`, {
     method: 'PUT',
     body: JSON.stringify(reviewData),
@@ -449,7 +552,6 @@ export const deleteReview = (reviewId) => {
 };
 
 export const markReviewHelpful = (reviewType, reviewId) => {
-  // reviewType: 'product' or 'seller' (matches server <str:review_type>)
   return apiCall(`/api/reviews/reviews/${reviewType}/${reviewId}/helpful/`, {
     method: 'POST',
   });
@@ -495,17 +597,96 @@ export const getChatRooms = () => {
   return apiCall('/chat/conversations/');
 };
 
-export const getChatMessages = (conversationId) => {
-  return apiCall(`/chat/messages/?conversation=${conversationId}`);
+export const getOrCreateConversation = (productId) => {
+  return apiCall('/chat/conversations/get_or_create/', {
+    method: 'POST',
+    body: JSON.stringify({ product_id: productId }),
+  });
 };
 
-export const sendChatMessage = (message, sessionId = null) => {
+export const getChatMessages = (conversationId) => {
+  return apiCall(`/chat/conversations/${conversationId}/messages/`);
+};
+
+export const getConversationWsToken = (conversationId) => {
+  return apiCall(`/chat/conversations/${conversationId}/ws_token/`);
+};
+
+export const getChatWebSocketUrl = (conversationId, wsToken) => {
+  const browserWsBase = typeof window !== 'undefined'
+    ? window.location.origin.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:')
+    : 'ws://localhost:8000';
+  const wsBase = (API_BASE_URL || browserWsBase)
+    .replace(/^http:/, 'ws:')
+    .replace(/^https:/, 'wss:');
+  return `${wsBase}/ws/chat/${conversationId}/?token=${encodeURIComponent(wsToken)}`;
+};
+
+export const sendMarketplaceChatMessage = (conversationId, content, messageType = 'text') => {
+  return apiCall('/chat/messages/', {
+    method: 'POST',
+    body: JSON.stringify({
+      conversation_id: conversationId,
+      content,
+      message_type: messageType,
+    }),
+  });
+};
+
+export const sendAssistantMessage = (message, sessionId = null, userId = null, assistantLane = 'inbox') => {
   const payload = { message };
   if (sessionId) {
     payload.session_id = sessionId;
   }
-  return apiCall('/chat/send/', {
+  if (userId) {
+    payload.user_id = userId;
+  }
+  if (assistantLane && assistantLane !== 'inbox') {
+    payload.assistant_lane = assistantLane;
+  }
+
+  return apiCall('/assistant/api/chat/', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+};
+
+export const sendHomepageRecommendationMessage = (message, sessionId = null, userId = null) => (
+  sendAssistantMessage(message, sessionId, userId, 'homepage_reco')
+);
+
+export const sendInboxAssistantMessage = (message, sessionId = null, userId = null) => (
+  sendAssistantMessage(message, sessionId, userId, 'inbox_general')
+);
+
+export const sendCustomerServiceMessage = (message, sessionId = null, userId = null) => (
+  sendAssistantMessage(message, sessionId, userId, 'customer_service')
+);
+
+// ==========================================
+// DASHBOARD (dashboard/urls.py)
+// ==========================================
+
+export const getDashboardOverview = () => apiCall('/dashboard/');
+export const getDashboardAnalytics = () => apiCall('/dashboard/analytics/');
+export const getDashboardSales = () => apiCall('/dashboard/sales/');
+
+const buildDashboardQuery = ({ page, pageSize } = {}) => {
+  const params = new URLSearchParams();
+  if (page) {
+    params.set('page', String(page));
+  }
+  if (pageSize) {
+    params.set('page_size', String(pageSize));
+  }
+  const query = params.toString();
+  return query ? `?${query}` : '';
+};
+
+export const getDashboardProducts = (params) => apiCall(`/dashboard/products/${buildDashboardQuery(params)}`);
+export const getDashboardOrders = (params) => apiCall(`/dashboard/orders/${buildDashboardQuery(params)}`);
+export const getDashboardCustomers = (params) => apiCall(`/dashboard/customers/${buildDashboardQuery(params)}`);
+
+export const getFaqSections = () => {
+  return apiCall('/assistant/api/faqs/sections/');
 };

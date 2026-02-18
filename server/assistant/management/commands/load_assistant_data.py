@@ -1,3 +1,4 @@
+#server/assistant/management/commands/load_assistant_data.py
 from django.core.management.base import BaseCommand
 from pathlib import Path
 import json
@@ -12,7 +13,7 @@ class Command(BaseCommand):
         faq_path = base_dir / 'data' / 'faq.json'
         rules_path = base_dir / 'data' / 'rules.yaml'
         
-        # Check FAQ file
+                        
         if not faq_path.exists():
             self.stdout.write(self.style.ERROR(f'FAQ file not found: {faq_path}'))
         else:
@@ -24,7 +25,7 @@ class Command(BaseCommand):
             except Exception as e:
                 self.stdout.write(self.style.ERROR(f'Error loading FAQ: {e}'))
         
-        # Check rules file
+                          
         if not rules_path.exists():
             self.stdout.write(self.style.ERROR(f'Rules file not found: {rules_path}'))
         else:

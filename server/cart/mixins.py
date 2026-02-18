@@ -1,4 +1,4 @@
-# cart/mixins.py
+#server/cart/mixins.py
 class CartMixin:
     """Mixin for cart-related operations"""
     
@@ -7,7 +7,7 @@ class CartMixin:
         if request.user.is_authenticated:
             cart, created = Cart.objects.get_or_create(user=request.user)
             
-            # If user just logged in, merge guest cart
+                                                      
             session_id = request.session.get('cart_session_id')
             if session_id:
                 self.merge_guest_cart(cart, session_id)

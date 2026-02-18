@@ -1,4 +1,4 @@
-# notifications/models.py
+#server/notifications/models.py
 from django.db import models
 from django.contrib.auth import get_user_model
 import uuid
@@ -70,7 +70,7 @@ class EmailLog(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     error_message = models.TextField(blank=True)
     
-    # For tracking
+                  
     opened_at = models.DateTimeField(null=True, blank=True)
     clicked_at = models.DateTimeField(null=True, blank=True)
     
@@ -99,7 +99,7 @@ class NotificationPreference(models.Model):
         related_name='notification_preferences'
     )
     
-    # Email notifications
+                         
     email_order_updates = models.BooleanField(default=True)
     email_payment_updates = models.BooleanField(default=True)
     email_shipping_updates = models.BooleanField(default=True)
@@ -107,7 +107,7 @@ class NotificationPreference(models.Model):
     email_review_reminders = models.BooleanField(default=True)
     email_cart_abandonment = models.BooleanField(default=True)
     
-    # Seller notifications
+                          
     email_seller_new_orders = models.BooleanField(default=True)
     email_seller_reviews = models.BooleanField(default=True)
     email_seller_messages = models.BooleanField(default=True)
@@ -146,7 +146,7 @@ class Notification(models.Model):
     
     is_read = models.BooleanField(default=False)
     
-    # Optional links
+                    
     related_url = models.CharField(max_length=500, blank=True, null=True)
     
     created_at = models.DateTimeField(auto_now_add=True)

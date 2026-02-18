@@ -1,13 +1,12 @@
-# cart/promo.py - In-memory discount calculations (no DB writes)
-
+#server/cart/promo.py
 def calculate_promo_discount(user_score):
     """Calculate recommended discount based on composite score (in-memory only)"""
     if user_score.composite_score >= 80:
-        return 10.00  # 10% for top users
+        return 10.00                     
     elif user_score.composite_score >= 60:
-        return 7.50   # 7.5% for high-value users
+        return 7.50                              
     elif user_score.composite_score >= 40:
-        return 5.00   # 5% for medium users
+        return 5.00                        
     return 0.00
 
 

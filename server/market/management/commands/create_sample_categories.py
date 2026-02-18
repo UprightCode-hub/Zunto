@@ -1,4 +1,4 @@
-# market/management/commands/create_sample_categories.py
+#server/market/management/commands/create_sample_categories.py
 from django.core.management.base import BaseCommand
 from market.models import Category
 
@@ -83,7 +83,7 @@ class Command(BaseCommand):
                     self.style.SUCCESS(f'Created category: {parent.name}')
                 )
             
-            # Create subcategories
+                                  
             for subcat_data in cat_data.get('subcategories', []):
                 subcat, sub_created = Category.objects.get_or_create(
                     name=subcat_data['name'],

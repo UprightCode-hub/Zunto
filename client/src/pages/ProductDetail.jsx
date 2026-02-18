@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { Star, ShoppingCart, Heart, Truck, Shield, RefreshCw, Plus, Minus } from 'lucide-react';
-import { getProductDetail, getProductReviews, toggleFavorite, createProductReview } from '../services/api';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { Star, ShoppingCart, Heart, Share2, Truck, Shield, RefreshCw, Plus, Minus, MessageCircle } from 'lucide-react';
+import { getProductDetail, getProductReviews, toggleFavorite, createProductReview, shareProduct, getOrCreateConversation } from '../services/api';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
+import { getProductImage, getProductTitle } from '../utils/product';
 
 export default function ProductDetail() {
   const { slug } = useParams();
+  const navigate = useNavigate();
   const { addToCart } = useCart();
   const { user } = useAuth();
   const [product, setProduct] = useState(null);
@@ -25,9 +27,9 @@ export default function ProductDetail() {
   useEffect(() => {
     fetchProduct();
     fetchReviews();
-  }, [slug]);
+  }, [fetchProduct, fetchReviews]);
 
-  const fetchProduct = async () => {
+  const fetchProduct = useCallback(async () => {
     try {
       setLoading(true);
       const data = await getProductDetail(slug);
@@ -38,9 +40,9 @@ export default function ProductDetail() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [slug]);
 
-  const fetchReviews = async () => {
+  const fetchReviews = useCallback(async () => {
     try {
       setLoadingReviews(true);
       const data = await getProductReviews(slug);
@@ -50,14 +52,14 @@ export default function ProductDetail() {
     } finally {
       setLoadingReviews(false);
     }
-  };
+  }, [slug]);
 
   const handleAddToCart = async () => {
     try {
       setAddingToCart(true);
       await addToCart(product.id, quantity);
       alert('Product added to cart!');
-    } catch (error) {
+    } catch {
       alert('Failed to add to cart');
     } finally {
       setAddingToCart(false);
@@ -70,6 +72,59 @@ export default function ProductDetail() {
       setIsFavorite(!isFavorite);
     } catch (error) {
       console.error('Error toggling favorite:', error);
+    }
+  };
+
+
+  const handleShareProduct = async () => {
+    if (!user) {
+      alert('Please login to share this product');
+      return;
+    }
+
+    try {
+      await shareProduct(slug, { shared_via: 'link' });
+      const shareUrl = `${window.location.origin}/product/${slug}`;
+
+      if (navigator.share) {
+        await navigator.share({
+          title: getProductTitle(product),
+          text: product.description || getProductTitle(product),
+          url: shareUrl,
+        });
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+        alert('Product link copied to clipboard');
+      } else {
+        alert(shareUrl);
+      }
+    } catch (error) {
+      console.error('Error sharing product:', error);
+      alert(error?.data?.error || 'Unable to share this product');
+    }
+  };
+
+
+
+  const handleMessageSeller = async () => {
+    if (!user) {
+      alert('Please login to message this seller');
+      navigate('/login');
+      return;
+    }
+
+    try {
+      const result = await getOrCreateConversation(product.id);
+      const conversationId = result?.conversation?.id;
+
+      if (!conversationId) {
+        throw new Error('Unable to open seller chat');
+      }
+
+      navigate(`/chat?conversation=${conversationId}`);
+    } catch (error) {
+      console.error('Error opening conversation:', error);
+      alert(error?.data?.error || 'Unable to message seller right now');
     }
   };
 
@@ -94,7 +149,7 @@ export default function ProductDetail() {
       setShowReviewForm(false);
       fetchReviews();
       alert('Review submitted successfully!');
-    } catch (error) {
+    } catch {
       alert('Failed to submit review');
     } finally {
       setSubmittingReview(false);
@@ -134,7 +189,16 @@ export default function ProductDetail() {
     );
   }
 
-  const images = product.images || [product.image];
+  const productTitle = getProductTitle(product);
+  const images = Array.isArray(product.images) && product.images.length > 0
+    ? product.images.map((image) => (typeof image === 'string' ? image : image.image)).filter(Boolean)
+    : [getProductImage(product)];
+
+  const productVideos = Array.isArray(product.videos)
+    ? product.videos
+      .map((video) => (typeof video === 'string' ? video : video.video))
+      .filter(Boolean)
+    : [];
 
   return (
     <div className="min-h-screen pt-20 pb-12">
@@ -145,7 +209,7 @@ export default function ProductDetail() {
           <span>/</span>
           <Link to="/shop" className="hover:text-[#2c77d1]">Shop</Link>
           <span>/</span>
-          <span className="text-white">{product.name}</span>
+          <span className="text-white">{productTitle}</span>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
@@ -153,8 +217,8 @@ export default function ProductDetail() {
           <div>
             <div className="bg-gradient-to-br from-[#2c77d1]/20 to-[#9426f4]/20 rounded-2xl aspect-square mb-4 overflow-hidden">
               <img
-                src={images[selectedImage] || '/placeholder.png'}
-                alt={product.name}
+                src={images[selectedImage] || '/placeholder.svg'}
+                alt={productTitle}
                 className="w-full h-full object-cover"
               />
             </div>
@@ -168,9 +232,30 @@ export default function ProductDetail() {
                       selectedImage === idx ? 'border-[#2c77d1]' : 'border-[#2c77d1]/20'
                     }`}
                   >
-                    <img src={img} alt={`${product.name} ${idx + 1}`} className="w-full h-full object-cover" />
+                    <img src={img} alt={`${productTitle} ${idx + 1}`} className="w-full h-full object-cover" />
                   </button>
                 ))}
+              </div>
+            )}
+
+            {productVideos.length > 0 && (
+              <div className="mt-6 rounded-2xl border border-[#2c77d1]/20 bg-[#050d1b]/60 p-4">
+                <h3 className="text-lg font-semibold mb-3">Product Videos</h3>
+                <div className="space-y-3">
+                  {productVideos.map((videoUrl, index) => (
+                    <video
+                      key={videoUrl}
+                      controls
+                      preload="metadata"
+                      className="w-full rounded-xl border border-[#2c77d1]/20 bg-black"
+                      aria-label={`Product video ${index + 1}`}
+                    >
+                      <source src={videoUrl} type="video/mp4" />
+                      Your browser does not support product video playback.
+                    </video>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-400 mt-2">Sellers can upload up to 2 videos (max 20MB each).</p>
               </div>
             )}
           </div>
@@ -182,7 +267,7 @@ export default function ProductDetail() {
                 On Sale
               </span>
             )}
-            <h1 className="text-4xl font-bold mb-4">{product.name}</h1>
+            <h1 className="text-4xl font-bold mb-4">{productTitle}</h1>
             
             <div className="flex items-center gap-4 mb-6">
               <div className="flex items-center gap-2">
@@ -259,22 +344,39 @@ export default function ProductDetail() {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-4 mb-8">
+            <div className="space-y-3 mb-8">
+              <div className="flex gap-4">
+                <button
+                  onClick={handleAddToCart}
+                  disabled={product.stock === 0 || addingToCart}
+                  className="flex-1 bg-gradient-to-r from-[#2c77d1] to-[#9426f4] py-4 rounded-full font-semibold text-lg flex items-center justify-center gap-2 hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ShoppingCart className="w-5 h-5" />
+                  {addingToCart ? 'Adding...' : 'Add to Cart'}
+                </button>
+                <button
+                  onClick={handleToggleFavorite}
+                  className={`p-4 border-2 rounded-full hover:bg-[#2c77d1]/10 transition ${
+                    isFavorite ? 'border-red-500 bg-red-500/10' : 'border-[#2c77d1]'
+                  }`}
+                >
+                  <Heart className={`w-6 h-6 ${isFavorite ? 'fill-red-500 text-red-500' : ''}`} />
+                </button>
+                <button
+                  onClick={handleShareProduct}
+                  className="p-4 border-2 border-[#2c77d1] rounded-full hover:bg-[#2c77d1]/10 transition"
+                  title="Share product"
+                >
+                  <Share2 className="w-6 h-6" />
+                </button>
+              </div>
+
               <button
-                onClick={handleAddToCart}
-                disabled={product.stock === 0 || addingToCart}
-                className="flex-1 bg-gradient-to-r from-[#2c77d1] to-[#9426f4] py-4 rounded-full font-semibold text-lg flex items-center justify-center gap-2 hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={handleMessageSeller}
+                className="w-full py-3 px-5 rounded-full border border-[#2c77d1]/40 bg-[#2c77d1]/10 hover:bg-[#2c77d1]/20 transition flex items-center justify-center gap-2 font-semibold"
               >
-                <ShoppingCart className="w-5 h-5" />
-                {addingToCart ? 'Adding...' : 'Add to Cart'}
-              </button>
-              <button
-                onClick={handleToggleFavorite}
-                className={`p-4 border-2 rounded-full hover:bg-[#2c77d1]/10 transition ${
-                  isFavorite ? 'border-red-500 bg-red-500/10' : 'border-[#2c77d1]'
-                }`}
-              >
-                <Heart className={`w-6 h-6 ${isFavorite ? 'fill-red-500 text-red-500' : ''}`} />
+                <MessageCircle className="w-5 h-5" />
+                Message Seller
               </button>
             </div>
 

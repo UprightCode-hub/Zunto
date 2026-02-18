@@ -1,4 +1,4 @@
-# accounts/management/commands/create_test_users.py
+#server/accounts/management/commands/create_test_users.py
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
 
@@ -9,7 +9,7 @@ class Command(BaseCommand):
     help = 'Create test users for development'
     
     def handle(self, *args, **kwargs):
-        # Create test users
+                           
         users_data = [
             {
                 'email': 'buyer@test.com',

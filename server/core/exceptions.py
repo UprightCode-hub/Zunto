@@ -1,4 +1,4 @@
-
+#server/core/exceptions.py
 from rest_framework.views import exception_handler
 from rest_framework.response import Response
 from rest_framework import status
@@ -28,7 +28,7 @@ def custom_exception_handler(exc, context):
         
         response.data = custom_response_data
     
-    # Log the error
+                   
     logger.error(f"API Error: {exc}", exc_info=True, extra={'context': context})
     
     return response

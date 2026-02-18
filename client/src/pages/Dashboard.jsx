@@ -16,12 +16,18 @@ export default function Dashboard() {
       return;
     }
 
+    if (!user.is_verified) {
+      const email = user.email ? encodeURIComponent(user.email) : '';
+      navigate(`/verify-registration?email=${email}`);
+      return;
+    }
+
     if (user.role === 'buyer') {
       fetchBuyerStats();
     } else if (user.role === 'seller') {
       fetchSellerStats();
     }
-  }, [user]);
+  }, [navigate, user]);
 
   const fetchBuyerStats = async () => {
     try {

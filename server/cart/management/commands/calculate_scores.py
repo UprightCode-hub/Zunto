@@ -1,5 +1,4 @@
-# cart/management/commands/calculate_scores.py
-
+#server/cart/management/commands/calculate_scores.py
 from django.core.management.base import BaseCommand
 from cart.tasks import calculate_user_scores_bulk
 

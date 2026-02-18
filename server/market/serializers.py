@@ -1,4 +1,4 @@
-# market/serializers.py
+#server/market/serializers.py
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import (
@@ -113,7 +113,7 @@ class ProductListSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(primary.image.url)
             return primary.image.url
         
-        # Fallback to first image
+                                 
         first_image = obj.images.first()
         if first_image:
             request = self.context.get('request')
@@ -185,13 +185,13 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
         return value
     
     def validate(self, attrs):
-        # Only products can have condition
+                                          
         if attrs.get('listing_type') == 'service' and attrs.get('condition'):
             raise serializers.ValidationError({
                 "condition": "Services cannot have a condition."
             })
         
-        # Products should have condition
+                                        
         if attrs.get('listing_type') == 'product' and not attrs.get('condition'):
             raise serializers.ValidationError({
                 "condition": "Products must have a condition."
@@ -200,7 +200,7 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
         return attrs
     
     def create(self, validated_data):
-        # Set seller as the current user
+                                        
         validated_data['seller'] = self.context['request'].user
         return super().create(validated_data)
 

@@ -1,4 +1,4 @@
-# accounts/models.py
+#server/accounts/models.py
 from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.core.validators import RegexValidator
@@ -41,47 +41,59 @@ class User(AbstractUser):
         ('delivery_rider', 'Delivery Rider'),
         ('admin', 'Admin'),
     ]
+
+    SELLER_COMMERCE_MODE_CHOICES = [
+        ('direct', 'Direct Seller (buyer pays seller directly)'),
+        ('managed', 'Managed by Zunto (buyer pays Zunto)'),
+    ]
     
     phone_regex = RegexValidator(
         regex=r'^\+?1?\d{9,15}$',
         message="Phone number must be entered in the format: '+999999999'. Up to 15 digits allowed."
     )
     
-    # Remove username field, use email instead
+                                              
     username = None
     
-    # Primary fields
+                    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True, db_index=True)
+    google_id = models.CharField(max_length=255, blank=True, null=True, unique=True, db_index=True)                     
     phone = models.CharField(validators=[phone_regex], max_length=17, unique=True, null=True, blank=True)
     
-    # Profile fields
+                    
     first_name = models.CharField(max_length=150)
     last_name = models.CharField(max_length=150)
     profile_picture = models.ImageField(upload_to='profile_pictures/', null=True, blank=True)
     bio = models.TextField(max_length=500, blank=True)
     
-    # Role and verification
+                           
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='buyer')
     is_verified = models.BooleanField(default=False)
     is_phone_verified = models.BooleanField(default=False)
     
-    # Identity verification
+                           
     nin = models.CharField(max_length=11, unique=True, null=True, blank=True, help_text="National Identification Number")
     bvn = models.CharField(max_length=11, unique=True, null=True, blank=True, help_text="Bank Verification Number")
+    seller_commerce_mode = models.CharField(
+        max_length=20,
+        choices=SELLER_COMMERCE_MODE_CHOICES,
+        default='direct',
+        help_text='Direct sellers handle payment off-platform. Managed sellers use Zunto payment, shipping, and refunds.',
+    )
     
-    # Address information
+                         
     address = models.TextField(blank=True)
     city = models.CharField(max_length=100, blank=True)
     state = models.CharField(max_length=100, blank=True)
     country = models.CharField(max_length=100, default='Nigeria')
     
-    # Timestamps
+                
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     last_login_at = models.DateTimeField(null=True, blank=True)
     
-    # Account status
+                    
     is_active = models.BooleanField(default=True)
     is_suspended = models.BooleanField(default=False)
     suspension_reason = models.TextField(blank=True)
@@ -111,6 +123,11 @@ class User(AbstractUser):
         """Check if user has verified their identity"""
         return bool(self.nin or self.bvn)
 
+    @property
+    def is_managed_seller(self):
+        """Managed sellers are verified sellers that opted into Zunto-managed commerce."""
+        return self.role == 'seller' and self.is_verified and self.seller_commerce_mode == 'managed'
+
 
 class VerificationCode(models.Model):
     """Email and Phone verification codes"""
@@ -139,3 +156,41 @@ class VerificationCode(models.Model):
     def is_expired(self):
         from django.utils import timezone
         return timezone.now() > self.expires_at
+
+
+class PendingRegistration(models.Model):
+    """
+    Stores registration data until email verification succeeds.
+    A real User record is created only after code verification.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    email = models.EmailField(unique=True, db_index=True)
+    first_name = models.CharField(max_length=150)
+    last_name = models.CharField(max_length=150)
+    phone = models.CharField(max_length=17, null=True, blank=True)
+    role = models.CharField(max_length=20, choices=User.ROLE_CHOICES, default='buyer')
+    seller_commerce_mode = models.CharField(
+        max_length=20,
+        choices=User.SELLER_COMMERCE_MODE_CHOICES,
+        default='direct',
+    )
+    password_hash = models.CharField(max_length=128)
+    verification_code = models.CharField(max_length=6)
+    code_expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'pending_registrations'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['email']),
+        ]
+
+    def __str__(self):
+        return f"PendingRegistration<{self.email}>"
+
+    def is_expired(self):
+        from django.utils import timezone
+        return timezone.now() > self.code_expires_at

@@ -1,11 +1,14 @@
+// client/src/pages/Login.jsx
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, Sparkles } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import GoogleAuthButton from '../components/auth/GoogleAuthButton';
+import AuthMarketplaceShowcase from '../components/auth/AuthMarketplaceShowcase';
 
 export default function Login() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, googleAuth } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -36,7 +39,7 @@ export default function Login() {
       } else {
         setError(result.error || 'Login failed. Please try again.');
       }
-    } catch (err) {
+    } catch { 
       setError('An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
@@ -51,15 +54,7 @@ export default function Login() {
         <div className="absolute -top-24 -left-24 w-96 h-96 bg-[#2c77d1]/30 rounded-full blur-3xl opacity-50" />
         <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-[#9426f4]/30 rounded-full blur-3xl opacity-50" />
         
-        <div className="relative z-10 p-12 text-center max-w-lg">
-          <div className="w-20 h-20 bg-gradient-to-r from-[#2c77d1] to-[#9426f4] rounded-2xl mx-auto mb-8 flex items-center justify-center shadow-lg shadow-[#2c77d1]/20">
-            <Sparkles className="w-10 h-10 text-white" />
-          </div>
-          <h2 className="text-4xl font-bold mb-6 text-white">Welcome to Zunto</h2>
-          <p className="text-xl text-gray-300 leading-relaxed">
-            Discover a world of amazing products at unbeatable prices. Join our community of smart shoppers today.
-          </p>
-        </div>
+        <AuthMarketplaceShowcase />
       </div>
 
       {/* Right Side - Form */}
@@ -141,6 +136,32 @@ export default function Login() {
               )}
             </button>
           </form>
+
+          <div className="mt-6">
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-800"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-3 bg-[#020617] text-gray-500">Or continue with</span>
+              </div>
+            </div>
+
+            <GoogleAuthButton 
+              mode="signin"
+              onSuccess={async (data) => {
+                const authResult = await googleAuth(data);
+                if (authResult.success) {
+                  navigate('/');
+                } else {
+                  setError(authResult.error || 'Google authentication failed.');
+                }
+              }}
+              onError={(errorMsg) => {
+                setError(errorMsg);
+              }}
+            />
+          </div>
 
           <div className="mt-8 pt-8 border-t border-gray-800 text-center">
             <p className="text-gray-500 text-sm">

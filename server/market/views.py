@@ -1,9 +1,9 @@
-# market/views.py
+#server/market/views.py
 from rest_framework import generics, status, permissions, filters
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.db.models import Q, Count, Avg
+from django.db.models import Q, Count, Avg, F
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from django.shortcuts import render
@@ -11,7 +11,7 @@ from django.shortcuts import render
 
 from .models import (
     Category, Location, Product, ProductImage, 
-    ProductVideo, Favorite, ProductView, ProductReport
+    ProductVideo, Favorite, ProductView, ProductReport, ProductShareEvent
 )
 from .serializers import (
     CategorySerializer, LocationSerializer, 
@@ -22,6 +22,9 @@ from .serializers import (
 from .permissions import IsSellerOrReadOnly
 from .filters import ProductFilter
 
+MAX_PRODUCT_IMAGES = 5
+MAX_PRODUCT_VIDEOS = 2
+MAX_PRODUCT_VIDEO_SIZE_BYTES = 20 * 1024 * 1024
 
 class CategoryListView(generics.ListAPIView):
     """List all active categories"""
@@ -30,7 +33,7 @@ class CategoryListView(generics.ListAPIView):
     permission_classes = [permissions.AllowAny]
     
     def get_queryset(self):
-        # Only return top-level categories
+                                          
         return Category.objects.filter(is_active=True, parent=None)
 
 
@@ -50,7 +53,7 @@ class ProductListCreateView(generics.ListCreateAPIView):
     template_name = 'products.html'
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    # filterset_class = ProductFilter
+                                     
     search_fields = ['title', 'description', 'brand']
     ordering_fields = ['created_at', 'price', 'views_count', 'favorites_count']
     ordering = ['-created_at']
@@ -90,7 +93,7 @@ class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         
-        # Track view
+                    
         self.track_view(instance)
         
         serializer = self.get_serializer(instance)
@@ -102,11 +105,11 @@ class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
         ip_address = self.get_client_ip()
         user_agent = self.request.META.get('HTTP_USER_AGENT', '')
         
-        # Don't count seller's own views
+                                        
         if user and user == product.seller:
             return
         
-        # Create view record
+                            
         ProductView.objects.create(
             product=product,
             user=user,
@@ -114,7 +117,7 @@ class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
             user_agent=user_agent
         )
         
-        # Increment view count
+                              
         product.views_count += 1
         product.save(update_fields=['views_count'])
     
@@ -152,10 +155,10 @@ class ProductImageUploadView(APIView):
     def post(self, request, product_slug):
         product = get_object_or_404(Product, slug=product_slug, seller=request.user)
         
-        # Check if max images reached (e.g., 10 images max)
-        if product.images.count() >= 10:
+                                                           
+        if product.images.count() >= MAX_PRODUCT_IMAGES:
             return Response({
-                'error': 'Maximum 10 images allowed per product.'
+                'error': f'Maximum {MAX_PRODUCT_IMAGES} images allowed per product.'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         serializer = ProductImageSerializer(data=request.data)
@@ -182,12 +185,18 @@ class ProductVideoUploadView(APIView):
     def post(self, request, product_slug):
         product = get_object_or_404(Product, slug=product_slug, seller=request.user)
         
-        # Check if max videos reached (e.g., 3 videos max)
-        if product.videos.count() >= 3:
+                                                          
+        if product.videos.count() >= MAX_PRODUCT_VIDEOS:
             return Response({
-                'error': 'Maximum 3 videos allowed per product.'
+                'error': f'Maximum {MAX_PRODUCT_VIDEOS} videos allowed per product.'
             }, status=status.HTTP_400_BAD_REQUEST)
         
+        video_file = request.FILES.get('video')
+        if video_file and video_file.size > MAX_PRODUCT_VIDEO_SIZE_BYTES:
+            return Response({
+                'error': 'Video file must not exceed 20MB.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         serializer = ProductVideoSerializer(data=request.data)
         
         if serializer.is_valid():
@@ -212,7 +221,7 @@ class FavoriteToggleView(APIView):
         )
         
         if not created:
-            # Already favorited, so remove it
+                                             
             favorite.delete()
             product.favorites_count -= 1
             product.save(update_fields=['favorites_count'])
@@ -221,7 +230,7 @@ class FavoriteToggleView(APIView):
                 'is_favorited': False
             }, status=status.HTTP_200_OK)
         else:
-            # Newly favorited
+                             
             product.favorites_count += 1
             product.save(update_fields=['favorites_count'])
             return Response({'message': 'Product added to favorites.',
@@ -281,6 +290,42 @@ class BoostedProductsView(generics.ListAPIView):
         ).select_related('category', 'location', 'seller').prefetch_related('images')[:20]
 
 
+class AdsProductsView(generics.ListAPIView):
+    """List homepage advertisement products."""
+
+    serializer_class = ProductListSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def get_queryset(self):
+        from django.utils import timezone
+
+        boosted_ids = list(
+            Product.objects.filter(
+                status='active',
+                is_boosted=True,
+                boost_expires_at__gt=timezone.now()
+            ).values_list('id', flat=True)[:10]
+        )
+
+        featured_ids = list(
+            Product.objects.filter(
+                status='active',
+                is_featured=True
+            ).exclude(id__in=boosted_ids).values_list('id', flat=True)[:10]
+        )
+
+        ordered_ids = boosted_ids + featured_ids
+        if not ordered_ids:
+            return Product.objects.none()
+
+        preserve_order = {str(pid): index for index, pid in enumerate(ordered_ids)}
+        queryset = Product.objects.filter(id__in=ordered_ids).select_related(
+            'category', 'location', 'seller'
+        ).prefetch_related('images')
+
+        return sorted(queryset, key=lambda item: preserve_order.get(str(item.id), 9999))
+
+
 class SimilarProductsView(generics.ListAPIView):
     """Get similar products based on category and location"""
     
@@ -291,7 +336,7 @@ class SimilarProductsView(generics.ListAPIView):
         product_slug = self.kwargs.get('product_slug')
         product = get_object_or_404(Product, slug=product_slug)
         
-        # Get similar products from same category or location
+                                                             
         similar_products = Product.objects.filter(
             Q(category=product.category) | Q(location=product.location),
             status='active'
@@ -314,14 +359,14 @@ class ProductStatsView(APIView):
             seller=request.user
         )
         
-        # Get view statistics
+                             
         total_views = product.views_count
         unique_users = ProductView.objects.filter(
             product=product, 
             user__isnull=False
         ).values('user').distinct().count()
         
-        # Get views over time (last 7 days)
+                                           
         from django.utils import timezone
         from datetime import timedelta
         seven_days_ago = timezone.now() - timedelta(days=7)
@@ -378,3 +423,43 @@ def reactivate_product(request, product_slug):
     return Response({
         'message': 'Product reactivated successfully.'
     }, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def share_product(request, product_slug):
+    product = get_object_or_404(Product, slug=product_slug)
+    user = request.user
+
+    is_seller_share = user.role == 'seller' and product.seller_id == user.id
+    is_buyer_share = (
+        user.role == 'buyer'
+        and ProductView.objects.filter(product=product, user=user).exists()
+    )
+
+    if not is_seller_share and not is_buyer_share:
+        return Response(
+            {'error': 'You do not have permission to share this product.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    shared_via = str(request.data.get('shared_via', 'link')).strip()[:30] or 'link'
+    share_event, created = ProductShareEvent.objects.get_or_create(
+        product=product,
+        user=user,
+        defaults={'shared_via': shared_via},
+    )
+
+    if created:
+        Product.objects.filter(id=product.id).update(shares_count=F('shares_count') + 1)
+        product.refresh_from_db(fields=['shares_count'])
+
+    return Response(
+        {
+            'message': 'Product shared successfully.' if created else 'Product already shared.',
+            'product_slug': product.slug,
+            'shares_count': product.shares_count,
+            'already_shared': not created,
+            'shared_via': share_event.shared_via,
+        },
+        status=status.HTTP_200_OK
+    )

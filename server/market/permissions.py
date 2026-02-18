@@ -1,4 +1,4 @@
-# market/permissions.py
+#server/market/permissions.py
 from rest_framework import permissions
 
 
@@ -8,11 +8,11 @@ class IsSellerOrReadOnly(permissions.BasePermission):
     """
     
     def has_object_permission(self, request, view, obj):
-        # Read permissions are allowed to any request
+                                                     
         if request.method in permissions.SAFE_METHODS:
             return True
         
-        # Write permissions are only allowed to the seller
+                                                          
         return obj.seller == request.user
 
 
@@ -25,7 +25,7 @@ class IsProductSeller(permissions.BasePermission):
         return request.user and request.user.is_authenticated
     
     def has_object_permission(self, request, view, obj):
-        # Check if obj is a Product or related model
+                                                    
         if hasattr(obj, 'seller'):
             return obj.seller == request.user
         elif hasattr(obj, 'product'):

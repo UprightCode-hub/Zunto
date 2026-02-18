@@ -1,5 +1,4 @@
-# assistant/utils/response_builder.py
-
+#server/assistant/utils/response_builder.py
 import logging
 from typing import Optional, List
 from datetime import datetime
@@ -26,7 +25,9 @@ class ResponseBuilder:
         self.user_name = None
         
         if context_manager:
-            self.user_name = context_manager.session.user_name
+            user = getattr(context_manager.session, 'user', None)
+            if user:
+                self.user_name = user.get_full_name().strip() or user.first_name
 
     def set_core_content(self, content: str) -> 'ResponseBuilder':
         self.core_content = content.strip()

@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local auth hero slideshow images (keep these untracked to avoid binary PR issues)
+public/marketplace-showcase/*
+!public/marketplace-showcase/.gitkeep
