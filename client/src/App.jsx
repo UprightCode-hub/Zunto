@@ -1,9 +1,10 @@
-import React, { Suspense, lazy } from "react";
+import React, { Suspense, lazy, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
 import { ThemeProvider } from "./context/ThemeContext";
 import Navbar from "./components/common/Navbar";
 import Footer from "./components/common/Footer";
 import ProtectedRoute from "./components/common/ProtectedRoute";
+import { getClientContext } from "./utils/clientContext";
 const Home = lazy(() => import("./pages/Home"));
 const Shop = lazy(() => import("./pages/shop"));
 const ProductDetail = lazy(() => import("./pages/ProductDetail"));
@@ -36,6 +37,22 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 function AppLayout() {
   const location = useLocation();
   const isDashboard = location.pathname === "/dashboard";
+
+  useEffect(() => {
+    const applyClientClass = () => {
+      const { viewport, platform } = getClientContext();
+      document.body.dataset.viewport = viewport;
+      document.body.dataset.platform = platform;
+      document.body.classList.toggle('touch-device', platform !== 'laptop-desktop');
+    };
+
+    applyClientClass();
+    window.addEventListener('resize', applyClientClass);
+
+    return () => {
+      window.removeEventListener('resize', applyClientClass);
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#050d1b] text-gray-900 dark:text-white transition-colors duration-300">

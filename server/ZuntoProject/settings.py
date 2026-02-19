@@ -18,7 +18,7 @@ if IS_PRODUCTION:
     ALLOWED_HOSTS = [
         '.onrender.com',
         'zunto-backend.onrender.com',
-        'localhost:5174',
+        'localhost',
     ]
 else:
     DEBUG = config('DEBUG', default=True, cast=bool)
@@ -377,6 +377,8 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+    'x-client-viewport',
+    'x-client-platform',
 ]
 
                             
@@ -534,9 +536,9 @@ SIMPLE_JWT = {
 
               
 if IS_PRODUCTION:
-    FRONTEND_URL = 'https://zunto-frontend.onrender.com'
+    FRONTEND_URL = config('FRONTEND_URL', default='https://zunto-frontend.onrender.com')
 else:
-    FRONTEND_URL = 'http://localhost:5173'                   
+    FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173')
 
 
 
