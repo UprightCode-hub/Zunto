@@ -272,6 +272,17 @@ class ProductImage(models.Model):
 
 class ProductVideo(models.Model):
     """Product Videos"""
+
+    SCAN_PENDING = 'pending'
+    SCAN_CLEAN = 'clean'
+    SCAN_QUARANTINED = 'quarantined'
+    SCAN_REJECTED = 'rejected'
+    SECURITY_SCAN_STATUS_CHOICES = [
+        (SCAN_PENDING, 'Pending'),
+        (SCAN_CLEAN, 'Clean'),
+        (SCAN_QUARANTINED, 'Quarantined'),
+        (SCAN_REJECTED, 'Rejected'),
+    ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     product = models.ForeignKey(
@@ -283,11 +294,23 @@ class ProductVideo(models.Model):
     thumbnail = models.ImageField(upload_to='products/video_thumbnails/%Y/%m/', blank=True)
     caption = models.CharField(max_length=255, blank=True)
     duration = models.PositiveIntegerField(help_text="Duration in seconds", null=True, blank=True)
+    security_scan_status = models.CharField(
+        max_length=20,
+        choices=SECURITY_SCAN_STATUS_CHOICES,
+        default=SCAN_PENDING,
+        db_index=True,
+    )
+    security_scan_reason = models.TextField(blank=True)
+    security_quarantine_path = models.CharField(max_length=500, blank=True)
+    scanned_at = models.DateTimeField(null=True, blank=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
         db_table = 'product_videos'
         ordering = ['-uploaded_at']
+        indexes = [
+            models.Index(fields=['product', 'security_scan_status', '-uploaded_at']),
+        ]
     
     def __str__(self):
         return f"Video for {self.product.title}"
