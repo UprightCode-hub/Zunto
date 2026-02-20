@@ -10,7 +10,7 @@ Completed incrementally.
 In progress (MIME checks and anti-phishing guardrails done; synchronous malware scanning + quarantine fallback now added for media validation; async scan pipeline and release workflow pending).
 
 ## Phase 4 — Seller/admin permission closure and auditability
-In progress (seller-only endpoint enforcement added for market/orders; admin moderation queue/detail APIs for product reports with status-transition enforcement and audit events are now added; broader cross-domain admin audit logging remains pending).
+In progress (seller-only endpoint enforcement added for market/orders; admin moderation queue/detail APIs for product reports with status-transition enforcement, moderator attribution, and audit events are now added; broader cross-domain admin audit logging remains pending).
 
 ## Phase 5 — Scalability and observability hardening
 In progress (hot-path write amplification reduced for product views, statistics query consolidation applied in orders/reviews, public review stats endpoints throttled, favorite counter updates made DB-atomic, product stats endpoint cached/DB-portable with mutation-triggered cache invalidation, and product-view product+user index added; broader queue observability and runtime dashboards still pending).

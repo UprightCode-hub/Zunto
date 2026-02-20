@@ -240,15 +240,16 @@ class ProductReportSerializer(serializers.ModelSerializer):
     
     reporter_name = serializers.CharField(source='reporter.get_full_name', read_only=True)
     product_title = serializers.CharField(source='product.title', read_only=True)
+    moderated_by_name = serializers.CharField(source='moderated_by.get_full_name', read_only=True)
     
     class Meta:
         model = ProductReport
         fields = [
             'id', 'product', 'product_title', 'reporter', 'reporter_name',
-            'reason', 'description', 'status', 'admin_notes',
+            'reason', 'description', 'status', 'admin_notes', 'moderated_by', 'moderated_by_name',
             'created_at', 'resolved_at'
         ]
-        read_only_fields = ['id', 'reporter', 'reporter_name', 'product_title', 
+        read_only_fields = ['id', 'reporter', 'reporter_name', 'product_title', 'moderated_by', 'moderated_by_name',
                            'status', 'admin_notes', 'created_at', 'resolved_at']
     
     def create(self, validated_data):

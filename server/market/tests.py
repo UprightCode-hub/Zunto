@@ -204,6 +204,7 @@ class SellerPermissionTests(TestCase):
         report.refresh_from_db()
         self.assertEqual(report.status, 'reviewing')
         self.assertEqual(report.admin_notes, 'Investigating')
+        self.assertEqual(report.moderated_by, self.admin_role_user)
 
     def test_buyer_cannot_access_report_moderation(self):
         self.client.force_authenticate(user=self.buyer)

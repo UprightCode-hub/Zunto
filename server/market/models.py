@@ -423,6 +423,13 @@ class ProductReport(models.Model):
         default='pending'
     )
     admin_notes = models.TextField(blank=True)
+    moderated_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='moderated_product_reports'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     resolved_at = models.DateTimeField(null=True, blank=True)
     

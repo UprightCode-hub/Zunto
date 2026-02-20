@@ -294,7 +294,16 @@ class ProductReportCreateView(generics.CreateAPIView):
     def perform_create(self, serializer):
         product_slug = self.kwargs.get('product_slug')
         product = get_object_or_404(Product, slug=product_slug)
-        serializer.save(reporter=self.request.user, product=product)
+        report = serializer.save(reporter=self.request.user, product=product)
+        audit_event(
+            self.request,
+            action='market.report.created',
+            extra={
+                'report_id': str(report.id),
+                'product_id': str(product.id),
+                'reason': report.reason,
+            },
+        )
 
 
 class FeaturedProductsView(generics.ListAPIView):
@@ -541,6 +550,15 @@ class ProductReportModerationView(generics.ListAPIView):
         if reason_filter in valid_reasons:
             queryset = queryset.filter(reason=reason_filter)
 
+        audit_event(
+            self.request,
+            action='market.report.moderation_queue_viewed',
+            extra={
+                'status_filter': status_filter or None,
+                'reason_filter': reason_filter or None,
+            },
+        )
+
         return queryset
 
 
@@ -557,8 +575,6 @@ class ProductReportModerationDetailView(APIView):
     }
 
     def patch(self, request, report_id):
-        report = get_object_or_404(ProductReport.objects.select_related('product', 'reporter'), id=report_id)
-
         target_status = str(request.data.get('status', '')).strip().lower()
         if target_status not in {'reviewing', 'resolved', 'dismissed'}:
             return Response(
@@ -566,28 +582,35 @@ class ProductReportModerationDetailView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        allowed_targets = self._ALLOWED_TRANSITIONS.get(report.status, set())
-        if target_status not in allowed_targets:
-            return Response(
-                {'error': f'Cannot transition report from {report.status} to {target_status}.'},
-                status=status.HTTP_400_BAD_REQUEST,
+        with transaction.atomic():
+            report = get_object_or_404(
+                ProductReport.objects.select_for_update().select_related('product', 'reporter'),
+                id=report_id,
             )
 
-        admin_notes = str(request.data.get('admin_notes', '') or '').strip()
-        old_status = report.status
-        report.status = target_status
+            allowed_targets = self._ALLOWED_TRANSITIONS.get(report.status, set())
+            if target_status not in allowed_targets:
+                return Response(
+                    {'error': f'Cannot transition report from {report.status} to {target_status}.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-        from django.utils import timezone
+            admin_notes = str(request.data.get('admin_notes', '') or '').strip()
+            old_status = report.status
+            report.status = target_status
 
-        if target_status in {'resolved', 'dismissed'}:
-            report.resolved_at = timezone.now()
-        else:
-            report.resolved_at = None
+            from django.utils import timezone
 
-        if admin_notes:
-            report.admin_notes = admin_notes
+            if target_status in {'resolved', 'dismissed'}:
+                report.resolved_at = timezone.now()
+            else:
+                report.resolved_at = None
 
-        report.save(update_fields=['status', 'resolved_at', 'admin_notes'])
+            if admin_notes:
+                report.admin_notes = admin_notes
+
+            report.moderated_by = request.user
+            report.save(update_fields=['status', 'resolved_at', 'admin_notes', 'moderated_by'])
 
         audit_event(
             request,
@@ -598,6 +621,7 @@ class ProductReportModerationDetailView(APIView):
                 'old_status': old_status,
                 'new_status': target_status,
                 'report_reason': report.reason,
+                'moderator_id': str(request.user.id),
             },
         )
 
