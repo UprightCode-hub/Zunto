@@ -7,6 +7,7 @@ from django.db.models import Q, Count, Avg, F
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from django.shortcuts import render
+from django.core.cache import cache
 
 
 from .models import (
@@ -21,6 +22,8 @@ from .serializers import (
 )
 from .permissions import IsSellerOrReadOnly
 from .filters import ProductFilter
+from core.permissions import IsSellerOrAdmin
+from core.audit import audit_event
 
 MAX_PRODUCT_IMAGES = 5
 MAX_PRODUCT_VIDEOS = 2
@@ -52,6 +55,7 @@ class ProductListCreateView(generics.ListCreateAPIView):
     
     template_name = 'products.html'
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
                                      
     search_fields = ['title', 'description', 'brand']
@@ -71,7 +75,10 @@ class ProductListCreateView(generics.ListCreateAPIView):
         return queryset
     
     def perform_create(self, serializer):
-        serializer.save(seller=self.request.user)
+        if not IsSellerOrAdmin().has_permission(self.request, self):
+            raise permissions.PermissionDenied('Seller account required to create product listings.')
+        product = serializer.save(seller=self.request.user)
+        audit_event(self.request, action='market.product.created', extra={'product_id': str(product.id), 'product_slug': product.slug})
 
 
 class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -100,26 +107,28 @@ class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
         return Response(serializer.data)
     
     def track_view(self, product):
-        """Track product view"""
+        """Track product view with short-window deduplication to reduce write amplification."""
         user = self.request.user if self.request.user.is_authenticated else None
         ip_address = self.get_client_ip()
         user_agent = self.request.META.get('HTTP_USER_AGENT', '')
-        
-                                        
+
         if user and user == product.seller:
             return
-        
-                            
+
+        viewer_key = f"u:{user.id}" if user else f"ip:{ip_address}"
+        dedupe_key = f"product_view:{product.id}:{viewer_key}"
+        if not cache.add(dedupe_key, True, timeout=60 * 60):
+            return
+
         ProductView.objects.create(
             product=product,
             user=user,
             ip_address=ip_address,
-            user_agent=user_agent
+            user_agent=user_agent,
         )
-        
-                              
-        product.views_count += 1
-        product.save(update_fields=['views_count'])
+
+        Product.objects.filter(id=product.id).update(views_count=F('views_count') + 1)
+        product.refresh_from_db(fields=['views_count'])
     
     def get_client_ip(self):
         """Get client IP address"""
@@ -136,24 +145,28 @@ class MyProductsView(generics.ListAPIView):
     
     template_name = 'product-detail.html'
     serializer_class = ProductListSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsSellerOrAdmin]
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['created_at', 'price', 'views_count']
     ordering = ['-created_at']
     
     def get_queryset(self):
-        return Product.objects.filter(
-            seller=self.request.user
-        ).select_related('category', 'location').prefetch_related('images')
+        queryset = Product.objects.select_related('category', 'location').prefetch_related('images')
+        if self.request.user.is_staff:
+            return queryset
+        return queryset.filter(seller=self.request.user)
 
 
 class ProductImageUploadView(APIView):
     """Upload product images"""
     
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsSellerOrAdmin]
     
     def post(self, request, product_slug):
-        product = get_object_or_404(Product, slug=product_slug, seller=request.user)
+        product_qs = Product.objects.filter(slug=product_slug)
+        if not request.user.is_staff:
+            product_qs = product_qs.filter(seller=request.user)
+        product = get_object_or_404(product_qs)
         
                                                            
         if product.images.count() >= MAX_PRODUCT_IMAGES:
@@ -170,7 +183,10 @@ class ProductImageUploadView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     def delete(self, request, product_slug, image_id):
-        product = get_object_or_404(Product, slug=product_slug, seller=request.user)
+        product_qs = Product.objects.filter(slug=product_slug)
+        if not request.user.is_staff:
+            product_qs = product_qs.filter(seller=request.user)
+        product = get_object_or_404(product_qs)
         image = get_object_or_404(ProductImage, id=image_id, product=product)
         
         image.delete()
@@ -180,10 +196,13 @@ class ProductImageUploadView(APIView):
 class ProductVideoUploadView(APIView):
     """Upload product videos"""
     
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsSellerOrAdmin]
     
     def post(self, request, product_slug):
-        product = get_object_or_404(Product, slug=product_slug, seller=request.user)
+        product_qs = Product.objects.filter(slug=product_slug)
+        if not request.user.is_staff:
+            product_qs = product_qs.filter(seller=request.user)
+        product = get_object_or_404(product_qs)
         
                                                           
         if product.videos.count() >= MAX_PRODUCT_VIDEOS:
@@ -350,14 +369,13 @@ class SimilarProductsView(generics.ListAPIView):
 class ProductStatsView(APIView):
     """Get product statistics"""
     
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsSellerOrAdmin]
     
     def get(self, request, product_slug):
-        product = get_object_or_404(
-            Product, 
-            slug=product_slug, 
-            seller=request.user
-        )
+        product_qs = Product.objects.filter(slug=product_slug)
+        if not request.user.is_staff:
+            product_qs = product_qs.filter(seller=request.user)
+        product = get_object_or_404(product_qs)
         
                              
         total_views = product.views_count
@@ -388,38 +406,48 @@ class ProductStatsView(APIView):
 
 
 @api_view(['POST'])
-@permission_classes([permissions.IsAuthenticated])
+@permission_classes([IsSellerOrAdmin])
 def mark_as_sold(request, product_slug):
     """Mark product as sold"""
-    product = get_object_or_404(Product, slug=product_slug, seller=request.user)
+    product_qs = Product.objects.filter(slug=product_slug)
+    if not request.user.is_staff:
+        product_qs = product_qs.filter(seller=request.user)
+    product = get_object_or_404(product_qs)
     
     if product.status == 'sold':
         return Response({
             'error': 'Product is already marked as sold.'
         }, status=status.HTTP_400_BAD_REQUEST)
     
+    previous_status = product.status
     product.status = 'sold'
     product.save(update_fields=['status'])
-    
+    audit_event(request, action='market.product.mark_sold', extra={'product_id': str(product.id), 'product_slug': product.slug, 'old_status': previous_status, 'new_status': product.status})
+
     return Response({
         'message': 'Product marked as sold successfully.'
     }, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
-@permission_classes([permissions.IsAuthenticated])
+@permission_classes([IsSellerOrAdmin])
 def reactivate_product(request, product_slug):
     """Reactivate a sold or expired product"""
-    product = get_object_or_404(Product, slug=product_slug, seller=request.user)
+    product_qs = Product.objects.filter(slug=product_slug)
+    if not request.user.is_staff:
+        product_qs = product_qs.filter(seller=request.user)
+    product = get_object_or_404(product_qs)
     
     if product.status == 'active':
         return Response({
             'error': 'Product is already active.'
         }, status=status.HTTP_400_BAD_REQUEST)
     
+    previous_status = product.status
     product.status = 'active'
     product.save(update_fields=['status'])
-    
+    audit_event(request, action='market.product.reactivated', extra={'product_id': str(product.id), 'product_slug': product.slug, 'old_status': previous_status, 'new_status': product.status})
+
     return Response({
         'message': 'Product reactivated successfully.'
     }, status=status.HTTP_200_OK)

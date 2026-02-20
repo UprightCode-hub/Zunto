@@ -7,6 +7,7 @@ from .models import (
     ReviewHelpful, ReviewImage, ReviewFlag
 )
 from chat.models import has_completed_confirmation
+from core.file_validation import validate_uploaded_file
 
 User = get_user_model()
 
@@ -24,7 +25,16 @@ class ReviewerSerializer(serializers.ModelSerializer):
 
 class ReviewImageSerializer(serializers.ModelSerializer):
     """Serializer for review images"""
-    
+
+    def validate_image(self, value):
+        return validate_uploaded_file(
+            value,
+            allowed_mime_types={'image/jpeg', 'image/png', 'image/webp'},
+            allowed_extensions={'.jpg', '.jpeg', '.png', '.webp'},
+            max_bytes=5 * 1024 * 1024,
+            field_name='image',
+        )
+
     class Meta:
         model = ReviewImage
         fields = ['id', 'image', 'caption', 'uploaded_at']
