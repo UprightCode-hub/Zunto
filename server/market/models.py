@@ -346,6 +346,7 @@ class ProductView(models.Model):
         ordering = ['-viewed_at']
         indexes = [
             models.Index(fields=['product', '-viewed_at']),
+            models.Index(fields=['product', 'user']),
             models.Index(fields=['user', '-viewed_at']),
         ]
     

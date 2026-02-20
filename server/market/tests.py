@@ -6,7 +6,7 @@ from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from .models import Category, Product
+from .models import Category, Product, ProductReport
 
 
 User = get_user_model()
@@ -113,3 +113,134 @@ class SellerPermissionTests(TestCase):
 
         product.refresh_from_db()
         self.assertEqual(product.views_count, 1)
+
+
+    def test_favorite_toggle_updates_counter_atomically(self):
+        product = Product.objects.create(
+            seller=self.seller,
+            title='Favorite tracked product',
+            description='Favorite counter check',
+            listing_type='product',
+            price=Decimal('35.00'),
+            quantity=2,
+            condition='new',
+            status='active',
+            category=self.category,
+        )
+
+        self.client.force_authenticate(user=self.buyer)
+        toggle_url = f'/api/market/products/{product.slug}/favorite/'
+
+        first = self.client.post(toggle_url)
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(first.data.get('favorites_count'), 1)
+
+        second = self.client.post(toggle_url)
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+        self.assertEqual(second.data.get('favorites_count'), 0)
+
+        product.refresh_from_db()
+        self.assertEqual(product.favorites_count, 0)
+
+
+    def test_product_stats_cache_invalidated_after_favorite_toggle(self):
+        product = Product.objects.create(
+            seller=self.seller,
+            title='Stats cache product',
+            description='Stats invalidation check',
+            listing_type='product',
+            price=Decimal('65.00'),
+            quantity=1,
+            condition='new',
+            status='active',
+            category=self.category,
+        )
+
+        self.client.force_authenticate(user=self.seller)
+        stats_url = f'/api/market/products/{product.slug}/stats/'
+        initial = self.client.get(stats_url)
+        self.assertEqual(initial.status_code, status.HTTP_200_OK)
+        self.assertEqual(initial.data.get('favorites_count'), 0)
+
+        self.client.force_authenticate(user=self.buyer)
+        toggle_url = f'/api/market/products/{product.slug}/favorite/'
+        toggle = self.client.post(toggle_url)
+        self.assertEqual(toggle.status_code, status.HTTP_201_CREATED)
+
+        self.client.force_authenticate(user=self.seller)
+        refreshed = self.client.get(stats_url)
+        self.assertEqual(refreshed.status_code, status.HTTP_200_OK)
+        self.assertEqual(refreshed.data.get('favorites_count'), 1)
+
+
+    def test_admin_role_can_moderate_product_report(self):
+        product = Product.objects.create(
+            seller=self.seller,
+            title='Reported product',
+            description='Needs moderation',
+            listing_type='product',
+            price=Decimal('80.00'),
+            quantity=1,
+            condition='new',
+            status='active',
+            category=self.category,
+        )
+        report = ProductReport.objects.create(
+            product=product,
+            reporter=self.buyer,
+            reason='spam',
+            description='Spam listing',
+            status='pending',
+        )
+
+        self.client.force_authenticate(user=self.admin_role_user)
+        response = self.client.patch(
+            f'/api/market/reports/moderation/{report.id}/',
+            {'status': 'reviewing', 'admin_notes': 'Investigating'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        report.refresh_from_db()
+        self.assertEqual(report.status, 'reviewing')
+        self.assertEqual(report.admin_notes, 'Investigating')
+
+    def test_buyer_cannot_access_report_moderation(self):
+        self.client.force_authenticate(user=self.buyer)
+        response = self.client.get('/api/market/reports/moderation/')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_invalid_report_status_transition_is_rejected(self):
+        product = Product.objects.create(
+            seller=self.seller,
+            title='Report transition product',
+            description='Transition guard',
+            listing_type='product',
+            price=Decimal('70.00'),
+            quantity=1,
+            condition='new',
+            status='active',
+            category=self.category,
+        )
+        report = ProductReport.objects.create(
+            product=product,
+            reporter=self.buyer,
+            reason='fraud',
+            description='Suspicious listing',
+            status='pending',
+        )
+
+        self.client.force_authenticate(user=self.admin_role_user)
+        first = self.client.patch(
+            f'/api/market/reports/moderation/{report.id}/',
+            {'status': 'resolved'},
+            format='json',
+        )
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+
+        second = self.client.patch(
+            f'/api/market/reports/moderation/{report.id}/',
+            {'status': 'reviewing'},
+            format='json',
+        )
+        self.assertEqual(second.status_code, status.HTTP_400_BAD_REQUEST)
