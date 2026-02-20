@@ -176,6 +176,15 @@ SESSION_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_SAMESITE = 'Lax'
 
 SLOW_REQUEST_THRESHOLD_MS = config('SLOW_REQUEST_THRESHOLD_MS', default=1500, cast=int)
+HEALTH_ALERT_ACTIVE_TASKS_THRESHOLD = config('HEALTH_ALERT_ACTIVE_TASKS_THRESHOLD', default=100, cast=int)
+HEALTH_ALERT_SCHEDULED_TASKS_THRESHOLD = config('HEALTH_ALERT_SCHEDULED_TASKS_THRESHOLD', default=200, cast=int)
+HEALTH_ALERT_RESERVED_TASKS_THRESHOLD = config('HEALTH_ALERT_RESERVED_TASKS_THRESHOLD', default=100, cast=int)
+HEALTH_ALERT_REDIS_QUEUE_DEPTH_THRESHOLD = config('HEALTH_ALERT_REDIS_QUEUE_DEPTH_THRESHOLD', default=500, cast=int)
+HEALTH_REDIS_QUEUE_NAMES = [
+    name.strip()
+    for name in config('HEALTH_REDIS_QUEUE_NAMES', default='celery').split(',')
+    if name.strip()
+]
 
                        
 
@@ -272,6 +281,8 @@ OBJECT_STORAGE_ENDPOINT_URL = config('OBJECT_STORAGE_ENDPOINT_URL', default='')
 OBJECT_STORAGE_ACCESS_KEY_ID = config('OBJECT_STORAGE_ACCESS_KEY_ID', default='')
 OBJECT_STORAGE_SECRET_ACCESS_KEY = config('OBJECT_STORAGE_SECRET_ACCESS_KEY', default='')
 OBJECT_STORAGE_CUSTOM_DOMAIN = config('OBJECT_STORAGE_CUSTOM_DOMAIN', default='')
+OBJECT_UPLOAD_SIGNED_UPLOAD_EXP_SECONDS = config('OBJECT_UPLOAD_SIGNED_UPLOAD_EXP_SECONDS', default=900, cast=int)
+OBJECT_UPLOAD_HMAC_SECRET = config('OBJECT_UPLOAD_HMAC_SECRET', default=SECRET_KEY)
 
 STORAGES = {
     "default": {
@@ -510,7 +521,7 @@ LOGGING = {
         },
         'django.request': {
             'handlers': ['file'],
-            'level': 'ERROR',
+            'level': 'WARNING',
             'propagate': False,
         },
         'audit': {

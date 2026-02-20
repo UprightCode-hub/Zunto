@@ -7,6 +7,12 @@ from django.core.cache import cache
 from django.http import HttpResponse
 from django.conf import settings
 from django.template import Template, RequestContext
+
+try:
+    from django_redis import get_redis_connection
+except Exception:  # pragma: no cover - optional dependency in non-prod envs
+    get_redis_connection = None
+
 import os
 
 
@@ -64,6 +70,76 @@ def _check_celery_health(include_details=False):
         return 'error', None
 
 
+
+
+def _check_queue_depth_health(include_details=False):
+    if get_redis_connection is None:
+        if include_details:
+            return 'error', {'error': 'redis-client-unavailable'}
+        return 'error', None
+
+    queue_names = getattr(settings, 'HEALTH_REDIS_QUEUE_NAMES', ['celery']) or ['celery']
+    threshold = int(getattr(settings, 'HEALTH_ALERT_REDIS_QUEUE_DEPTH_THRESHOLD', 500))
+
+    try:
+        redis_conn = get_redis_connection('default')
+        depths = {}
+        for queue_name in queue_names:
+            depths[queue_name] = int(redis_conn.llen(queue_name))
+
+        is_ok = all(depth < threshold for depth in depths.values())
+        status = 'ok' if is_ok else 'error'
+
+        if not include_details:
+            return status, None
+
+        return status, {
+            'queues': depths,
+            'threshold': threshold,
+        }
+    except Exception:
+        if include_details:
+            return 'error', {'error': 'redis-queue-depth-check-failed'}
+        return 'error', None
+
+
+def _celery_alerts_from_details(details):
+    if not isinstance(details, dict):
+        return []
+
+    alerts = []
+    active_tasks = int(details.get('active_tasks') or 0)
+    scheduled_tasks = int(details.get('scheduled_tasks') or 0)
+    reserved_tasks = int(details.get('reserved_tasks') or 0)
+
+    active_threshold = int(getattr(settings, 'HEALTH_ALERT_ACTIVE_TASKS_THRESHOLD', 100))
+    scheduled_threshold = int(getattr(settings, 'HEALTH_ALERT_SCHEDULED_TASKS_THRESHOLD', 200))
+    reserved_threshold = int(getattr(settings, 'HEALTH_ALERT_RESERVED_TASKS_THRESHOLD', 100))
+
+    if active_tasks >= active_threshold:
+        alerts.append({
+            'kind': 'celery_active_tasks_high',
+            'current': active_tasks,
+            'threshold': active_threshold,
+        })
+
+    if scheduled_tasks >= scheduled_threshold:
+        alerts.append({
+            'kind': 'celery_scheduled_tasks_high',
+            'current': scheduled_tasks,
+            'threshold': scheduled_threshold,
+        })
+
+    if reserved_tasks >= reserved_threshold:
+        alerts.append({
+            'kind': 'celery_reserved_tasks_high',
+            'current': reserved_tasks,
+            'threshold': reserved_threshold,
+        })
+
+    return alerts
+
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def health_check(request):
@@ -73,7 +149,9 @@ def health_check(request):
     include_details = _is_admin_request(request)
     celery_status, celery_details = _check_celery_health(include_details=include_details)
 
-    status_value = 'healthy' if all(v == 'ok' for v in [db_status, cache_status, celery_status]) else 'unhealthy'
+    queue_status, queue_details = _check_queue_depth_health(include_details=include_details)
+
+    status_value = 'healthy' if all(v == 'ok' for v in [db_status, cache_status, celery_status, queue_status]) else 'unhealthy'
     status_code = 200 if status_value == 'healthy' else 503
 
     if not include_details:
@@ -84,6 +162,7 @@ def health_check(request):
         'database': db_status,
         'cache': cache_status,
         'celery': celery_status,
+        'queue_depth': queue_status,
     }
     diagnostics = {}
     if db_error:
@@ -92,6 +171,24 @@ def health_check(request):
         diagnostics['cache'] = cache_error
     if celery_details:
         diagnostics['celery'] = celery_details
+        alerts = _celery_alerts_from_details(celery_details)
+        if alerts:
+            diagnostics['alerts'] = alerts
+    if queue_details:
+        diagnostics['queue_depth'] = queue_details
+        queue_alerts = [
+            {
+                'kind': 'redis_queue_depth_high',
+                'queue': queue_name,
+                'current': depth,
+                'threshold': int(queue_details.get('threshold') or 0),
+            }
+            for queue_name, depth in (queue_details.get('queues') or {}).items()
+            if depth >= int(queue_details.get('threshold') or 0)
+        ]
+        if queue_alerts:
+            diagnostics.setdefault('alerts', []).extend(queue_alerts)
+
     if diagnostics:
         payload['diagnostics'] = diagnostics
 

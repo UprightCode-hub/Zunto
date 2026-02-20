@@ -3,7 +3,21 @@
 _Last updated: 2026-02-20 (UTC)_
 
 ## Purpose
+
+- Verification audit added: `docs/SECURITY_BACKEND_VERIFICATION_AUDIT.md` (code-validated status and priority backlog).
 This file is the continuity anchor for any new Codex session. It documents exactly what has been implemented, what remains, and where the next session should continue so work can resume without re-auditing from scratch.
+
+
+## Current Increment Checklist (after Chunk 7)
+- [x] Add Celery queue alert thresholds to admin `/health/` diagnostics.
+- [x] Ensure slow-request warning logs are emitted at logger level.
+- [x] Add queue-depth diagnostics (Redis queue length snapshots + threshold alerts) to admin `/health/`.
+- [~] Implement async malware scan status lifecycle (`pending/clean/quarantined/rejected`) for upload domains (market video path now async + persisted status; remaining domains pending).
+- [x] Add admin video moderation queue/action endpoints for quarantine review/release on market videos.
+- [x] Add graceful Celery-unavailable fallback path for product video async scan scheduling.
+- [x] Add Celery dependency fallback bootstrap in `ZuntoProject/celery.py` to avoid hard-fail startup in constrained environments.
+- [~] Implement object-storage signed direct upload and callback verification (market video ticket + callback endpoints implemented; rollout/operationalization pending).
+- [ ] Expand `audit_event` coverage across remaining admin-critical mutations.
 
 ---
 
