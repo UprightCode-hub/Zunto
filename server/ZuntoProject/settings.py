@@ -1,5 +1,6 @@
 #server/ZuntoProject/settings.py
 import os
+import importlib.util
 from pathlib import Path
 from decouple import config
 from celery.schedules import crontab
@@ -203,7 +204,7 @@ else:
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.SessionAuthentication',
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'core.authentication.CookieJWTAuthentication',
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 50,
@@ -213,6 +214,16 @@ REST_FRAMEWORK = {
         'assistant_report_anon': '2/hour',
         'assistant_report_user': '20/hour',
         'assistant_evidence_upload_user': '10/hour',
+        'login': '10/hour',
+        'signup': '20/hour',
+        'password_reset': '8/hour',
+        'password_reset_confirm': '8/hour',
+        'email_verify': '10/hour',
+        'change_password': '10/hour',
+        'logout': '30/hour',
+        'payment_verify': '30/hour',
+        'profile_update': '60/hour',
+        'public_review_stats': '120/hour',
     },
 }
 
@@ -248,6 +259,17 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(os.path.dirname(BASE_DIR), "static_cdn", "media_root")
 
+
+USE_OBJECT_STORAGE = config('USE_OBJECT_STORAGE', default=False, cast=bool)
+OBJECT_STORAGE_FREE_TIER = config('OBJECT_STORAGE_FREE_TIER', default=True, cast=bool)
+OBJECT_STORAGE_PROVIDER = config('OBJECT_STORAGE_PROVIDER', default='cloudflare_r2')
+OBJECT_STORAGE_BUCKET_NAME = config('OBJECT_STORAGE_BUCKET_NAME', default='')
+OBJECT_STORAGE_REGION = config('OBJECT_STORAGE_REGION', default='auto')
+OBJECT_STORAGE_ENDPOINT_URL = config('OBJECT_STORAGE_ENDPOINT_URL', default='')
+OBJECT_STORAGE_ACCESS_KEY_ID = config('OBJECT_STORAGE_ACCESS_KEY_ID', default='')
+OBJECT_STORAGE_SECRET_ACCESS_KEY = config('OBJECT_STORAGE_SECRET_ACCESS_KEY', default='')
+OBJECT_STORAGE_CUSTOM_DOMAIN = config('OBJECT_STORAGE_CUSTOM_DOMAIN', default='')
+
 STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
@@ -256,6 +278,32 @@ STORAGES = {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
 }
+
+if USE_OBJECT_STORAGE:
+    storages_available = importlib.util.find_spec('storages') is not None
+    if not storages_available and IS_PRODUCTION:
+        raise ValueError('USE_OBJECT_STORAGE requires django-storages and boto3 in production.')
+
+    if storages_available:
+        if 'storages' not in INSTALLED_APPS:
+            INSTALLED_APPS.append('storages')
+
+        STORAGES['default'] = {
+            'BACKEND': 'storages.backends.s3boto3.S3Boto3Storage',
+            'OPTIONS': {
+                'bucket_name': OBJECT_STORAGE_BUCKET_NAME,
+                'region_name': OBJECT_STORAGE_REGION,
+                'endpoint_url': OBJECT_STORAGE_ENDPOINT_URL or None,
+                'access_key': OBJECT_STORAGE_ACCESS_KEY_ID,
+                'secret_key': OBJECT_STORAGE_SECRET_ACCESS_KEY,
+                'custom_domain': OBJECT_STORAGE_CUSTOM_DOMAIN or None,
+                'default_acl': 'private',
+                'querystring_auth': True,
+                'file_overwrite': False,
+            },
+        }
+        if OBJECT_STORAGE_CUSTOM_DOMAIN:
+            MEDIA_URL = f"https://{OBJECT_STORAGE_CUSTOM_DOMAIN}/"
 
 ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
 MAX_UPLOAD_SIZE = 5242880
@@ -504,6 +552,14 @@ os.environ['HF_HOME'] = '/tmp'
 os.environ['SENTENCE_TRANSFORMERS_HOME'] = '/tmp'
 
 CHAT_HMAC_SECRET = config('CHAT_HMAC_SECRET', default='change-me-in-production')
+CHAT_BLOCKED_LINK_DOMAINS = [
+    domain.strip().lower()
+    for domain in config(
+        'CHAT_BLOCKED_LINK_DOMAINS',
+        default='grabify.link,bit.ly,tinyurl.com,is.gd,cutt.ly,rebrand.ly',
+    ).split(',')
+    if domain.strip()
+]
 
 
                                           
@@ -513,7 +569,7 @@ from datetime import timedelta
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'ROTATE_REFRESH_TOKENS': False,
+    'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
     'UPDATE_LAST_LOGIN': True,
     

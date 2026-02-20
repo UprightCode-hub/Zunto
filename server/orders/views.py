@@ -21,6 +21,8 @@ from .permissions import IsOrderOwner, IsSellerOfOrderItem
 from cart.models import Cart, CartItem
 from market.models import Product
 from .commerce import get_ineligible_sellers_for_items, is_managed_order
+from core.permissions import IsSellerOrAdmin
+from core.audit import audit_event
 
 
 class CheckoutView(APIView):
@@ -374,92 +376,106 @@ class SellerOrdersView(generics.ListAPIView):
     """List orders for seller (orders containing their products)"""
     
     serializer_class = OrderListSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsSellerOrAdmin]
     
     def get_queryset(self):
-                                                      
-        return Order.objects.filter(
-            items__seller=self.request.user
-        ).distinct().select_related('customer').prefetch_related('items').order_by('-created_at')
+        queryset = Order.objects.select_related('customer').prefetch_related('items').order_by('-created_at')
+        if self.request.user.is_staff:
+            return queryset.distinct()
+        return queryset.filter(items__seller=self.request.user).distinct()
 
 
 class SellerOrderDetailView(generics.RetrieveAPIView):
     """Get order details for seller"""
     
     serializer_class = OrderDetailSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsSellerOrAdmin]
     lookup_field = 'order_number'
     
     def get_queryset(self):
                                                               
-        return Order.objects.filter(
-            items__seller=self.request.user
-        ).distinct().select_related('customer').prefetch_related(
+        queryset = Order.objects.select_related('customer').prefetch_related(
             'items__product',
             'items__seller',
             'status_history'
         )
+        if self.request.user.is_staff:
+            return queryset.distinct()
+        return queryset.filter(items__seller=self.request.user).distinct()
 
 
 class UpdateOrderItemStatusView(APIView):
     """Update order item status (for sellers)"""
-    
-    permission_classes = [IsSellerOfOrderItem]
-    
-    def patch(self, request, item_id):
-        item = get_object_or_404(
-            OrderItem,
-            id=item_id,
-            seller=request.user
-        )
-        
-        new_status = request.data.get('status')
-        
-        valid_statuses = ['processing', 'shipped', 'delivered']
-        if new_status not in valid_statuses:
-            if new_status == 'shipped':
-                EmailService.send_order_shipped_email(order)
-            elif new_status == 'delivered':
-                EmailService.send_order_delivered_email(order)
-        
-        return Response({
-            'message': 'Order item status updated.',
-            'item_status': new_status,
-            'order_status': order.status
-        }, status=status.HTTP_200_OK)
 
-        old_status = item.status
+    permission_classes = [IsSellerOrAdmin, IsSellerOfOrderItem]
+
+    def patch(self, request, item_id):
+        item_qs = OrderItem.objects.filter(id=item_id)
+        if not request.user.is_staff:
+            item_qs = item_qs.filter(seller=request.user)
+        item = get_object_or_404(item_qs)
+
+        new_status = request.data.get('status')
+        allowed_statuses = {choice[0] for choice in OrderItem.STATUS_CHOICES if choice[0] != 'pending'}
+        if new_status not in allowed_statuses:
+            return Response(
+                {'error': f"Invalid status. Allowed values: {', '.join(sorted(allowed_statuses))}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        old_item_status = item.status
         item.status = new_status
         item.save(update_fields=['status'])
-        
-                                                                
+
         order = item.order
-        all_items_status = order.items.values_list('status', flat=True).distinct()
-        
-        if len(all_items_status) == 1:
-                                                      
-            order.status = new_status
-            if new_status == 'shipped':
-                order.shipped_at = timezone.now()
-            elif new_status == 'delivered':
-                order.delivered_at = timezone.now()
-                order.payment_status = 'paid'                            
-            order.save()
-            
-                                   
-            OrderStatusHistory.objects.create(
-                order=order,
-                old_status=old_status,
-                new_status=new_status,
-                notes=f'Item updated by seller: {request.user.get_full_name()}',
-                changed_by=request.user
-            )
-        
-        return Response({
-            'message': 'Order item status updated.',
-            'item_status': new_status,
-            'order_status': order.status
-        }, status=status.HTTP_200_OK)
+        item_statuses = list(order.items.values_list('status', flat=True).distinct())
+        old_order_status = order.status
+
+        if len(item_statuses) == 1 and item_statuses[0] == 'shipped':
+            order.status = 'shipped'
+            order.shipped_at = timezone.now()
+            order.save(update_fields=['status', 'shipped_at'])
+            EmailService.send_order_shipped_email(order)
+        elif len(item_statuses) == 1 and item_statuses[0] == 'cancelled':
+            order.status = 'cancelled'
+            order.cancelled_at = timezone.now()
+            order.save(update_fields=['status', 'cancelled_at'])
+        else:
+            order.status = 'processing'
+            order.save(update_fields=['status'])
+
+        OrderStatusHistory.objects.create(
+            order=order,
+            old_status=old_order_status,
+            new_status=order.status,
+            notes=(
+                f'Item {item.id} updated by {request.user.get_full_name() or request.user.email}: '
+                f'{old_item_status} -> {new_status}'
+            ),
+            changed_by=request.user,
+        )
+        audit_event(
+            request,
+            action='orders.item.status_updated',
+            extra={
+                'order_id': str(order.id),
+                'order_number': order.order_number,
+                'order_item_id': str(item.id),
+                'item_old_status': old_item_status,
+                'item_new_status': item.status,
+                'order_old_status': old_order_status,
+                'order_new_status': order.status,
+            },
+        )
+
+        return Response(
+            {
+                'message': 'Order item status updated.',
+                'item_status': item.status,
+                'order_status': order.status,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class ShippingAddressListCreateView(generics.ListCreateAPIView):
@@ -555,54 +571,59 @@ class MyRefundsView(generics.ListAPIView):
 @permission_classes([permissions.IsAuthenticated])
 def order_statistics(request):
     """Get order statistics for user"""
-    
-    from django.db.models import Count, Sum, Q
-    
+
+    from django.db.models import Count, Q, Sum
+
     orders = Order.objects.filter(customer=request.user)
-    
-    stats = {
-        'total_orders': orders.count(),
-        'pending_orders': orders.filter(status='pending').count(),
-        'processing_orders': orders.filter(status='processing').count(),
-        'shipped_orders': orders.filter(status='shipped').count(),
-        'delivered_orders': orders.filter(status='delivered').count(),
-        'cancelled_orders': orders.filter(status='cancelled').count(),
-        'total_spent': orders.filter(
-            payment_status='paid'
-        ).aggregate(total=Sum('total_amount'))['total'] or 0,
-    }
-    
+    stats = orders.aggregate(
+        total_orders=Count('id'),
+        pending_orders=Count('id', filter=Q(status='pending')),
+        processing_orders=Count('id', filter=Q(status='processing')),
+        shipped_orders=Count('id', filter=Q(status='shipped')),
+        delivered_orders=Count('id', filter=Q(status='delivered')),
+        cancelled_orders=Count('id', filter=Q(status='cancelled')),
+        total_spent=Sum('total_amount', filter=Q(payment_status='paid')),
+    )
+    stats['total_spent'] = stats.get('total_spent') or 0
+
     return Response(stats)
 
 
 @api_view(['GET'])
-@permission_classes([permissions.IsAuthenticated])
+@permission_classes([IsSellerOrAdmin])
 def seller_statistics(request):
     """Get sales statistics for seller"""
-    
-    from django.db.models import Count, Sum, Q
-    
-                                          
-    orders = Order.objects.filter(items__seller=request.user).distinct()
-    
-                              
-    items = OrderItem.objects.filter(seller=request.user)
-    
+
+    from django.db.models import Count, Q, Sum
+
+    if request.user.is_staff:
+        orders = Order.objects.all()
+        items = OrderItem.objects.all()
+    else:
+        orders = Order.objects.filter(items__seller=request.user)
+        items = OrderItem.objects.filter(seller=request.user)
+
+    order_counts = orders.aggregate(total_orders=Count('id', distinct=True))
+    item_stats = items.aggregate(
+        pending_items=Count('id', filter=Q(status='pending')),
+        shipped_items=Count('id', filter=Q(status='shipped')),
+        cancelled_items=Count('id', filter=Q(status='cancelled')),
+        total_sales=Sum('total_price', filter=Q(order__payment_status='paid')),
+        total_items_sold=Sum('quantity', filter=Q(order__payment_status='paid')),
+    )
+
     stats = {
-        'total_orders': orders.count(),
-        'pending_items': items.filter(status='pending').count(),
-        'processing_items': items.filter(status='processing').count(),
-        'shipped_items': items.filter(status='shipped').count(),
-        'delivered_items': items.filter(status='delivered').count(),
-        'total_sales': items.filter(
-            order__payment_status='paid'
-        ).aggregate(total=Sum('total_price'))['total'] or 0,
-        'total_items_sold': items.filter(
-            order__payment_status='paid'
-        ).aggregate(total=Sum('quantity'))['total'] or 0,
+        'total_orders': order_counts.get('total_orders') or 0,
+        'pending_items': item_stats.get('pending_items') or 0,
+        'shipped_items': item_stats.get('shipped_items') or 0,
+        'cancelled_items': item_stats.get('cancelled_items') or 0,
+        'total_sales': item_stats.get('total_sales') or 0,
+        'total_items_sold': item_stats.get('total_items_sold') or 0,
     }
-    
+
+    audit_event(request, action='orders.seller.statistics_viewed', extra={'is_staff': request.user.is_staff})
     return Response(stats)
+
 
 
 @api_view(['POST'])

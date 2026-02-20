@@ -8,6 +8,7 @@ from django.db.models import Q, Max
 from django.db import transaction
 from django.utils import timezone
 from django.contrib.auth import get_user_model
+from django.conf import settings
 from django.core.cache import cache
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
@@ -22,6 +23,7 @@ from .serializers import (
     MessageSerializer
 )
 from .utils import generate_ws_token
+from .security import extract_urls, find_blocked_url, has_suspicious_link_phrase
 from core.audit import audit_event
 
 User = get_user_model()
@@ -472,6 +474,27 @@ class MessageViewSet(viewsets.ModelViewSet):
             )
             return Response(
                 {'error': 'Either content or attachment_url is required', 'delivered': False},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        message_text_for_scan = content or ''
+        urls = extract_urls(message_text_for_scan)
+        blocked_url = find_blocked_url(urls, getattr(settings, 'CHAT_BLOCKED_LINK_DOMAINS', []))
+        if blocked_url:
+            logger.warning(
+                f"message_blocked action=blocked_domain user_id={request.user.id} conversation_id={conversation_id}"
+            )
+            return Response(
+                {'error': 'This message contains a blocked link domain.', 'delivered': False},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if urls and has_suspicious_link_phrase(message_text_for_scan):
+            logger.warning(
+                f"message_blocked action=suspicious_link_phrase user_id={request.user.id} conversation_id={conversation_id}"
+            )
+            return Response(
+                {'error': 'This message was blocked by anti-phishing safeguards.', 'delivered': False},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
