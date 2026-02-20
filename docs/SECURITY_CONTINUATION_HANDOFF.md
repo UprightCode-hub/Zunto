@@ -1,0 +1,97 @@
+# Zunto Security/Scalability Continuation Handoff
+
+_Last updated: 2026-02-20 (UTC)_
+
+## Purpose
+This file is the continuity anchor for any new Codex session. It documents exactly what has been implemented, what remains, and where the next session should continue so work can resume without re-auditing from scratch.
+
+---
+
+## Branch / Progress Snapshot
+- Active working branch used in recent sessions: `work`
+- Recent security/scalability hardening commits (latest first):
+  - `e971077` — request timing middleware + slow-request observability
+  - `188af89` — hardened `/health/` with admin-only diagnostics
+  - `b224fad` — moderation row-locking + moderator attribution
+  - `b22a44b` — admin report moderation lifecycle APIs
+  - `5deef6b` — product stats cache invalidation on counter mutations
+  - `8028fc5` — market hot-path atomic counters + stats/index improvements
+  - `65fdc20` / `b6eca85` — malware scanning + quarantine flow for uploads
+
+---
+
+## Completed Work (By Phase)
+
+### Phase 1 — Auth/Role/Endpoint Hardening
+- Implemented in prior sessions and marked completed in roadmap.
+
+### Phase 2 — Sensitive Endpoint Throttling / Abuse Controls
+- Implemented in prior sessions and marked completed in roadmap.
+
+### Phase 3 — Upload & Chat Safety Pipeline (partial)
+- ✅ MIME/signature upload validation in central validator.
+- ✅ Chat anti-phishing domain/phrase guardrails.
+- ✅ Synchronous malware scanning integration (ClamAV INSTREAM path) + quarantine behavior + fail-open/fail-closed toggles.
+- ❗Still pending: async malware scan pipeline + quarantine review/release workflow.
+
+### Phase 4 — Seller/Admin Permission Closure & Auditability (partial)
+- ✅ Seller/admin enforcement across critical seller market/order paths.
+- ✅ Admin moderation queue/detail APIs for product reports.
+- ✅ Guarded report status transitions.
+- ✅ Moderator attribution persisted on reports (`moderated_by`).
+- ✅ Audit events for report creation, queue view, and moderation updates.
+- ❗Still pending: broader cross-domain admin audit coverage (beyond market moderation).
+
+### Phase 5 — Scalability & Observability (partial)
+- ✅ Product-view dedupe and DB-side counters.
+- ✅ Stats query consolidation and public stats throttling.
+- ✅ Product stats cache + mutation-triggered invalidation.
+- ✅ `ProductView(product, user)` index for analytics queries.
+- ✅ `/health/` hardened to minimal public payload + admin diagnostics.
+- ✅ Request-timing middleware with `X-Response-Time-Ms` + slow request warning logs.
+- ❗Still pending: runtime dashboards + alert automation + queue depth SLO instrumentation.
+
+### Phase 6 — Object Storage Migration (partial)
+- ✅ Optional S3-compatible object storage baseline + settings/env wiring.
+- ❗Still pending: signed direct uploads, async AV integration in object-storage pipeline, CDN/lifecycle strategy completion.
+
+---
+
+## Critical Pending Backlog (ordered for fastest high-quality completion)
+
+1. **Phase 5 observability finalization**
+   - Add explicit queue-depth telemetry and alert thresholds (Celery/Redis).
+   - Add minimal ops runbook section + command checks in repo docs.
+
+2. **Phase 3 async malware workflow**
+   - Move scan path from sync-only to async post-upload pipeline for large media.
+   - Track scan state (`pending/clean/quarantined/rejected`) in persistent metadata.
+
+3. **Phase 6 production-ready media flow**
+   - Signed direct uploads, callback verification, and object-key metadata persistence.
+   - Quarantine bucket/prefix + release promotion logic.
+
+4. **Phase 4 cross-domain admin audit completion**
+   - Cover remaining high-impact admin actions with structured `audit_event` usage.
+
+---
+
+## Known Environment Limitation During Agent Runs
+- `pytest` cannot run in this sandbox due to missing framework deps (`django` / `rest_framework`), so compile checks are used as a syntax safety gate in-session.
+
+---
+
+## Mandatory Next-Session Startup Checklist
+1. Open `docs/SECURITY_PHASE_ROADMAP.md`.
+2. Open this file: `docs/SECURITY_CONTINUATION_HANDOFF.md`.
+3. Confirm latest commit on branch.
+4. Pick **one** pending item above (single-phase chunk only).
+5. Implement + compile check + targeted tests (if deps available).
+6. Commit and update both docs with precise progress.
+
+---
+
+## Suggested Next Immediate Task (recommended)
+**Phase 5 completion slice:** add queue observability endpoint/metrics fields for admin diagnostics and document alert thresholds (worker unavailable, queue backlog, cache failure) in deployment checklist docs.
+
+This gives the best speed-to-value while keeping risk low and preserving production behavior.

@@ -11,6 +11,8 @@ from .views import (
     FavoriteToggleView,
     FavoriteListView,
     ProductReportCreateView,
+    ProductReportModerationView,
+    ProductReportModerationDetailView,
     FeaturedProductsView,
     BoostedProductsView,
     AdsProductsView,
@@ -52,6 +54,8 @@ urlpatterns = [
     
              
     path('products/<slug:product_slug>/report/', ProductReportCreateView.as_view(), name='product_report'),
+    path('reports/moderation/', ProductReportModerationView.as_view(), name='product_report_moderation_list'),
+    path('reports/moderation/<uuid:report_id>/', ProductReportModerationDetailView.as_view(), name='product_report_moderation_detail'),
 ]
                                                                                  
 

@@ -3,7 +3,10 @@ from rest_framework import generics, status, permissions, filters
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django.db import transaction
 from django.db.models import Q, Count, Avg, F
+from django.db.models.functions import Greatest
+from django.db.models.functions import TruncDate
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from django.shortcuts import render
@@ -22,12 +25,16 @@ from .serializers import (
 )
 from .permissions import IsSellerOrReadOnly
 from .filters import ProductFilter
-from core.permissions import IsSellerOrAdmin
+from core.permissions import IsAdminOrStaff, IsSellerOrAdmin
 from core.audit import audit_event
 
 MAX_PRODUCT_IMAGES = 5
 MAX_PRODUCT_VIDEOS = 2
 MAX_PRODUCT_VIDEO_SIZE_BYTES = 20 * 1024 * 1024
+
+
+def _invalidate_product_stats_cache(product_id):
+    cache.delete(f'product_stats:{product_id}')
 
 class CategoryListView(generics.ListAPIView):
     """List all active categories"""
@@ -129,6 +136,7 @@ class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
 
         Product.objects.filter(id=product.id).update(views_count=F('views_count') + 1)
         product.refresh_from_db(fields=['views_count'])
+        _invalidate_product_stats_cache(product.id)
     
     def get_client_ip(self):
         """Get client IP address"""
@@ -233,27 +241,35 @@ class FavoriteToggleView(APIView):
     def post(self, request, product_slug):
         product = get_object_or_404(Product, slug=product_slug)
         user = request.user
-        
-        favorite, created = Favorite.objects.get_or_create(
-            user=user,
-            product=product
-        )
-        
-        if not created:
-                                             
-            favorite.delete()
-            product.favorites_count -= 1
-            product.save(update_fields=['favorites_count'])
+
+        with transaction.atomic():
+            favorite, created = Favorite.objects.get_or_create(
+                user=user,
+                product=product,
+            )
+
+            if not created:
+                favorite.delete()
+                Product.objects.filter(id=product.id).update(
+                    favorites_count=Greatest(F('favorites_count') - 1, 0)
+                )
+                product.refresh_from_db(fields=['favorites_count'])
+                _invalidate_product_stats_cache(product.id)
+                return Response({
+                    'message': 'Product removed from favorites.',
+                    'is_favorited': False,
+                    'favorites_count': product.favorites_count,
+                }, status=status.HTTP_200_OK)
+
+            Product.objects.filter(id=product.id).update(
+                favorites_count=F('favorites_count') + 1
+            )
+            product.refresh_from_db(fields=['favorites_count'])
+            _invalidate_product_stats_cache(product.id)
             return Response({
-                'message': 'Product removed from favorites.',
-                'is_favorited': False
-            }, status=status.HTTP_200_OK)
-        else:
-                             
-            product.favorites_count += 1
-            product.save(update_fields=['favorites_count'])
-            return Response({'message': 'Product added to favorites.',
-                'is_favorited': True
+                'message': 'Product added to favorites.',
+                'is_favorited': True,
+                'favorites_count': product.favorites_count,
             }, status=status.HTTP_201_CREATED)
 
 
@@ -278,7 +294,16 @@ class ProductReportCreateView(generics.CreateAPIView):
     def perform_create(self, serializer):
         product_slug = self.kwargs.get('product_slug')
         product = get_object_or_404(Product, slug=product_slug)
-        serializer.save(reporter=self.request.user, product=product)
+        report = serializer.save(reporter=self.request.user, product=product)
+        audit_event(
+            self.request,
+            action='market.report.created',
+            extra={
+                'report_id': str(report.id),
+                'product_id': str(product.id),
+                'reason': report.reason,
+            },
+        )
 
 
 class FeaturedProductsView(generics.ListAPIView):
@@ -378,31 +403,41 @@ class ProductStatsView(APIView):
         product = get_object_or_404(product_qs)
         
                              
+        cache_key = f'product_stats:{product.id}'
+        cached_stats = cache.get(cache_key)
+        if cached_stats is not None:
+            return Response(cached_stats)
+
         total_views = product.views_count
         unique_users = ProductView.objects.filter(
-            product=product, 
-            user__isnull=False
-        ).values('user').distinct().count()
-        
-                                           
+            product=product,
+            user__isnull=False,
+        ).values('user_id').distinct().count()
+
         from django.utils import timezone
         from datetime import timedelta
         seven_days_ago = timezone.now() - timedelta(days=7)
-        
-        recent_views = ProductView.objects.filter(
-            product=product,
-            viewed_at__gte=seven_days_ago
-        ).extra(
-            select={'date': 'DATE(viewed_at)'}
-        ).values('date').annotate(count=Count('id')).order_by('date')
-        
-        return Response({
+
+        recent_views = list(
+            ProductView.objects.filter(
+                product=product,
+                viewed_at__gte=seven_days_ago,
+            )
+            .annotate(date=TruncDate('viewed_at'))
+            .values('date')
+            .annotate(count=Count('id'))
+            .order_by('date')
+        )
+
+        payload = {
             'total_views': total_views,
             'unique_users': unique_users,
             'favorites_count': product.favorites_count,
             'shares_count': product.shares_count,
-            'recent_views': list(recent_views)
-        })
+            'recent_views': recent_views,
+        }
+        cache.set(cache_key, payload, timeout=120)
+        return Response(payload)
 
 
 @api_view(['POST'])
@@ -480,6 +515,7 @@ def share_product(request, product_slug):
     if created:
         Product.objects.filter(id=product.id).update(shares_count=F('shares_count') + 1)
         product.refresh_from_db(fields=['shares_count'])
+        _invalidate_product_stats_cache(product.id)
 
     return Response(
         {
@@ -491,3 +527,103 @@ def share_product(request, product_slug):
         },
         status=status.HTTP_200_OK
     )
+
+
+class ProductReportModerationView(generics.ListAPIView):
+    """Admin moderation queue for product reports."""
+
+    serializer_class = ProductReportSerializer
+    permission_classes = [IsAdminOrStaff]
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['created_at', 'resolved_at', 'status']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        queryset = ProductReport.objects.select_related('product', 'reporter')
+
+        status_filter = (self.request.query_params.get('status') or '').strip().lower()
+        if status_filter in {'pending', 'reviewing', 'resolved', 'dismissed'}:
+            queryset = queryset.filter(status=status_filter)
+
+        reason_filter = (self.request.query_params.get('reason') or '').strip().lower()
+        valid_reasons = {choice[0] for choice in ProductReport.REASON_CHOICES}
+        if reason_filter in valid_reasons:
+            queryset = queryset.filter(reason=reason_filter)
+
+        audit_event(
+            self.request,
+            action='market.report.moderation_queue_viewed',
+            extra={
+                'status_filter': status_filter or None,
+                'reason_filter': reason_filter or None,
+            },
+        )
+
+        return queryset
+
+
+class ProductReportModerationDetailView(APIView):
+    """Update moderation status for a single product report."""
+
+    permission_classes = [IsAdminOrStaff]
+
+    _ALLOWED_TRANSITIONS = {
+        'pending': {'reviewing', 'resolved', 'dismissed'},
+        'reviewing': {'resolved', 'dismissed'},
+        'resolved': set(),
+        'dismissed': set(),
+    }
+
+    def patch(self, request, report_id):
+        target_status = str(request.data.get('status', '')).strip().lower()
+        if target_status not in {'reviewing', 'resolved', 'dismissed'}:
+            return Response(
+                {'error': 'Invalid moderation status. Use reviewing, resolved, or dismissed.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            report = get_object_or_404(
+                ProductReport.objects.select_for_update().select_related('product', 'reporter'),
+                id=report_id,
+            )
+
+            allowed_targets = self._ALLOWED_TRANSITIONS.get(report.status, set())
+            if target_status not in allowed_targets:
+                return Response(
+                    {'error': f'Cannot transition report from {report.status} to {target_status}.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            admin_notes = str(request.data.get('admin_notes', '') or '').strip()
+            old_status = report.status
+            report.status = target_status
+
+            from django.utils import timezone
+
+            if target_status in {'resolved', 'dismissed'}:
+                report.resolved_at = timezone.now()
+            else:
+                report.resolved_at = None
+
+            if admin_notes:
+                report.admin_notes = admin_notes
+
+            report.moderated_by = request.user
+            report.save(update_fields=['status', 'resolved_at', 'admin_notes', 'moderated_by'])
+
+        audit_event(
+            request,
+            action='market.report.moderated',
+            extra={
+                'report_id': str(report.id),
+                'product_id': str(report.product_id),
+                'old_status': old_status,
+                'new_status': target_status,
+                'report_reason': report.reason,
+                'moderator_id': str(request.user.id),
+            },
+        )
+
+        serializer = ProductReportSerializer(report, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
