@@ -1,7 +1,14 @@
 #server/core/file_validation.py
 from pathlib import Path
 
+from django.conf import settings
 from rest_framework import serializers
+
+from core.file_scanning import (
+    MalwareScannerUnavailable,
+    quarantine_uploaded_file,
+    scan_uploaded_file,
+)
 
 
 IMAGE_SIGNATURES = {
@@ -40,6 +47,22 @@ def _detect_type(uploaded_file):
     return None
 
 
+def _scan_for_malware(uploaded_file, field_name):
+    try:
+        result = scan_uploaded_file(uploaded_file)
+    except MalwareScannerUnavailable:
+        if getattr(settings, 'MALWARE_SCAN_FAIL_CLOSED', False):
+            raise serializers.ValidationError(
+                f'{field_name} could not be security-scanned at this time.'
+            )
+        return
+
+    if not result.is_clean:
+        if getattr(settings, 'MALWARE_QUARANTINE_ON_DETECT', True):
+            quarantine_uploaded_file(uploaded_file, reason=result.reason or 'malware-detected')
+        raise serializers.ValidationError(f'{field_name} failed malware scan checks.')
+
+
 def validate_uploaded_file(uploaded_file, *, allowed_mime_types, allowed_extensions, max_bytes, field_name='file'):
     if not uploaded_file:
         raise serializers.ValidationError(f'{field_name} is required.')
@@ -58,5 +81,7 @@ def validate_uploaded_file(uploaded_file, *, allowed_mime_types, allowed_extensi
     content_type = (getattr(uploaded_file, 'content_type', '') or '').lower()
     if content_type and content_type not in allowed_mime_types:
         raise serializers.ValidationError(f'Unsupported declared {field_name} content type.')
+
+    _scan_for_malware(uploaded_file, field_name)
 
     return uploaded_file
