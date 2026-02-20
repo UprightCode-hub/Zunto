@@ -81,6 +81,7 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'core.middleware.CorrelationIdMiddleware',
+    'core.middleware.RequestTimingMiddleware',
     'assistant.middleware.DisableCSRFForAPIMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -173,6 +174,8 @@ SESSION_SAVE_EVERY_REQUEST = True
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_SAMESITE = 'Lax'
+
+SLOW_REQUEST_THRESHOLD_MS = config('SLOW_REQUEST_THRESHOLD_MS', default=1500, cast=int)
 
                        
 
@@ -525,6 +528,19 @@ LOGS_DIR.mkdir(exist_ok=True)
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 5242880
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880
+
+
+MALWARE_SCAN_ENABLED = config('MALWARE_SCAN_ENABLED', default=False, cast=bool)
+MALWARE_SCAN_BACKEND = config('MALWARE_SCAN_BACKEND', default='clamav')
+MALWARE_SCAN_FAIL_CLOSED = config('MALWARE_SCAN_FAIL_CLOSED', default=IS_PRODUCTION, cast=bool)
+MALWARE_SCAN_CLAMAV_HOST = config('MALWARE_SCAN_CLAMAV_HOST', default='127.0.0.1')
+MALWARE_SCAN_CLAMAV_PORT = config('MALWARE_SCAN_CLAMAV_PORT', default=3310, cast=int)
+MALWARE_SCAN_TIMEOUT_SECONDS = config('MALWARE_SCAN_TIMEOUT_SECONDS', default=5, cast=int)
+MALWARE_QUARANTINE_ON_DETECT = config('MALWARE_QUARANTINE_ON_DETECT', default=True, cast=bool)
+MALWARE_QUARANTINE_DIR = config(
+    'MALWARE_QUARANTINE_DIR',
+    default=os.path.join(MEDIA_ROOT, 'quarantine'),
+)
 
       
 
