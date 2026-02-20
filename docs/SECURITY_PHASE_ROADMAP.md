@@ -4,13 +4,13 @@
 Completed incrementally.
 
 ## Phase 2 — Sensitive endpoint throttling and abuse controls
-Completed incrementally.
+Completed incrementally (including payment callback host validation on initialize flow).
 
 ## Phase 3 — Upload and chat safety pipeline
 In progress (MIME checks and anti-phishing guardrails done; synchronous malware scanning + quarantine fallback now added for media validation; async scan pipeline and release workflow pending).
 
 ## Phase 4 — Seller/admin permission closure and auditability
-In progress (seller-only endpoint enforcement added for market/orders; admin moderation queue/detail APIs for product reports with status-transition enforcement, moderator attribution, and audit events are now added; broader cross-domain admin audit logging remains pending).
+In progress (seller-only endpoint enforcement added for market/orders; admin moderation queue/detail APIs for product reports with status-transition enforcement, moderator attribution, and audit events are now added; admin audit coverage now also includes staff access to seller-order list/detail views and admin refund-processing actions; refund webhook lifecycle handling was hardened for pending/processing states; broader cross-domain admin audit logging still remains).
 
 ## Phase 5 — Scalability and observability hardening
 In progress (hot-path write amplification reduced for product views, statistics query consolidation applied in orders/reviews, public review stats endpoints throttled, favorite counter updates made DB-atomic, product stats endpoint cached/DB-portable with mutation-triggered cache invalidation, product-view product+user index added, and `/health/` now exposes admin-only Celery queue diagnostics while keeping public output minimal; request-latency header + slow-API warning logging middleware added; broader runtime dashboards and alert automation still pending).

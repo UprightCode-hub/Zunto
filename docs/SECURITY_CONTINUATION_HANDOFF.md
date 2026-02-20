@@ -41,6 +41,7 @@ This file is the continuity anchor for any new Codex session. It documents exact
 
 ### Phase 2 — Sensitive Endpoint Throttling / Abuse Controls
 - Implemented in prior sessions and marked completed in roadmap.
+- ✅ Added Paystack callback URL host validation in payment initialization to reject untrusted callback domains.
 
 ### Phase 3 — Upload & Chat Safety Pipeline (partial)
 - ✅ MIME/signature upload validation in central validator.
@@ -54,7 +55,10 @@ This file is the continuity anchor for any new Codex session. It documents exact
 - ✅ Guarded report status transitions.
 - ✅ Moderator attribution persisted on reports (`moderated_by`).
 - ✅ Audit events for report creation, queue view, and moderation updates.
-- ❗Still pending: broader cross-domain admin audit coverage (beyond market moderation).
+- ✅ Added admin audit events for staff access to seller-order list/detail views (`orders.admin.seller_orders_viewed`, `orders.admin.seller_order_detail_viewed`).
+- ✅ Added audit coverage for admin refund-processing actions (`orders.admin.refund.process_initiated`, `orders.admin.refund.process_failed`, `orders.admin.refund.process_rejected`) and aligned endpoint access for role-based admins (`role=admin`) via shared admin permission checks.
+- ✅ Fixed refund webhook lifecycle handling so `refund.processed` updates both `pending` and `processing` refunds, and records correct pre-change status in order history.
+- ❗Still pending: broader cross-domain admin audit coverage across other high-impact admin actions.
 
 ### Phase 5 — Scalability & Observability (partial)
 - ✅ Product-view dedupe and DB-side counters.
@@ -86,7 +90,7 @@ This file is the continuity anchor for any new Codex session. It documents exact
    - Quarantine bucket/prefix + release promotion logic.
 
 4. **Phase 4 cross-domain admin audit completion**
-   - Cover remaining high-impact admin actions with structured `audit_event` usage.
+   - Continue extending structured `audit_event` usage to remaining high-impact admin actions.
 
 ---
 
@@ -109,3 +113,14 @@ This file is the continuity anchor for any new Codex session. It documents exact
 **Phase 5 completion slice:** add queue observability endpoint/metrics fields for admin diagnostics and document alert thresholds (worker unavailable, queue backlog, cache failure) in deployment checklist docs.
 
 This gives the best speed-to-value while keeping risk low and preserving production behavior.
+
+
+## Current Increment Checklist (after callback-host hardening)
+- [x] Validate payment callback URL host against trusted allowlist/request host in initialize flow.
+- [x] Normalize callback host matching to avoid port-based bypass/mismatch issues.
+- [x] Add tests for trusted configured callback host and HTTPS enforcement in non-debug mode.
+- [ ] Expand admin audit coverage to remaining high-impact admin mutations (accounts, payouts, assistant moderation).
+- [ ] Finalize Phase 5 observability runbook + alert automation.
+- [ ] Complete async malware lifecycle across all upload domains.
+- [ ] Complete Phase 6 object-storage quarantine/release and CDN/lifecycle flow.
+

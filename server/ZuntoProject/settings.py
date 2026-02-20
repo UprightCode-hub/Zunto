@@ -2,7 +2,7 @@
 import os
 import importlib.util
 from pathlib import Path
-from decouple import config
+from decouple import Csv, config
 from celery.schedules import crontab
 import dj_database_url
 from datetime import timedelta
@@ -175,6 +175,7 @@ SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_SAMESITE = 'Lax'
 
+
 SLOW_REQUEST_THRESHOLD_MS = config('SLOW_REQUEST_THRESHOLD_MS', default=1500, cast=int)
 HEALTH_ALERT_ACTIVE_TASKS_THRESHOLD = config('HEALTH_ALERT_ACTIVE_TASKS_THRESHOLD', default=100, cast=int)
 HEALTH_ALERT_SCHEDULED_TASKS_THRESHOLD = config('HEALTH_ALERT_SCHEDULED_TASKS_THRESHOLD', default=200, cast=int)
@@ -185,6 +186,12 @@ HEALTH_REDIS_QUEUE_NAMES = [
     for name in config('HEALTH_REDIS_QUEUE_NAMES', default='celery').split(',')
     if name.strip()
 ]
+
+PAYMENT_ALLOWED_CALLBACK_HOSTS = config(
+    'PAYMENT_ALLOWED_CALLBACK_HOSTS',
+    default='',
+    cast=Csv(),
+)
 
                        
 
