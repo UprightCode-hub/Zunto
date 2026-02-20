@@ -10,17 +10,59 @@ from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 import json
+from urllib.parse import urlparse
 
 from .models import Order, Payment, Refund, OrderStatusHistory
 from .paystack_service import PaystackService
 from .serializers import PaymentSerializer
 from .commerce import is_managed_order
+from core.audit import audit_event
+from core.permissions import IsAdminOrStaff
 
 
 class InitializePaymentView(APIView):
     """Initialize payment with Paystack"""
     
     permission_classes = [permissions.IsAuthenticated]
+
+    def _normalize_callback_host(self, host):
+        if not host:
+            return ''
+        host = str(host).strip().lower()
+        if host.startswith('[') and ']' in host:
+            return host
+        if ':' in host:
+            return host.split(':', 1)[0]
+        return host
+
+    def _get_allowed_callback_hosts(self, request):
+        configured = getattr(settings, 'PAYMENT_ALLOWED_CALLBACK_HOSTS', [])
+        if isinstance(configured, str):
+            configured_hosts = [host.strip() for host in configured.split(',') if host.strip()]
+        else:
+            configured_hosts = [str(host).strip() for host in configured if str(host).strip()]
+
+        allowed = {self._normalize_callback_host(host) for host in configured_hosts}
+        allowed.add(self._normalize_callback_host(request.get_host()))
+        return {host for host in allowed if host}
+
+    def _resolve_callback_url(self, request, order_number):
+        raw_callback_url = request.data.get('callback_url')
+        if not raw_callback_url:
+            return f"{request.scheme}://{request.get_host()}/payment/verify/{order_number}/", None
+
+        parsed = urlparse(raw_callback_url)
+        if parsed.scheme not in {'http', 'https'} or not parsed.netloc:
+            return None, 'Invalid callback URL format.'
+
+        if not settings.DEBUG and parsed.scheme != 'https':
+            return None, 'Callback URL must use HTTPS in production.'
+
+        callback_host = self._normalize_callback_host(parsed.netloc)
+        if callback_host not in self._get_allowed_callback_hosts(request):
+            return None, 'Callback host is not allowed.'
+
+        return raw_callback_url, None
     
     def post(self, request, order_number):
         order = get_object_or_404(
@@ -42,12 +84,11 @@ class InitializePaymentView(APIView):
         
                                     
         payment_reference = order.generate_payment_reference()
-        
-                                                      
-        callback_url = request.data.get('callback_url') or\
-                      f"{request.scheme}://{request.get_host()}/payment/verify/{order_number}/"
-        
-                          
+
+        callback_url, callback_error = self._resolve_callback_url(request, order_number)
+        if callback_error:
+            return Response({'error': callback_error}, status=status.HTTP_400_BAD_REQUEST)
+
         metadata = {
             'order_number': order.order_number,
             'customer_id': str(order.customer.id),
@@ -349,7 +390,7 @@ class PaystackWebhookView(APIView):
                                  
             refund = Refund.objects.filter(
                 payment=payment,
-                status='pending'
+                status__in=['pending', 'processing']
             ).first()
             
             if refund:
@@ -361,6 +402,7 @@ class PaystackWebhookView(APIView):
                 
                               
                 order = payment.order
+                old_order_status = order.status
                 order.status = 'refunded'
                 order.payment_status = 'refunded'
                 order.save(update_fields=['status', 'payment_status'])
@@ -368,7 +410,7 @@ class PaystackWebhookView(APIView):
                                        
                 OrderStatusHistory.objects.create(
                     order=order,
-                    old_status=order.status,
+                    old_status=old_order_status,
                     new_status='refunded',
                     notes='Refund processed successfully'
                 )
@@ -413,13 +455,18 @@ class PaystackWebhookView(APIView):
 class ProcessRefundView(APIView):
     """Process refund through Paystack"""
     
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminOrStaff]
     
     @transaction.atomic
     def post(self, request, refund_id):
         refund = get_object_or_404(Refund, id=refund_id)
         
         if refund.status != 'pending':
+            audit_event(
+                request,
+                action='orders.admin.refund.process_rejected',
+                extra={'refund_id': str(refund.id), 'status': refund.status, 'reason': 'refund_not_pending'},
+            )
             return Response({
                 'error': f'Refund is already {refund.status}'
             }, status=status.HTTP_400_BAD_REQUEST)
@@ -427,6 +474,11 @@ class ProcessRefundView(APIView):
                      
         payment = refund.payment
         if not payment:
+            audit_event(
+                request,
+                action='orders.admin.refund.process_rejected',
+                extra={'refund_id': str(refund.id), 'reason': 'payment_not_found'},
+            )
             return Response({
                 'error': 'Payment not found for this refund'
             }, status=status.HTTP_404_NOT_FOUND)
@@ -447,7 +499,19 @@ class ProcessRefundView(APIView):
             refund.gateway_response = data
             refund.processed_by = request.user
             refund.save()
-            
+
+            audit_event(
+                request,
+                action='orders.admin.refund.process_initiated',
+                extra={
+                    'refund_id': str(refund.id),
+                    'order_id': str(refund.order_id),
+                    'payment_id': str(payment.id),
+                    'amount': str(refund.amount),
+                    'reference': refund.refund_reference,
+                },
+            )
+
             return Response({
                 'message': 'Refund initiated successfully.',
                 'refund': {
@@ -458,6 +522,16 @@ class ProcessRefundView(APIView):
                 }
             }, status=status.HTTP_200_OK)
         else:
+            audit_event(
+                request,
+                action='orders.admin.refund.process_failed',
+                extra={
+                    'refund_id': str(refund.id),
+                    'order_id': str(refund.order_id),
+                    'payment_id': str(payment.id),
+                    'reason': result.get('error', 'Unknown error'),
+                },
+            )
             return Response({
                 'error': 'Failed to process refund.',
                 'details': result.get('error', 'Unknown error')

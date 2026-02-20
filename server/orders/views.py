@@ -25,6 +25,11 @@ from core.permissions import IsSellerOrAdmin
 from core.audit import audit_event
 
 
+def _is_admin_actor(user):
+    role = getattr(user, 'role', None)
+    return bool(getattr(user, 'is_staff', False) or role == 'admin')
+
+
 class CheckoutView(APIView):
     """Create order from cart"""
     
@@ -380,9 +385,19 @@ class SellerOrdersView(generics.ListAPIView):
     
     def get_queryset(self):
         queryset = Order.objects.select_related('customer').prefetch_related('items').order_by('-created_at')
-        if self.request.user.is_staff:
+        if _is_admin_actor(self.request.user):
             return queryset.distinct()
         return queryset.filter(items__seller=self.request.user).distinct()
+
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        if _is_admin_actor(request.user):
+            audit_event(
+                request,
+                action='orders.admin.seller_orders_viewed',
+                extra={'result_count': len(response.data) if isinstance(response.data, list) else None},
+            )
+        return response
 
 
 class SellerOrderDetailView(generics.RetrieveAPIView):
@@ -399,9 +414,19 @@ class SellerOrderDetailView(generics.RetrieveAPIView):
             'items__seller',
             'status_history'
         )
-        if self.request.user.is_staff:
+        if _is_admin_actor(self.request.user):
             return queryset.distinct()
         return queryset.filter(items__seller=self.request.user).distinct()
+
+    def retrieve(self, request, *args, **kwargs):
+        response = super().retrieve(request, *args, **kwargs)
+        if _is_admin_actor(request.user):
+            audit_event(
+                request,
+                action='orders.admin.seller_order_detail_viewed',
+                extra={'order_number': kwargs.get('order_number')},
+            )
+        return response
 
 
 class UpdateOrderItemStatusView(APIView):
