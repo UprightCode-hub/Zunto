@@ -50,8 +50,8 @@ class NotificationAdminAuditTests(TestCase):
         response = self.client.get('/api/notifications/templates/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        audit_mock.assert_called_once()
-        self.assertEqual(audit_mock.call_args.kwargs['action'], 'notifications.admin.email_templates.viewed')
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['notifications.email_templates.viewed', 'notifications.admin.email_templates.viewed'])
 
     @patch('notifications.views.audit_event')
     def test_admin_statistics_emits_audit_event(self, audit_mock):
@@ -60,8 +60,8 @@ class NotificationAdminAuditTests(TestCase):
         response = self.client.get('/api/notifications/statistics/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        audit_mock.assert_called_once()
-        self.assertEqual(audit_mock.call_args.kwargs['action'], 'notifications.admin.email_statistics.viewed')
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['notifications.email_statistics.viewed', 'notifications.admin.email_statistics.viewed'])
 
     def test_non_admin_cannot_access_admin_notification_endpoints(self):
         self.client.force_authenticate(user=self.user)

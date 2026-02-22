@@ -65,6 +65,15 @@ def _verify_upload_callback_payload(payload, signature):
         return False
     return hmac.compare_digest(expected, signature)
 
+def _direct_upload_callback_replay_cache_key(signature):
+    safe_signature = str(signature or '').strip()
+    return f'market:video-upload-callback:used:{safe_signature}'
+
+
+def _is_allowed_direct_upload_content_type(content_type):
+    return content_type in {'video/mp4', 'video/webm', 'video/quicktime'}
+
+
 class CategoryListView(generics.ListAPIView):
     """List all active categories"""
     
@@ -653,6 +662,18 @@ class ProductReportModerationDetailView(APIView):
                 'moderator_id': str(request.user.id),
             },
         )
+        audit_event(
+            request,
+            action='market.admin.report.moderated',
+            extra={
+                'report_id': str(report.id),
+                'product_id': str(report.product_id),
+                'old_status': old_status,
+                'new_status': target_status,
+                'report_reason': report.reason,
+                'moderator_id': str(request.user.id),
+            },
+        )
 
         serializer = ProductReportSerializer(report, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -730,6 +751,17 @@ class ProductVideoModerationDetailView(APIView):
                 'moderator_id': str(request.user.id),
             },
         )
+        audit_event(
+            request,
+            action='market.admin.video_scan.moderated',
+            extra={
+                'video_id': str(video.id),
+                'product_id': str(video.product_id),
+                'old_status': old_status,
+                'new_status': video.security_scan_status,
+                'moderator_id': str(request.user.id),
+            },
+        )
 
         serializer = ProductVideoModerationSerializer(video, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -754,7 +786,7 @@ class ProductVideoDirectUploadTicketView(APIView):
             return Response({'error': 'filename is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
         content_type = str(request.data.get('content_type', '') or '').strip().lower()
-        if content_type not in {'video/mp4', 'video/webm', 'video/quicktime'}:
+        if not _is_allowed_direct_upload_content_type(content_type):
             return Response({'error': 'Unsupported video content_type.'}, status=status.HTTP_400_BAD_REQUEST)
 
         object_key = _build_direct_upload_key(product.id, filename)
@@ -823,6 +855,10 @@ class ProductVideoDirectUploadCallbackView(APIView):
         if payload.get('product_slug') != product_slug:
             return Response({'error': 'Payload slug mismatch.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        payload_content_type = str(payload.get('content_type', '') or '').strip().lower()
+        if not _is_allowed_direct_upload_content_type(payload_content_type):
+            return Response({'error': 'Unsupported callback content_type.'}, status=status.HTTP_400_BAD_REQUEST)
+
         if str(payload.get('uploader_id')) != str(request.user.id):
             return Response({'error': 'Uploader mismatch.'}, status=status.HTTP_403_FORBIDDEN)
 
@@ -832,10 +868,26 @@ class ProductVideoDirectUploadCallbackView(APIView):
         if not _verify_upload_callback_payload(payload, signature):
             return Response({'error': 'Invalid callback signature.'}, status=status.HTTP_403_FORBIDDEN)
 
+        expected_prefix = f"products/videos/{payload.get('product_id')}/"
+        if not str(payload.get('key') or '').startswith(expected_prefix):
+            return Response({'error': 'Invalid object key for product upload.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        replay_key = _direct_upload_callback_replay_cache_key(signature)
+        if cache.get(replay_key):
+            return Response({'error': 'Callback token already used.'}, status=status.HTTP_409_CONFLICT)
+
         product_qs = Product.objects.filter(id=payload.get('product_id'), slug=product_slug)
         if not request.user.is_staff:
             product_qs = product_qs.filter(seller=request.user)
         product = get_object_or_404(product_qs)
+
+        existing_video = ProductVideo.objects.filter(
+            product=product,
+            video=payload.get('key'),
+        ).order_by('-uploaded_at').first()
+        if existing_video:
+            serializer = ProductVideoSerializer(existing_video, context={'request': request})
+            return Response(serializer.data, status=status.HTTP_200_OK)
 
         video = ProductVideo.objects.create(
             product=product,
@@ -845,6 +897,9 @@ class ProductVideoDirectUploadCallbackView(APIView):
         )
 
         from market.tasks import schedule_product_video_scan
+
+        ttl = max(60, int(payload.get('exp') or int(time.time())) - int(time.time()))
+        cache.set(replay_key, True, timeout=ttl)
 
         transaction.on_commit(lambda: schedule_product_video_scan(str(video.id)))
 

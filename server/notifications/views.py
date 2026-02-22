@@ -112,6 +112,11 @@ def email_templates_list(request):
     serializer = EmailTemplateSerializer(templates, many=True)
     audit_event(
         request,
+        action='notifications.email_templates.viewed',
+        extra={'count': templates.count()},
+    )
+    audit_event(
+        request,
         action='notifications.admin.email_templates.viewed',
         extra={'count': templates.count()},
     )
@@ -133,6 +138,15 @@ def email_statistics(request):
             'template__name'
         ).annotate(count=Count('id')).order_by('-count')
     }
+    audit_event(
+        request,
+        action='notifications.email_statistics.viewed',
+        extra={
+            'total_sent': stats['total_sent'],
+            'total_failed': stats['total_failed'],
+            'total_pending': stats['total_pending'],
+        },
+    )
     audit_event(
         request,
         action='notifications.admin.email_statistics.viewed',

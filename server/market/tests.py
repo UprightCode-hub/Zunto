@@ -208,6 +208,38 @@ class SellerPermissionTests(TestCase):
         self.assertEqual(report.admin_notes, 'Investigating')
         self.assertEqual(report.moderated_by, self.admin_role_user)
 
+    @patch('market.views.audit_event')
+    def test_report_moderation_emits_domain_and_admin_audit_events(self, audit_mock):
+        product = Product.objects.create(
+            seller=self.seller,
+            title='Reported product audit',
+            description='Needs moderation audit',
+            listing_type='product',
+            price=Decimal('81.00'),
+            quantity=1,
+            condition='new',
+            status='active',
+            category=self.category,
+        )
+        report = ProductReport.objects.create(
+            product=product,
+            reporter=self.buyer,
+            reason='fraud',
+            description='Audit check listing',
+            status='pending',
+        )
+
+        self.client.force_authenticate(user=self.admin_role_user)
+        response = self.client.patch(
+            f'/api/market/reports/moderation/{report.id}/',
+            {'status': 'resolved', 'admin_notes': 'Resolved after verification'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['market.report.moderated', 'market.admin.report.moderated'])
+
     def test_buyer_cannot_access_report_moderation(self):
         self.client.force_authenticate(user=self.buyer)
         response = self.client.get('/api/market/reports/moderation/')
@@ -376,6 +408,37 @@ class SellerPermissionTests(TestCase):
         self.assertEqual(video.security_scan_status, ProductVideo.SCAN_CLEAN)
         self.assertEqual(video.security_quarantine_path, '')
 
+    @patch('market.views.audit_event')
+    def test_video_moderation_emits_domain_and_admin_audit_events(self, audit_mock):
+        product = Product.objects.create(
+            seller=self.seller,
+            title='Video audit product',
+            description='Video audit',
+            listing_type='product',
+            price=Decimal('25.00'),
+            quantity=1,
+            condition='new',
+            status='active',
+            category=self.category,
+        )
+        video_file = SimpleUploadedFile('audit.webm', b'\x1aE\xdf\xa3audit-video', content_type='video/webm')
+        video = ProductVideo.objects.create(
+            product=product,
+            video=video_file,
+            security_scan_status=ProductVideo.SCAN_QUARANTINED,
+        )
+
+        self.client.force_authenticate(user=self.admin_role_user)
+        response = self.client.patch(
+            f'/api/market/videos/moderation/{video.id}/',
+            {'action': 'mark_clean', 'reason': 'Manual review approved'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['market.video_scan.moderated', 'market.admin.video_scan.moderated'])
+
 
     def test_buyer_cannot_moderate_video_scan(self):
         product = Product.objects.create(
@@ -477,3 +540,173 @@ class SellerPermissionTests(TestCase):
         created_video = ProductVideo.objects.get(id=response.data['id'])
         self.assertEqual(created_video.security_scan_status, ProductVideo.SCAN_PENDING)
         schedule_mock.assert_called_once_with(str(created_video.id))
+
+    @override_settings(USE_OBJECT_STORAGE=True, OBJECT_UPLOAD_HMAC_SECRET='secret')
+    @patch('market.tasks.schedule_product_video_scan')
+    def test_direct_upload_callback_is_idempotent_for_existing_video_key(self, schedule_mock):
+        product = Product.objects.create(
+            seller=self.seller,
+            title='Direct upload idempotent callback product',
+            description='Direct upload idempotent callback',
+            listing_type='product',
+            price=Decimal('89.50'),
+            quantity=1,
+            condition='new',
+            status='active',
+            category=self.category,
+        )
+
+        existing = ProductVideo.objects.create(
+            product=product,
+            video=f'products/videos/{product.id}/uploaded.webm',
+            security_scan_status=ProductVideo.SCAN_PENDING,
+            security_scan_reason='direct-upload-pending-scan',
+        )
+
+        from market.views import _sign_upload_callback_payload
+        import time
+
+        payload = {
+            'product_id': str(product.id),
+            'product_slug': product.slug,
+            'uploader_id': str(self.seller.id),
+            'key': f'products/videos/{product.id}/uploaded.webm',
+            'content_type': 'video/webm',
+            'exp': int(time.time()) + 600,
+        }
+        signature = _sign_upload_callback_payload(payload)
+
+        self.client.force_authenticate(user=self.seller)
+        response = self.client.post(
+            f'/api/market/products/{product.slug}/videos/direct-upload-callback/',
+            {'payload': payload, 'signature': signature},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data.get('id'), str(existing.id))
+        schedule_mock.assert_not_called()
+
+    @override_settings(USE_OBJECT_STORAGE=True, OBJECT_UPLOAD_HMAC_SECRET='secret')
+    @patch('market.tasks.schedule_product_video_scan')
+    def test_direct_upload_callback_rejects_unsupported_content_type(self, schedule_mock):
+        product = Product.objects.create(
+            seller=self.seller,
+            title='Direct upload invalid content type product',
+            description='Direct upload invalid content type',
+            listing_type='product',
+            price=Decimal('89.60'),
+            quantity=1,
+            condition='new',
+            status='active',
+            category=self.category,
+        )
+
+        from market.views import _sign_upload_callback_payload
+        import time
+
+        payload = {
+            'product_id': str(product.id),
+            'product_slug': product.slug,
+            'uploader_id': str(self.seller.id),
+            'key': f'products/videos/{product.id}/uploaded.mov',
+            'content_type': 'application/octet-stream',
+            'exp': int(time.time()) + 600,
+        }
+        signature = _sign_upload_callback_payload(payload)
+
+        self.client.force_authenticate(user=self.seller)
+        response = self.client.post(
+            f'/api/market/products/{product.slug}/videos/direct-upload-callback/',
+            {'payload': payload, 'signature': signature},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        schedule_mock.assert_not_called()
+
+
+    @override_settings(USE_OBJECT_STORAGE=True, OBJECT_UPLOAD_HMAC_SECRET='secret')
+    @patch('market.views.cache')
+    @patch('market.tasks.schedule_product_video_scan')
+    def test_direct_upload_callback_rejects_replay_token(self, schedule_mock, cache_mock):
+        product = Product.objects.create(
+            seller=self.seller,
+            title='Direct upload replay product',
+            description='Direct upload replay',
+            listing_type='product',
+            price=Decimal('90.00'),
+            quantity=1,
+            condition='new',
+            status='active',
+            category=self.category,
+        )
+
+        from market.views import _sign_upload_callback_payload
+        import time
+
+        payload = {
+            'product_id': str(product.id),
+            'product_slug': product.slug,
+            'uploader_id': str(self.seller.id),
+            'key': f'products/videos/{product.id}/uploaded.webm',
+            'content_type': 'video/webm',
+            'exp': int(time.time()) + 600,
+        }
+        signature = _sign_upload_callback_payload(payload)
+
+        cache_mock.get.return_value = False
+        self.client.force_authenticate(user=self.seller)
+        first = self.client.post(
+            f'/api/market/products/{product.slug}/videos/direct-upload-callback/',
+            {'payload': payload, 'signature': signature},
+            format='json',
+        )
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+
+        cache_mock.get.return_value = True
+        second = self.client.post(
+            f'/api/market/products/{product.slug}/videos/direct-upload-callback/',
+            {'payload': payload, 'signature': signature},
+            format='json',
+        )
+        self.assertEqual(second.status_code, status.HTTP_409_CONFLICT)
+        schedule_mock.assert_called_once()
+
+    @override_settings(USE_OBJECT_STORAGE=True, OBJECT_UPLOAD_HMAC_SECRET='secret')
+    @patch('market.tasks.schedule_product_video_scan')
+    def test_direct_upload_callback_rejects_key_outside_product_prefix(self, schedule_mock):
+        product = Product.objects.create(
+            seller=self.seller,
+            title='Direct upload invalid key product',
+            description='Direct upload invalid key',
+            listing_type='product',
+            price=Decimal('91.00'),
+            quantity=1,
+            condition='new',
+            status='active',
+            category=self.category,
+        )
+
+        from market.views import _sign_upload_callback_payload
+        import time
+
+        payload = {
+            'product_id': str(product.id),
+            'product_slug': product.slug,
+            'uploader_id': str(self.seller.id),
+            'key': 'products/videos/other-product/uploaded.webm',
+            'content_type': 'video/webm',
+            'exp': int(time.time()) + 600,
+        }
+        signature = _sign_upload_callback_payload(payload)
+
+        self.client.force_authenticate(user=self.seller)
+        response = self.client.post(
+            f'/api/market/products/{product.slug}/videos/direct-upload-callback/',
+            {'payload': payload, 'signature': signature},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        schedule_mock.assert_not_called()

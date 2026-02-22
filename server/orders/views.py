@@ -394,6 +394,11 @@ class SellerOrdersView(generics.ListAPIView):
         if _is_admin_actor(request.user):
             audit_event(
                 request,
+                action='orders.seller_orders_viewed',
+                extra={'result_count': len(response.data) if isinstance(response.data, list) else None},
+            )
+            audit_event(
+                request,
                 action='orders.admin.seller_orders_viewed',
                 extra={'result_count': len(response.data) if isinstance(response.data, list) else None},
             )
@@ -421,6 +426,11 @@ class SellerOrderDetailView(generics.RetrieveAPIView):
     def retrieve(self, request, *args, **kwargs):
         response = super().retrieve(request, *args, **kwargs)
         if _is_admin_actor(request.user):
+            audit_event(
+                request,
+                action='orders.seller_order_detail_viewed',
+                extra={'order_number': kwargs.get('order_number')},
+            )
             audit_event(
                 request,
                 action='orders.admin.seller_order_detail_viewed',
