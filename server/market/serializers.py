@@ -1,10 +1,12 @@
 #server/market/serializers.py
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from .models import (
     Category, Location, Product, ProductImage, 
     ProductVideo, Favorite, ProductReport
 )
+from core.file_validation import validate_uploaded_file
 
 User = get_user_model()
 
@@ -52,7 +54,16 @@ class LocationSerializer(serializers.ModelSerializer):
 
 class ProductImageSerializer(serializers.ModelSerializer):
     """Serializer for product images"""
-    
+
+    def validate_image(self, value):
+        return validate_uploaded_file(
+            value,
+            allowed_mime_types={'image/jpeg', 'image/png', 'image/webp'},
+            allowed_extensions={'.jpg', '.jpeg', '.png', '.webp'},
+            max_bytes=5 * 1024 * 1024,
+            field_name='image',
+        )
+
     class Meta:
         model = ProductImage
         fields = ['id', 'image', 'caption', 'order', 'is_primary', 'uploaded_at']
@@ -61,11 +72,32 @@ class ProductImageSerializer(serializers.ModelSerializer):
 
 class ProductVideoSerializer(serializers.ModelSerializer):
     """Serializer for product videos"""
-    
+
+    def validate_video(self, value):
+        return validate_uploaded_file(
+            value,
+            allowed_mime_types={'video/mp4', 'video/webm', 'video/quicktime'},
+            allowed_extensions={'.mp4', '.webm', '.mov'},
+            max_bytes=20 * 1024 * 1024,
+            field_name='video',
+            malware_scan_mode='async',
+        )
+
     class Meta:
         model = ProductVideo
-        fields = ['id', 'video', 'thumbnail', 'caption', 'duration', 'uploaded_at']
-        read_only_fields = ['id', 'uploaded_at']
+        fields = [
+            'id', 'video', 'thumbnail', 'caption', 'duration',
+            'security_scan_status', 'security_scan_reason', 'scanned_at', 'uploaded_at'
+        ]
+        read_only_fields = ['id', 'security_scan_status', 'security_scan_reason', 'scanned_at', 'uploaded_at']
+
+    def create(self, validated_data):
+        instance = super().create(validated_data)
+
+        from market.tasks import schedule_product_video_scan
+
+        transaction.on_commit(lambda: schedule_product_video_scan(str(instance.id)))
+        return instance
 
 
 class SellerInfoSerializer(serializers.ModelSerializer):
@@ -140,7 +172,7 @@ class ProductDetailSerializer(serializers.ModelSerializer):
     location = LocationSerializer(read_only=True)
     seller = SellerInfoSerializer(read_only=True)
     images = ProductImageSerializer(many=True, read_only=True)
-    videos = ProductVideoSerializer(many=True, read_only=True)
+    videos = serializers.SerializerMethodField()
     is_favorited = serializers.SerializerMethodField()
     
     class Meta:
@@ -162,6 +194,11 @@ class ProductDetailSerializer(serializers.ModelSerializer):
                 product=obj
             ).exists()
         return False
+
+    def get_videos(self, obj):
+        request = self.context.get('request')
+        clean_videos = obj.videos.filter(security_scan_status=ProductVideo.SCAN_CLEAN)
+        return ProductVideoSerializer(clean_videos, many=True, context={'request': request}).data
 
 
 class ProductCreateUpdateSerializer(serializers.ModelSerializer):
@@ -221,17 +258,33 @@ class ProductReportSerializer(serializers.ModelSerializer):
     
     reporter_name = serializers.CharField(source='reporter.get_full_name', read_only=True)
     product_title = serializers.CharField(source='product.title', read_only=True)
+    moderated_by_name = serializers.CharField(source='moderated_by.get_full_name', read_only=True)
     
     class Meta:
         model = ProductReport
         fields = [
             'id', 'product', 'product_title', 'reporter', 'reporter_name',
-            'reason', 'description', 'status', 'admin_notes',
+            'reason', 'description', 'status', 'admin_notes', 'moderated_by', 'moderated_by_name',
             'created_at', 'resolved_at'
         ]
-        read_only_fields = ['id', 'reporter', 'reporter_name', 'product_title', 
+        read_only_fields = ['id', 'reporter', 'reporter_name', 'product_title', 'moderated_by', 'moderated_by_name',
                            'status', 'admin_notes', 'created_at', 'resolved_at']
     
     def create(self, validated_data):
         validated_data['reporter'] = self.context['request'].user
         return super().create(validated_data)
+
+
+class ProductVideoModerationSerializer(serializers.ModelSerializer):
+    product_slug = serializers.CharField(source='product.slug', read_only=True)
+    product_title = serializers.CharField(source='product.title', read_only=True)
+    seller_id = serializers.UUIDField(source='product.seller_id', read_only=True)
+
+    class Meta:
+        model = ProductVideo
+        fields = [
+            'id', 'product', 'product_slug', 'product_title', 'seller_id',
+            'video', 'caption', 'duration', 'security_scan_status',
+            'security_scan_reason', 'security_quarantine_path', 'scanned_at', 'uploaded_at'
+        ]
+        read_only_fields = fields

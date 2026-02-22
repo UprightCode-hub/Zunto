@@ -1,4 +1,6 @@
 // client/src/services/api.js
+import { getClientContext } from '../utils/clientContext';
+
 const rawApiBaseUrl = import.meta.env.VITE_API_BASE
   || import.meta.env.VITE_API_BASE_URL
   || import.meta.env.VITE_API_URL
@@ -55,9 +57,13 @@ const performTokenRefresh = async () => {
 const buildHeaders = (options = {}, accessToken = null) => {
   const isForm = options.body instanceof FormData;
   const defaultHeaders = isForm ? {} : { 'Content-Type': 'application/json' };
+  const { viewport, platform } = getClientContext();
+
   const headers = {
     ...defaultHeaders,
     ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
+    'X-Client-Viewport': viewport,
+    'X-Client-Platform': platform,
     ...options.headers,
   };
 
@@ -686,6 +692,8 @@ const buildDashboardQuery = ({ page, pageSize } = {}) => {
 export const getDashboardProducts = (params) => apiCall(`/dashboard/products/${buildDashboardQuery(params)}`);
 export const getDashboardOrders = (params) => apiCall(`/dashboard/orders/${buildDashboardQuery(params)}`);
 export const getDashboardCustomers = (params) => apiCall(`/dashboard/customers/${buildDashboardQuery(params)}`);
+export const getSystemHealth = () => apiCall('/health/');
+export const getCompanyAdminOperations = () => apiCall('/dashboard/company-ops/');
 
 export const getFaqSections = () => {
   return apiCall('/assistant/api/faqs/sections/');

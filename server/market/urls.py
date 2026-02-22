@@ -11,6 +11,12 @@ from .views import (
     FavoriteToggleView,
     FavoriteListView,
     ProductReportCreateView,
+    ProductReportModerationView,
+    ProductReportModerationDetailView,
+    ProductVideoModerationQueueView,
+    ProductVideoModerationDetailView,
+    ProductVideoDirectUploadTicketView,
+    ProductVideoDirectUploadCallbackView,
     FeaturedProductsView,
     BoostedProductsView,
     AdsProductsView,
@@ -45,6 +51,8 @@ urlpatterns = [
     path('products/<slug:product_slug>/images/', ProductImageUploadView.as_view(), name='product_image_upload'),
     path('products/<slug:product_slug>/images/<uuid:image_id>/', ProductImageUploadView.as_view(), name='product_image_delete'),
     path('products/<slug:product_slug>/videos/', ProductVideoUploadView.as_view(), name='product_video_upload'),
+    path('products/<slug:product_slug>/videos/direct-upload-ticket/', ProductVideoDirectUploadTicketView.as_view(), name='product_video_direct_upload_ticket'),
+    path('products/<slug:product_slug>/videos/direct-upload-callback/', ProductVideoDirectUploadCallbackView.as_view(), name='product_video_direct_upload_callback'),
     
                
     path('products/<slug:product_slug>/favorite/', FavoriteToggleView.as_view(), name='favorite_toggle'),
@@ -52,6 +60,10 @@ urlpatterns = [
     
              
     path('products/<slug:product_slug>/report/', ProductReportCreateView.as_view(), name='product_report'),
+    path('reports/moderation/', ProductReportModerationView.as_view(), name='product_report_moderation_list'),
+    path('reports/moderation/<uuid:report_id>/', ProductReportModerationDetailView.as_view(), name='product_report_moderation_detail'),
+    path('videos/moderation/', ProductVideoModerationQueueView.as_view(), name='product_video_moderation_list'),
+    path('videos/moderation/<uuid:video_id>/', ProductVideoModerationDetailView.as_view(), name='product_video_moderation_detail'),
 ]
                                                                                  
 

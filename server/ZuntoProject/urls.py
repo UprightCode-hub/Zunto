@@ -24,7 +24,7 @@ urlpatterns = [
     path('', RedirectView.as_view(url='/Zunto/server/market/templates/products.html/', permanent=False)),
     
                               
-    path('assistant/', include('assistant.urls')),
+    #path('assistant/', include('assistant.urls')),
     
                            
     path('marketplace/', marketplace_view, {'section': 'products', 'page': 'index'}, name='marketplace_home'),

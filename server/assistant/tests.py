@@ -1,4 +1,5 @@
 #server/assistant/tests.py
+from unittest.mock import patch
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase
@@ -142,7 +143,7 @@ class APIEndpointTests(APITestCase):
     
     def test_admin_endpoints_require_staff(self):
         """Admin endpoints should require staff permission."""
-        url = '/assistant/api/admin/recent-logs/'
+        url = '/assistant/api/admin/logs/'
         
                                      
         response = self.client.get(url)
@@ -157,6 +158,40 @@ class APIEndpointTests(APITestCase):
         self.client.force_authenticate(user=self.staff_user)
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+    @patch('assistant.views.audit_event')
+    def test_admin_logs_endpoint_emits_audit_event(self, audit_mock):
+        """Admin logs endpoint should emit an audit event."""
+        self.client.force_authenticate(user=self.staff_user)
+
+        response = self.client.get('/assistant/api/admin/logs/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        audit_mock.assert_called_once()
+        self.assertEqual(audit_mock.call_args.kwargs['action'], 'assistant.admin.logs.viewed')
+
+    @patch('assistant.views.audit_event')
+    def test_admin_reports_endpoint_emits_audit_event(self, audit_mock):
+        """Admin reports endpoint should emit an audit event."""
+        self.client.force_authenticate(user=self.staff_user)
+
+        response = self.client.get('/assistant/api/admin/reports/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        audit_mock.assert_called_once()
+        self.assertEqual(audit_mock.call_args.kwargs['action'], 'assistant.admin.reports.viewed')
+
+    @patch('assistant.views.audit_event')
+    def test_admin_metrics_endpoint_emits_audit_event(self, audit_mock):
+        """Admin metrics endpoint should emit an audit event."""
+        self.client.force_authenticate(user=self.staff_user)
+
+        response = self.client.get('/assistant/api/admin/metrics/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        audit_mock.assert_called_once()
+        self.assertEqual(audit_mock.call_args.kwargs['action'], 'assistant.admin.metrics.viewed')
 
 
 class ModelTests(TestCase):

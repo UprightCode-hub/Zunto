@@ -1,7 +1,8 @@
 #server/ZuntoProject/settings.py
 import os
+import importlib.util
 from pathlib import Path
-from decouple import config
+from decouple import Csv, config
 from celery.schedules import crontab
 import dj_database_url
 from datetime import timedelta
@@ -18,7 +19,7 @@ if IS_PRODUCTION:
     ALLOWED_HOSTS = [
         '.onrender.com',
         'zunto-backend.onrender.com',
-        'localhost:5174',
+        'localhost',
     ]
 else:
     DEBUG = config('DEBUG', default=True, cast=bool)
@@ -64,7 +65,7 @@ INSTALLED_APPS = [
     'orders',
     'notifications',
     'chat',
-    'assistant',
+    #'assistant',
     'rest_framework_simplejwt.token_blacklist',  
 ]
 
@@ -80,6 +81,7 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'core.middleware.CorrelationIdMiddleware',
+    'core.middleware.RequestTimingMiddleware',
     'assistant.middleware.DisableCSRFForAPIMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -173,6 +175,24 @@ SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_SAMESITE = 'Lax'
 
+
+SLOW_REQUEST_THRESHOLD_MS = config('SLOW_REQUEST_THRESHOLD_MS', default=1500, cast=int)
+HEALTH_ALERT_ACTIVE_TASKS_THRESHOLD = config('HEALTH_ALERT_ACTIVE_TASKS_THRESHOLD', default=100, cast=int)
+HEALTH_ALERT_SCHEDULED_TASKS_THRESHOLD = config('HEALTH_ALERT_SCHEDULED_TASKS_THRESHOLD', default=200, cast=int)
+HEALTH_ALERT_RESERVED_TASKS_THRESHOLD = config('HEALTH_ALERT_RESERVED_TASKS_THRESHOLD', default=100, cast=int)
+HEALTH_ALERT_REDIS_QUEUE_DEPTH_THRESHOLD = config('HEALTH_ALERT_REDIS_QUEUE_DEPTH_THRESHOLD', default=500, cast=int)
+HEALTH_REDIS_QUEUE_NAMES = [
+    name.strip()
+    for name in config('HEALTH_REDIS_QUEUE_NAMES', default='celery').split(',')
+    if name.strip()
+]
+
+PAYMENT_ALLOWED_CALLBACK_HOSTS = config(
+    'PAYMENT_ALLOWED_CALLBACK_HOSTS',
+    default='',
+    cast=Csv(),
+)
+
                        
 
 if IS_PRODUCTION:
@@ -203,7 +223,7 @@ else:
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.SessionAuthentication',
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'core.authentication.CookieJWTAuthentication',
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 50,
@@ -213,6 +233,16 @@ REST_FRAMEWORK = {
         'assistant_report_anon': '2/hour',
         'assistant_report_user': '20/hour',
         'assistant_evidence_upload_user': '10/hour',
+        'login': '10/hour',
+        'signup': '20/hour',
+        'password_reset': '8/hour',
+        'password_reset_confirm': '8/hour',
+        'email_verify': '10/hour',
+        'change_password': '10/hour',
+        'logout': '30/hour',
+        'payment_verify': '30/hour',
+        'profile_update': '60/hour',
+        'public_review_stats': '120/hour',
     },
 }
 
@@ -248,6 +278,19 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(os.path.dirname(BASE_DIR), "static_cdn", "media_root")
 
+
+USE_OBJECT_STORAGE = config('USE_OBJECT_STORAGE', default=False, cast=bool)
+OBJECT_STORAGE_FREE_TIER = config('OBJECT_STORAGE_FREE_TIER', default=True, cast=bool)
+OBJECT_STORAGE_PROVIDER = config('OBJECT_STORAGE_PROVIDER', default='cloudflare_r2')
+OBJECT_STORAGE_BUCKET_NAME = config('OBJECT_STORAGE_BUCKET_NAME', default='')
+OBJECT_STORAGE_REGION = config('OBJECT_STORAGE_REGION', default='auto')
+OBJECT_STORAGE_ENDPOINT_URL = config('OBJECT_STORAGE_ENDPOINT_URL', default='')
+OBJECT_STORAGE_ACCESS_KEY_ID = config('OBJECT_STORAGE_ACCESS_KEY_ID', default='')
+OBJECT_STORAGE_SECRET_ACCESS_KEY = config('OBJECT_STORAGE_SECRET_ACCESS_KEY', default='')
+OBJECT_STORAGE_CUSTOM_DOMAIN = config('OBJECT_STORAGE_CUSTOM_DOMAIN', default='')
+OBJECT_UPLOAD_SIGNED_UPLOAD_EXP_SECONDS = config('OBJECT_UPLOAD_SIGNED_UPLOAD_EXP_SECONDS', default=900, cast=int)
+OBJECT_UPLOAD_HMAC_SECRET = config('OBJECT_UPLOAD_HMAC_SECRET', default=SECRET_KEY)
+
 STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
@@ -256,6 +299,32 @@ STORAGES = {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
 }
+
+if USE_OBJECT_STORAGE:
+    storages_available = importlib.util.find_spec('storages') is not None
+    if not storages_available and IS_PRODUCTION:
+        raise ValueError('USE_OBJECT_STORAGE requires django-storages and boto3 in production.')
+
+    if storages_available:
+        if 'storages' not in INSTALLED_APPS:
+            INSTALLED_APPS.append('storages')
+
+        STORAGES['default'] = {
+            'BACKEND': 'storages.backends.s3boto3.S3Boto3Storage',
+            'OPTIONS': {
+                'bucket_name': OBJECT_STORAGE_BUCKET_NAME,
+                'region_name': OBJECT_STORAGE_REGION,
+                'endpoint_url': OBJECT_STORAGE_ENDPOINT_URL or None,
+                'access_key': OBJECT_STORAGE_ACCESS_KEY_ID,
+                'secret_key': OBJECT_STORAGE_SECRET_ACCESS_KEY,
+                'custom_domain': OBJECT_STORAGE_CUSTOM_DOMAIN or None,
+                'default_acl': 'private',
+                'querystring_auth': True,
+                'file_overwrite': False,
+            },
+        }
+        if OBJECT_STORAGE_CUSTOM_DOMAIN:
+            MEDIA_URL = f"https://{OBJECT_STORAGE_CUSTOM_DOMAIN}/"
 
 ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
 MAX_UPLOAD_SIZE = 5242880
@@ -322,6 +391,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'assistant.tasks.cleanup_assistant_archives_task',
         'schedule': crontab(hour=6, minute=30),
     },
+    'monitor-system-health-alerts': {
+        'task': 'core.tasks.monitor_system_health_alerts',
+        'schedule': crontab(minute='*/5'),
+    },
 }
                         
 
@@ -377,6 +450,8 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+    'x-client-viewport',
+    'x-client-platform',
 ]
 
                             
@@ -457,7 +532,7 @@ LOGGING = {
         },
         'django.request': {
             'handlers': ['file'],
-            'level': 'ERROR',
+            'level': 'WARNING',
             'propagate': False,
         },
         'audit': {
@@ -475,6 +550,19 @@ LOGS_DIR.mkdir(exist_ok=True)
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 5242880
 FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880
+
+
+MALWARE_SCAN_ENABLED = config('MALWARE_SCAN_ENABLED', default=False, cast=bool)
+MALWARE_SCAN_BACKEND = config('MALWARE_SCAN_BACKEND', default='clamav')
+MALWARE_SCAN_FAIL_CLOSED = config('MALWARE_SCAN_FAIL_CLOSED', default=IS_PRODUCTION, cast=bool)
+MALWARE_SCAN_CLAMAV_HOST = config('MALWARE_SCAN_CLAMAV_HOST', default='127.0.0.1')
+MALWARE_SCAN_CLAMAV_PORT = config('MALWARE_SCAN_CLAMAV_PORT', default=3310, cast=int)
+MALWARE_SCAN_TIMEOUT_SECONDS = config('MALWARE_SCAN_TIMEOUT_SECONDS', default=5, cast=int)
+MALWARE_QUARANTINE_ON_DETECT = config('MALWARE_QUARANTINE_ON_DETECT', default=True, cast=bool)
+MALWARE_QUARANTINE_DIR = config(
+    'MALWARE_QUARANTINE_DIR',
+    default=os.path.join(MEDIA_ROOT, 'quarantine'),
+)
 
       
 
@@ -502,6 +590,14 @@ os.environ['HF_HOME'] = '/tmp'
 os.environ['SENTENCE_TRANSFORMERS_HOME'] = '/tmp'
 
 CHAT_HMAC_SECRET = config('CHAT_HMAC_SECRET', default='change-me-in-production')
+CHAT_BLOCKED_LINK_DOMAINS = [
+    domain.strip().lower()
+    for domain in config(
+        'CHAT_BLOCKED_LINK_DOMAINS',
+        default='grabify.link,bit.ly,tinyurl.com,is.gd,cutt.ly,rebrand.ly',
+    ).split(',')
+    if domain.strip()
+]
 
 
                                           
@@ -511,7 +607,7 @@ from datetime import timedelta
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'ROTATE_REFRESH_TOKENS': False,
+    'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
     'UPDATE_LAST_LOGIN': True,
     
@@ -534,9 +630,9 @@ SIMPLE_JWT = {
 
               
 if IS_PRODUCTION:
-    FRONTEND_URL = 'https://zunto-frontend.onrender.com'
+    FRONTEND_URL = config('FRONTEND_URL', default='https://zunto-frontend.onrender.com')
 else:
-    FRONTEND_URL = 'http://localhost:5173'                   
+    FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173')
 
 
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { BarChart3, Users, Package, ShoppingCart, TrendingUp, RefreshCw } from 'lucide-react';
 import {
   getDashboardAnalytics,
@@ -6,6 +6,8 @@ import {
   getDashboardOrders,
   getDashboardProducts,
   getDashboardSales,
+  getSystemHealth,
+  getCompanyAdminOperations,
 } from '../services/api';
 
 const TABS = ['overview', 'customers', 'products', 'orders'];
@@ -35,31 +37,40 @@ export default function AdminDashboard() {
   const [error, setError] = useState('');
   const [analytics, setAnalytics] = useState({});
   const [sales, setSales] = useState({});
+  const [systemHealth, setSystemHealth] = useState({ status: 'unknown', alerts: [] });
+  const [opsQueues, setOpsQueues] = useState({});
   const [tabData, setTabData] = useState({
     customers: { page: 1, ...normalizePaginated(null) },
     products: { page: 1, ...normalizePaginated(null) },
     orders: { page: 1, ...normalizePaginated(null) },
   });
 
-  const loadOverview = async () => {
+  const loadOverview = useCallback(async () => {
     try {
       setLoadingOverview(true);
       setError('');
-      const [analyticsData, salesData] = await Promise.all([
+      const [analyticsData, salesData, healthData, opsData] = await Promise.all([
         getDashboardAnalytics(),
         getDashboardSales(),
+        getSystemHealth().catch(() => ({ status: 'unhealthy', diagnostics: { alerts: [{ kind: 'health_endpoint_unavailable' }] } })),
+        getCompanyAdminOperations().catch(() => ({})),
       ]);
 
       setAnalytics(analyticsData || {});
       setSales(salesData || {});
+      setSystemHealth({
+        status: healthData?.status || 'unknown',
+        alerts: healthData?.diagnostics?.alerts || [],
+      });
+      setOpsQueues(opsData || {});
     } catch (apiError) {
       setError(apiError?.data?.detail || apiError?.data?.error || 'Failed to load dashboard data.');
     } finally {
       setLoadingOverview(false);
     }
-  };
+  }, []);
 
-  const loadTab = async (tab, page = 1) => {
+  const loadTab = useCallback(async (tab, page = 1) => {
     if (!['customers', 'products', 'orders'].includes(tab)) {
       return;
     }
@@ -88,7 +99,7 @@ export default function AdminDashboard() {
     } finally {
       setLoadingTab(false);
     }
-  };
+  }, []);
 
   const refreshCurrentView = async () => {
     await loadOverview();
@@ -100,7 +111,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     loadOverview();
-  }, []);
+  }, [loadOverview]);
 
   useEffect(() => {
     if (activeTab === 'overview') {
@@ -110,7 +121,7 @@ export default function AdminDashboard() {
     if ((tabData[activeTab]?.results || []).length === 0) {
       loadTab(activeTab, 1);
     }
-  }, [activeTab]);
+  }, [activeTab, loadTab, tabData]);
 
   const statCards = useMemo(
     () => [
@@ -182,11 +193,25 @@ export default function AdminDashboard() {
               <p className="text-gray-600 dark:text-gray-400">Pending Orders: <span className="font-semibold text-gray-900 dark:text-white">{sales.pending_orders ?? '-'}</span></p>
               <p className="text-gray-600 dark:text-gray-400">Conversion Rate: <span className="font-semibold text-gray-900 dark:text-white">{sales.conversion_rate ?? '-'}%</span></p>
             </div>
+
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+              <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">Company Admin Operations</h2>
+              <p className="text-gray-600 dark:text-gray-400">Product reports pending/reviewing: <span className="font-semibold text-gray-900 dark:text-white">{opsQueues?.product_reports?.pending ?? 0}/{opsQueues?.product_reports?.reviewing ?? 0}</span></p>
+              <p className="text-gray-600 dark:text-gray-400">Review flags pending/reviewing: <span className="font-semibold text-gray-900 dark:text-white">{opsQueues?.review_flags?.pending ?? 0}/{opsQueues?.review_flags?.reviewing ?? 0}</span></p>
+              <p className="text-gray-600 dark:text-gray-400">Refunds pending/processing: <span className="font-semibold text-gray-900 dark:text-white">{opsQueues?.refunds?.pending ?? 0}/{opsQueues?.refunds?.processing ?? 0}</span></p>
+              <p className="text-gray-600 dark:text-gray-400">Videos pending scan/quarantined: <span className="font-semibold text-gray-900 dark:text-white">{opsQueues?.product_videos?.pending_scan ?? 0}/{opsQueues?.product_videos?.quarantined ?? 0}</span></p>
+            </div>
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
               <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">System Health</h2>
-              <p className="text-gray-600 dark:text-gray-400">Known customers: {tabData.customers.count}</p>
-              <p className="text-gray-600 dark:text-gray-400">Known products: {tabData.products.count}</p>
-              <p className="text-gray-600 dark:text-gray-400">Known orders: {tabData.orders.count}</p>
+              <p className="text-gray-600 dark:text-gray-400">Platform status: <span className={`font-semibold ${systemHealth.status === 'healthy' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{systemHealth.status}</span></p>
+              <p className="text-gray-600 dark:text-gray-400">Active alerts: <span className="font-semibold text-gray-900 dark:text-white">{systemHealth.alerts.length}</span></p>
+              {systemHealth.alerts.length > 0 && (
+                <ul className="mt-3 list-disc pl-5 text-sm text-gray-600 dark:text-gray-400">
+                  {systemHealth.alerts.slice(0, 3).map((alert, idx) => (
+                    <li key={`${alert.kind || 'alert'}-${idx}`}>{alert.kind || 'unknown_alert'}</li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         )}

@@ -1,12 +1,13 @@
 #server/reviews/views.py
 from rest_framework import generics, status, permissions
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from django.db.models import Avg, Count, Q
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
+from rest_framework.throttling import SimpleRateThrottle
 
 from .models import (
     ProductReview, SellerReview, ReviewResponse, 
@@ -23,6 +24,14 @@ from market.models import Product
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
+
+
+class PublicReviewStatsThrottle(SimpleRateThrottle):
+    scope = 'public_review_stats'
+
+    def get_cache_key(self, request, view):
+        ident = self.get_ident(request)
+        return self.cache_format % {'scope': self.scope, 'ident': f'ip:{ident}:{request.path}'}
 
 
 class ProductReviewListCreateView(generics.ListCreateAPIView):
@@ -373,7 +382,8 @@ class ProductReviewStatsView(APIView):
     """Get statistics for product reviews"""
     
     permission_classes = [permissions.AllowAny]
-    
+    throttle_classes = [PublicReviewStatsThrottle]
+
     def get(self, request, product_slug):
         product = get_object_or_404(Product, slug=product_slug)
         
@@ -381,10 +391,19 @@ class ProductReviewStatsView(APIView):
             product=product,
             is_approved=True
         )
-        
-                              
-        total_reviews = reviews.count()
-        
+
+        stats = reviews.aggregate(
+            total_reviews=Count('id'),
+            average_rating=Avg('rating'),
+            rating_5=Count('id', filter=Q(rating=5)),
+            rating_4=Count('id', filter=Q(rating=4)),
+            rating_3=Count('id', filter=Q(rating=3)),
+            rating_2=Count('id', filter=Q(rating=2)),
+            rating_1=Count('id', filter=Q(rating=1)),
+            verified_purchases=Count('id', filter=Q(is_verified_purchase=True)),
+        )
+
+        total_reviews = stats.get('total_reviews') or 0
         if total_reviews == 0:
             return Response({
                 'total_reviews': 0,
@@ -394,25 +413,18 @@ class ProductReviewStatsView(APIView):
                 },
                 'verified_purchases': 0
             })
-        
-        average_rating = reviews.aggregate(avg=Avg('rating'))['avg']
-        
-                             
-        rating_distribution = {
-            '5': reviews.filter(rating=5).count(),
-            '4': reviews.filter(rating=4).count(),
-            '3': reviews.filter(rating=3).count(),
-            '2': reviews.filter(rating=2).count(),
-            '1': reviews.filter(rating=1).count(),
-        }
-        
-        verified_purchases = reviews.filter(is_verified_purchase=True).count()
-        
+
         data = {
             'total_reviews': total_reviews,
-            'average_rating': round(average_rating, 2),
-            'rating_distribution': rating_distribution,
-            'verified_purchases': verified_purchases
+            'average_rating': round(stats.get('average_rating') or 0, 2),
+            'rating_distribution': {
+                '5': stats.get('rating_5') or 0,
+                '4': stats.get('rating_4') or 0,
+                '3': stats.get('rating_3') or 0,
+                '2': stats.get('rating_2') or 0,
+                '1': stats.get('rating_1') or 0,
+            },
+            'verified_purchases': stats.get('verified_purchases') or 0,
         }
         
         serializer = ProductReviewStatsSerializer(data)
@@ -423,7 +435,8 @@ class SellerReviewStatsView(APIView):
     """Get statistics for seller reviews"""
     
     permission_classes = [permissions.AllowAny]
-    
+    throttle_classes = [PublicReviewStatsThrottle]
+
     def get(self, request, seller_id):
         seller = get_object_or_404(User, id=seller_id)
         
@@ -431,10 +444,22 @@ class SellerReviewStatsView(APIView):
             seller=seller,
             is_approved=True
         )
-        
-                              
-        total_reviews = reviews.count()
-        
+
+        stats = reviews.aggregate(
+            total_reviews=Count('id'),
+            average_rating=Avg('rating'),
+            rating_5=Count('id', filter=Q(rating=5)),
+            rating_4=Count('id', filter=Q(rating=4)),
+            rating_3=Count('id', filter=Q(rating=3)),
+            rating_2=Count('id', filter=Q(rating=2)),
+            rating_1=Count('id', filter=Q(rating=1)),
+            average_communication=Avg('communication_rating'),
+            average_reliability=Avg('reliability_rating'),
+            average_professionalism=Avg('professionalism_rating'),
+            verified_transactions=Count('id', filter=Q(is_verified_transaction=True)),
+        )
+
+        total_reviews = stats.get('total_reviews') or 0
         if total_reviews == 0:
             return Response({
                 'total_reviews': 0,
@@ -447,41 +472,21 @@ class SellerReviewStatsView(APIView):
                 'average_professionalism': 0,
                 'verified_transactions': 0
             })
-        
-        average_rating = reviews.aggregate(avg=Avg('rating'))['avg']
-        
-                             
-        rating_distribution = {
-            '5': reviews.filter(rating=5).count(),
-            '4': reviews.filter(rating=4).count(),
-            '3': reviews.filter(rating=3).count(),
-            '2': reviews.filter(rating=2).count(),
-            '1': reviews.filter(rating=1).count(),
-        }
-        
-                                   
-        avg_communication = reviews.aggregate(
-            avg=Avg('communication_rating')
-        )['avg'] or 0
-        
-        avg_reliability = reviews.aggregate(
-            avg=Avg('reliability_rating')
-        )['avg'] or 0
-        
-        avg_professionalism = reviews.aggregate(
-            avg=Avg('professionalism_rating')
-        )['avg'] or 0
-        
-        verified_transactions = reviews.filter(is_verified_transaction=True).count()
-        
+
         data = {
             'total_reviews': total_reviews,
-            'average_rating': round(average_rating, 2),
-            'rating_distribution': rating_distribution,
-            'average_communication': round(avg_communication, 2),
-            'average_reliability': round(avg_reliability, 2),
-            'average_professionalism': round(avg_professionalism, 2),
-            'verified_transactions': verified_transactions
+            'average_rating': round(stats.get('average_rating') or 0, 2),
+            'rating_distribution': {
+                '5': stats.get('rating_5') or 0,
+                '4': stats.get('rating_4') or 0,
+                '3': stats.get('rating_3') or 0,
+                '2': stats.get('rating_2') or 0,
+                '1': stats.get('rating_1') or 0,
+            },
+            'average_communication': round(stats.get('average_communication') or 0, 2),
+            'average_reliability': round(stats.get('average_reliability') or 0, 2),
+            'average_professionalism': round(stats.get('average_professionalism') or 0, 2),
+            'verified_transactions': stats.get('verified_transactions') or 0,
         }
         
         serializer = SellerReviewStatsSerializer(data)
@@ -490,6 +495,7 @@ class SellerReviewStatsView(APIView):
 
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
+@throttle_classes([PublicReviewStatsThrottle])
 def top_rated_products(request):
     """Get top rated products"""
     
@@ -514,6 +520,7 @@ def top_rated_products(request):
 
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
+@throttle_classes([PublicReviewStatsThrottle])
 def top_rated_sellers(request):
     """Get top rated sellers"""
     

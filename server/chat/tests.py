@@ -82,3 +82,48 @@ class ChatConversationFlowTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(response.data['error'], 'Cannot create conversation with yourself')
+
+
+    def test_message_with_blocked_link_domain_is_rejected(self):
+        self.client.force_authenticate(user=self.buyer)
+        create_response = self.client.post(
+            reverse('chat:conversation-get-or-create'),
+            {'product_id': str(self.product.id)},
+            format='json',
+        )
+        conversation_id = create_response.data['conversation']['id']
+
+        message_response = self.client.post(
+            reverse('chat:message-list'),
+            {
+                'conversation_id': conversation_id,
+                'content': 'Pay here now https://grabify.link/track-user',
+                'message_type': 'text',
+            },
+            format='json',
+        )
+
+        self.assertEqual(message_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('blocked link domain', message_response.data['error'].lower())
+
+    def test_message_with_suspicious_phrase_and_link_is_rejected(self):
+        self.client.force_authenticate(user=self.buyer)
+        create_response = self.client.post(
+            reverse('chat:conversation-get-or-create'),
+            {'product_id': str(self.product.id)},
+            format='json',
+        )
+        conversation_id = create_response.data['conversation']['id']
+
+        message_response = self.client.post(
+            reverse('chat:message-list'),
+            {
+                'conversation_id': conversation_id,
+                'content': 'Please reset your password using https://example-safe.test/support',
+                'message_type': 'text',
+            },
+            format='json',
+        )
+
+        self.assertEqual(message_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('anti-phishing', message_response.data['error'].lower())
