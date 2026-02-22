@@ -692,6 +692,8 @@ const buildDashboardQuery = ({ page, pageSize } = {}) => {
 export const getDashboardProducts = (params) => apiCall(`/dashboard/products/${buildDashboardQuery(params)}`);
 export const getDashboardOrders = (params) => apiCall(`/dashboard/orders/${buildDashboardQuery(params)}`);
 export const getDashboardCustomers = (params) => apiCall(`/dashboard/customers/${buildDashboardQuery(params)}`);
+export const getSystemHealth = () => apiCall('/health/');
+export const getCompanyAdminOperations = () => apiCall('/dashboard/company-ops/');
 
 export const getFaqSections = () => {
   return apiCall('/assistant/api/faqs/sections/');

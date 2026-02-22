@@ -538,6 +538,62 @@ class ProcessRefundView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
 
 
+class BulkRefundDecisionView(APIView):
+    """Company-admin bulk approve/reject refunds without Django admin portal."""
+
+    permission_classes = [IsAdminOrStaff]
+
+    @transaction.atomic
+    def post(self, request):
+        refund_ids = request.data.get('refund_ids') or []
+        decision = (request.data.get('decision') or '').strip().lower()
+        admin_notes = (request.data.get('admin_notes') or '').strip()
+
+        if decision not in {'approve', 'reject'}:
+            return Response({'error': 'decision must be approve or reject'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not isinstance(refund_ids, list) or not refund_ids:
+            return Response({'error': 'refund_ids must be a non-empty list'}, status=status.HTTP_400_BAD_REQUEST)
+
+        target_status = 'completed' if decision == 'approve' else 'failed'
+        pending_refunds = list(Refund.objects.select_for_update().filter(id__in=refund_ids, status='pending'))
+
+        updated = 0
+        skipped = []
+        now = timezone.now()
+
+        pending_ids = {str(r.id) for r in pending_refunds}
+        for refund_id in refund_ids:
+            if str(refund_id) not in pending_ids:
+                skipped.append(str(refund_id))
+
+        for refund in pending_refunds:
+            refund.status = target_status
+            refund.processed_at = now
+            refund.processed_by = request.user
+            if admin_notes:
+                refund.admin_notes = admin_notes
+            refund.save(update_fields=['status', 'processed_at', 'processed_by', 'admin_notes'])
+            updated += 1
+
+        audit_event(
+            request,
+            action='orders.admin.refund.bulk_decision_applied',
+            extra={
+                'decision': decision,
+                'updated_count': updated,
+                'skipped_count': len(skipped),
+                'refund_ids': [str(rid) for rid in refund_ids],
+            },
+        )
+
+        return Response({
+            'decision': decision,
+            'updated_count': updated,
+            'skipped': skipped,
+        }, status=status.HTTP_200_OK)
+
+
 class PaymentHistoryView(APIView):
     """Get payment history for user"""
     

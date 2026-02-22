@@ -391,6 +391,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'assistant.tasks.cleanup_assistant_archives_task',
         'schedule': crontab(hour=6, minute=30),
     },
+    'monitor-system-health-alerts': {
+        'task': 'core.tasks.monitor_system_health_alerts',
+        'schedule': crontab(minute='*/5'),
+    },
 }
                         
 
