@@ -17,3 +17,5 @@ This folder centralizes top-level project documentation files.
 ## New
 
 - `TEST_AND_DEPLOYMENT_NOTES.md`: backend test execution constraints, risk list, and deployment-testing scope notes.
+
+- `NEXT_SESSION_EXECUTION_BRIEF.md`: canonical concise handoff for pending phases, admin portal parity, and next chunk execution.

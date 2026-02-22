@@ -1,49 +1,23 @@
-# Backend → Frontend Integration Handoff Log
+# Backend → Frontend Integration Handoff (Condensed)
 
 _Last updated: 2026-02-22 (UTC)_
 
-## Purpose
-Track backend changes that require frontend wiring so no endpoint/field mismatch is introduced across sessions.
+This file was condensed to remove duplicated narrative.
 
-## Completed Integration Items
+## Canonical file
+Use `docs/NEXT_SESSION_EXECUTION_BRIEF.md` as the single source for:
+- pending backend/frontend parity work,
+- admin portal integration status,
+- endpoint/audit naming synchronization,
+- next chunk execution checklist.
 
-### Review Flag Moderation (Phase 4 parity chunk)
-- **Backend queue endpoint**: `GET /api/reviews/reviews/flags/moderation/`
-  - Query params: `status`, `reason`, `page`, `page_size`
-  - Authz: admin/staff only.
-  - Emits audit action: `reviews.flag.moderation_queue_viewed`.
+## Current parity baseline (kept here for quick reference)
+- Product report moderation queue/actions: wired.
+- Review flag moderation queue/actions: wired.
+- Bulk refund decision controls: wired.
+- Ops queues pagination/filtering: wired.
+- Orders item status mutation emits:
+  - `orders.item.status_updated`
+  - `orders.admin.order_item_status_updated` (admin actor path)
 
-- **Backend action endpoint**: `PATCH /api/reviews/reviews/flags/moderation/<flag_id>/`
-  - Body:
-    - `status`: one of `reviewing`, `resolved`, `dismissed`
-    - `admin_notes` (optional)
-  - Transition safety:
-    - `pending -> reviewing|resolved|dismissed`
-    - `reviewing -> resolved|dismissed`
-    - `resolved` and `dismissed` are terminal
-  - Emits audit action: `reviews.flag.moderated`.
-
-- **Frontend service functions wired** (`client/src/services/api.js`):
-  - `getReviewFlagModerationQueue({ status, reason, page, pageSize })`
-  - `moderateReviewFlag(flagId, moderationData)`
-
-### Product report moderation service wiring
-- Frontend service methods wired:
-  - `getProductReportModerationQueue({ status, reason, page, pageSize })`
-  - `moderateProductReport(reportId, moderationData)`
-
-### Bulk refund decision service wiring
-- Frontend service method wired:
-  - `applyBulkRefundDecision({ refund_ids, decision, admin_notes })`
-
-### Admin dashboard operations tab wiring
-- `operations` tab in `AdminDashboard` now includes:
-  - Product report queue moderation actions (`reviewing`, `resolved`, `dismissed`)
-  - Review flag queue moderation actions (`reviewing`, `resolved`, `dismissed`)
-  - Bulk refund decision form (`approve`/`reject`)
-  - Shared notes inputs and success/error feedback
-  - Queue pagination controls and status/reason filters for free-tier-safe triage
-
-## Remaining integration follow-ups
-1. Add dedicated row detail modal/panel for full report/flag descriptions.
-2. Add frontend tests for operations tab mutation flows.
+For all follow-ups, update only the canonical brief.

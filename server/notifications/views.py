@@ -11,6 +11,7 @@ from .serializers import (
     NotificationPreferenceSerializer, NotificationSerializer
 )
 from .email_service import EmailService
+from core.audit import audit_event
 
 
 class NotificationViewSet(viewsets.ModelViewSet):
@@ -106,9 +107,14 @@ class TestEmailView(APIView):
 @permission_classes([permissions.IsAdminUser])
 def email_templates_list(request):
     """List all email templates (admin only)"""
-    
+
     templates = EmailTemplate.objects.all()
     serializer = EmailTemplateSerializer(templates, many=True)
+    audit_event(
+        request,
+        action='notifications.admin.email_templates.viewed',
+        extra={'count': templates.count()},
+    )
     return Response(serializer.data)
 
 
@@ -116,9 +122,9 @@ def email_templates_list(request):
 @permission_classes([permissions.IsAdminUser])
 def email_statistics(request):
     """Get email statistics (admin only)"""
-    
+
     from django.db.models import Count
-    
+
     stats = {
         'total_sent': EmailLog.objects.filter(status='sent').count(),
         'total_failed': EmailLog.objects.filter(status='failed').count(),
@@ -127,5 +133,13 @@ def email_statistics(request):
             'template__name'
         ).annotate(count=Count('id')).order_by('-count')
     }
-    
+    audit_event(
+        request,
+        action='notifications.admin.email_statistics.viewed',
+        extra={
+            'total_sent': stats['total_sent'],
+            'total_failed': stats['total_failed'],
+            'total_pending': stats['total_pending'],
+        },
+    )
     return Response(stats)

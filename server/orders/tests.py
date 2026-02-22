@@ -99,6 +99,21 @@ class SellerOrderPermissionTests(TestCase):
         item.refresh_from_db()
         self.assertEqual(item.status, 'shipped')
 
+
+    @patch('orders.views.audit_event')
+    def test_admin_role_update_item_status_emits_admin_and_domain_audit_events(self, audit_mock):
+        item = OrderItem.objects.first()
+        self.client.force_authenticate(user=self.admin_role_user)
+        response = self.client.patch(
+            f'/api/orders/seller/items/{item.id}/update-status/',
+            {'status': 'shipped'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(audit_mock.call_count, 2)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions, ['orders.item.status_updated', 'orders.admin.order_item_status_updated'])
+
     def test_seller_update_item_status_rejects_invalid_value(self):
         item = OrderItem.objects.first()
         self.client.force_authenticate(user=self.seller)
