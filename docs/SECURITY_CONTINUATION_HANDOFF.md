@@ -4,6 +4,9 @@ _Last updated: 2026-02-20 (UTC)_
 
 ## Purpose
 
+- Company admin parity plan added: `docs/ADMIN_COMPANY_PORTAL_PARITY_NEXT_SESSION.md` (frontend vs Django-admin gap closure plan).
+- Observability runbook added: `docs/SECURITY_OBSERVABILITY_RUNBOOK.md` (Phase 5 alert triage + command checks + response matrix).
+- Strategic local test planning added: `docs/SECURITY_10K_BOT_DEFENSE_PLAN.md` (10k-concurrency + adversarial traffic validation strategy).
 - Verification audit added: `docs/SECURITY_BACKEND_VERIFICATION_AUDIT.md` (code-validated status and priority backlog).
 This file is the continuity anchor for any new Codex session. It documents exactly what has been implemented, what remains, and where the next session should continue so work can resume without re-auditing from scratch.
 
@@ -17,6 +20,13 @@ This file is the continuity anchor for any new Codex session. It documents exact
 - [x] Add graceful Celery-unavailable fallback path for product video async scan scheduling.
 - [x] Add Celery dependency fallback bootstrap in `ZuntoProject/celery.py` to avoid hard-fail startup in constrained environments.
 - [~] Implement object-storage signed direct upload and callback verification (market video ticket + callback endpoints implemented; rollout/operationalization pending).
+- [x] Expand `audit_event` coverage for assistant admin observability endpoints (logs/reports/metrics views).
+- [x] Fix DRF auth bootstrap by adding missing `core.authentication.CookieJWTAuthentication` module with cookie/header JWT fallback.
+- [x] Add scheduled backend health monitor task (`core.tasks.monitor_system_health_alerts`) for automated alert logging from health diagnostics.
+- [x] Enforce backend admin-only access controls for dashboard analytics endpoints + add dashboard admin audit events.
+- [x] Add company-admin operations summary endpoint (`/dashboard/company-ops/`) for frontend operational queues (reports/refunds/review-flags/video scans).
+- [x] Expand `audit_event` coverage for dashboard admin analytics endpoints (overview/analytics/sales/products/orders/customers).
+- [x] Add backend bulk refund decision endpoint (`/api/payments/refunds/bulk-decision/`) with admin/staff auth + audit event.
 - [ ] Expand `audit_event` coverage across remaining admin-critical mutations.
 
 ---
@@ -58,6 +68,8 @@ This file is the continuity anchor for any new Codex session. It documents exact
 - ✅ Added admin audit events for staff access to seller-order list/detail views (`orders.admin.seller_orders_viewed`, `orders.admin.seller_order_detail_viewed`).
 - ✅ Added audit coverage for admin refund-processing actions (`orders.admin.refund.process_initiated`, `orders.admin.refund.process_failed`, `orders.admin.refund.process_rejected`) and aligned endpoint access for role-based admins (`role=admin`) via shared admin permission checks.
 - ✅ Fixed refund webhook lifecycle handling so `refund.processed` updates both `pending` and `processing` refunds, and records correct pre-change status in order history.
+- ✅ Added dashboard admin endpoint access control + audit events for analytics/read paths.
+- ✅ Backend admin-only authorization now enforced on dashboard analytics endpoints (not frontend-only gating).
 - ❗Still pending: broader cross-domain admin audit coverage across other high-impact admin actions.
 
 ### Phase 5 — Scalability & Observability (partial)
@@ -110,17 +122,6 @@ This file is the continuity anchor for any new Codex session. It documents exact
 ---
 
 ## Suggested Next Immediate Task (recommended)
-**Phase 5 completion slice:** add queue observability endpoint/metrics fields for admin diagnostics and document alert thresholds (worker unavailable, queue backlog, cache failure) in deployment checklist docs.
+**Phase 5 completion slice:** wire alert automation (notifications/escalation) from existing `/health/` diagnostics and runbook thresholds.
 
 This gives the best speed-to-value while keeping risk low and preserving production behavior.
-
-
-## Current Increment Checklist (after callback-host hardening)
-- [x] Validate payment callback URL host against trusted allowlist/request host in initialize flow.
-- [x] Normalize callback host matching to avoid port-based bypass/mismatch issues.
-- [x] Add tests for trusted configured callback host and HTTPS enforcement in non-debug mode.
-- [ ] Expand admin audit coverage to remaining high-impact admin mutations (accounts, payouts, assistant moderation).
-- [ ] Finalize Phase 5 observability runbook + alert automation.
-- [ ] Complete async malware lifecycle across all upload domains.
-- [ ] Complete Phase 6 object-storage quarantine/release and CDN/lifecycle flow.
-

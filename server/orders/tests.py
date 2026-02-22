@@ -254,6 +254,49 @@ class AdminRefundAuditTests(TestCase):
         self.assertEqual(audit_mock.call_args.kwargs['action'], 'orders.admin.refund.process_rejected')
 
 
+
+
+    @patch('orders.payment_views.audit_event')
+    def test_admin_bulk_refund_approve_emits_audit(self, audit_mock):
+        second = Refund.objects.create(
+            order=self.order,
+            payment=self.payment,
+            amount=Decimal('20.00'),
+            reason='customer_request',
+            description='Second refund',
+            status='pending',
+        )
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.post('/api/payments/refunds/bulk-decision/', {
+            'refund_ids': [str(self.refund.id), str(second.id)],
+            'decision': 'approve',
+            'admin_notes': 'Bulk approved',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.refund.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual(self.refund.status, 'completed')
+        self.assertEqual(second.status, 'completed')
+        self.assertEqual(audit_mock.call_args.kwargs['action'], 'orders.admin.refund.bulk_decision_applied')
+
+    @patch('orders.payment_views.audit_event')
+    def test_admin_bulk_refund_reject_skips_non_pending(self, audit_mock):
+        self.refund.status = 'processing'
+        self.refund.save(update_fields=['status'])
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.post('/api/payments/refunds/bulk-decision/', {
+            'refund_ids': [str(self.refund.id)],
+            'decision': 'reject',
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data.get('updated_count'), 0)
+        self.assertEqual(audit_mock.call_args.kwargs['action'], 'orders.admin.refund.bulk_decision_applied')
+
+
 class PaymentWebhookRefundFlowTests(TestCase):
     def setUp(self):
         self.client = APIClient()
