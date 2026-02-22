@@ -811,6 +811,7 @@ def assistant_metrics_summary(request):
         if llm_count else 0
     )
 
+    audit_event(request, action='assistant.metrics.viewed', extra={'request_count': request_count, 'llm_count': llm_count})
     audit_event(request, action='assistant.admin.metrics.viewed', extra={'request_count': request_count, 'llm_count': llm_count})
     return Response({'metrics': snapshot}, status=status.HTTP_200_OK)
 
@@ -1216,6 +1217,7 @@ def recent_logs(request):
         serializer = ConversationLogSerializer(logs, many=True)
         total_count = queryset.count()
 
+        audit_event(request, action='assistant.logs.viewed', extra={'limit': limit, 'filtered_user_id': user_id, 'count': total_count})
         audit_event(request, action='assistant.admin.logs.viewed', extra={'limit': limit, 'filtered_user_id': user_id, 'count': total_count})
         
         return Response(
@@ -1256,6 +1258,7 @@ def recent_reports(request):
         serializer = ReportSerializer(reports, many=True)
         total_count = queryset.count()
 
+        audit_event(request, action='assistant.reports.viewed', extra={'limit': limit, 'status_filter': status_filter, 'count': total_count})
         audit_event(request, action='assistant.admin.reports.viewed', extra={'limit': limit, 'status_filter': status_filter, 'count': total_count})
         
         return Response(

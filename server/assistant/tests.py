@@ -169,8 +169,8 @@ class APIEndpointTests(APITestCase):
         response = self.client.get('/assistant/api/admin/logs/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        audit_mock.assert_called_once()
-        self.assertEqual(audit_mock.call_args.kwargs['action'], 'assistant.admin.logs.viewed')
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['assistant.logs.viewed', 'assistant.admin.logs.viewed'])
 
     @patch('assistant.views.audit_event')
     def test_admin_reports_endpoint_emits_audit_event(self, audit_mock):
@@ -180,8 +180,8 @@ class APIEndpointTests(APITestCase):
         response = self.client.get('/assistant/api/admin/reports/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        audit_mock.assert_called_once()
-        self.assertEqual(audit_mock.call_args.kwargs['action'], 'assistant.admin.reports.viewed')
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['assistant.reports.viewed', 'assistant.admin.reports.viewed'])
 
     @patch('assistant.views.audit_event')
     def test_admin_metrics_endpoint_emits_audit_event(self, audit_mock):
@@ -191,8 +191,8 @@ class APIEndpointTests(APITestCase):
         response = self.client.get('/assistant/api/admin/metrics/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        audit_mock.assert_called_once()
-        self.assertEqual(audit_mock.call_args.kwargs['action'], 'assistant.admin.metrics.viewed')
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['assistant.metrics.viewed', 'assistant.admin.metrics.viewed'])
 
 
 
@@ -281,4 +281,3 @@ class ModelTests(TestCase):
         self.assertEqual(log.user, self.user)
         self.assertEqual(log.confidence, 0.85)
         self.assertIsNotNone(log.created_at)
-

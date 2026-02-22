@@ -464,6 +464,11 @@ class ProcessRefundView(APIView):
         if refund.status != 'pending':
             audit_event(
                 request,
+                action='orders.refund.process_rejected',
+                extra={'refund_id': str(refund.id), 'status': refund.status, 'reason': 'refund_not_pending'},
+            )
+            audit_event(
+                request,
                 action='orders.admin.refund.process_rejected',
                 extra={'refund_id': str(refund.id), 'status': refund.status, 'reason': 'refund_not_pending'},
             )
@@ -474,6 +479,11 @@ class ProcessRefundView(APIView):
                      
         payment = refund.payment
         if not payment:
+            audit_event(
+                request,
+                action='orders.refund.process_rejected',
+                extra={'refund_id': str(refund.id), 'reason': 'payment_not_found'},
+            )
             audit_event(
                 request,
                 action='orders.admin.refund.process_rejected',
@@ -502,6 +512,17 @@ class ProcessRefundView(APIView):
 
             audit_event(
                 request,
+                action='orders.refund.process_initiated',
+                extra={
+                    'refund_id': str(refund.id),
+                    'order_id': str(refund.order_id),
+                    'payment_id': str(payment.id),
+                    'amount': str(refund.amount),
+                    'reference': refund.refund_reference,
+                },
+            )
+            audit_event(
+                request,
                 action='orders.admin.refund.process_initiated',
                 extra={
                     'refund_id': str(refund.id),
@@ -522,6 +543,16 @@ class ProcessRefundView(APIView):
                 }
             }, status=status.HTTP_200_OK)
         else:
+            audit_event(
+                request,
+                action='orders.refund.process_failed',
+                extra={
+                    'refund_id': str(refund.id),
+                    'order_id': str(refund.order_id),
+                    'payment_id': str(payment.id),
+                    'reason': result.get('error', 'Unknown error'),
+                },
+            )
             audit_event(
                 request,
                 action='orders.admin.refund.process_failed',
@@ -576,6 +607,16 @@ class BulkRefundDecisionView(APIView):
             refund.save(update_fields=['status', 'processed_at', 'processed_by', 'admin_notes'])
             updated += 1
 
+        audit_event(
+            request,
+            action='orders.refund.bulk_decision_applied',
+            extra={
+                'decision': decision,
+                'updated_count': updated,
+                'skipped_count': len(skipped),
+                'refund_ids': [str(rid) for rid in refund_ids],
+            },
+        )
         audit_event(
             request,
             action='orders.admin.refund.bulk_decision_applied',
