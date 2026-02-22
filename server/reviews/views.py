@@ -464,18 +464,24 @@ class ReviewFlagModerationDetailView(APIView):
                 flag.admin_notes = admin_notes
             flag.save(update_fields=['status', 'resolved_at', 'admin_notes'])
 
+        audit_extra = {
+            'flag_id': str(flag.id),
+            'old_status': old_status,
+            'new_status': target_status,
+            'reason': flag.reason,
+            'product_review_id': str(flag.product_review_id) if flag.product_review_id else None,
+            'seller_review_id': str(flag.seller_review_id) if flag.seller_review_id else None,
+            'moderator_id': str(request.user.id),
+        }
         audit_event(
             request,
             action='reviews.flag.moderated',
-            extra={
-                'flag_id': str(flag.id),
-                'old_status': old_status,
-                'new_status': target_status,
-                'reason': flag.reason,
-                'product_review_id': str(flag.product_review_id) if flag.product_review_id else None,
-                'seller_review_id': str(flag.seller_review_id) if flag.seller_review_id else None,
-                'moderator_id': str(request.user.id),
-            },
+            extra=audit_extra,
+        )
+        audit_event(
+            request,
+            action='reviews.admin.flag.moderated',
+            extra=audit_extra,
         )
 
         serializer = ReviewFlagSerializer(flag, context={'request': request})

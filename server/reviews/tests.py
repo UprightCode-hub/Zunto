@@ -159,7 +159,7 @@ class ReviewFlagModerationTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @patch('reviews.views.audit_event')
-    def test_review_flag_moderation_emits_audit_event(self, audit_mock):
+    def test_review_flag_moderation_emits_domain_and_admin_audit_events(self, audit_mock):
         self.client.force_authenticate(user=self.admin)
         response = self.client.patch(
             f'/api/reviews/reviews/flags/moderation/{self.flag.id}/',
@@ -167,5 +167,6 @@ class ReviewFlagModerationTests(APITestCase):
             format='json',
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        audit_mock.assert_called_once()
-        self.assertEqual(audit_mock.call_args.kwargs['action'], 'reviews.flag.moderated')
+        self.assertEqual(audit_mock.call_count, 2)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions, ['reviews.flag.moderated', 'reviews.admin.flag.moderated'])

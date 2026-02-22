@@ -1111,8 +1111,18 @@ def upload_report_evidence(request, report_id):
     try:
         validate_dispute_media_task.delay(media.id)
     except Exception:
-                                                                 
         logger.exception('Failed to enqueue dispute media validation task')
+        media.validation_status = DisputeMedia.VALIDATION_REJECTED
+        media.validation_reason = 'Validation queue unavailable. Upload rejected for safety.'
+        media.validated_at = timezone.now()
+        media.save(update_fields=['validation_status', 'validation_reason', 'validated_at', 'updated_at'])
+        dispute_storage.delete(media.file.name)
+        media.mark_deleted()
+        audit_event(
+            request,
+            action='assistant.report.evidence_validation_enqueue_failed',
+            extra={'report_id': report.id, 'media_id': media.id, 'media_type': media_type},
+        )
 
     audit_event(request, action='assistant.report.evidence_uploaded', extra={'report_id': report.id, 'media_id': media.id, 'media_type': media_type})
     serializer = DisputeMediaSerializer(media, context={'request': request})
@@ -1166,6 +1176,16 @@ def close_report(request, report_id):
         updated += 1
 
     audit_event(request, action='assistant.report.closed', extra={'report_id': report.id, 'retention_files_updated': updated})
+    if request.user.is_staff:
+        audit_event(
+            request,
+            action='assistant.admin.report.closed',
+            extra={
+                'report_id': report.id,
+                'report_owner_id': report.user_id,
+                'retention_files_updated': updated,
+            },
+        )
     return Response({
         'report_id': report.id,
         'status': report.status,

@@ -492,6 +492,21 @@ class UpdateOrderItemStatusView(APIView):
                 'order_new_status': order.status,
             },
         )
+        if _is_admin_actor(request.user):
+            audit_event(
+                request,
+                action='orders.admin.order_item_status_updated',
+                extra={
+                    'order_id': str(order.id),
+                    'order_number': order.order_number,
+                    'order_item_id': str(item.id),
+                    'seller_id': str(item.seller_id),
+                    'item_old_status': old_item_status,
+                    'item_new_status': item.status,
+                    'order_old_status': old_order_status,
+                    'order_new_status': order.status,
+                },
+            )
 
         return Response(
             {

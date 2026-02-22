@@ -1,5 +1,6 @@
 #server/assistant/tests.py
 from unittest.mock import patch
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase
@@ -193,6 +194,58 @@ class APIEndpointTests(APITestCase):
         audit_mock.assert_called_once()
         self.assertEqual(audit_mock.call_args.kwargs['action'], 'assistant.admin.metrics.viewed')
 
+
+
+    @patch('assistant.views.audit_event')
+    def test_staff_close_report_emits_admin_and_domain_audit_events(self, audit_mock):
+        owner = User.objects.create_user(username='report-owner', password='ownerpass123')
+        report = Report.objects.create(
+            user=owner,
+            message='Need review',
+            severity='high',
+            status='pending',
+            meta={},
+        )
+
+        self.client.force_authenticate(user=self.staff_user)
+        response = self.client.post(f'/assistant/api/report/{report.id}/close/', format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(audit_mock.call_count, 2)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions, ['assistant.report.closed', 'assistant.admin.report.closed'])
+
+
+    @patch('assistant.views.validate_dispute_media_task.delay', side_effect=Exception('queue-down'))
+    @patch('assistant.views.audit_event')
+    def test_evidence_upload_rejects_when_validation_queue_unavailable(self, audit_mock, _delay_mock):
+        owner = User.objects.create_user(username='dispute-owner', password='ownerpass123')
+        report = Report.objects.create(
+            user=owner,
+            message='Dispute report',
+            severity='high',
+            status='pending',
+            report_type='dispute',
+            meta={},
+        )
+        self.client.force_authenticate(user=owner)
+        upload = SimpleUploadedFile('proof.png', b'\x89PNG\r\n\x1a\nabc', content_type='image/png')
+
+        response = self.client.post(
+            f'/assistant/api/report/{report.id}/evidence/',
+            {'file': upload, 'media_type': 'image'},
+            format='multipart',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        media = report.evidence_files.first()
+        self.assertIsNotNone(media)
+        self.assertEqual(media.validation_status, 'rejected')
+        self.assertIn('queue unavailable', media.validation_reason.lower())
+        self.assertTrue(media.is_deleted)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertIn('assistant.report.evidence_validation_enqueue_failed', actions)
+        self.assertIn('assistant.report.evidence_uploaded', actions)
 
 class ModelTests(TestCase):
     """Test database models."""
