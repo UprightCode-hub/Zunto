@@ -8,6 +8,8 @@ from django.db.models import Avg, Count, Q
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from rest_framework.throttling import SimpleRateThrottle
+from django.db import transaction
+from django.utils import timezone
 
 from .models import (
     ProductReview, SellerReview, ReviewResponse, 
@@ -22,6 +24,8 @@ from .serializers import (
 from .permissions import IsReviewerOrReadOnly, IsSellerOrReadOnly
 from market.models import Product
 from django.contrib.auth import get_user_model
+from core.permissions import IsAdminOrStaff
+from core.audit import audit_event
 
 User = get_user_model()
 
@@ -376,6 +380,106 @@ class ReviewFlagCreateView(generics.CreateAPIView):
     
     serializer_class = ReviewFlagSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+
+class ReviewFlagModerationQueueView(generics.ListAPIView):
+    """Admin moderation queue for review flags."""
+
+    serializer_class = ReviewFlagSerializer
+    permission_classes = [IsAdminOrStaff]
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['created_at', 'resolved_at', 'status']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        queryset = ReviewFlag.objects.select_related(
+            'flagger',
+            'product_review',
+            'seller_review',
+            'product_review__product',
+            'seller_review__seller',
+            'seller_review__product',
+        )
+
+        status_filter = (self.request.query_params.get('status') or '').strip().lower()
+        valid_statuses = {choice[0] for choice in ReviewFlag.STATUS_CHOICES}
+        if status_filter in valid_statuses:
+            queryset = queryset.filter(status=status_filter)
+
+        reason_filter = (self.request.query_params.get('reason') or '').strip().lower()
+        valid_reasons = {choice[0] for choice in ReviewFlag.REASON_CHOICES}
+        if reason_filter in valid_reasons:
+            queryset = queryset.filter(reason=reason_filter)
+
+        audit_event(
+            self.request,
+            action='reviews.flag.moderation_queue_viewed',
+            extra={
+                'status_filter': status_filter or None,
+                'reason_filter': reason_filter or None,
+            },
+        )
+        return queryset
+
+
+class ReviewFlagModerationDetailView(APIView):
+    """Admin-only moderation actions for a single review flag."""
+
+    permission_classes = [IsAdminOrStaff]
+
+    _ALLOWED_TRANSITIONS = {
+        'pending': {'reviewing', 'resolved', 'dismissed'},
+        'reviewing': {'resolved', 'dismissed'},
+        'resolved': set(),
+        'dismissed': set(),
+    }
+
+    def patch(self, request, flag_id):
+        target_status = str(request.data.get('status', '')).strip().lower()
+        if target_status not in {'reviewing', 'resolved', 'dismissed'}:
+            return Response(
+                {'error': 'Invalid moderation status. Use reviewing, resolved, or dismissed.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        admin_notes = str(request.data.get('admin_notes', '') or '').strip()
+
+        with transaction.atomic():
+            flag = get_object_or_404(
+                ReviewFlag.objects.select_for_update().select_related('product_review', 'seller_review'),
+                id=flag_id,
+            )
+
+            allowed_targets = self._ALLOWED_TRANSITIONS.get(flag.status, set())
+            if target_status not in allowed_targets:
+                return Response(
+                    {'error': f'Cannot transition review flag from {flag.status} to {target_status}.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            old_status = flag.status
+            flag.status = target_status
+            flag.resolved_at = timezone.now() if target_status in {'resolved', 'dismissed'} else None
+            if admin_notes:
+                flag.admin_notes = admin_notes
+            flag.save(update_fields=['status', 'resolved_at', 'admin_notes'])
+
+        audit_event(
+            request,
+            action='reviews.flag.moderated',
+            extra={
+                'flag_id': str(flag.id),
+                'old_status': old_status,
+                'new_status': target_status,
+                'reason': flag.reason,
+                'product_review_id': str(flag.product_review_id) if flag.product_review_id else None,
+                'seller_review_id': str(flag.seller_review_id) if flag.seller_review_id else None,
+                'moderator_id': str(request.user.id),
+            },
+        )
+
+        serializer = ReviewFlagSerializer(flag, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class ProductReviewStatsView(APIView):

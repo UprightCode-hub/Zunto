@@ -570,6 +570,57 @@ export const reportReview = (reviewData) => {
   });
 };
 
+
+export const getReviewFlagModerationQueue = ({ status, reason, page, pageSize } = {}) => {
+  const params = new URLSearchParams();
+  if (status) {
+    params.set('status', status);
+  }
+  if (reason) {
+    params.set('reason', reason);
+  }
+  if (page) {
+    params.set('page', String(page));
+  }
+  if (pageSize) {
+    params.set('page_size', String(pageSize));
+  }
+  const query = params.toString();
+  return apiCall(`/api/reviews/reviews/flags/moderation/${query ? `?${query}` : ''}`);
+};
+
+export const moderateReviewFlag = (flagId, moderationData) => {
+  return apiCall(`/api/reviews/reviews/flags/moderation/${flagId}/`, {
+    method: 'PATCH',
+    body: JSON.stringify(moderationData),
+  });
+};
+
+
+export const getProductReportModerationQueue = ({ status, reason, page, pageSize } = {}) => {
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+  if (reason) params.set('reason', reason);
+  if (page) params.set('page', String(page));
+  if (pageSize) params.set('page_size', String(pageSize));
+  const query = params.toString();
+  return apiCall(`/api/market/reports/moderation/${query ? `?${query}` : ''}`);
+};
+
+export const moderateProductReport = (reportId, moderationData) => {
+  return apiCall(`/api/market/reports/moderation/${reportId}/`, {
+    method: 'PATCH',
+    body: JSON.stringify(moderationData),
+  });
+};
+
+export const applyBulkRefundDecision = (payload) => {
+  return apiCall('/api/payments/refunds/bulk-decision/', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+};
+
 // ==========================================
 // NOTIFICATIONS (notifications/urls.py)
 // ==========================================

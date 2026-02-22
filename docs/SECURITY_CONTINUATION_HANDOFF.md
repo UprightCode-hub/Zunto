@@ -27,6 +27,9 @@ This file is the continuity anchor for any new Codex session. It documents exact
 - [x] Add company-admin operations summary endpoint (`/dashboard/company-ops/`) for frontend operational queues (reports/refunds/review-flags/video scans).
 - [x] Expand `audit_event` coverage for dashboard admin analytics endpoints (overview/analytics/sales/products/orders/customers).
 - [x] Add backend bulk refund decision endpoint (`/api/payments/refunds/bulk-decision/`) with admin/staff auth + audit event.
+- [x] Add admin/staff review-flag moderation queue/action APIs (`GET/PATCH /api/reviews/reviews/flags/moderation/...`) with transition guardrails + audit events.
+- [x] Add frontend Admin Dashboard operations tab wiring for review-flag/product-report moderation actions and refund bulk decision controls.
+- [x] Add pagination/filtering controls in frontend admin operations queues (review flags/product reports) for free-tier-friendly triage.
 - [ ] Expand `audit_event` coverage across remaining admin-critical mutations.
 
 ---

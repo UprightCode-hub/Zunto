@@ -8,6 +8,7 @@ Provide practical parity for **company admin operations** in frontend so core is
 ## Current State (Done)
 - Bulk refund decision API now available (`POST /api/payments/refunds/bulk-decision/`) with admin/staff auth + audit event (`orders.admin.refund.bulk_decision_applied`).
 - Backend admin/staff guardrails exist on dashboard analytics routes.
+- Review-flag moderation endpoints now exposed for frontend queue/actions (`GET/PATCH /api/reviews/reviews/flags/moderation/...`) with admin/staff auth + audit actions (`reviews.flag.moderation_queue_viewed`, `reviews.flag.moderated`).
 - Frontend Admin Dashboard exists and shows:
   - analytics/sales,
   - system health,
@@ -24,14 +25,14 @@ Provide practical parity for **company admin operations** in frontend so core is
 ### Phase 4 chunk: Company-admin action APIs + frontend controls
 1. Complete frontend action wiring for existing/new backend endpoints (admin/staff-only + audited):
    - Hook refund approve/reject bulk API into Admin Dashboard operations controls.
-   - Add review-flag moderation endpoint (reviewing/resolved/dismissed + notes).
+   - ✅ Add review-flag moderation endpoint (reviewing/resolved/dismissed + notes).
    - Align product-report moderation action endpoints in frontend service layer.
 2. Add frontend Admin Dashboard operations tab/components:
-   - Queue cards with drill-down lists.
-   - Action buttons for approve/reject/resolve/dismiss.
-   - Notes editor where applicable.
+   - ✅ Queue cards with drill-down lists (initial implementation for product reports + review flags).
+   - ✅ Action buttons for approve/reject/resolve/dismiss (initial implementation for refund bulk decision + report/flag moderation).
+   - ✅ Notes editor where applicable (shared notes inputs added for refund/report/flag actions).
 3. Add audit events for each mutation action and add tests.
-4. Add pagination/filtering for ops lists to stay free-tier friendly.
+4. ✅ Add pagination/filtering for ops lists to stay free-tier friendly (initial queue pagination controls + status/reason filters now wired in admin operations tab).
 
 ## Free-tier Constraints Guidance
 - Avoid loading heavy reports by default.
