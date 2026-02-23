@@ -1,5 +1,9 @@
 #server/core/middleware.py
+import logging
+import time
 import uuid
+
+from django.conf import settings
 
 
 class CorrelationIdMiddleware:
@@ -44,4 +48,38 @@ class CorrelationIdMiddleware:
         response[self.correlation_response_header] = correlation_id
         response[self.client_viewport_response_header] = request.client_viewport
         response[self.client_platform_response_header] = request.client_platform
+        return response
+
+
+class RequestTimingMiddleware:
+    """Record request latency and flag slow API responses for observability."""
+
+    duration_header = 'X-Response-Time-Ms'
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+        self.logger = logging.getLogger('django.request')
+
+    def __call__(self, request):
+        started_at = time.monotonic()
+        response = self.get_response(request)
+
+        elapsed_ms = round((time.monotonic() - started_at) * 1000, 2)
+        request.response_time_ms = elapsed_ms
+        response[self.duration_header] = str(elapsed_ms)
+
+        threshold_ms = getattr(settings, 'SLOW_REQUEST_THRESHOLD_MS', 1500)
+        path = getattr(request, 'path', '') or ''
+        if elapsed_ms >= threshold_ms and (path.startswith('/api/') or path == '/health/'):
+            self.logger.warning(
+                'slow_request_detected',
+                extra={
+                    'event': 'slow_request_detected',
+                    'path': path,
+                    'method': getattr(request, 'method', ''),
+                    'duration_ms': elapsed_ms,
+                    'correlation_id': getattr(request, 'correlation_id', ''),
+                },
+            )
+
         return response

@@ -1,8 +1,14 @@
 #server/market/views.py
+import base64
+import hashlib
+import hmac
+import json
+import time
 from rest_framework import generics, status, permissions, filters
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Q, Count, Avg, F
 from django.db.models.functions import Greatest
@@ -21,7 +27,8 @@ from .serializers import (
     CategorySerializer, LocationSerializer, 
     ProductListSerializer, ProductDetailSerializer,
     ProductCreateUpdateSerializer, ProductImageSerializer,
-    ProductVideoSerializer, FavoriteSerializer, ProductReportSerializer
+    ProductVideoSerializer, FavoriteSerializer, ProductReportSerializer,
+    ProductVideoModerationSerializer
 )
 from .permissions import IsSellerOrReadOnly
 from .filters import ProductFilter
@@ -35,6 +42,38 @@ MAX_PRODUCT_VIDEO_SIZE_BYTES = 20 * 1024 * 1024
 
 def _invalidate_product_stats_cache(product_id):
     cache.delete(f'product_stats:{product_id}')
+
+
+def _build_direct_upload_key(product_id, filename):
+    from pathlib import Path
+
+    suffix = Path(filename or 'upload.bin').suffix.lower() or '.bin'
+    token = hashlib.sha256(f"{product_id}:{time.time_ns()}".encode('utf-8')).hexdigest()[:24]
+    return f"products/videos/{product_id}/{token}{suffix}"
+
+
+def _sign_upload_callback_payload(payload):
+    secret = str(getattr(settings, 'OBJECT_UPLOAD_HMAC_SECRET', '') or '').encode('utf-8')
+    if not secret:
+        return ''
+    message = json.dumps(payload, sort_keys=True, separators=(',', ':')).encode('utf-8')
+    return hmac.new(secret, message, hashlib.sha256).hexdigest()
+
+
+def _verify_upload_callback_payload(payload, signature):
+    expected = _sign_upload_callback_payload(payload)
+    if not expected or not signature:
+        return False
+    return hmac.compare_digest(expected, signature)
+
+def _direct_upload_callback_replay_cache_key(signature):
+    safe_signature = str(signature or '').strip()
+    return f'market:video-upload-callback:used:{safe_signature}'
+
+
+def _is_allowed_direct_upload_content_type(content_type):
+    return content_type in {'video/mp4', 'video/webm', 'video/quicktime'}
+
 
 class CategoryListView(generics.ListAPIView):
     """List all active categories"""
@@ -85,7 +124,10 @@ class ProductListCreateView(generics.ListCreateAPIView):
         if not IsSellerOrAdmin().has_permission(self.request, self):
             raise permissions.PermissionDenied('Seller account required to create product listings.')
         product = serializer.save(seller=self.request.user)
-        audit_event(self.request, action='market.product.created', extra={'product_id': str(product.id), 'product_slug': product.slug})
+        audit_payload = {'product_id': str(product.id), 'product_slug': product.slug}
+        audit_event(self.request, action='market.product.created', extra=audit_payload)
+        if self.request.user.is_staff or getattr(self.request.user, 'role', None) == 'admin':
+            audit_event(self.request, action='market.admin.product.created', extra=audit_payload)
 
 
 class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -185,7 +227,15 @@ class ProductImageUploadView(APIView):
         serializer = ProductImageSerializer(data=request.data)
         
         if serializer.is_valid():
-            serializer.save(product=product)
+            image = serializer.save(product=product)
+            audit_extra = {
+                'product_id': str(product.id),
+                'product_slug': product.slug,
+                'image_id': str(image.id),
+            }
+            audit_event(request, action='market.product.image_uploaded', extra=audit_extra)
+            if request.user.is_staff or getattr(request.user, 'role', None) == 'admin':
+                audit_event(request, action='market.admin.product.image_uploaded', extra=audit_extra)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -197,7 +247,15 @@ class ProductImageUploadView(APIView):
         product = get_object_or_404(product_qs)
         image = get_object_or_404(ProductImage, id=image_id, product=product)
         
+        audit_extra = {
+            'product_id': str(product.id),
+            'product_slug': product.slug,
+            'image_id': str(image.id),
+        }
         image.delete()
+        audit_event(request, action='market.product.image_deleted', extra=audit_extra)
+        if request.user.is_staff or getattr(request.user, 'role', None) == 'admin':
+            audit_event(request, action='market.admin.product.image_deleted', extra=audit_extra)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -227,7 +285,16 @@ class ProductVideoUploadView(APIView):
         serializer = ProductVideoSerializer(data=request.data)
         
         if serializer.is_valid():
-            serializer.save(product=product)
+            video = serializer.save(product=product)
+            audit_extra = {
+                'product_id': str(product.id),
+                'product_slug': product.slug,
+                'video_id': str(video.id),
+                'security_scan_status': video.security_scan_status,
+            }
+            audit_event(request, action='market.video_upload.submitted', extra=audit_extra)
+            if request.user.is_staff or getattr(request.user, 'role', None) == 'admin':
+                audit_event(request, action='market.admin.video_upload.submitted', extra=audit_extra)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -295,15 +362,22 @@ class ProductReportCreateView(generics.CreateAPIView):
         product_slug = self.kwargs.get('product_slug')
         product = get_object_or_404(Product, slug=product_slug)
         report = serializer.save(reporter=self.request.user, product=product)
+        audit_extra = {
+            'report_id': str(report.id),
+            'product_id': str(product.id),
+            'reason': report.reason,
+        }
         audit_event(
             self.request,
             action='market.report.created',
-            extra={
-                'report_id': str(report.id),
-                'product_id': str(product.id),
-                'reason': report.reason,
-            },
+            extra=audit_extra,
         )
+        if self.request.user.is_staff or getattr(self.request.user, 'role', None) == 'admin':
+            audit_event(
+                self.request,
+                action='market.admin.report.created',
+                extra=audit_extra,
+            )
 
 
 class FeaturedProductsView(generics.ListAPIView):
@@ -457,7 +531,15 @@ def mark_as_sold(request, product_slug):
     previous_status = product.status
     product.status = 'sold'
     product.save(update_fields=['status'])
-    audit_event(request, action='market.product.mark_sold', extra={'product_id': str(product.id), 'product_slug': product.slug, 'old_status': previous_status, 'new_status': product.status})
+    audit_extra = {
+        'product_id': str(product.id),
+        'product_slug': product.slug,
+        'old_status': previous_status,
+        'new_status': product.status,
+    }
+    audit_event(request, action='market.product.mark_sold', extra=audit_extra)
+    if request.user.is_staff or getattr(request.user, 'role', None) == 'admin':
+        audit_event(request, action='market.admin.product.mark_sold', extra=audit_extra)
 
     return Response({
         'message': 'Product marked as sold successfully.'
@@ -481,7 +563,15 @@ def reactivate_product(request, product_slug):
     previous_status = product.status
     product.status = 'active'
     product.save(update_fields=['status'])
-    audit_event(request, action='market.product.reactivated', extra={'product_id': str(product.id), 'product_slug': product.slug, 'old_status': previous_status, 'new_status': product.status})
+    audit_extra = {
+        'product_id': str(product.id),
+        'product_slug': product.slug,
+        'old_status': previous_status,
+        'new_status': product.status,
+    }
+    audit_event(request, action='market.product.reactivated', extra=audit_extra)
+    if request.user.is_staff or getattr(request.user, 'role', None) == 'admin':
+        audit_event(request, action='market.admin.product.reactivated', extra=audit_extra)
 
     return Response({
         'message': 'Product reactivated successfully.'
@@ -558,6 +648,14 @@ class ProductReportModerationView(generics.ListAPIView):
                 'reason_filter': reason_filter or None,
             },
         )
+        audit_event(
+            self.request,
+            action='market.admin.report.moderation_queue_viewed',
+            extra={
+                'status_filter': status_filter or None,
+                'reason_filter': reason_filter or None,
+            },
+        )
 
         return queryset
 
@@ -624,6 +722,259 @@ class ProductReportModerationDetailView(APIView):
                 'moderator_id': str(request.user.id),
             },
         )
+        audit_event(
+            request,
+            action='market.admin.report.moderated',
+            extra={
+                'report_id': str(report.id),
+                'product_id': str(report.product_id),
+                'old_status': old_status,
+                'new_status': target_status,
+                'report_reason': report.reason,
+                'moderator_id': str(request.user.id),
+            },
+        )
 
         serializer = ProductReportSerializer(report, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ProductVideoModerationQueueView(generics.ListAPIView):
+    """Admin moderation queue for product video malware-scan statuses."""
+
+    serializer_class = ProductVideoModerationSerializer
+    permission_classes = [IsAdminOrStaff]
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['uploaded_at', 'scanned_at', 'security_scan_status']
+    ordering = ['-uploaded_at']
+
+    def get_queryset(self):
+        queryset = ProductVideo.objects.select_related('product', 'product__seller')
+
+        status_filter = (self.request.query_params.get('status') or '').strip().lower()
+        valid_statuses = {choice[0] for choice in ProductVideo.SECURITY_SCAN_STATUS_CHOICES}
+        if status_filter in valid_statuses:
+            queryset = queryset.filter(security_scan_status=status_filter)
+
+        audit_event(
+            self.request,
+            action='market.video_scan.queue_viewed',
+            extra={'status_filter': status_filter or None},
+        )
+        audit_event(
+            self.request,
+            action='market.admin.video_scan.queue_viewed',
+            extra={'status_filter': status_filter or None},
+        )
+        return queryset
+
+
+class ProductVideoModerationDetailView(APIView):
+    """Admin-only review actions for product video scan outcomes."""
+
+    permission_classes = [IsAdminOrStaff]
+
+    def patch(self, request, video_id):
+        action = str(request.data.get('action', '')).strip().lower()
+        if action not in {'mark_clean', 'mark_rejected'}:
+            return Response(
+                {'error': 'Invalid action. Use mark_clean or mark_rejected.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        admin_notes = str(request.data.get('reason', '') or '').strip()
+
+        with transaction.atomic():
+            video = get_object_or_404(
+                ProductVideo.objects.select_for_update().select_related('product', 'product__seller'),
+                id=video_id,
+            )
+            old_status = video.security_scan_status
+
+            if action == 'mark_clean':
+                video.security_scan_status = ProductVideo.SCAN_CLEAN
+                video.security_quarantine_path = ''
+                if admin_notes:
+                    video.security_scan_reason = admin_notes
+            else:
+                video.security_scan_status = ProductVideo.SCAN_REJECTED
+                if admin_notes:
+                    video.security_scan_reason = admin_notes
+
+            from django.utils import timezone
+            video.scanned_at = timezone.now()
+            video.save(update_fields=['security_scan_status', 'security_scan_reason', 'security_quarantine_path', 'scanned_at'])
+
+        audit_event(
+            request,
+            action='market.video_scan.moderated',
+            extra={
+                'video_id': str(video.id),
+                'product_id': str(video.product_id),
+                'old_status': old_status,
+                'new_status': video.security_scan_status,
+                'moderator_id': str(request.user.id),
+            },
+        )
+        audit_event(
+            request,
+            action='market.admin.video_scan.moderated',
+            extra={
+                'video_id': str(video.id),
+                'product_id': str(video.product_id),
+                'old_status': old_status,
+                'new_status': video.security_scan_status,
+                'moderator_id': str(request.user.id),
+            },
+        )
+
+        serializer = ProductVideoModerationSerializer(video, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ProductVideoDirectUploadTicketView(APIView):
+    """Issue signed direct-upload ticket for object-storage video upload."""
+
+    permission_classes = [IsSellerOrAdmin]
+
+    def post(self, request, product_slug):
+        if not getattr(settings, 'USE_OBJECT_STORAGE', False):
+            return Response({'error': 'Object storage direct upload is not enabled.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        product_qs = Product.objects.filter(slug=product_slug)
+        if not request.user.is_staff:
+            product_qs = product_qs.filter(seller=request.user)
+        product = get_object_or_404(product_qs)
+
+        filename = str(request.data.get('filename', '') or '').strip()
+        if not filename:
+            return Response({'error': 'filename is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        content_type = str(request.data.get('content_type', '') or '').strip().lower()
+        if not _is_allowed_direct_upload_content_type(content_type):
+            return Response({'error': 'Unsupported video content_type.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        object_key = _build_direct_upload_key(product.id, filename)
+
+        import boto3
+
+        client = boto3.client(
+            's3',
+            endpoint_url=getattr(settings, 'OBJECT_STORAGE_ENDPOINT_URL', '') or None,
+            region_name=getattr(settings, 'OBJECT_STORAGE_REGION', 'auto') or None,
+            aws_access_key_id=getattr(settings, 'OBJECT_STORAGE_ACCESS_KEY_ID', ''),
+            aws_secret_access_key=getattr(settings, 'OBJECT_STORAGE_SECRET_ACCESS_KEY', ''),
+        )
+
+        expires_in = int(getattr(settings, 'OBJECT_UPLOAD_SIGNED_UPLOAD_EXP_SECONDS', 900))
+        post = client.generate_presigned_post(
+            Bucket=getattr(settings, 'OBJECT_STORAGE_BUCKET_NAME', ''),
+            Key=object_key,
+            Fields={'Content-Type': content_type},
+            Conditions=[
+                {'Content-Type': content_type},
+                ['content-length-range', 1, MAX_PRODUCT_VIDEO_SIZE_BYTES],
+            ],
+            ExpiresIn=expires_in,
+        )
+
+        exp = int(time.time()) + expires_in
+        callback_payload = {
+            'product_id': str(product.id),
+            'product_slug': product.slug,
+            'uploader_id': str(request.user.id),
+            'key': object_key,
+            'content_type': content_type,
+            'exp': exp,
+        }
+        callback_token = _sign_upload_callback_payload(callback_payload)
+
+        audit_extra = {'product_id': str(product.id), 'object_key': object_key}
+        audit_event(request, action='market.video_upload.ticket_issued', extra=audit_extra)
+        if request.user.is_staff or getattr(request.user, 'role', None) == 'admin':
+            audit_event(request, action='market.admin.video_upload.ticket_issued', extra=audit_extra)
+
+        return Response({
+            'upload': post,
+            'object_key': object_key,
+            'callback': {
+                'payload': callback_payload,
+                'signature': callback_token,
+            },
+        }, status=status.HTTP_200_OK)
+
+
+class ProductVideoDirectUploadCallbackView(APIView):
+    """Verify signed direct-upload callback and persist pending ProductVideo record."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, product_slug):
+        payload = request.data.get('payload') or {}
+        signature = str(request.data.get('signature', '') or '')
+
+        if not isinstance(payload, dict):
+            return Response({'error': 'payload must be an object.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        required = {'product_id', 'product_slug', 'uploader_id', 'key', 'content_type', 'exp'}
+        if not required.issubset(payload.keys()):
+            return Response({'error': 'Incomplete callback payload.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if payload.get('product_slug') != product_slug:
+            return Response({'error': 'Payload slug mismatch.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        payload_content_type = str(payload.get('content_type', '') or '').strip().lower()
+        if not _is_allowed_direct_upload_content_type(payload_content_type):
+            return Response({'error': 'Unsupported callback content_type.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if str(payload.get('uploader_id')) != str(request.user.id):
+            return Response({'error': 'Uploader mismatch.'}, status=status.HTTP_403_FORBIDDEN)
+
+        if int(payload.get('exp') or 0) < int(time.time()):
+            return Response({'error': 'Callback token expired.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not _verify_upload_callback_payload(payload, signature):
+            return Response({'error': 'Invalid callback signature.'}, status=status.HTTP_403_FORBIDDEN)
+
+        expected_prefix = f"products/videos/{payload.get('product_id')}/"
+        if not str(payload.get('key') or '').startswith(expected_prefix):
+            return Response({'error': 'Invalid object key for product upload.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        replay_key = _direct_upload_callback_replay_cache_key(signature)
+        if cache.get(replay_key):
+            return Response({'error': 'Callback token already used.'}, status=status.HTTP_409_CONFLICT)
+
+        product_qs = Product.objects.filter(id=payload.get('product_id'), slug=product_slug)
+        if not request.user.is_staff:
+            product_qs = product_qs.filter(seller=request.user)
+        product = get_object_or_404(product_qs)
+
+        existing_video = ProductVideo.objects.filter(
+            product=product,
+            video=payload.get('key'),
+        ).order_by('-uploaded_at').first()
+        if existing_video:
+            serializer = ProductVideoSerializer(existing_video, context={'request': request})
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        video = ProductVideo.objects.create(
+            product=product,
+            video=payload.get('key'),
+            security_scan_status=ProductVideo.SCAN_PENDING,
+            security_scan_reason='direct-upload-pending-scan',
+        )
+
+        from market.tasks import schedule_product_video_scan
+
+        ttl = max(60, int(payload.get('exp') or int(time.time())) - int(time.time()))
+        cache.set(replay_key, True, timeout=ttl)
+
+        transaction.on_commit(lambda: schedule_product_video_scan(str(video.id)))
+
+        audit_extra = {'product_id': str(product.id), 'video_id': str(video.id), 'object_key': payload.get('key')}
+        audit_event(request, action='market.video_upload.callback_verified', extra=audit_extra)
+        if request.user.is_staff or getattr(request.user, 'role', None) == 'admin':
+            audit_event(request, action='market.admin.video_upload.callback_verified', extra=audit_extra)
+
+        serializer = ProductVideoSerializer(video, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)

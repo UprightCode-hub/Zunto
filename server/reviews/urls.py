@@ -12,6 +12,8 @@ from .views import (
     ReviewHelpfulToggleView,
     ReviewImageUploadView,
     ReviewFlagCreateView,
+    ReviewFlagModerationQueueView,
+    ReviewFlagModerationDetailView,
     ProductReviewStatsView,
     SellerReviewStatsView,
     top_rated_products,
@@ -45,6 +47,8 @@ urlpatterns = [
     
                   
     path('reviews/flag/', ReviewFlagCreateView.as_view(), name='review_flag'),
+    path('reviews/flags/moderation/', ReviewFlagModerationQueueView.as_view(), name='review_flag_moderation_queue'),
+    path('reviews/flags/moderation/<uuid:flag_id>/', ReviewFlagModerationDetailView.as_view(), name='review_flag_moderation_detail'),
     
                
     path('top-rated-products/', top_rated_products, name='top_rated_products'),

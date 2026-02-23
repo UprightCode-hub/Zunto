@@ -2,7 +2,7 @@
 import os
 import importlib.util
 from pathlib import Path
-from decouple import config
+from decouple import Csv, config
 from celery.schedules import crontab
 import dj_database_url
 from datetime import timedelta
@@ -65,7 +65,7 @@ INSTALLED_APPS = [
     'orders',
     'notifications',
     'chat',
-    'assistant',
+    #'assistant',
     'rest_framework_simplejwt.token_blacklist',  
 ]
 
@@ -81,6 +81,7 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'core.middleware.CorrelationIdMiddleware',
+    'core.middleware.RequestTimingMiddleware',
     'assistant.middleware.DisableCSRFForAPIMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -173,6 +174,34 @@ SESSION_SAVE_EVERY_REQUEST = True
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_SAMESITE = 'Lax'
+
+
+SLOW_REQUEST_THRESHOLD_MS = config('SLOW_REQUEST_THRESHOLD_MS', default=1500, cast=int)
+HEALTH_ALERT_ACTIVE_TASKS_THRESHOLD = config('HEALTH_ALERT_ACTIVE_TASKS_THRESHOLD', default=100, cast=int)
+HEALTH_ALERT_SCHEDULED_TASKS_THRESHOLD = config('HEALTH_ALERT_SCHEDULED_TASKS_THRESHOLD', default=200, cast=int)
+HEALTH_ALERT_RESERVED_TASKS_THRESHOLD = config('HEALTH_ALERT_RESERVED_TASKS_THRESHOLD', default=100, cast=int)
+HEALTH_ALERT_REDIS_QUEUE_DEPTH_THRESHOLD = config('HEALTH_ALERT_REDIS_QUEUE_DEPTH_THRESHOLD', default=500, cast=int)
+HEALTH_ALERT_NOTIFY_EMAIL_ENABLED = config('HEALTH_ALERT_NOTIFY_EMAIL_ENABLED', default=False, cast=bool)
+HEALTH_ALERT_NOTIFY_EMAIL_COOLDOWN_SECONDS = config('HEALTH_ALERT_NOTIFY_EMAIL_COOLDOWN_SECONDS', default=900, cast=int)
+HEALTH_ALERT_NOTIFY_WEBHOOK_ENABLED = config('HEALTH_ALERT_NOTIFY_WEBHOOK_ENABLED', default=False, cast=bool)
+HEALTH_ALERT_WEBHOOK_URL = config('HEALTH_ALERT_WEBHOOK_URL', default='')
+HEALTH_ALERT_NOTIFY_WEBHOOK_COOLDOWN_SECONDS = config('HEALTH_ALERT_NOTIFY_WEBHOOK_COOLDOWN_SECONDS', default=300, cast=int)
+HEALTH_ALERT_RECIPIENTS = [
+    email.strip()
+    for email in config('HEALTH_ALERT_RECIPIENTS', default='').split(',')
+    if email.strip()
+]
+HEALTH_REDIS_QUEUE_NAMES = [
+    name.strip()
+    for name in config('HEALTH_REDIS_QUEUE_NAMES', default='celery').split(',')
+    if name.strip()
+]
+
+PAYMENT_ALLOWED_CALLBACK_HOSTS = config(
+    'PAYMENT_ALLOWED_CALLBACK_HOSTS',
+    default='',
+    cast=Csv(),
+)
 
                        
 
@@ -269,6 +298,8 @@ OBJECT_STORAGE_ENDPOINT_URL = config('OBJECT_STORAGE_ENDPOINT_URL', default='')
 OBJECT_STORAGE_ACCESS_KEY_ID = config('OBJECT_STORAGE_ACCESS_KEY_ID', default='')
 OBJECT_STORAGE_SECRET_ACCESS_KEY = config('OBJECT_STORAGE_SECRET_ACCESS_KEY', default='')
 OBJECT_STORAGE_CUSTOM_DOMAIN = config('OBJECT_STORAGE_CUSTOM_DOMAIN', default='')
+OBJECT_UPLOAD_SIGNED_UPLOAD_EXP_SECONDS = config('OBJECT_UPLOAD_SIGNED_UPLOAD_EXP_SECONDS', default=900, cast=int)
+OBJECT_UPLOAD_HMAC_SECRET = config('OBJECT_UPLOAD_HMAC_SECRET', default=SECRET_KEY)
 
 STORAGES = {
     "default": {
@@ -369,6 +400,10 @@ CELERY_BEAT_SCHEDULE = {
     'cleanup-assistant-artifacts': {
         'task': 'assistant.tasks.cleanup_assistant_archives_task',
         'schedule': crontab(hour=6, minute=30),
+    },
+    'monitor-system-health-alerts': {
+        'task': 'core.tasks.monitor_system_health_alerts',
+        'schedule': crontab(minute='*/5'),
     },
 }
                         
@@ -507,7 +542,7 @@ LOGGING = {
         },
         'django.request': {
             'handlers': ['file'],
-            'level': 'ERROR',
+            'level': 'WARNING',
             'propagate': False,
         },
         'audit': {

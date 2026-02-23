@@ -5,6 +5,7 @@ from .payment_views import (
     VerifyPaymentView,
     PaystackWebhookView,
     ProcessRefundView,
+    BulkRefundDecisionView,
     PaymentHistoryView,
     payment_methods,
 )
@@ -21,6 +22,7 @@ urlpatterns = [
     
              
     path('refunds/<uuid:refund_id>/process/', ProcessRefundView.as_view(), name='process_refund'),
+    path('refunds/bulk-decision/', BulkRefundDecisionView.as_view(), name='bulk_refund_decision'),
     
                      
     path('history/', PaymentHistoryView.as_view(), name='payment_history'),

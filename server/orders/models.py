@@ -28,6 +28,7 @@ class Order(models.Model):
         ('shipped', 'Shipped'),
         ('delivered', 'Delivered'),
         ('cancelled', 'Cancelled'),
+        ('refunded', 'Refunded'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

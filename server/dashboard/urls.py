@@ -7,6 +7,7 @@ from .views import (
     products_list_api,
     orders_list_api,
     customers_list_api,
+    company_admin_operations_api,
 )
 
 urlpatterns = [
@@ -16,4 +17,5 @@ urlpatterns = [
     path('products/', products_list_api, name='products_list'),
     path('orders/', orders_list_api, name='orders_list'),
     path('customers/', customers_list_api, name='customers_list'),
+    path('company-ops/', company_admin_operations_api, name='company_admin_operations'),
 ]

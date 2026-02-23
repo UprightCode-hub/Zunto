@@ -63,7 +63,7 @@ def _scan_for_malware(uploaded_file, field_name):
         raise serializers.ValidationError(f'{field_name} failed malware scan checks.')
 
 
-def validate_uploaded_file(uploaded_file, *, allowed_mime_types, allowed_extensions, max_bytes, field_name='file'):
+def validate_uploaded_file(uploaded_file, *, allowed_mime_types, allowed_extensions, max_bytes, field_name='file', malware_scan_mode='sync'):
     if not uploaded_file:
         raise serializers.ValidationError(f'{field_name} is required.')
 
@@ -82,6 +82,10 @@ def validate_uploaded_file(uploaded_file, *, allowed_mime_types, allowed_extensi
     if content_type and content_type not in allowed_mime_types:
         raise serializers.ValidationError(f'Unsupported declared {field_name} content type.')
 
-    _scan_for_malware(uploaded_file, field_name)
+    if malware_scan_mode not in {'sync', 'async'}:
+        raise serializers.ValidationError('Unsupported malware scan mode.')
+
+    if malware_scan_mode == 'sync':
+        _scan_for_malware(uploaded_file, field_name)
 
     return uploaded_file

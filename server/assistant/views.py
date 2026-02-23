@@ -811,6 +811,8 @@ def assistant_metrics_summary(request):
         if llm_count else 0
     )
 
+    audit_event(request, action='assistant.metrics.viewed', extra={'request_count': request_count, 'llm_count': llm_count})
+    audit_event(request, action='assistant.admin.metrics.viewed', extra={'request_count': request_count, 'llm_count': llm_count})
     return Response({'metrics': snapshot}, status=status.HTTP_200_OK)
 
 
@@ -1024,6 +1026,8 @@ def create_report(request):
         
         logger.info(f"Report created: ID={report.id}, Type={report_type}")
         audit_event(request, action='assistant.report.created', extra={'report_id': report.id, 'report_type': report_type})
+        if request.user.is_authenticated and request.user.is_staff:
+            audit_event(request, action='assistant.admin.report.created', extra={'report_id': report.id, 'report_type': report_type})
         
         return Response(
             {
@@ -1110,10 +1114,28 @@ def upload_report_evidence(request, report_id):
     try:
         validate_dispute_media_task.delay(media.id)
     except Exception:
-                                                                 
         logger.exception('Failed to enqueue dispute media validation task')
+        media.validation_status = DisputeMedia.VALIDATION_REJECTED
+        media.validation_reason = 'Validation queue unavailable. Upload rejected for safety.'
+        media.validated_at = timezone.now()
+        media.save(update_fields=['validation_status', 'validation_reason', 'validated_at', 'updated_at'])
+        dispute_storage.delete(media.file.name)
+        media.mark_deleted()
+        audit_event(
+            request,
+            action='assistant.report.evidence_validation_enqueue_failed',
+            extra={'report_id': report.id, 'media_id': media.id, 'media_type': media_type},
+        )
+        if request.user.is_authenticated and request.user.is_staff:
+            audit_event(
+                request,
+                action='assistant.admin.report.evidence_validation_enqueue_failed',
+                extra={'report_id': report.id, 'media_id': media.id, 'media_type': media_type},
+            )
 
     audit_event(request, action='assistant.report.evidence_uploaded', extra={'report_id': report.id, 'media_id': media.id, 'media_type': media_type})
+    if request.user.is_authenticated and request.user.is_staff:
+        audit_event(request, action='assistant.admin.report.evidence_uploaded', extra={'report_id': report.id, 'media_id': media.id, 'media_type': media_type})
     serializer = DisputeMediaSerializer(media, context={'request': request})
     return Response(serializer.data, status=status.HTTP_202_ACCEPTED)
 
@@ -1165,6 +1187,16 @@ def close_report(request, report_id):
         updated += 1
 
     audit_event(request, action='assistant.report.closed', extra={'report_id': report.id, 'retention_files_updated': updated})
+    if request.user.is_staff:
+        audit_event(
+            request,
+            action='assistant.admin.report.closed',
+            extra={
+                'report_id': report.id,
+                'report_owner_id': report.user_id,
+                'retention_files_updated': updated,
+            },
+        )
     return Response({
         'report_id': report.id,
         'status': report.status,
@@ -1190,14 +1222,18 @@ def recent_logs(request):
         
         if user_id:
             queryset = queryset.filter(user_id=user_id)
-        
+
         logs = queryset[:limit]
         serializer = ConversationLogSerializer(logs, many=True)
+        total_count = queryset.count()
+
+        audit_event(request, action='assistant.logs.viewed', extra={'limit': limit, 'filtered_user_id': user_id, 'count': total_count})
+        audit_event(request, action='assistant.admin.logs.viewed', extra={'limit': limit, 'filtered_user_id': user_id, 'count': total_count})
         
         return Response(
             {
                 'logs': serializer.data,
-                'count': queryset.count()
+                'count': total_count
             },
             status=status.HTTP_200_OK
         )
@@ -1227,14 +1263,18 @@ def recent_reports(request):
         
         if status_filter:
             queryset = queryset.filter(status=status_filter)
-        
+
         reports = queryset[:limit]
         serializer = ReportSerializer(reports, many=True)
+        total_count = queryset.count()
+
+        audit_event(request, action='assistant.reports.viewed', extra={'limit': limit, 'status_filter': status_filter, 'count': total_count})
+        audit_event(request, action='assistant.admin.reports.viewed', extra={'limit': limit, 'status_filter': status_filter, 'count': total_count})
         
         return Response(
             {
                 'reports': serializer.data,
-                'count': queryset.count()
+                'count': total_count
             },
             status=status.HTTP_200_OK
         )
