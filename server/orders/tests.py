@@ -139,6 +139,15 @@ class SellerOrderPermissionTests(TestCase):
 
 
     @patch('orders.views.audit_event')
+    def test_admin_role_seller_statistics_emits_domain_and_admin_audit_events(self, audit_mock):
+        self.client.force_authenticate(user=self.admin_role_user)
+        response = self.client.get('/api/orders/seller/statistics/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['orders.seller.statistics_viewed', 'orders.admin.seller.statistics_viewed'])
+
+
+    @patch('orders.views.audit_event')
     def test_admin_role_seller_orders_list_emits_audit_event(self, audit_mock):
         self.client.force_authenticate(user=self.admin_role_user)
         response = self.client.get('/api/orders/seller/orders/')

@@ -8,6 +8,7 @@ from rest_framework import generics, status, permissions, filters
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Q, Count, Avg, F
 from django.db.models.functions import Greatest
@@ -123,7 +124,10 @@ class ProductListCreateView(generics.ListCreateAPIView):
         if not IsSellerOrAdmin().has_permission(self.request, self):
             raise permissions.PermissionDenied('Seller account required to create product listings.')
         product = serializer.save(seller=self.request.user)
-        audit_event(self.request, action='market.product.created', extra={'product_id': str(product.id), 'product_slug': product.slug})
+        audit_payload = {'product_id': str(product.id), 'product_slug': product.slug}
+        audit_event(self.request, action='market.product.created', extra=audit_payload)
+        if self.request.user.is_staff or getattr(self.request.user, 'role', None) == 'admin':
+            audit_event(self.request, action='market.admin.product.created', extra=audit_payload)
 
 
 class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -223,7 +227,15 @@ class ProductImageUploadView(APIView):
         serializer = ProductImageSerializer(data=request.data)
         
         if serializer.is_valid():
-            serializer.save(product=product)
+            image = serializer.save(product=product)
+            audit_extra = {
+                'product_id': str(product.id),
+                'product_slug': product.slug,
+                'image_id': str(image.id),
+            }
+            audit_event(request, action='market.product.image_uploaded', extra=audit_extra)
+            if request.user.is_staff or getattr(request.user, 'role', None) == 'admin':
+                audit_event(request, action='market.admin.product.image_uploaded', extra=audit_extra)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -235,7 +247,15 @@ class ProductImageUploadView(APIView):
         product = get_object_or_404(product_qs)
         image = get_object_or_404(ProductImage, id=image_id, product=product)
         
+        audit_extra = {
+            'product_id': str(product.id),
+            'product_slug': product.slug,
+            'image_id': str(image.id),
+        }
         image.delete()
+        audit_event(request, action='market.product.image_deleted', extra=audit_extra)
+        if request.user.is_staff or getattr(request.user, 'role', None) == 'admin':
+            audit_event(request, action='market.admin.product.image_deleted', extra=audit_extra)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -265,7 +285,16 @@ class ProductVideoUploadView(APIView):
         serializer = ProductVideoSerializer(data=request.data)
         
         if serializer.is_valid():
-            serializer.save(product=product)
+            video = serializer.save(product=product)
+            audit_extra = {
+                'product_id': str(product.id),
+                'product_slug': product.slug,
+                'video_id': str(video.id),
+                'security_scan_status': video.security_scan_status,
+            }
+            audit_event(request, action='market.video_upload.submitted', extra=audit_extra)
+            if request.user.is_staff or getattr(request.user, 'role', None) == 'admin':
+                audit_event(request, action='market.admin.video_upload.submitted', extra=audit_extra)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -333,15 +362,22 @@ class ProductReportCreateView(generics.CreateAPIView):
         product_slug = self.kwargs.get('product_slug')
         product = get_object_or_404(Product, slug=product_slug)
         report = serializer.save(reporter=self.request.user, product=product)
+        audit_extra = {
+            'report_id': str(report.id),
+            'product_id': str(product.id),
+            'reason': report.reason,
+        }
         audit_event(
             self.request,
             action='market.report.created',
-            extra={
-                'report_id': str(report.id),
-                'product_id': str(product.id),
-                'reason': report.reason,
-            },
+            extra=audit_extra,
         )
+        if self.request.user.is_staff or getattr(self.request.user, 'role', None) == 'admin':
+            audit_event(
+                self.request,
+                action='market.admin.report.created',
+                extra=audit_extra,
+            )
 
 
 class FeaturedProductsView(generics.ListAPIView):
@@ -495,7 +531,15 @@ def mark_as_sold(request, product_slug):
     previous_status = product.status
     product.status = 'sold'
     product.save(update_fields=['status'])
-    audit_event(request, action='market.product.mark_sold', extra={'product_id': str(product.id), 'product_slug': product.slug, 'old_status': previous_status, 'new_status': product.status})
+    audit_extra = {
+        'product_id': str(product.id),
+        'product_slug': product.slug,
+        'old_status': previous_status,
+        'new_status': product.status,
+    }
+    audit_event(request, action='market.product.mark_sold', extra=audit_extra)
+    if request.user.is_staff or getattr(request.user, 'role', None) == 'admin':
+        audit_event(request, action='market.admin.product.mark_sold', extra=audit_extra)
 
     return Response({
         'message': 'Product marked as sold successfully.'
@@ -519,7 +563,15 @@ def reactivate_product(request, product_slug):
     previous_status = product.status
     product.status = 'active'
     product.save(update_fields=['status'])
-    audit_event(request, action='market.product.reactivated', extra={'product_id': str(product.id), 'product_slug': product.slug, 'old_status': previous_status, 'new_status': product.status})
+    audit_extra = {
+        'product_id': str(product.id),
+        'product_slug': product.slug,
+        'old_status': previous_status,
+        'new_status': product.status,
+    }
+    audit_event(request, action='market.product.reactivated', extra=audit_extra)
+    if request.user.is_staff or getattr(request.user, 'role', None) == 'admin':
+        audit_event(request, action='market.admin.product.reactivated', extra=audit_extra)
 
     return Response({
         'message': 'Product reactivated successfully.'
@@ -591,6 +643,14 @@ class ProductReportModerationView(generics.ListAPIView):
         audit_event(
             self.request,
             action='market.report.moderation_queue_viewed',
+            extra={
+                'status_filter': status_filter or None,
+                'reason_filter': reason_filter or None,
+            },
+        )
+        audit_event(
+            self.request,
+            action='market.admin.report.moderation_queue_viewed',
             extra={
                 'status_filter': status_filter or None,
                 'reason_filter': reason_filter or None,
@@ -699,6 +759,11 @@ class ProductVideoModerationQueueView(generics.ListAPIView):
         audit_event(
             self.request,
             action='market.video_scan.queue_viewed',
+            extra={'status_filter': status_filter or None},
+        )
+        audit_event(
+            self.request,
+            action='market.admin.video_scan.queue_viewed',
             extra={'status_filter': status_filter or None},
         )
         return queryset
@@ -824,7 +889,10 @@ class ProductVideoDirectUploadTicketView(APIView):
         }
         callback_token = _sign_upload_callback_payload(callback_payload)
 
-        audit_event(request, action='market.video_upload.ticket_issued', extra={'product_id': str(product.id), 'object_key': object_key})
+        audit_extra = {'product_id': str(product.id), 'object_key': object_key}
+        audit_event(request, action='market.video_upload.ticket_issued', extra=audit_extra)
+        if request.user.is_staff or getattr(request.user, 'role', None) == 'admin':
+            audit_event(request, action='market.admin.video_upload.ticket_issued', extra=audit_extra)
 
         return Response({
             'upload': post,
@@ -903,7 +971,10 @@ class ProductVideoDirectUploadCallbackView(APIView):
 
         transaction.on_commit(lambda: schedule_product_video_scan(str(video.id)))
 
-        audit_event(request, action='market.video_upload.callback_verified', extra={'product_id': str(product.id), 'video_id': str(video.id), 'object_key': payload.get('key')})
+        audit_extra = {'product_id': str(product.id), 'video_id': str(video.id), 'object_key': payload.get('key')}
+        audit_event(request, action='market.video_upload.callback_verified', extra=audit_extra)
+        if request.user.is_staff or getattr(request.user, 'role', None) == 'admin':
+            audit_event(request, action='market.admin.video_upload.callback_verified', extra=audit_extra)
 
         serializer = ProductVideoSerializer(video, context={'request': request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
