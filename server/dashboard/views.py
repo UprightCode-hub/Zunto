@@ -82,6 +82,7 @@ class DashboardAPI(AdminDashboardAccessMixin, View):
             'range_end': today.isoformat(),
         }
 
+        audit_event(request, action='dashboard.overview.viewed', extra={'range': time_range})
         audit_event(request, action='dashboard.admin.overview.viewed', extra={'range': time_range})
         return JsonResponse(data)
 
@@ -104,6 +105,7 @@ class AnalyticsDashboardAPI(AdminDashboardAccessMixin, View):
             'avg_abandoned_value': abandonment_data['avg_abandoned_value'],
         }
 
+        audit_event(request, action='dashboard.analytics.viewed')
         audit_event(request, action='dashboard.admin.analytics.viewed')
         return JsonResponse(data)
 
@@ -114,6 +116,7 @@ def sales_report_api(request):
     if not _is_admin_user(request.user):
         return _admin_forbidden_response()
 
+    audit_event(request, action='dashboard.sales.viewed')
     audit_event(request, action='dashboard.admin.sales.viewed')
     return JsonResponse({'page_title': 'Sales Report'})
 
@@ -124,6 +127,7 @@ def products_list_api(request):
     if not _is_admin_user(request.user):
         return _admin_forbidden_response()
 
+    audit_event(request, action='dashboard.products.viewed')
     audit_event(request, action='dashboard.admin.products.viewed')
     return JsonResponse({'page_title': 'Products'})
 
@@ -134,6 +138,7 @@ def orders_list_api(request):
     if not _is_admin_user(request.user):
         return _admin_forbidden_response()
 
+    audit_event(request, action='dashboard.orders.viewed')
     audit_event(request, action='dashboard.admin.orders.viewed')
     return JsonResponse({'page_title': 'Orders'})
 
@@ -144,6 +149,7 @@ def customers_list_api(request):
     if not _is_admin_user(request.user):
         return _admin_forbidden_response()
 
+    audit_event(request, action='dashboard.customers.viewed')
     audit_event(request, action='dashboard.admin.customers.viewed')
     return JsonResponse({'page_title': 'Customers'})
 
@@ -154,6 +160,7 @@ def analytics_api(request):
     if not _is_admin_user(request.user):
         return _admin_forbidden_response()
 
+    audit_event(request, action='dashboard.analytics_legacy.viewed')
     audit_event(request, action='dashboard.admin.analytics_legacy.viewed')
     return JsonResponse({'page_title': 'Analytics'})
 
@@ -183,5 +190,6 @@ def company_admin_operations_api(request):
         },
     }
 
+    audit_event(request, action='dashboard.company_ops.viewed', extra={'queues': payload})
     audit_event(request, action='dashboard.admin.company_ops.viewed', extra={'queues': payload})
     return JsonResponse(payload)

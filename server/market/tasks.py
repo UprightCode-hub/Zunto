@@ -56,7 +56,7 @@ def scan_product_video_task(video_id):
 
         video.security_scan_status = ProductVideo.SCAN_PENDING
         video.security_scan_reason = 'scanner-unavailable-retry'
-        video.scanned_at = timezone.now()
+        video.scanned_at = None
         video.save(update_fields=['security_scan_status', 'security_scan_reason', 'scanned_at'])
         raise
 

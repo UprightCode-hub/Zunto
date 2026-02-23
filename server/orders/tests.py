@@ -87,6 +87,15 @@ class SellerOrderPermissionTests(TestCase):
         self.assertIn('total_orders', response.data)
 
 
+    @patch('orders.views.audit_event')
+    def test_admin_role_seller_statistics_emits_audit_events(self, audit_mock):
+        self.client.force_authenticate(user=self.admin_role_user)
+        response = self.client.get('/api/orders/seller/statistics/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['orders.seller.statistics_viewed', 'orders.admin.seller.statistics_viewed'])
+
+
     def test_seller_can_update_item_status_to_shipped(self):
         item = OrderItem.objects.first()
         self.client.force_authenticate(user=self.seller)
@@ -98,6 +107,21 @@ class SellerOrderPermissionTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         item.refresh_from_db()
         self.assertEqual(item.status, 'shipped')
+
+
+    @patch('orders.views.audit_event')
+    def test_admin_role_update_item_status_emits_admin_and_domain_audit_events(self, audit_mock):
+        item = OrderItem.objects.first()
+        self.client.force_authenticate(user=self.admin_role_user)
+        response = self.client.patch(
+            f'/api/orders/seller/items/{item.id}/update-status/',
+            {'status': 'shipped'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(audit_mock.call_count, 2)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions, ['orders.item.status_updated', 'orders.admin.order_item_status_updated'])
 
     def test_seller_update_item_status_rejects_invalid_value(self):
         item = OrderItem.objects.first()
@@ -124,12 +148,21 @@ class SellerOrderPermissionTests(TestCase):
 
 
     @patch('orders.views.audit_event')
+    def test_admin_role_seller_statistics_emits_domain_and_admin_audit_events(self, audit_mock):
+        self.client.force_authenticate(user=self.admin_role_user)
+        response = self.client.get('/api/orders/seller/statistics/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['orders.seller.statistics_viewed', 'orders.admin.seller.statistics_viewed'])
+
+
+    @patch('orders.views.audit_event')
     def test_admin_role_seller_orders_list_emits_audit_event(self, audit_mock):
         self.client.force_authenticate(user=self.admin_role_user)
         response = self.client.get('/api/orders/seller/orders/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        audit_mock.assert_called_once()
-        self.assertEqual(audit_mock.call_args.kwargs['action'], 'orders.admin.seller_orders_viewed')
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['orders.seller_orders_viewed', 'orders.admin.seller_orders_viewed'])
 
     @patch('orders.views.audit_event')
     def test_admin_role_seller_order_detail_emits_audit_event(self, audit_mock):
@@ -137,8 +170,8 @@ class SellerOrderPermissionTests(TestCase):
         self.client.force_authenticate(user=self.admin_role_user)
         response = self.client.get(f'/api/orders/seller/orders/{order.order_number}/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        audit_mock.assert_called_once()
-        self.assertEqual(audit_mock.call_args.kwargs['action'], 'orders.admin.seller_order_detail_viewed')
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['orders.seller_order_detail_viewed', 'orders.admin.seller_order_detail_viewed'])
 
 
 class AdminRefundAuditTests(TestCase):
@@ -215,7 +248,8 @@ class AdminRefundAuditTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.refund.refresh_from_db()
         self.assertEqual(self.refund.status, 'processing')
-        self.assertEqual(audit_mock.call_args.kwargs['action'], 'orders.admin.refund.process_initiated')
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['orders.refund.process_initiated', 'orders.admin.refund.process_initiated'])
 
 
     @patch('orders.payment_views.audit_event')
@@ -229,7 +263,8 @@ class AdminRefundAuditTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.refund.refresh_from_db()
         self.assertEqual(self.refund.status, 'processing')
-        self.assertEqual(audit_mock.call_args.kwargs['action'], 'orders.admin.refund.process_initiated')
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['orders.refund.process_initiated', 'orders.admin.refund.process_initiated'])
 
     @patch('orders.payment_views.audit_event')
     @patch('orders.payment_views.PaystackService.create_refund')
@@ -240,7 +275,8 @@ class AdminRefundAuditTests(TestCase):
         response = self.client.post(f'/api/payments/refunds/{self.refund.id}/process/')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(audit_mock.call_args.kwargs['action'], 'orders.admin.refund.process_failed')
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['orders.refund.process_failed', 'orders.admin.refund.process_failed'])
 
     @patch('orders.payment_views.audit_event')
     def test_admin_refund_process_non_pending_emits_rejection_audit(self, audit_mock):
@@ -251,7 +287,8 @@ class AdminRefundAuditTests(TestCase):
         response = self.client.post(f'/api/payments/refunds/{self.refund.id}/process/')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(audit_mock.call_args.kwargs['action'], 'orders.admin.refund.process_rejected')
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['orders.refund.process_rejected', 'orders.admin.refund.process_rejected'])
 
 
 
@@ -279,7 +316,8 @@ class AdminRefundAuditTests(TestCase):
         second.refresh_from_db()
         self.assertEqual(self.refund.status, 'completed')
         self.assertEqual(second.status, 'completed')
-        self.assertEqual(audit_mock.call_args.kwargs['action'], 'orders.admin.refund.bulk_decision_applied')
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['orders.refund.bulk_decision_applied', 'orders.admin.refund.bulk_decision_applied'])
 
     @patch('orders.payment_views.audit_event')
     def test_admin_bulk_refund_reject_skips_non_pending(self, audit_mock):
@@ -294,7 +332,8 @@ class AdminRefundAuditTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data.get('updated_count'), 0)
-        self.assertEqual(audit_mock.call_args.kwargs['action'], 'orders.admin.refund.bulk_decision_applied')
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['orders.refund.bulk_decision_applied', 'orders.admin.refund.bulk_decision_applied'])
 
 
 class PaymentWebhookRefundFlowTests(TestCase):

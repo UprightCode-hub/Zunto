@@ -60,8 +60,8 @@ class DashboardAccessTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('range_start', response.json())
         self.assertIn('range_end', response.json())
-        audit_mock.assert_called_once()
-        self.assertEqual(audit_mock.call_args.kwargs['action'], 'dashboard.admin.overview.viewed')
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['dashboard.overview.viewed', 'dashboard.admin.overview.viewed'])
 
     @patch('dashboard.views.audit_event')
     @patch('dashboard.views.get_abandonment_summary_with_scores')
@@ -79,8 +79,8 @@ class DashboardAccessTests(APITestCase):
         response = self.client.get('/dashboard/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        audit_mock.assert_called_once()
-        self.assertEqual(audit_mock.call_args.kwargs['action'], 'dashboard.admin.overview.viewed')
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['dashboard.overview.viewed', 'dashboard.admin.overview.viewed'])
 
 
 
@@ -103,7 +103,8 @@ class DashboardAccessTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('product_reports', response.json())
         self.assertIn('refunds', response.json())
-        self.assertEqual(audit_mock.call_args.kwargs['action'], 'dashboard.admin.company_ops.viewed')
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['dashboard.company_ops.viewed', 'dashboard.admin.company_ops.viewed'])
 class DashboardEndpointAuditTests(APITestCase):
     def setUp(self):
         self.admin_user = User.objects.create_user(
@@ -120,4 +121,13 @@ class DashboardEndpointAuditTests(APITestCase):
         self.client.login(email='admin-dashboard-audit@example.com', password='pass123')
         response = self.client.get('/dashboard/sales/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(audit_mock.call_args.kwargs['action'], 'dashboard.admin.sales.viewed')
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['dashboard.sales.viewed', 'dashboard.admin.sales.viewed'])
+
+    @patch('dashboard.views.audit_event')
+    def test_analytics_endpoint_emits_paired_audit_events(self, audit_mock):
+        self.client.login(email='admin-dashboard-audit@example.com', password='pass123')
+        response = self.client.get('/dashboard/analytics/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['dashboard.analytics_legacy.viewed', 'dashboard.admin.analytics_legacy.viewed'])

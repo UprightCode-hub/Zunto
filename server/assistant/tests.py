@@ -1,5 +1,6 @@
 #server/assistant/tests.py
 from unittest.mock import patch
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase
@@ -140,6 +141,21 @@ class APIEndpointTests(APITestCase):
         response = self.client.post(url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Report.objects.count(), 1)
+
+
+    @patch('assistant.views.audit_event')
+    def test_staff_report_create_emits_domain_and_admin_audit_events(self, audit_mock):
+        self.client.force_authenticate(user=self.staff_user)
+
+        response = self.client.post(
+            '/assistant/api/report/',
+            {'message': 'Need admin-created report', 'severity': 'high'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['assistant.report.created', 'assistant.admin.report.created'])
     
     def test_admin_endpoints_require_staff(self):
         """Admin endpoints should require staff permission."""
@@ -168,8 +184,8 @@ class APIEndpointTests(APITestCase):
         response = self.client.get('/assistant/api/admin/logs/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        audit_mock.assert_called_once()
-        self.assertEqual(audit_mock.call_args.kwargs['action'], 'assistant.admin.logs.viewed')
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['assistant.logs.viewed', 'assistant.admin.logs.viewed'])
 
     @patch('assistant.views.audit_event')
     def test_admin_reports_endpoint_emits_audit_event(self, audit_mock):
@@ -179,8 +195,8 @@ class APIEndpointTests(APITestCase):
         response = self.client.get('/assistant/api/admin/reports/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        audit_mock.assert_called_once()
-        self.assertEqual(audit_mock.call_args.kwargs['action'], 'assistant.admin.reports.viewed')
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['assistant.reports.viewed', 'assistant.admin.reports.viewed'])
 
     @patch('assistant.views.audit_event')
     def test_admin_metrics_endpoint_emits_audit_event(self, audit_mock):
@@ -190,9 +206,150 @@ class APIEndpointTests(APITestCase):
         response = self.client.get('/assistant/api/admin/metrics/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        audit_mock.assert_called_once()
-        self.assertEqual(audit_mock.call_args.kwargs['action'], 'assistant.admin.metrics.viewed')
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['assistant.metrics.viewed', 'assistant.admin.metrics.viewed'])
 
+
+
+    @patch('assistant.views.audit_event')
+    def test_staff_close_report_emits_admin_and_domain_audit_events(self, audit_mock):
+        owner = User.objects.create_user(username='report-owner', password='ownerpass123')
+        report = Report.objects.create(
+            user=owner,
+            message='Need review',
+            severity='high',
+            status='pending',
+            meta={},
+        )
+
+        self.client.force_authenticate(user=self.staff_user)
+        response = self.client.post(f'/assistant/api/report/{report.id}/close/', format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(audit_mock.call_count, 2)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions, ['assistant.report.closed', 'assistant.admin.report.closed'])
+
+
+
+    @patch('assistant.views.audit_event')
+    @patch('assistant.views.validate_dispute_media_task.delay')
+    def test_staff_evidence_upload_emits_domain_and_admin_audit_events(self, _delay_mock, audit_mock):
+        owner = User.objects.create_user(username='dispute-owner-staff', password='ownerpass123')
+        report = Report.objects.create(
+            user=owner,
+            message='Dispute report for staff upload',
+            severity='high',
+            status='pending',
+            report_type='dispute',
+            meta={},
+        )
+        self.client.force_authenticate(user=self.staff_user)
+        upload = SimpleUploadedFile('proof-staff.png', b'\x89PNG\r\n\x1a\nabc', content_type='image/png')
+
+        response = self.client.post(
+            f'/assistant/api/report/{report.id}/evidence/',
+            {'file': upload, 'media_type': 'image'},
+            format='multipart',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['assistant.report.evidence_uploaded', 'assistant.admin.report.evidence_uploaded'])
+
+    @patch('assistant.views.validate_dispute_media_task.delay', side_effect=Exception('queue-down'))
+    @patch('assistant.views.audit_event')
+    def test_staff_evidence_upload_emits_admin_and_domain_audit_events(self, audit_mock, _delay_mock):
+        owner = User.objects.create_user(username='staff-dispute-owner', password='ownerpass123')
+        report = Report.objects.create(
+            user=owner,
+            message='Staff dispute report',
+            severity='high',
+            status='pending',
+            report_type='dispute',
+            meta={},
+        )
+        self.client.force_authenticate(user=self.staff_user)
+        upload = SimpleUploadedFile('staff-proof.png', b'\x89PNG\r\n\x1a\nabc', content_type='image/png')
+
+        response = self.client.post(
+            f'/assistant/api/report/{report.id}/evidence/',
+            {'file': upload, 'media_type': 'image'},
+            format='multipart',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(
+            actions[-4:],
+            [
+                'assistant.report.evidence_validation_enqueue_failed',
+                'assistant.admin.report.evidence_validation_enqueue_failed',
+                'assistant.report.evidence_uploaded',
+                'assistant.admin.report.evidence_uploaded',
+            ],
+        )
+
+
+    @patch('assistant.views.validate_dispute_media_task.delay', side_effect=Exception('queue-down'))
+    @patch('assistant.views.audit_event')
+    def test_evidence_upload_rejects_when_validation_queue_unavailable(self, audit_mock, _delay_mock):
+        owner = User.objects.create_user(username='dispute-owner', password='ownerpass123')
+        report = Report.objects.create(
+            user=owner,
+            message='Dispute report',
+            severity='high',
+            status='pending',
+            report_type='dispute',
+            meta={},
+        )
+        self.client.force_authenticate(user=owner)
+        upload = SimpleUploadedFile('proof.png', b'\x89PNG\r\n\x1a\nabc', content_type='image/png')
+
+        response = self.client.post(
+            f'/assistant/api/report/{report.id}/evidence/',
+            {'file': upload, 'media_type': 'image'},
+            format='multipart',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        media = report.evidence_files.first()
+        self.assertIsNotNone(media)
+        self.assertEqual(media.validation_status, 'rejected')
+        self.assertIn('queue unavailable', media.validation_reason.lower())
+        self.assertTrue(media.is_deleted)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertIn('assistant.report.evidence_validation_enqueue_failed', actions)
+        self.assertIn('assistant.report.evidence_uploaded', actions)
+
+
+    @patch('assistant.views.validate_dispute_media_task.delay', side_effect=Exception('queue-down'))
+    @patch('assistant.views.audit_event')
+    def test_staff_evidence_upload_queue_failure_emits_domain_and_admin_failure_events(self, audit_mock, _delay_mock):
+        owner = User.objects.create_user(username='dispute-owner-staff-fail', password='ownerpass123')
+        report = Report.objects.create(
+            user=owner,
+            message='Dispute report staff failure',
+            severity='high',
+            status='pending',
+            report_type='dispute',
+            meta={},
+        )
+        self.client.force_authenticate(user=self.staff_user)
+        upload = SimpleUploadedFile('proof-staff-fail.png', b'\x89PNG\r\n\x1a\nabc', content_type='image/png')
+
+        response = self.client.post(
+            f'/assistant/api/report/{report.id}/evidence/',
+            {'file': upload, 'media_type': 'image'},
+            format='multipart',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertIn('assistant.report.evidence_validation_enqueue_failed', actions)
+        self.assertIn('assistant.admin.report.evidence_validation_enqueue_failed', actions)
+        self.assertIn('assistant.report.evidence_uploaded', actions)
+        self.assertIn('assistant.admin.report.evidence_uploaded', actions)
 
 class ModelTests(TestCase):
     """Test database models."""
@@ -228,4 +385,3 @@ class ModelTests(TestCase):
         self.assertEqual(log.user, self.user)
         self.assertEqual(log.confidence, 0.85)
         self.assertIsNotNone(log.created_at)
-
