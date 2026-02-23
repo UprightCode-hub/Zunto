@@ -1,17 +1,25 @@
 #server/market/tests.py
+from io import BytesIO
 from decimal import Decimal
 from unittest.mock import patch
 
+from PIL import Image
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from .models import Category, Product, ProductReport, ProductVideo
+from .models import Category, Product, ProductImage, ProductReport, ProductVideo
 
 
 User = get_user_model()
+
+
+def _png_upload(name):
+    buffer = BytesIO()
+    Image.new('RGB', (1, 1), color=(255, 0, 0)).save(buffer, format='PNG')
+    return SimpleUploadedFile(name, buffer.getvalue(), content_type='image/png')
 
 
 class SellerPermissionTests(TestCase):
@@ -90,6 +98,277 @@ class SellerPermissionTests(TestCase):
         response = self.client.post('/api/market/products/', payload, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
+    @patch('market.views.audit_event')
+    def test_admin_role_create_product_emits_domain_and_admin_audit_events(self, audit_mock):
+        self.client.force_authenticate(user=self.admin_role_user)
+        payload = {
+            'title': 'Admin audited listing',
+            'description': 'Admin audited override listing',
+            'listing_type': 'product',
+            'price': '46.00',
+            'quantity': 1,
+            'condition': 'new',
+            'status': 'active',
+            'category': str(self.category.id),
+        }
+        response = self.client.post('/api/market/products/', payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['market.product.created', 'market.admin.product.created'])
+
+    @patch('market.views.audit_event')
+    def test_seller_create_product_emits_domain_audit_event_only(self, audit_mock):
+        self.client.force_authenticate(user=self.seller)
+        payload = {
+            'title': 'Seller audited listing',
+            'description': 'Seller audited listing',
+            'listing_type': 'product',
+            'price': '47.00',
+            'quantity': 1,
+            'condition': 'new',
+            'status': 'active',
+            'category': str(self.category.id),
+        }
+        response = self.client.post('/api/market/products/', payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-1], 'market.product.created')
+        self.assertNotIn('market.admin.product.created', actions)
+
+
+    @patch('market.views.audit_event')
+    def test_admin_image_upload_emits_domain_and_admin_audit_events(self, audit_mock):
+        product = Product.objects.create(
+            seller=self.seller,
+            title='Admin image upload product',
+            description='Admin image upload audit coverage',
+            listing_type='product',
+            price=Decimal('47.00'),
+            quantity=1,
+            condition='new',
+            status='active',
+            category=self.category,
+        )
+        image_file = _png_upload('admin.png')
+        staff_admin = User.objects.create_user(
+            email='staff-image-upload-admin@example.com',
+            password='TestPass123!',
+            first_name='Staff',
+            last_name='Admin',
+            role='admin',
+            is_staff=True,
+            is_verified=True,
+        )
+
+        self.client.force_authenticate(user=staff_admin)
+        response = self.client.post(
+            f'/api/market/products/{product.slug}/images/',
+            {'image': image_file},
+            format='multipart',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['market.product.image_uploaded', 'market.admin.product.image_uploaded'])
+
+    @patch('market.views.audit_event')
+    def test_seller_image_upload_emits_domain_only_audit_event(self, audit_mock):
+        product = Product.objects.create(
+            seller=self.seller,
+            title='Seller image upload product',
+            description='Seller image upload audit coverage',
+            listing_type='product',
+            price=Decimal('47.10'),
+            quantity=1,
+            condition='new',
+            status='active',
+            category=self.category,
+        )
+        image_file = _png_upload('seller.png')
+
+        self.client.force_authenticate(user=self.seller)
+        response = self.client.post(
+            f'/api/market/products/{product.slug}/images/',
+            {'image': image_file},
+            format='multipart',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-1], 'market.product.image_uploaded')
+        self.assertNotIn('market.admin.product.image_uploaded', actions)
+
+    @patch('market.views.audit_event')
+    def test_admin_image_delete_emits_domain_and_admin_audit_events(self, audit_mock):
+        product = Product.objects.create(
+            seller=self.seller,
+            title='Admin image delete product',
+            description='Admin image delete audit coverage',
+            listing_type='product',
+            price=Decimal('47.20'),
+            quantity=1,
+            condition='new',
+            status='active',
+            category=self.category,
+        )
+        image = ProductImage.objects.create(
+            product=product,
+            image=_png_upload('delete-admin.png'),
+        )
+        staff_admin = User.objects.create_user(
+            email='staff-image-delete-admin@example.com',
+            password='TestPass123!',
+            first_name='Staff',
+            last_name='Admin',
+            role='admin',
+            is_staff=True,
+            is_verified=True,
+        )
+
+        self.client.force_authenticate(user=staff_admin)
+        response = self.client.delete(f'/api/market/products/{product.slug}/images/{image.id}/')
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['market.product.image_deleted', 'market.admin.product.image_deleted'])
+
+    @patch('market.views.audit_event')
+    def test_seller_image_delete_emits_domain_only_audit_event(self, audit_mock):
+        product = Product.objects.create(
+            seller=self.seller,
+            title='Seller image delete product',
+            description='Seller image delete audit coverage',
+            listing_type='product',
+            price=Decimal('47.30'),
+            quantity=1,
+            condition='new',
+            status='active',
+            category=self.category,
+        )
+        image = ProductImage.objects.create(
+            product=product,
+            image=_png_upload('delete-seller.png'),
+        )
+
+        self.client.force_authenticate(user=self.seller)
+        response = self.client.delete(f'/api/market/products/{product.slug}/images/{image.id}/')
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-1], 'market.product.image_deleted')
+        self.assertNotIn('market.admin.product.image_deleted', actions)
+
+    @patch('market.views.audit_event')
+    def test_admin_mark_product_as_sold_emits_domain_and_admin_audit_events(self, audit_mock):
+        product = Product.objects.create(
+            seller=self.seller,
+            title='Mark sold admin product',
+            description='Mark sold admin audit coverage',
+            listing_type='product',
+            price=Decimal('48.00'),
+            quantity=1,
+            condition='new',
+            status='active',
+            category=self.category,
+        )
+
+        staff_admin = User.objects.create_user(
+            email='staff-mark-sold-admin@example.com',
+            password='TestPass123!',
+            first_name='Staff',
+            last_name='Admin',
+            role='admin',
+            is_staff=True,
+            is_verified=True,
+        )
+
+        self.client.force_authenticate(user=staff_admin)
+        response = self.client.post(f'/api/market/products/{product.slug}/mark-sold/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        product.refresh_from_db()
+        self.assertEqual(product.status, 'sold')
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['market.product.mark_sold', 'market.admin.product.mark_sold'])
+
+    @patch('market.views.audit_event')
+    def test_seller_mark_product_as_sold_emits_domain_only_audit_event(self, audit_mock):
+        product = Product.objects.create(
+            seller=self.seller,
+            title='Mark sold seller product',
+            description='Mark sold seller audit coverage',
+            listing_type='product',
+            price=Decimal('48.10'),
+            quantity=1,
+            condition='new',
+            status='active',
+            category=self.category,
+        )
+
+        self.client.force_authenticate(user=self.seller)
+        response = self.client.post(f'/api/market/products/{product.slug}/mark-sold/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-1], 'market.product.mark_sold')
+        self.assertNotIn('market.admin.product.mark_sold', actions)
+
+    @patch('market.views.audit_event')
+    def test_admin_reactivate_product_emits_domain_and_admin_audit_events(self, audit_mock):
+        product = Product.objects.create(
+            seller=self.seller,
+            title='Reactivate admin product',
+            description='Reactivate admin audit coverage',
+            listing_type='product',
+            price=Decimal('49.00'),
+            quantity=1,
+            condition='new',
+            status='sold',
+            category=self.category,
+        )
+
+        staff_admin = User.objects.create_user(
+            email='staff-reactivate-admin@example.com',
+            password='TestPass123!',
+            first_name='Staff',
+            last_name='Admin',
+            role='admin',
+            is_staff=True,
+            is_verified=True,
+        )
+
+        self.client.force_authenticate(user=staff_admin)
+        response = self.client.post(f'/api/market/products/{product.slug}/reactivate/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        product.refresh_from_db()
+        self.assertEqual(product.status, 'active')
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['market.product.reactivated', 'market.admin.product.reactivated'])
+
+    @patch('market.views.audit_event')
+    def test_seller_reactivate_product_emits_domain_only_audit_event(self, audit_mock):
+        product = Product.objects.create(
+            seller=self.seller,
+            title='Reactivate seller product',
+            description='Reactivate seller audit coverage',
+            listing_type='product',
+            price=Decimal('49.10'),
+            quantity=1,
+            condition='new',
+            status='sold',
+            category=self.category,
+        )
+
+        self.client.force_authenticate(user=self.seller)
+        response = self.client.post(f'/api/market/products/{product.slug}/reactivate/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-1], 'market.product.reactivated')
+        self.assertNotIn('market.admin.product.reactivated', actions)
 
     def test_product_view_deduplicates_within_window(self):
         product = Product.objects.create(
@@ -240,6 +519,90 @@ class SellerPermissionTests(TestCase):
         actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
         self.assertEqual(actions[-2:], ['market.report.moderated', 'market.admin.report.moderated'])
 
+
+    @patch('market.views.audit_event')
+    def test_report_moderation_queue_emits_domain_and_admin_audit_events(self, audit_mock):
+        product = Product.objects.create(
+            seller=self.seller,
+            title='Report queue product',
+            description='Queue audit coverage',
+            listing_type='product',
+            price=Decimal('79.00'),
+            quantity=1,
+            condition='new',
+            status='active',
+            category=self.category,
+        )
+        ProductReport.objects.create(
+            product=product,
+            reporter=self.buyer,
+            reason='spam',
+            description='Queue event audit',
+            status='pending',
+        )
+
+        self.client.force_authenticate(user=self.admin_role_user)
+        response = self.client.get('/api/market/reports/moderation/?status=pending')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(
+            actions[-2:],
+            ['market.report.moderation_queue_viewed', 'market.admin.report.moderation_queue_viewed'],
+        )
+
+
+    @patch('market.views.audit_event')
+    def test_admin_report_create_emits_domain_and_admin_audit_events(self, audit_mock):
+        product = Product.objects.create(
+            seller=self.seller,
+            title='Report create admin product',
+            description='Report create admin audit',
+            listing_type='product',
+            price=Decimal('82.00'),
+            quantity=1,
+            condition='new',
+            status='active',
+            category=self.category,
+        )
+
+        self.client.force_authenticate(user=self.admin_role_user)
+        response = self.client.post(
+            f'/api/market/products/{product.slug}/report/',
+            {'product': str(product.id), 'reason': 'spam', 'description': 'Admin-created report'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['market.report.created', 'market.admin.report.created'])
+
+    @patch('market.views.audit_event')
+    def test_buyer_report_create_emits_domain_only_audit_event(self, audit_mock):
+        product = Product.objects.create(
+            seller=self.seller,
+            title='Report create buyer product',
+            description='Report create buyer audit',
+            listing_type='product',
+            price=Decimal('82.10'),
+            quantity=1,
+            condition='new',
+            status='active',
+            category=self.category,
+        )
+
+        self.client.force_authenticate(user=self.buyer)
+        response = self.client.post(
+            f'/api/market/products/{product.slug}/report/',
+            {'product': str(product.id), 'reason': 'fraud', 'description': 'Buyer-created report'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-1], 'market.report.created')
+        self.assertNotIn('market.admin.report.created', actions)
+
     def test_buyer_cannot_access_report_moderation(self):
         self.client.force_authenticate(user=self.buyer)
         response = self.client.get('/api/market/reports/moderation/')
@@ -344,6 +707,72 @@ class SellerPermissionTests(TestCase):
         self.assertEqual(len(videos), 1)
         self.assertEqual(videos[0].get('security_scan_status'), ProductVideo.SCAN_CLEAN)
 
+
+    @patch('market.views.audit_event')
+    @patch('market.tasks.schedule_product_video_scan')
+    def test_admin_video_upload_emits_domain_and_admin_audit_events(self, schedule_mock, audit_mock):
+        product = Product.objects.create(
+            seller=self.seller,
+            title='Video upload admin audit product',
+            description='Video upload admin audit check',
+            listing_type='product',
+            price=Decimal('100.00'),
+            quantity=1,
+            condition='new',
+            status='active',
+            category=self.category,
+        )
+        staff_admin = User.objects.create_user(
+            email='staff-video-upload-admin@example.com',
+            password='TestPass123!',
+            first_name='Staff',
+            last_name='Admin',
+            role='admin',
+            is_staff=True,
+            is_verified=True,
+        )
+
+        self.client.force_authenticate(user=staff_admin)
+        video_file = SimpleUploadedFile('upload-admin.webm', b'\x1aE\xdf\xa3video-content', content_type='video/webm')
+
+        response = self.client.post(
+            f'/api/market/products/{product.slug}/videos/',
+            {'video': video_file, 'caption': 'upload'},
+            format='multipart',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['market.video_upload.submitted', 'market.admin.video_upload.submitted'])
+
+    @patch('market.views.audit_event')
+    @patch('market.tasks.schedule_product_video_scan')
+    def test_seller_video_upload_emits_domain_only_audit_event(self, schedule_mock, audit_mock):
+        product = Product.objects.create(
+            seller=self.seller,
+            title='Video upload seller audit product',
+            description='Video upload seller audit check',
+            listing_type='product',
+            price=Decimal('100.10'),
+            quantity=1,
+            condition='new',
+            status='active',
+            category=self.category,
+        )
+
+        self.client.force_authenticate(user=self.seller)
+        video_file = SimpleUploadedFile('upload-seller.webm', b'\x1aE\xdf\xa3video-content', content_type='video/webm')
+
+        response = self.client.post(
+            f'/api/market/products/{product.slug}/videos/',
+            {'video': video_file, 'caption': 'upload'},
+            format='multipart',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-1], 'market.video_upload.submitted')
+        self.assertNotIn('market.admin.video_upload.submitted', actions)
 
     @patch('market.tasks.schedule_product_video_scan')
     def test_video_upload_marks_pending_and_enqueues_scan_task(self, schedule_mock):
@@ -500,6 +929,86 @@ class SellerPermissionTests(TestCase):
 
 
     @override_settings(USE_OBJECT_STORAGE=True, OBJECT_STORAGE_BUCKET_NAME='bucket', OBJECT_STORAGE_REGION='auto', OBJECT_STORAGE_ENDPOINT_URL='https://example.com', OBJECT_STORAGE_ACCESS_KEY_ID='k', OBJECT_STORAGE_SECRET_ACCESS_KEY='s', OBJECT_UPLOAD_HMAC_SECRET='secret', OBJECT_UPLOAD_SIGNED_UPLOAD_EXP_SECONDS=900)
+    @patch('market.views.audit_event')
+    @patch('boto3.client')
+    def test_admin_direct_upload_ticket_emits_domain_and_admin_audit_events(self, boto_client_mock, audit_mock):
+        product = Product.objects.create(
+            seller=self.seller,
+            title='Direct upload admin ticket product',
+            description='Direct upload admin ticket',
+            listing_type='product',
+            price=Decimal('87.00'),
+            quantity=1,
+            condition='new',
+            status='active',
+            category=self.category,
+        )
+
+        mock_client = boto_client_mock.return_value
+        mock_client.generate_presigned_post.return_value = {
+            'url': 'https://example.com/bucket',
+            'fields': {'key': 'products/videos/key.webm', 'Content-Type': 'video/webm'},
+        }
+
+        staff_admin = User.objects.create_user(
+            email='staff-direct-upload-admin@example.com',
+            password='TestPass123!',
+            first_name='Staff',
+            last_name='Admin',
+            role='admin',
+            is_staff=True,
+            is_verified=True,
+        )
+
+        self.client.force_authenticate(user=staff_admin)
+        response = self.client.post(
+            f'/api/market/products/{product.slug}/videos/direct-upload-ticket/',
+            {'filename': 'clip.webm', 'content_type': 'video/webm'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(
+            actions[-2:],
+            ['market.video_upload.ticket_issued', 'market.admin.video_upload.ticket_issued'],
+        )
+
+    @override_settings(USE_OBJECT_STORAGE=True, OBJECT_STORAGE_BUCKET_NAME='bucket', OBJECT_STORAGE_REGION='auto', OBJECT_STORAGE_ENDPOINT_URL='https://example.com', OBJECT_STORAGE_ACCESS_KEY_ID='k', OBJECT_STORAGE_SECRET_ACCESS_KEY='s', OBJECT_UPLOAD_HMAC_SECRET='secret', OBJECT_UPLOAD_SIGNED_UPLOAD_EXP_SECONDS=900)
+    @patch('market.views.audit_event')
+    @patch('boto3.client')
+    def test_seller_direct_upload_ticket_emits_domain_only_audit_event(self, boto_client_mock, audit_mock):
+        product = Product.objects.create(
+            seller=self.seller,
+            title='Direct upload seller ticket product',
+            description='Direct upload seller ticket',
+            listing_type='product',
+            price=Decimal('87.10'),
+            quantity=1,
+            condition='new',
+            status='active',
+            category=self.category,
+        )
+
+        mock_client = boto_client_mock.return_value
+        mock_client.generate_presigned_post.return_value = {
+            'url': 'https://example.com/bucket',
+            'fields': {'key': 'products/videos/key.webm', 'Content-Type': 'video/webm'},
+        }
+
+        self.client.force_authenticate(user=self.seller)
+        response = self.client.post(
+            f'/api/market/products/{product.slug}/videos/direct-upload-ticket/',
+            {'filename': 'clip.webm', 'content_type': 'video/webm'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-1], 'market.video_upload.ticket_issued')
+        self.assertNotIn('market.admin.video_upload.ticket_issued', actions)
+
+    @override_settings(USE_OBJECT_STORAGE=True, OBJECT_STORAGE_BUCKET_NAME='bucket', OBJECT_STORAGE_REGION='auto', OBJECT_STORAGE_ENDPOINT_URL='https://example.com', OBJECT_STORAGE_ACCESS_KEY_ID='k', OBJECT_STORAGE_SECRET_ACCESS_KEY='s', OBJECT_UPLOAD_HMAC_SECRET='secret', OBJECT_UPLOAD_SIGNED_UPLOAD_EXP_SECONDS=900)
     @patch('boto3.client')
     def test_seller_can_request_direct_upload_ticket(self, boto_client_mock):
         product = Product.objects.create(
@@ -531,6 +1040,100 @@ class SellerPermissionTests(TestCase):
         self.assertIn('upload', response.data)
         self.assertIn('callback', response.data)
 
+
+    @override_settings(USE_OBJECT_STORAGE=True, OBJECT_UPLOAD_HMAC_SECRET='secret')
+    @patch('market.views.audit_event')
+    @patch('market.tasks.schedule_product_video_scan')
+    def test_admin_direct_upload_callback_emits_domain_and_admin_audit_events(self, schedule_mock, audit_mock):
+        product = Product.objects.create(
+            seller=self.seller,
+            title='Direct upload callback admin product',
+            description='Direct upload callback admin',
+            listing_type='product',
+            price=Decimal('89.00'),
+            quantity=1,
+            condition='new',
+            status='active',
+            category=self.category,
+        )
+
+        staff_admin = User.objects.create_user(
+            email='staff-callback-admin@example.com',
+            password='TestPass123!',
+            first_name='Staff',
+            last_name='Admin',
+            role='admin',
+            is_staff=True,
+            is_verified=True,
+        )
+
+        from market.views import _sign_upload_callback_payload
+        import time
+
+        payload = {
+            'product_id': str(product.id),
+            'product_slug': product.slug,
+            'uploader_id': str(staff_admin.id),
+            'key': f'products/videos/{product.id}/uploaded-by-admin.webm',
+            'content_type': 'video/webm',
+            'exp': int(time.time()) + 600,
+        }
+        signature = _sign_upload_callback_payload(payload)
+
+        self.client.force_authenticate(user=staff_admin)
+        response = self.client.post(
+            f'/api/market/products/{product.slug}/videos/direct-upload-callback/',
+            {'payload': payload, 'signature': signature},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(
+            actions[-2:],
+            ['market.video_upload.callback_verified', 'market.admin.video_upload.callback_verified'],
+        )
+
+    @override_settings(USE_OBJECT_STORAGE=True, OBJECT_UPLOAD_HMAC_SECRET='secret')
+    @patch('market.views.audit_event')
+    @patch('market.tasks.schedule_product_video_scan')
+    def test_seller_direct_upload_callback_emits_domain_only_audit_event(self, schedule_mock, audit_mock):
+        product = Product.objects.create(
+            seller=self.seller,
+            title='Direct upload callback seller product',
+            description='Direct upload callback seller',
+            listing_type='product',
+            price=Decimal('89.01'),
+            quantity=1,
+            condition='new',
+            status='active',
+            category=self.category,
+        )
+
+        from market.views import _sign_upload_callback_payload
+        import time
+
+        payload = {
+            'product_id': str(product.id),
+            'product_slug': product.slug,
+            'uploader_id': str(self.seller.id),
+            'key': f'products/videos/{product.id}/uploaded-by-seller.webm',
+            'content_type': 'video/webm',
+            'exp': int(time.time()) + 600,
+        }
+        signature = _sign_upload_callback_payload(payload)
+
+        self.client.force_authenticate(user=self.seller)
+        response = self.client.post(
+            f'/api/market/products/{product.slug}/videos/direct-upload-callback/',
+            {'payload': payload, 'signature': signature},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-1], 'market.video_upload.callback_verified')
+        self.assertNotIn('market.admin.video_upload.callback_verified', actions)
 
     @override_settings(USE_OBJECT_STORAGE=True, OBJECT_UPLOAD_HMAC_SECRET='secret')
     @patch('market.tasks.schedule_product_video_scan')

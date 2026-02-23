@@ -678,6 +678,8 @@ def seller_statistics(request):
             action='orders.admin.seller.statistics_viewed',
             extra={'is_staff': request.user.is_staff, 'role': getattr(request.user, 'role', None)},
         )
+    if _is_admin_actor(request.user):
+        audit_event(request, action='orders.admin.seller.statistics_viewed', extra={'is_staff': request.user.is_staff})
     return Response(stats)
 
 
