@@ -132,10 +132,7 @@ class ReviewFlagModerationTests(APITestCase):
         self.assertGreaterEqual(len(payload), 1)
         self.assertTrue(any(item['id'] == str(self.flag.id) for item in payload))
         actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
-        self.assertEqual(
-            actions[-2:],
-            ['reviews.flag.moderation_queue_viewed', 'reviews.admin.flag.moderation_queue_viewed'],
-        )
+        self.assertEqual(actions[-2:], ['reviews.flag.moderation_queue_viewed', 'reviews.admin.flag.moderation_queue_viewed'])
 
     def test_admin_can_moderate_review_flag(self):
         self.client.force_authenticate(user=self.admin)

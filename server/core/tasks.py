@@ -21,6 +21,8 @@ from core.health_monitor import evaluate_health_snapshot
 
 logger = logging.getLogger('security.health')
 
+_HEALTH_ALERT_LAST_STATE_CACHE_KEY = 'health-alert:last-state'
+
 
 def _health_alert_email_enabled() -> bool:
     return bool(getattr(settings, 'HEALTH_ALERT_NOTIFY_EMAIL_ENABLED', False))
@@ -127,23 +129,63 @@ def _send_health_alert_email(snapshot, alerts):
     return {'sent': True, 'reason': 'delivered', 'recipients': recipients}
 
 
+
+
+def _previous_health_state():
+    state = cache.get(_HEALTH_ALERT_LAST_STATE_CACHE_KEY)
+    return state if isinstance(state, dict) else {}
+
+
+def _update_health_state(snapshot, alerts):
+    kinds = sorted({str(item.get('kind') or 'unknown') for item in alerts})
+    state = {
+        'status': str(snapshot.get('status') or 'unknown'),
+        'alert_kinds': kinds,
+    }
+    cache.set(_HEALTH_ALERT_LAST_STATE_CACHE_KEY, state, timeout=60 * 60 * 24)
+
+
+def _recovery_alerts_from_previous_state(previous_state):
+    previous_kinds = previous_state.get('alert_kinds') if isinstance(previous_state, dict) else []
+    if not previous_kinds:
+        return []
+    return [{'kind': str(kind)} for kind in previous_kinds]
+
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=30, retry_kwargs={'max_retries': 3})
 def monitor_system_health_alerts(self):
     snapshot = evaluate_health_snapshot()
     alerts = snapshot.get('diagnostics', {}).get('alerts', [])
+    previous_state = _previous_health_state()
+    previous_status = str(previous_state.get('status') or 'unknown')
 
     if snapshot.get('status') != 'healthy' or alerts:
         logger.warning('health_monitor_unhealthy_state', extra={'snapshot': snapshot, 'alerts': alerts})
         email_result = _send_health_alert_email(snapshot, alerts)
         webhook_result = _send_health_alert_webhook(snapshot, alerts)
+        recovered = False
     else:
-        logger.info('health_monitor_ok', extra={'snapshot': snapshot})
-        email_result = {'sent': False, 'reason': 'healthy'}
-        webhook_result = {'sent': False, 'reason': 'healthy'}
+        recovered = previous_status in {'unhealthy', 'degraded', 'error'}
+        if recovered:
+            recovery_alerts = _recovery_alerts_from_previous_state(previous_state)
+            recovery_snapshot = dict(snapshot)
+            recovery_snapshot['status'] = 'recovered'
+            logger.info(
+                'health_monitor_recovered_state',
+                extra={'snapshot': snapshot, 'previous_state': previous_state},
+            )
+            email_result = _send_health_alert_email(recovery_snapshot, recovery_alerts)
+            webhook_result = _send_health_alert_webhook(recovery_snapshot, recovery_alerts)
+        else:
+            logger.info('health_monitor_ok', extra={'snapshot': snapshot})
+            email_result = {'sent': False, 'reason': 'healthy'}
+            webhook_result = {'sent': False, 'reason': 'healthy'}
+
+    _update_health_state(snapshot, alerts)
 
     return {
         'status': snapshot.get('status'),
         'alert_count': len(alerts),
         'email': email_result,
         'webhook': webhook_result,
+        'recovered': recovered,
     }

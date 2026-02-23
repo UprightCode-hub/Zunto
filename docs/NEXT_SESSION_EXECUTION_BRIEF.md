@@ -1,6 +1,6 @@
 # Next Session Execution Brief (Single Source)
 
-_Last updated: 2026-02-22 (UTC)_
+_Last updated: 2026-02-23 (UTC)_
 
 ## Purpose
 Concise, execution-first handoff for backend + frontend parity work. This file replaces scattered notes and should be treated as the primary next-session reference.
@@ -9,8 +9,8 @@ Concise, execution-first handoff for backend + frontend parity work. This file r
 - **Phase 1:** complete.
 - **Phase 2:** complete.
 - **Phase 3:** partial — async malware lifecycle still incomplete across all upload domains; product-video fail-open retry path now preserves `pending` state without a false completion timestamp.
-- **Phase 4:** partial — admin/company operations parity advanced; moderation queue reads plus product media/status/direct-upload/product-create, seller-statistics, and assistant report/evidence and market report-create admin parity now include paired domain/admin events, with only a small set of cross-domain admin mutation/read audit gaps remaining.
-- **Phase 5:** partial — diagnostics/runbook exist; backend email alert routing with cooldown is wired; baseline webhook alert routing is now added with non-fatal delivery failure handling, while broader dashboard/incident automation maturity is still pending.
+- **Phase 4:** complete — cross-domain admin mutation/read audit parity has been completed for covered backend domains (market, reviews, orders, notifications, dashboard, assistant).
+- **Phase 5:** partial — diagnostics/runbook exist; backend email alert routing with cooldown is wired; baseline webhook alert routing is now added with non-fatal delivery failure handling, while broader dashboard/incident automation maturity is still pending; health-monitor recovery-transition alerting has now been added for email/webhook channels.
 - **Phase 6:** partial — object storage baseline exists; direct-upload callback now has replay/key-scope validation hardening plus callback idempotency/content-type validation, but full quarantine/promotion lifecycle remains incomplete.
 
 ## Company Admin Portal Integration (What Exists)
@@ -69,6 +69,7 @@ Concise, execution-first handoff for backend + frontend parity work. This file r
 
 ## Most Recent Completed Chunk
 - **Phase 5 increment:** automated health-alert email routing added in backend monitor task with cooldown dedupe controls and recipient configuration (`HEALTH_ALERT_NOTIFY_EMAIL_*`).
+- **Phase 5 increment:** health-monitor now emits recovery-transition notifications (email/webhook) when state returns to healthy after prior unhealthy/degraded/error snapshots, reusing channel cooldown controls.
 - **Phase 3 increment:** product-video async scan task lifecycle tightened so scanner-unavailable fail-open keeps item `pending` and leaves `scanned_at` unset until a real scan outcome exists; task-level lifecycle tests added.
 - **Phase 6 increment:** direct-upload callback now enforces object-key product prefix and replay-token rejection to reduce object-key tampering/replay risk.
 - **Phase 6 increment:** direct-upload callback now supports idempotent replay-safe return for existing object key records and validates callback content-type against allowed upload types.
@@ -95,9 +96,9 @@ Concise, execution-first handoff for backend + frontend parity work. This file r
    - Verify frontend audit consumers do not miss new event names.
 2. **Phase 3:**
    - Complete async malware status lifecycle (`pending/clean/quarantined/rejected`) for all relevant upload flows.
-3. **Phase 5:**
+2. **Phase 5:**
    - Run fault-drill validation for email/webhook alert routing and expand dashboard/incident orchestration maturity.
-4. **Phase 6:**
+3. **Phase 6:**
    - Finish signed direct-upload + callback verification + quarantine/promotion object flow.
 
 ## Backend ↔ Frontend Contract Notes (Keep in Sync)
@@ -109,11 +110,11 @@ Concise, execution-first handoff for backend + frontend parity work. This file r
   - Review flags moderation endpoints.
   - Bulk refund decision endpoint.
 
-## Definition of Done for the Next Chunk
-- One additional pending Phase 4 admin mutation path audited. ✅ (market report/video moderation admin mutation events added)
-- Matching tests added/updated. ✅
-- If frontend impact exists, update service-layer/handoff notes in this file only.
-- Commit + PR notes recorded.
+## Phase 4 Completion Confirmation (Extensive)
+- Admin audit parity is now implemented across the previously tracked cross-domain stragglers for market/reviews/orders/assistant plus existing notifications/dashboard slices.
+- All newly added events follow ordered paired emission: `<domain.event>` then `<domain.admin.event>`.
+- Backend behavior for non-admin actors remains unchanged; admin events are additive only.
+- Frontend-contract note: new event names were additive and are now documented in this brief for downstream consumers.
 
 ## Startup Checklist
 1. Read this file.

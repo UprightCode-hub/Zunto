@@ -87,6 +87,15 @@ class SellerOrderPermissionTests(TestCase):
         self.assertIn('total_orders', response.data)
 
 
+    @patch('orders.views.audit_event')
+    def test_admin_role_seller_statistics_emits_audit_events(self, audit_mock):
+        self.client.force_authenticate(user=self.admin_role_user)
+        response = self.client.get('/api/orders/seller/statistics/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['orders.seller.statistics_viewed', 'orders.admin.seller.statistics_viewed'])
+
+
     def test_seller_can_update_item_status_to_shipped(self):
         item = OrderItem.objects.first()
         self.client.force_authenticate(user=self.seller)
