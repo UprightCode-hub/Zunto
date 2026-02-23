@@ -1,6 +1,6 @@
 # Security/Scalability Continuation Handoff (Condensed)
 
-_Last updated: 2026-02-22 (UTC)_
+_Last updated: 2026-02-23 (UTC)_
 
 This handoff was intentionally reduced to remove duplicated status text.
 
@@ -11,8 +11,8 @@ Use `docs/NEXT_SESSION_EXECUTION_BRIEF.md` as the primary execution source.
 - Phase 1: complete.
 - Phase 2: complete.
 - Phase 3: partial (async malware lifecycle completion pending).
-- Phase 4: partial (cross-domain admin mutation audit coverage still pending).
-- Phase 5: partial (alert automation/routing still pending).
+- Phase 4: complete (cross-domain admin mutation/read audit parity implemented for covered domains).
+- Phase 5: partial (alert automation/routing advanced with unhealthy + recovery notifications; broader dashboard/incident orchestration still pending).
 - Phase 6: partial (direct upload lifecycle completion still pending).
 
 ## Most recent completed chunks
@@ -87,5 +87,25 @@ Use `docs/NEXT_SESSION_EXECUTION_BRIEF.md` as the primary execution source.
   - paired domain/admin events for seller-orders list and seller-order detail admin views
   - tests updated to assert paired emission order.
 
+
+- Added Phase 4 cross-domain edge parity slice:
+  - paired domain/admin events for market moderation queue reads:
+    - `market.report.moderation_queue_viewed` / `market.admin.report.moderation_queue_viewed`
+    - `market.video_scan.queue_viewed` / `market.admin.video_scan.queue_viewed`
+  - paired domain/admin events for review moderation queue reads:
+    - `reviews.flag.moderation_queue_viewed` / `reviews.admin.flag.moderation_queue_viewed`
+  - paired domain/admin events for seller statistics admin reads:
+    - `orders.seller.statistics_viewed` / `orders.admin.seller.statistics_viewed`
+  - paired domain/admin events for staff evidence upload mutation paths:
+    - `assistant.report.evidence_uploaded` / `assistant.admin.report.evidence_uploaded`
+    - `assistant.report.evidence_validation_enqueue_failed` / `assistant.admin.report.evidence_validation_enqueue_failed`
+  - tests updated/added to assert ordered domain→admin emission for covered paths.
+
+
+- Added Phase 5 recovery-transition alert routing slice:
+  - monitor task now sends recovery notifications when health state returns to healthy after prior unhealthy/degraded/error states
+  - recovery notifications are sent over existing email/webhook channels and reuse channel cooldown controls
+  - tests added for recovery notification send/no-send behavior.
+
 ## Next action
-Continue with one pending Phase 4 admin mutation audit slice and corresponding tests.
+Continue Phase 5 alert-routing/incident automation maturity, in parallel with Phase 3 async malware lifecycle completion and Phase 6 storage hardening.

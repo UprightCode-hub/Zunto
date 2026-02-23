@@ -596,6 +596,14 @@ class ProductReportModerationView(generics.ListAPIView):
                 'reason_filter': reason_filter or None,
             },
         )
+        audit_event(
+            self.request,
+            action='market.admin.report.moderation_queue_viewed',
+            extra={
+                'status_filter': status_filter or None,
+                'reason_filter': reason_filter or None,
+            },
+        )
 
         return queryset
 
@@ -699,6 +707,11 @@ class ProductVideoModerationQueueView(generics.ListAPIView):
         audit_event(
             self.request,
             action='market.video_scan.queue_viewed',
+            extra={'status_filter': status_filter or None},
+        )
+        audit_event(
+            self.request,
+            action='market.admin.video_scan.queue_viewed',
             extra={'status_filter': status_filter or None},
         )
         return queryset

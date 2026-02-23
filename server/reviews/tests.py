@@ -128,10 +128,11 @@ class ReviewFlagModerationTests(APITestCase):
         self.client.force_authenticate(user=self.admin)
         response = self.client.get('/api/reviews/reviews/flags/moderation/?status=pending')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertGreaterEqual(len(response.data), 1)
-        self.assertTrue(any(item['id'] == str(self.flag.id) for item in response.data))
-        audit_mock.assert_called_once()
-        self.assertEqual(audit_mock.call_args.kwargs['action'], 'reviews.flag.moderation_queue_viewed')
+        payload = response.data.get('results', response.data)
+        self.assertGreaterEqual(len(payload), 1)
+        self.assertTrue(any(item['id'] == str(self.flag.id) for item in payload))
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['reviews.flag.moderation_queue_viewed', 'reviews.admin.flag.moderation_queue_viewed'])
 
     def test_admin_can_moderate_review_flag(self):
         self.client.force_authenticate(user=self.admin)

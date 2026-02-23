@@ -419,6 +419,14 @@ class ReviewFlagModerationQueueView(generics.ListAPIView):
                 'reason_filter': reason_filter or None,
             },
         )
+        audit_event(
+            self.request,
+            action='reviews.admin.flag.moderation_queue_viewed',
+            extra={
+                'status_filter': status_filter or None,
+                'reason_filter': reason_filter or None,
+            },
+        )
         return queryset
 
 

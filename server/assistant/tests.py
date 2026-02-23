@@ -218,6 +218,40 @@ class APIEndpointTests(APITestCase):
 
     @patch('assistant.views.validate_dispute_media_task.delay', side_effect=Exception('queue-down'))
     @patch('assistant.views.audit_event')
+    def test_staff_evidence_upload_emits_admin_and_domain_audit_events(self, audit_mock, _delay_mock):
+        owner = User.objects.create_user(username='staff-dispute-owner', password='ownerpass123')
+        report = Report.objects.create(
+            user=owner,
+            message='Staff dispute report',
+            severity='high',
+            status='pending',
+            report_type='dispute',
+            meta={},
+        )
+        self.client.force_authenticate(user=self.staff_user)
+        upload = SimpleUploadedFile('staff-proof.png', b'\x89PNG\r\n\x1a\nabc', content_type='image/png')
+
+        response = self.client.post(
+            f'/assistant/api/report/{report.id}/evidence/',
+            {'file': upload, 'media_type': 'image'},
+            format='multipart',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(
+            actions[-4:],
+            [
+                'assistant.report.evidence_validation_enqueue_failed',
+                'assistant.admin.report.evidence_validation_enqueue_failed',
+                'assistant.report.evidence_uploaded',
+                'assistant.admin.report.evidence_uploaded',
+            ],
+        )
+
+
+    @patch('assistant.views.validate_dispute_media_task.delay', side_effect=Exception('queue-down'))
+    @patch('assistant.views.audit_event')
     def test_evidence_upload_rejects_when_validation_queue_unavailable(self, audit_mock, _delay_mock):
         owner = User.objects.create_user(username='dispute-owner', password='ownerpass123')
         report = Report.objects.create(

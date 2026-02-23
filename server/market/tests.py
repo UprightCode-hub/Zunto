@@ -245,6 +245,34 @@ class SellerPermissionTests(TestCase):
         response = self.client.get('/api/market/reports/moderation/')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    @patch('market.views.audit_event')
+    def test_report_moderation_queue_emits_domain_and_admin_audit_events(self, audit_mock):
+        product = Product.objects.create(
+            seller=self.seller,
+            title='Reported queue product',
+            description='Queue moderation audit',
+            listing_type='product',
+            price=Decimal('82.00'),
+            quantity=1,
+            condition='new',
+            status='active',
+            category=self.category,
+        )
+        ProductReport.objects.create(
+            product=product,
+            reporter=self.buyer,
+            reason='spam',
+            description='Queue listing',
+            status='pending',
+        )
+
+        self.client.force_authenticate(user=self.admin_role_user)
+        response = self.client.get('/api/market/reports/moderation/?status=pending')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['market.report.moderation_queue_viewed', 'market.admin.report.moderation_queue_viewed'])
+
     def test_invalid_report_status_transition_is_rejected(self):
         product = Product.objects.create(
             seller=self.seller,
@@ -346,7 +374,8 @@ class SellerPermissionTests(TestCase):
         schedule_mock.assert_called_once_with(str(created_video.id))
 
 
-    def test_admin_can_list_video_scan_moderation_queue(self):
+    @patch('market.views.audit_event')
+    def test_admin_can_list_video_scan_moderation_queue(self, audit_mock):
         product = Product.objects.create(
             seller=self.seller,
             title='Video queue product',
@@ -373,6 +402,8 @@ class SellerPermissionTests(TestCase):
         payload = response.data.get('results', response.data)
         self.assertGreaterEqual(len(payload), 1)
         self.assertEqual(payload[0].get('security_scan_status'), ProductVideo.SCAN_QUARANTINED)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['market.video_scan.queue_viewed', 'market.admin.video_scan.queue_viewed'])
 
 
     def test_admin_can_mark_quarantined_video_clean(self):

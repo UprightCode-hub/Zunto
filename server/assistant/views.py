@@ -1124,8 +1124,16 @@ def upload_report_evidence(request, report_id):
             action='assistant.report.evidence_validation_enqueue_failed',
             extra={'report_id': report.id, 'media_id': media.id, 'media_type': media_type},
         )
+        if request.user.is_staff:
+            audit_event(
+                request,
+                action='assistant.admin.report.evidence_validation_enqueue_failed',
+                extra={'report_id': report.id, 'media_id': media.id, 'media_type': media_type},
+            )
 
     audit_event(request, action='assistant.report.evidence_uploaded', extra={'report_id': report.id, 'media_id': media.id, 'media_type': media_type})
+    if request.user.is_staff:
+        audit_event(request, action='assistant.admin.report.evidence_uploaded', extra={'report_id': report.id, 'media_id': media.id, 'media_type': media_type})
     serializer = DisputeMediaSerializer(media, context={'request': request})
     return Response(serializer.data, status=status.HTTP_202_ACCEPTED)
 

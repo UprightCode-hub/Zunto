@@ -33,7 +33,7 @@ class HealthAlertRoutingTaskTests(TestCase):
         self.assertEqual(result['alert_count'], 1)
         self.assertTrue(result['email']['sent'])
         send_mail_mock.assert_called_once()
-        cache_mock.set.assert_called_once()
+        self.assertGreaterEqual(cache_mock.set.call_count, 1)
 
     @override_settings(
         HEALTH_ALERT_NOTIFY_EMAIL_ENABLED=True,
@@ -184,3 +184,62 @@ class HealthAlertRoutingTaskTests(TestCase):
         self.assertEqual(result['status'], 'unhealthy')
         self.assertFalse(result['webhook']['sent'])
         self.assertEqual(result['webhook']['reason'], 'delivery_failed')
+
+
+    @override_settings(
+        HEALTH_ALERT_NOTIFY_EMAIL_ENABLED=True,
+        HEALTH_ALERT_RECIPIENTS=['ops@example.com'],
+        HEALTH_ALERT_NOTIFY_WEBHOOK_ENABLED=True,
+        HEALTH_ALERT_WEBHOOK_URL='https://example.com/hooks/health',
+    )
+    @patch('core.tasks.cache')
+    @patch('core.tasks.requests.post')
+    @patch('core.tasks.send_mail')
+    @patch('core.tasks.evaluate_health_snapshot')
+    def test_healthy_after_unhealthy_sends_recovery_notifications(self, snapshot_mock, send_mail_mock, webhook_post_mock, cache_mock):
+        snapshot_mock.return_value = {
+            'status': 'healthy',
+            'database': 'ok',
+            'cache': 'ok',
+            'celery': 'ok',
+            'queue_depth': 'ok',
+            'diagnostics': {'alerts': []},
+        }
+
+        def cache_get_side_effect(key):
+            if key == 'health-alert:last-state':
+                return {'status': 'unhealthy', 'alert_kinds': ['celery_active_tasks_high']}
+            return None
+
+        cache_mock.get.side_effect = cache_get_side_effect
+
+        result = monitor_system_health_alerts()
+
+        self.assertTrue(result['recovered'])
+        self.assertEqual(result['email']['reason'], 'delivered')
+        self.assertEqual(result['webhook']['reason'], 'delivered')
+        send_mail_mock.assert_called_once()
+        webhook_post_mock.assert_called_once()
+
+    @patch('core.tasks.cache')
+    @patch('core.tasks.send_mail')
+    @patch('core.tasks.requests.post')
+    @patch('core.tasks.evaluate_health_snapshot')
+    def test_healthy_without_previous_unhealthy_skips_recovery_notifications(self, snapshot_mock, webhook_post_mock, send_mail_mock, cache_mock):
+        snapshot_mock.return_value = {
+            'status': 'healthy',
+            'database': 'ok',
+            'cache': 'ok',
+            'celery': 'ok',
+            'queue_depth': 'ok',
+            'diagnostics': {'alerts': []},
+        }
+        cache_mock.get.return_value = {'status': 'healthy', 'alert_kinds': []}
+
+        result = monitor_system_health_alerts()
+
+        self.assertFalse(result['recovered'])
+        self.assertEqual(result['email']['reason'], 'healthy')
+        self.assertEqual(result['webhook']['reason'], 'healthy')
+        send_mail_mock.assert_not_called()
+        webhook_post_mock.assert_not_called()
