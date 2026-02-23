@@ -11,7 +11,7 @@ Use `docs/NEXT_SESSION_EXECUTION_BRIEF.md` as the primary execution source.
 - Phase 1: complete.
 - Phase 2: complete.
 - Phase 3: partial (async malware lifecycle completion pending).
-- Phase 4: partial (cross-domain admin mutation audit coverage still pending).
+- Phase 4: partial (moderation queue read parity advanced; cross-domain admin mutation/read audit coverage still pending).
 - Phase 5: partial (alert automation/routing still pending).
 - Phase 6: partial (direct upload lifecycle completion still pending).
 
@@ -86,6 +86,57 @@ Use `docs/NEXT_SESSION_EXECUTION_BRIEF.md` as the primary execution source.
 - Added Phase 4 orders seller read-path audit parity slice:
   - paired domain/admin events for seller-orders list and seller-order detail admin views
   - tests updated to assert paired emission order.
+
+- Added Phase 4 moderation-queue admin read audit parity slice:
+  - paired domain/admin events for market report moderation queue views
+  - paired domain/admin events for market video-scan queue views
+  - paired domain/admin events for review-flag moderation queue views
+  - tests updated to assert paired emission order.
+
+- Added Phase 4 market product-create admin mutation audit parity slice:
+  - paired domain/admin events for product creation by admin actors
+  - existing seller product-create domain event remains unchanged
+  - tests added to assert paired emission order for admin and domain-only behavior for sellers.
+
+- Added Phase 4 market direct-upload-ticket admin mutation audit parity slice:
+  - paired domain/admin events for direct-upload ticket issuance by admin actors
+  - existing seller direct-upload ticket domain event remains unchanged
+  - tests added to assert paired emission order for admins and domain-only behavior for sellers.
+
+- Added Phase 4 market direct-upload-callback admin mutation audit parity slice:
+  - paired domain/admin events for verified direct-upload callbacks by admin actors
+  - existing seller direct-upload callback domain event remains unchanged
+  - tests added to assert paired emission order for admins and domain-only behavior for sellers.
+
+- Added Phase 4 market product-status admin mutation audit parity slice:
+  - paired domain/admin events for mark-sold and reactivate actions by admin actors
+  - existing seller product-status domain events remain unchanged
+  - tests added to assert paired emission order for admins and domain-only behavior for sellers.
+
+- Added Phase 4 market product-image admin mutation audit parity slice:
+  - paired domain/admin events for product-image upload and delete actions by admin actors
+  - existing seller product-image domain events remain unchanged
+  - tests added to assert paired emission order for admins and domain-only behavior for sellers.
+
+- Added Phase 4 market product-video-upload admin mutation audit parity slice:
+  - paired domain/admin events for product-video uploads by admin actors
+  - existing seller product-video upload domain event remains unchanged
+  - tests added to assert paired emission order for admins and domain-only behavior for sellers.
+
+- Added Phase 4 orders seller-statistics admin read audit parity slice:
+  - paired domain/admin events for seller statistics admin views
+  - tests updated to assert paired emission order.
+
+- Added Phase 4 assistant report/evidence admin mutation audit parity slice:
+  - paired domain/admin events for staff report creation
+  - paired domain/admin events for staff evidence uploads
+  - paired domain/admin events for staff evidence-validation enqueue failures
+  - tests added/updated for paired emission order (assistant test execution may require app-loading fixes in this environment).
+
+- Added Phase 4 market report-create admin mutation audit parity slice:
+  - paired domain/admin events for product-report creation by admin actors
+  - existing non-admin report-create domain event remains unchanged
+  - tests added to assert paired emission order for admins and domain-only behavior for non-admins.
 
 ## Next action
 Continue with one pending Phase 4 admin mutation audit slice and corresponding tests.

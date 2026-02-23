@@ -9,7 +9,7 @@ Concise, execution-first handoff for backend + frontend parity work. This file r
 - **Phase 1:** complete.
 - **Phase 2:** complete.
 - **Phase 3:** partial — async malware lifecycle still incomplete across all upload domains; product-video fail-open retry path now preserves `pending` state without a false completion timestamp.
-- **Phase 4:** partial — admin/company operations parity advanced, but cross-domain admin audit coverage still incomplete.
+- **Phase 4:** partial — admin/company operations parity advanced; moderation queue reads plus product media/status/direct-upload/product-create, seller-statistics, and assistant report/evidence and market report-create admin parity now include paired domain/admin events, with only a small set of cross-domain admin mutation/read audit gaps remaining.
 - **Phase 5:** partial — diagnostics/runbook exist; backend email alert routing with cooldown is wired; baseline webhook alert routing is now added with non-fatal delivery failure handling, while broader dashboard/incident automation maturity is still pending.
 - **Phase 6:** partial — object storage baseline exists; direct-upload callback now has replay/key-scope validation hardening plus callback idempotency/content-type validation, but full quarantine/promotion lifecycle remains incomplete.
 
@@ -27,16 +27,32 @@ Concise, execution-first handoff for backend + frontend parity work. This file r
   - `reviews.flag.moderated` (domain-level moderation)
   - `reviews.admin.flag.moderated` (admin moderation path)
   - `assistant.report.evidence_validation_enqueue_failed` (fail-closed when async validation queue is unavailable)
+  - `assistant.report.created` / `assistant.admin.report.created`
+  - `assistant.report.evidence_uploaded` / `assistant.admin.report.evidence_uploaded`
+  - `assistant.report.evidence_validation_enqueue_failed` / `assistant.admin.report.evidence_validation_enqueue_failed`
   - `notifications.admin.email_templates.viewed` (admin template listing)
   - `notifications.admin.email_statistics.viewed` (admin email metrics listing)
   - `market.admin.report.moderated` (admin actor product-report moderation path)
+  - `market.report.created` / `market.admin.report.created`
   - `market.admin.video_scan.moderated` (admin actor video-scan moderation path)
+  - `market.product.created` / `market.admin.product.created`
+  - `market.product.mark_sold` / `market.admin.product.mark_sold`
+  - `market.product.reactivated` / `market.admin.product.reactivated`
+  - `market.product.image_uploaded` / `market.admin.product.image_uploaded`
+  - `market.product.image_deleted` / `market.admin.product.image_deleted`
+  - `market.video_upload.submitted` / `market.admin.video_upload.submitted`
+  - `market.video_upload.ticket_issued` / `market.admin.video_upload.ticket_issued`
+  - `market.video_upload.callback_verified` / `market.admin.video_upload.callback_verified`
+  - `market.report.moderation_queue_viewed` / `market.admin.report.moderation_queue_viewed`
+  - `market.video_scan.queue_viewed` / `market.admin.video_scan.queue_viewed`
+  - `reviews.flag.moderation_queue_viewed` / `reviews.admin.flag.moderation_queue_viewed`
   - `orders.refund.process_initiated` / `orders.admin.refund.process_initiated`
   - `orders.refund.process_failed` / `orders.admin.refund.process_failed`
   - `orders.refund.process_rejected` / `orders.admin.refund.process_rejected`
   - `orders.refund.bulk_decision_applied` / `orders.admin.refund.bulk_decision_applied`
   - `orders.seller_orders_viewed` / `orders.admin.seller_orders_viewed`
   - `orders.seller_order_detail_viewed` / `orders.admin.seller_order_detail_viewed`
+  - `orders.seller.statistics_viewed` / `orders.admin.seller.statistics_viewed`
   - `notifications.email_templates.viewed` / `notifications.admin.email_templates.viewed`
   - `notifications.email_statistics.viewed` / `notifications.admin.email_statistics.viewed`
   - `assistant.logs.viewed` / `assistant.admin.logs.viewed`
@@ -61,10 +77,20 @@ Concise, execution-first handoff for backend + frontend parity work. This file r
 - **Phase 4 increment:** assistant admin observability read paths now emit paired domain+admin events with updated tests.
 - **Phase 4 increment:** dashboard admin read paths now emit paired domain+admin events with updated tests.
 - **Phase 4 increment:** orders seller list/detail admin read paths now emit paired domain+admin events with updated tests.
+- **Phase 4 increment:** market/reviews moderation queue admin read paths now emit paired domain+admin events with updated tests.
+- **Phase 4 increment:** market product-create admin mutation path now emits paired domain+admin events with updated tests.
+- **Phase 4 increment:** market direct-upload-ticket admin mutation path now emits paired domain+admin events with updated tests.
+- **Phase 4 increment:** market direct-upload-callback admin mutation path now emits paired domain+admin events with updated tests.
+- **Phase 4 increment:** market product status admin mutation paths now emit paired domain+admin events with updated tests.
+- **Phase 4 increment:** market product-image admin mutation paths now emit paired domain+admin events with updated tests.
+- **Phase 4 increment:** market product-video upload admin mutation path now emits paired domain+admin events with updated tests.
+- **Phase 4 increment:** orders seller-statistics admin read path now emits paired domain+admin events with updated tests.
+- **Phase 4 increment:** assistant report/evidence mutation admin parity now emits paired domain+admin events with updated tests.
+- **Phase 4 increment:** market report-create admin mutation path now emits paired domain+admin events with updated tests.
 
 ## High-Priority Pending Work (Execution Order)
 1. **Phase 4 (continue now):**
-   - Expand `audit_event` coverage for remaining high-impact admin mutations (orders/reviews/notifications/assistant/admin-only write actions).
+   - Finish the final high-impact admin mutation/read parity stragglers (cross-domain edge paths) and lock regression coverage.
    - Add/extend backend tests for each added admin mutation event.
    - Verify frontend audit consumers do not miss new event names.
 2. **Phase 3:**

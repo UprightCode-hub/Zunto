@@ -141,6 +141,21 @@ class APIEndpointTests(APITestCase):
         response = self.client.post(url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Report.objects.count(), 1)
+
+
+    @patch('assistant.views.audit_event')
+    def test_staff_report_create_emits_domain_and_admin_audit_events(self, audit_mock):
+        self.client.force_authenticate(user=self.staff_user)
+
+        response = self.client.post(
+            '/assistant/api/report/',
+            {'message': 'Need admin-created report', 'severity': 'high'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['assistant.report.created', 'assistant.admin.report.created'])
     
     def test_admin_endpoints_require_staff(self):
         """Admin endpoints should require staff permission."""
@@ -216,6 +231,32 @@ class APIEndpointTests(APITestCase):
         self.assertEqual(actions, ['assistant.report.closed', 'assistant.admin.report.closed'])
 
 
+
+    @patch('assistant.views.audit_event')
+    @patch('assistant.views.validate_dispute_media_task.delay')
+    def test_staff_evidence_upload_emits_domain_and_admin_audit_events(self, _delay_mock, audit_mock):
+        owner = User.objects.create_user(username='dispute-owner-staff', password='ownerpass123')
+        report = Report.objects.create(
+            user=owner,
+            message='Dispute report for staff upload',
+            severity='high',
+            status='pending',
+            report_type='dispute',
+            meta={},
+        )
+        self.client.force_authenticate(user=self.staff_user)
+        upload = SimpleUploadedFile('proof-staff.png', b'\x89PNG\r\n\x1a\nabc', content_type='image/png')
+
+        response = self.client.post(
+            f'/assistant/api/report/{report.id}/evidence/',
+            {'file': upload, 'media_type': 'image'},
+            format='multipart',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertEqual(actions[-2:], ['assistant.report.evidence_uploaded', 'assistant.admin.report.evidence_uploaded'])
+
     @patch('assistant.views.validate_dispute_media_task.delay', side_effect=Exception('queue-down'))
     @patch('assistant.views.audit_event')
     def test_evidence_upload_rejects_when_validation_queue_unavailable(self, audit_mock, _delay_mock):
@@ -246,6 +287,35 @@ class APIEndpointTests(APITestCase):
         actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
         self.assertIn('assistant.report.evidence_validation_enqueue_failed', actions)
         self.assertIn('assistant.report.evidence_uploaded', actions)
+
+
+    @patch('assistant.views.validate_dispute_media_task.delay', side_effect=Exception('queue-down'))
+    @patch('assistant.views.audit_event')
+    def test_staff_evidence_upload_queue_failure_emits_domain_and_admin_failure_events(self, audit_mock, _delay_mock):
+        owner = User.objects.create_user(username='dispute-owner-staff-fail', password='ownerpass123')
+        report = Report.objects.create(
+            user=owner,
+            message='Dispute report staff failure',
+            severity='high',
+            status='pending',
+            report_type='dispute',
+            meta={},
+        )
+        self.client.force_authenticate(user=self.staff_user)
+        upload = SimpleUploadedFile('proof-staff-fail.png', b'\x89PNG\r\n\x1a\nabc', content_type='image/png')
+
+        response = self.client.post(
+            f'/assistant/api/report/{report.id}/evidence/',
+            {'file': upload, 'media_type': 'image'},
+            format='multipart',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertIn('assistant.report.evidence_validation_enqueue_failed', actions)
+        self.assertIn('assistant.admin.report.evidence_validation_enqueue_failed', actions)
+        self.assertIn('assistant.report.evidence_uploaded', actions)
+        self.assertIn('assistant.admin.report.evidence_uploaded', actions)
 
 class ModelTests(TestCase):
     """Test database models."""
