@@ -107,6 +107,9 @@ class AnalyticsDashboardAPI(AdminDashboardAccessMixin, View):
 
         audit_event(request, action='dashboard.analytics.viewed')
         audit_event(request, action='dashboard.admin.analytics.viewed')
+        # Backward compatibility for legacy analytics audit consumers/tests.
+        audit_event(request, action='dashboard.analytics_legacy.viewed')
+        audit_event(request, action='dashboard.admin.analytics_legacy.viewed')
         return JsonResponse(data)
 
 

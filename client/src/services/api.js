@@ -690,22 +690,46 @@ export const sendMarketplaceChatMessage = (conversationId, content, messageType 
   });
 };
 
-export const sendAssistantMessage = (message, sessionId = null, userId = null, assistantLane = 'inbox') => {
-  const payload = { message };
+const normalizeAssistantMode = (modeOrLane = 'inbox_general') => {
+  if (modeOrLane === 'inbox') {
+    return 'inbox_general';
+  }
+  if (modeOrLane === 'general') {
+    return 'inbox_general';
+  }
+  return modeOrLane || 'inbox_general';
+};
+
+export const sendAssistantMessage = (message, sessionId = null, userId = null, assistantMode = 'inbox_general', signal = undefined) => {
+  const payload = {
+    message,
+    assistant_mode: normalizeAssistantMode(assistantMode),
+  };
   if (sessionId) {
     payload.session_id = sessionId;
   }
   if (userId) {
     payload.user_id = userId;
   }
-  if (assistantLane && assistantLane !== 'inbox') {
-    payload.assistant_lane = assistantLane;
-  }
 
   return apiCall('/assistant/api/chat/', {
     method: 'POST',
     body: JSON.stringify(payload),
+    signal,
   });
+};
+
+
+export const getAssistantSessions = ({ assistantMode = null, excludeCustomerService = false, signal = undefined } = {}) => {
+  const params = new URLSearchParams();
+  if (assistantMode) {
+    params.set('assistant_mode', assistantMode);
+  }
+  if (excludeCustomerService) {
+    params.set('exclude_customer_service', 'true');
+  }
+  const query = params.toString();
+  return apiCall(`/assistant/api/chat/sessions/${query ? `?${query}` : ''}`, { signal });
 };
 
 export const sendHomepageRecommendationMessage = (message, sessionId = null, userId = null) => (
