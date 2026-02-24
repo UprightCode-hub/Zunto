@@ -12,6 +12,42 @@ import {
 
 const AuthContext = createContext();
 
+
+const extractErrorMessage = (error, fallbackMessage) => {
+  const data = error?.data;
+
+  const pickMessage = (value) => {
+    if (!value) {
+      return null;
+    }
+    if (typeof value === 'string') {
+      return value;
+    }
+    if (Array.isArray(value)) {
+      return value.find((item) => typeof item === 'string') || null;
+    }
+    if (typeof value === 'object') {
+      for (const nested of Object.values(value)) {
+        const nestedMessage = pickMessage(nested);
+        if (nestedMessage) {
+          return nestedMessage;
+        }
+      }
+    }
+    return null;
+  };
+
+  return (
+    pickMessage(data?.detail)
+    || pickMessage(data?.error)
+    || pickMessage(data?.message)
+    || pickMessage(data?.non_field_errors)
+    || pickMessage(data)
+    || error?.message
+    || fallbackMessage
+  );
+};
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -73,22 +109,7 @@ export const AuthProvider = ({ children }) => {
 
       return { success: true, data };
     } catch (error) {
-      const errorData = error.data;
-      let errorMessage = 'Login failed. Please try again.';
-
-      if (errorData) {
-        if (errorData.detail) {
-          errorMessage = errorData.detail;
-        } else if (errorData.non_field_errors) {
-          errorMessage = Array.isArray(errorData.non_field_errors)
-            ? errorData.non_field_errors[0]
-            : errorData.non_field_errors;
-        } else if (errorData.error) {
-          errorMessage = errorData.error;
-        }
-      }
-
-      return { success: false, error: errorMessage };
+      return { success: false, error: extractErrorMessage(error, 'Login failed. Please try again.') };
     }
   };
 
@@ -97,44 +118,7 @@ export const AuthProvider = ({ children }) => {
       const data = await registerAPI(userData);
       return { success: true, data };
     } catch (error) {
-      const errorData = error.data;
-      let errorMessage = 'Registration failed. Please try again.';
-
-      if (errorData) {
-        if (errorData.password) {
-          errorMessage = Array.isArray(errorData.password)
-            ? errorData.password[0]
-            : errorData.password;
-        } else if (errorData.email) {
-          errorMessage = Array.isArray(errorData.email)
-            ? errorData.email[0]
-            : errorData.email;
-        } else if (errorData.first_name) {
-          errorMessage = Array.isArray(errorData.first_name)
-            ? errorData.first_name[0]
-            : errorData.first_name;
-        } else if (errorData.last_name) {
-          errorMessage = Array.isArray(errorData.last_name)
-            ? errorData.last_name[0]
-            : errorData.last_name;
-        } else if (errorData.phone) {
-          errorMessage = Array.isArray(errorData.phone)
-            ? errorData.phone[0]
-            : errorData.phone;
-        } else if (errorData.detail) {
-          errorMessage = errorData.detail;
-        } else if (errorData.message) {
-          errorMessage = errorData.message;
-        } else if (errorData.error) {
-          errorMessage = errorData.error;
-        } else if (errorData.non_field_errors) {
-          errorMessage = Array.isArray(errorData.non_field_errors)
-            ? errorData.non_field_errors[0]
-            : errorData.non_field_errors;
-        }
-      }
-
-      return { success: false, error: errorMessage };
+      return { success: false, error: extractErrorMessage(error, 'Registration failed. Please try again.') };
     }
   };
 
@@ -156,8 +140,7 @@ export const AuthProvider = ({ children }) => {
 
       return { success: true, data };
     } catch (error) {
-      const errorData = error.data;
-      const errorMessage = errorData?.error || errorData?.detail || error.message || 'Verification failed.';
+      const errorMessage = extractErrorMessage(error, 'Verification failed.');
       return { success: false, error: errorMessage };
     }
   };
@@ -167,8 +150,7 @@ export const AuthProvider = ({ children }) => {
       const data = await resendRegistrationCodeAPI(email);
       return { success: true, data };
     } catch (error) {
-      const errorData = error.data;
-      const errorMessage = errorData?.error || errorData?.detail || error.message || 'Failed to resend verification code.';
+      const errorMessage = extractErrorMessage(error, 'Failed to resend verification code.');
       return { success: false, error: errorMessage };
     }
   };
