@@ -10,21 +10,18 @@ from core.views import health_check, marketplace_view
                                           
 urlpatterns = [
     path('admin/', admin.site.urls),
-                                                                   
-                                                            
-                                                               
-                                                                    
-                                                                          
+                                                                                                                
+                                                                                     
                                                                               
     path('health/', health_check, name='health_check'),
     path('market/', include('market.urls')),
     
                                   
                                                                         
-    path('', RedirectView.as_view(url='/Zunto/server/market/templates/products.html/', permanent=False)),
+    # path('', RedirectView.as_view(url='/Zunto/server/market/templates/products.html/', permanent=False)),
     
                               
-    #path('assistant/', include('assistant.urls')),
+    path('assistant/', include('assistant.urls')),
     
                            
     path('marketplace/', marketplace_view, {'section': 'products', 'page': 'index'}, name='marketplace_home'),
@@ -43,7 +40,7 @@ urlpatterns = [
                 
                                                                            
                                                                   
-    path('accounts/', include(('accounts.urls', 'accounts'), namespace='accounts')),
+    path('', include(('accounts.urls', 'accounts'), namespace='accounts')),
     path('api/accounts/', include(('accounts.urls', 'accounts_api'), namespace='accounts_api')),
     path('api/market/', include('market.urls')),
     path('api/reviews/', include('reviews.urls')),
