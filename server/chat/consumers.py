@@ -25,10 +25,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
     HEARTBEAT_TIMEOUT = 45
     IDLE_TIMEOUT = 300
     EVENT_DEDUPE_TTL_SECONDS = 300
-    REPLAY_REQUEST_LIMIT = 8
-    REPLAY_REQUEST_WINDOW = 60
-    REPLAY_BUFFER_LIMIT = 200
-    REPLAY_CHUNK_SIZE = 50
 
     async def connect(self):
         self.user = self.scope['user']
@@ -117,9 +113,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
         try:
             event, parse_error = parse_ws_message(text_data)
             if parse_error:
-                await self.increment_telemetry_counter('dropped_malformed_events')
-                if str(parse_error).startswith('unsupported_protocol_version'):
-                    await self.increment_telemetry_counter('unsupported_protocol_version')
                 await self.send_error(
                     'Malformed or unsupported websocket payload',
                     reason=parse_error,
@@ -127,7 +120,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 return
 
             if await self.is_duplicate_inbound_event(event['event_id'], event.get('conversation_id')):
-                await self.increment_telemetry_counter('duplicate_events')
                 await self.send_ack(
                     'duplicate',
                     event.get('conversation_id'),
@@ -160,8 +152,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 await self.handle_typing_event(event, is_typing=False)
             elif msg_type == 'chat.read.updated':
                 await self.handle_read_event(event)
-            elif msg_type == 'chat.replay.request':
-                await self.handle_replay_request(event)
             elif msg_type == 'chat.message.send':
                 await self.send_ack(
                     'chat.message.send',
@@ -466,35 +456,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
         await self.close(code=4411)
 
     async def send_event(self, event_type, conversation_id, payload, **kwargs):
-        replayable_types = {
-            'chat.message.created',
-            'chat.message.updated',
-            'chat.message.deleted',
-            'chat.typing.start',
-            'chat.typing.stop',
-            'chat.presence.online',
-            'chat.presence.offline',
-            'chat.read.updated',
-        }
-
-        conv_id = str(conversation_id)
-        seq = kwargs.pop('seq', None)
-        if seq is None and event_type in replayable_types:
-            seq = await self.next_conversation_seq(conv_id)
-
         envelope = build_envelope(
             event_type=event_type,
-            conversation_id=conv_id,
+            conversation_id=str(conversation_id),
             payload=payload,
             actor_id=str(self.user.id) if hasattr(self, 'user') and self.user.is_authenticated else None,
             protocol_version=PROTOCOL_VERSION,
-            seq=seq,
             **kwargs,
         )
-
-        if event_type in replayable_types:
-            await self.append_replay_event(conv_id, envelope)
-
         await self.send(text_data=json.dumps(envelope))
 
     async def send_error(self, message, conv_id=None, reason=None, correlation_id=None):
@@ -613,61 +582,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
             conversation_id=str(conv_id),
             payload={'watermarks': snapshot},
             event_id=str(uuid4()),
-        )
-
-
-
-    async def handle_replay_request(self, event):
-        conv_id = event.get('conversation_id')
-        if not conv_id:
-            await self.send_ack('chat.replay.request', self.conversation_id, False, 'missing_conversation_id', correlation_id=event.get('event_id'))
-            return
-
-        if conv_id not in self.conversations:
-            await self.send_ack('chat.replay.request', conv_id, False, 'not_joined', correlation_id=event.get('event_id'))
-            return
-
-        if not await self.allow_replay_request(conv_id):
-            await self.send_ack('chat.replay.request', conv_id, False, 'rate_limited', correlation_id=event.get('event_id'))
-            return
-
-        payload = event.get('payload', {})
-        from_seq = payload.get('from_seq')
-        if not isinstance(from_seq, int) or from_seq < 1:
-            await self.send_ack('chat.replay.request', conv_id, False, 'invalid_from_seq', correlation_id=event.get('event_id'))
-            return
-
-        events = await self.get_replay_events_since(conv_id, from_seq)
-        if not events:
-            await self.send_event(
-                event_type='chat.replay.complete',
-                conversation_id=conv_id,
-                payload={'from_seq': from_seq, 'replayed_count': 0},
-                correlation_id=event.get('event_id'),
-            )
-            return
-
-        total = 0
-        for i in range(0, len(events), self.REPLAY_CHUNK_SIZE):
-            chunk = events[i:i+self.REPLAY_CHUNK_SIZE]
-            total += len(chunk)
-            await self.send_event(
-                event_type='chat.replay.chunk',
-                conversation_id=conv_id,
-                payload={
-                    'from_seq': from_seq,
-                    'events': chunk,
-                    'chunk_size': len(chunk),
-                },
-                correlation_id=event.get('event_id'),
-            )
-
-        last_seq = events[-1].get('seq')
-        await self.send_event(
-            event_type='chat.replay.complete',
-            conversation_id=conv_id,
-            payload={'from_seq': from_seq, 'to_seq': last_seq, 'replayed_count': total},
-            correlation_id=event.get('event_id'),
         )
 
 
@@ -830,44 +744,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         cache.set(key, str(last_read_message_id), 60 * 60 * 24)
         return True
-
-    @database_sync_to_async
-    def next_conversation_seq(self, conv_id):
-        key = f"chat_seq:{conv_id}"
-        seq = cache.get(key, 0) + 1
-        cache.set(key, seq, 60 * 60 * 24)
-        return seq
-
-    @database_sync_to_async
-    def append_replay_event(self, conv_id, envelope):
-        key = f"chat_replay_buf:{conv_id}"
-        events = cache.get(key, [])
-        events.append(envelope)
-        if len(events) > self.REPLAY_BUFFER_LIMIT:
-            events = events[-self.REPLAY_BUFFER_LIMIT:]
-        cache.set(key, events, 60 * 60 * 24)
-
-    @database_sync_to_async
-    def get_replay_events_since(self, conv_id, from_seq):
-        key = f"chat_replay_buf:{conv_id}"
-        events = cache.get(key, [])
-        return [event for event in events if isinstance(event.get('seq'), int) and event.get('seq') >= from_seq]
-
-    @database_sync_to_async
-    def allow_replay_request(self, conv_id):
-        key = f"chat_replay_rate:{self.user.id}:{conv_id}"
-        count = cache.get(key, 0)
-        if count >= self.REPLAY_REQUEST_LIMIT:
-            return False
-        cache.set(key, count + 1, self.REPLAY_REQUEST_WINDOW)
-        return True
-
-    @database_sync_to_async
-    def increment_telemetry_counter(self, metric):
-        key = f"chat_ws_metric:{metric}"
-        count = cache.get(key, 0)
-        cache.set(key, count + 1, 60 * 60 * 24)
-
 
     @database_sync_to_async
     def check_typing_rate_limit(self, user_id, conv_id):

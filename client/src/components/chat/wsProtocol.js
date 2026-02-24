@@ -17,9 +17,6 @@ const ALLOWED_EVENT_TYPES = new Set([
   'chat.presence.snapshot',
   'chat.read.updated',
   'chat.read.snapshot',
-  'chat.replay.request',
-  'chat.replay.chunk',
-  'chat.replay.complete',
 ]);
 
 const LEGACY_TYPE_MAP = {

@@ -69,15 +69,6 @@ export default function MarketplaceInbox({
   const [typingMap, setTypingMap] = useState(new Map());
   const [presenceMap, setPresenceMap] = useState(new Map());
   const [readMap, setReadMap] = useState(new Map());
-  const lastSeenSeqRef = useRef(new Map());
-  const reorderBufferRef = useRef(new Map());
-  const pendingReplayRef = useRef(new Set());
-  const telemetryRef = useRef({
-    duplicateEvents: 0,
-    droppedMalformedEvents: 0,
-    reorderBufferOverflow: 0,
-    unsupportedProtocolVersion: 0,
-  });
 
 
   const clearTypingForConversation = (conversationId) => {
@@ -222,177 +213,6 @@ export default function MarketplaceInbox({
     }
   }, [emitTypingEvent]);
 
-
-  const incrementTelemetry = (metric) => {
-    telemetryRef.current[metric] = (telemetryRef.current[metric] || 0) + 1;
-  };
-
-  const sendReplayRequest = (socket, conversationId, fromSeq) => {
-    const replayKey = `${conversationId}:${fromSeq}`;
-    if (pendingReplayRef.current.has(replayKey)) {
-      return;
-    }
-    pendingReplayRef.current.add(replayKey);
-    socket.send(JSON.stringify(buildClientWsEnvelope({
-      type: 'chat.replay.request',
-      conversationId,
-      actorId: user?.id,
-      payload: { from_seq: fromSeq },
-      idempotencyKey: `replay-${conversationId}-${fromSeq}`,
-    })));
-  };
-
-  const getConversationHandlers = (socket) => ({
-    'chat.message.created': (typedEvent) => {
-      const nextMessage = typedEvent?.payload?.message;
-      clearTypingForConversation(typedEvent.conversation_id);
-      if (!nextMessage?.id) return;
-      setMessages((prev) => {
-        if (prev.some((item) => item.id === nextMessage.id)) {
-          return prev;
-        }
-        return [...prev, nextMessage];
-      });
-    },
-    'chat.message.deleted': (typedEvent) => {
-      const messageId = typedEvent?.payload?.message_id;
-      if (!messageId) return;
-      setMessages((prev) => prev.filter((item) => String(item.id) !== String(messageId)));
-    },
-    'chat.message.ack': () => {},
-    'chat.history.synced': (typedEvent) => {
-      const history = typedEvent?.payload?.messages;
-      if (!Array.isArray(history)) return;
-      setMessages(history);
-    },
-    'chat.error': (typedEvent) => {
-      console.warn('Chat protocol error:', typedEvent?.payload?.reason || typedEvent?.payload?.message);
-    },
-    'chat.warning': () => {},
-    'chat.typing.start': (typedEvent) => {
-      const actorId = typedEvent?.payload?.actor_id || typedEvent?.actor_id;
-      if (!actorId || String(actorId) === String(user?.id)) return;
-      upsertTyping(typedEvent.conversation_id, actorId);
-    },
-    'chat.typing.stop': (typedEvent) => {
-      clearTypingForConversation(typedEvent.conversation_id);
-    },
-    'chat.presence.online': (typedEvent) => {
-      const actorId = typedEvent?.payload?.actor_id;
-      setParticipantPresence(typedEvent.conversation_id, actorId, 'online');
-    },
-    'chat.presence.offline': (typedEvent) => {
-      const actorId = typedEvent?.payload?.actor_id;
-      setParticipantPresence(typedEvent.conversation_id, actorId, 'offline');
-    },
-    'chat.presence.snapshot': (typedEvent) => {
-      applyPresenceSnapshot(typedEvent.conversation_id, typedEvent?.payload?.participants);
-    },
-    'chat.read.updated': (typedEvent) => {
-      const actorId = typedEvent?.payload?.actor_id;
-      const lastReadMessageId = typedEvent?.payload?.last_read_message_id;
-      updateReadWatermark(typedEvent.conversation_id, actorId, lastReadMessageId);
-    },
-    'chat.read.snapshot': (typedEvent) => {
-      applyReadSnapshot(typedEvent.conversation_id, typedEvent?.payload?.watermarks);
-    },
-    'chat.replay.chunk': (typedEvent) => {
-      const events = typedEvent?.payload?.events;
-      if (!Array.isArray(events)) return;
-      events.forEach((event) => processWsEvent(event, socket, true));
-    },
-    'chat.replay.complete': (typedEvent) => {
-      const fromSeq = typedEvent?.payload?.from_seq;
-      pendingReplayRef.current.delete(`${typedEvent.conversation_id}:${fromSeq}`);
-    },
-    'chat.ping': () => {
-      socket.send(JSON.stringify(buildClientWsEnvelope({
-        type: 'chat.pong',
-        conversationId: selectedConversation.id,
-        actorId: user?.id,
-        payload: { timestamp: Date.now() },
-      })));
-    },
-    'chat.pong': () => {},
-    'chat.message.updated': () => {},
-  });
-
-  const processWsEvent = (wsEvent, socket, fromReplay = false) => {
-    if (processedEventIdsRef.current.has(wsEvent.event_id)) {
-      incrementTelemetry('duplicateEvents');
-      return;
-    }
-    processedEventIdsRef.current.add(wsEvent.event_id);
-
-    if (processedEventIdsRef.current.size > 1500) {
-      const values = Array.from(processedEventIdsRef.current.values());
-      processedEventIdsRef.current = new Set(values.slice(-1200));
-    }
-
-    const convId = String(wsEvent.conversation_id);
-    if (convId !== String(selectedConversation?.id)) {
-      return;
-    }
-
-    const seq = Number.isInteger(wsEvent.seq) ? wsEvent.seq : null;
-    const lastSeen = lastSeenSeqRef.current.get(convId) || 0;
-
-    if (seq !== null) {
-      if (seq <= lastSeen) {
-        incrementTelemetry('duplicateEvents');
-        return;
-      }
-
-      if (seq > lastSeen + 1) {
-        let convBuffer = reorderBufferRef.current.get(convId);
-        if (!convBuffer) {
-          convBuffer = new Map();
-          reorderBufferRef.current.set(convId, convBuffer);
-        }
-        if (convBuffer.size >= 30) {
-          incrementTelemetry('reorderBufferOverflow');
-          const firstKey = convBuffer.keys().next().value;
-          if (firstKey !== undefined) {
-            convBuffer.delete(firstKey);
-          }
-        }
-        convBuffer.set(seq, wsEvent);
-        if (!fromReplay) {
-          sendReplayRequest(socket, convId, lastSeen + 1);
-        }
-        return;
-      }
-
-      lastSeenSeqRef.current.set(convId, seq);
-    }
-
-    dispatchInboxWsEvent({
-      event: wsEvent,
-      handlers: getConversationHandlers(socket),
-      onUnhandled: (_unknownEvent, reason) => {
-        console.warn('Unhandled ws event dropped:', reason);
-      },
-    });
-
-    const convBuffer = reorderBufferRef.current.get(convId);
-    if (!convBuffer || convBuffer.size === 0) {
-      return;
-    }
-
-    let nextSeq = (lastSeenSeqRef.current.get(convId) || 0) + 1;
-    while (convBuffer.has(nextSeq)) {
-      const bufferedEvent = convBuffer.get(nextSeq);
-      convBuffer.delete(nextSeq);
-      lastSeenSeqRef.current.set(convId, nextSeq);
-      dispatchInboxWsEvent({
-        event: bufferedEvent,
-        handlers: getConversationHandlers(socket),
-        onUnhandled: () => {},
-      });
-      nextSeq += 1;
-    }
-  };
-
   useEffect(() => {
     const loadConversations = async () => {
       try {
@@ -503,16 +323,96 @@ export default function MarketplaceInbox({
 
           const parsed = parseAndNormalizeWsEvent(event.data);
           if (!parsed.ok) {
-            if (String(parsed.reason || '').startsWith('unsupported_v_')) {
-              incrementTelemetry('unsupportedProtocolVersion');
-            } else {
-              incrementTelemetry('droppedMalformedEvents');
-            }
             console.warn('Dropped malformed/unsupported WS event:', parsed.reason);
             return;
           }
 
-          processWsEvent(parsed.event, socket, false);
+          const wsEvent = parsed.event;
+          if (processedEventIdsRef.current.has(wsEvent.event_id)) {
+            return;
+          }
+          processedEventIdsRef.current.add(wsEvent.event_id);
+
+          if (processedEventIdsRef.current.size > 1000) {
+            const values = Array.from(processedEventIdsRef.current.values());
+            processedEventIdsRef.current = new Set(values.slice(-750));
+          }
+
+          if (String(wsEvent.conversation_id) !== String(selectedConversation.id)) {
+            return;
+          }
+
+          dispatchInboxWsEvent({
+            event: wsEvent,
+            handlers: {
+              'chat.message.created': (typedEvent) => {
+                const nextMessage = typedEvent?.payload?.message;
+                clearTypingForConversation(typedEvent.conversation_id);
+                if (!nextMessage?.id) return;
+                setMessages((prev) => {
+                  if (prev.some((item) => item.id === nextMessage.id)) {
+                    return prev;
+                  }
+                  return [...prev, nextMessage];
+                });
+              },
+              'chat.message.deleted': (typedEvent) => {
+                const messageId = typedEvent?.payload?.message_id;
+                if (!messageId) return;
+                setMessages((prev) => prev.filter((item) => String(item.id) !== String(messageId)));
+              },
+              'chat.message.ack': () => {},
+              'chat.history.synced': (typedEvent) => {
+                const history = typedEvent?.payload?.messages;
+                if (!Array.isArray(history)) return;
+                setMessages(history);
+              },
+              'chat.error': (typedEvent) => {
+                console.warn('Chat protocol error:', typedEvent?.payload?.reason || typedEvent?.payload?.message);
+              },
+              'chat.warning': () => {},
+              'chat.typing.start': (typedEvent) => {
+                const actorId = typedEvent?.payload?.actor_id || typedEvent?.actor_id;
+                if (!actorId || String(actorId) === String(user?.id)) return;
+                upsertTyping(typedEvent.conversation_id, actorId);
+              },
+              'chat.typing.stop': (typedEvent) => {
+                clearTypingForConversation(typedEvent.conversation_id);
+              },
+              'chat.presence.online': (typedEvent) => {
+                const actorId = typedEvent?.payload?.actor_id;
+                setParticipantPresence(typedEvent.conversation_id, actorId, 'online');
+              },
+              'chat.presence.offline': (typedEvent) => {
+                const actorId = typedEvent?.payload?.actor_id;
+                setParticipantPresence(typedEvent.conversation_id, actorId, 'offline');
+              },
+              'chat.presence.snapshot': (typedEvent) => {
+                applyPresenceSnapshot(typedEvent.conversation_id, typedEvent?.payload?.participants);
+              },
+              'chat.read.updated': (typedEvent) => {
+                const actorId = typedEvent?.payload?.actor_id;
+                const lastReadMessageId = typedEvent?.payload?.last_read_message_id;
+                updateReadWatermark(typedEvent.conversation_id, actorId, lastReadMessageId);
+              },
+              'chat.read.snapshot': (typedEvent) => {
+                applyReadSnapshot(typedEvent.conversation_id, typedEvent?.payload?.watermarks);
+              },
+              'chat.ping': () => {
+                socket.send(JSON.stringify(buildClientWsEnvelope({
+                  type: 'chat.pong',
+                  conversationId: selectedConversation.id,
+                  actorId: user?.id,
+                  payload: { timestamp: Date.now() },
+                })));
+              },
+              'chat.pong': () => {},
+              'chat.message.updated': () => {},
+            },
+            onUnhandled: (_unknownEvent, reason) => {
+              console.warn('Unhandled ws event dropped:', reason);
+            },
+          });
         };
 
         socket.onerror = (error) => {
@@ -541,7 +441,7 @@ export default function MarketplaceInbox({
       active = false;
       teardown();
     };
-  }, [processWsEvent, selectedConversation, stopTypingNow, user?.id]);
+  }, [selectedConversation, stopTypingNow, user?.id]);
 
   const handleSendMessage = async (event) => {
     event.preventDefault();
