@@ -239,8 +239,8 @@ def faq_sections(request):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
-@throttle_classes([AssistantChatUserThrottle])
+@permission_classes([AllowAny])
+@throttle_classes([AssistantChatAnonThrottle, AssistantChatUserThrottle])
 def chat_endpoint(request):
     """
     Main chat endpoint.
@@ -293,10 +293,19 @@ def chat_endpoint(request):
         if 'session_id' not in sanitized_data:
             logger.info(f"New session created: {session_id[:8]}")
 
-                                                              
+        if not request.user.is_authenticated:
+            ephemeral_payload = _handle_ephemeral_chat(
+                message=message,
+                assistant_mode=assistant_mode,
+                lane=assistant_lane,
+            )
+            ephemeral_payload['session_id'] = session_id
+            response = Response(ephemeral_payload, status=status.HTTP_200_OK)
+            response.set_cookie('assistant_temp_session', session_id, max_age=15 * 60, httponly=True, samesite='Lax')
+            return response
+
         user_id = request.user.id
 
-                                                                 
         conv_manager = ConversationManager(session_id, user_id, assistant_mode=assistant_mode)
         
         logger.info(
@@ -619,9 +628,15 @@ def session_status(request, session_id):
                 {'error': 'Session not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
+
+        if not request.user.is_staff and session.user_id != request.user.id:
+            return Response(
+                {'error': 'You do not have permission to view this session.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
         
                                            
-        conv_manager = ConversationManager(session_id)
+        conv_manager = ConversationManager(session_id, user_id=request.user.id)
         summary = conv_manager.get_conversation_summary()
         
                            
@@ -667,7 +682,7 @@ def reset_session(request, session_id):
             )
         
                                       
-        conv_manager = ConversationManager(session_id)
+        conv_manager = ConversationManager(session_id, user_id=request.user.id)
         conv_manager.reset_session()
         
         logger.info(f"Session reset: {session_id[:8]}")
@@ -715,28 +730,32 @@ def list_sessions(request):
     """
     try:
                              
-        if request.user.is_authenticated:
-            sessions = ConversationSession.objects.filter(
-                user=request.user,
-                is_persistent=True
-            )
+        sessions = ConversationSession.objects.filter(
+            user=request.user,
+            is_persistent=True
+        )
 
-            requested_mode = (request.query_params.get('assistant_mode') or '').strip().lower()
-            if requested_mode:
-                sessions = sessions.filter(assistant_mode=requested_mode)
+        allowed_modes = {'homepage_reco', 'inbox_general', 'customer_service'}
+        requested_mode = (request.query_params.get('assistant_mode') or '').strip().lower()
+        if requested_mode:
+            if requested_mode not in allowed_modes:
+                return Response(
+                    {'error': 'Invalid assistant_mode filter.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            sessions = sessions.filter(assistant_mode=requested_mode)
 
-            sessions = sessions.order_by('-last_activity')[:20]
-        else:
-            return Response(
-                {'error': 'Authentication required'},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
+        exclude_customer_service = (request.query_params.get('exclude_customer_service') or '').strip().lower()
+        if exclude_customer_service in {'1', 'true', 'yes'}:
+            sessions = sessions.exclude(assistant_mode='customer_service')
+
+        sessions = sessions.order_by('-last_activity')[:20]
         
                                            
         session_list = []
         for session in sessions:
             try:
-                conv_manager = ConversationManager(session.session_id)
+                conv_manager = ConversationManager(session.session_id, user_id=request.user.id)
                 summary = conv_manager.get_conversation_summary()
                 summary['session_id'] = session.session_id
                 summary['last_activity'] = session.last_activity.isoformat()

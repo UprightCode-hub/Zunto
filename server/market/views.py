@@ -5,6 +5,7 @@ import hmac
 import json
 import time
 from rest_framework import generics, status, permissions, filters
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -122,7 +123,7 @@ class ProductListCreateView(generics.ListCreateAPIView):
     
     def perform_create(self, serializer):
         if not IsSellerOrAdmin().has_permission(self.request, self):
-            raise permissions.PermissionDenied('Seller account required to create product listings.')
+            raise PermissionDenied('Seller account required to create product listings.')
         product = serializer.save(seller=self.request.user)
         audit_payload = {'product_id': str(product.id), 'product_slug': product.slug}
         audit_event(self.request, action='market.product.created', extra=audit_payload)
@@ -856,7 +857,13 @@ class ProductVideoDirectUploadTicketView(APIView):
 
         object_key = _build_direct_upload_key(product.id, filename)
 
-        import boto3
+        try:
+            import boto3
+        except ImportError:
+            return Response(
+                {'error': 'boto3 is required for direct upload ticket generation.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
         client = boto3.client(
             's3',
@@ -969,7 +976,7 @@ class ProductVideoDirectUploadCallbackView(APIView):
         ttl = max(60, int(payload.get('exp') or int(time.time())) - int(time.time()))
         cache.set(replay_key, True, timeout=ttl)
 
-        transaction.on_commit(lambda: schedule_product_video_scan(str(video.id)))
+        schedule_product_video_scan(str(video.id))
 
         audit_extra = {'product_id': str(product.id), 'video_id': str(video.id), 'object_key': payload.get('key')}
         audit_event(request, action='market.video_upload.callback_verified', extra=audit_extra)

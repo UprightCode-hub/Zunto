@@ -1,122 +1,96 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { Headset, Inbox, Send } from 'lucide-react';
-import MarketplaceInbox from '../components/chat/MarketplaceInbox';
-import { sendAssistantMessage } from '../services/api';
+import React, { useEffect, useRef, useState } from 'react';
+import { Navigate, useSearchParams } from 'react-router-dom';
+import { Headset, Send } from 'lucide-react';
+import { sendCustomerServiceMessage } from '../services/api';
 
 export default function Chat() {
   const [searchParams] = useSearchParams();
-  const conversationId = searchParams.get('conversation');
   const mode = (searchParams.get('mode') || '').toLowerCase();
-  const query = searchParams.get('q') || '';
 
-  const isAssistantMode = mode === 'assistant' || mode === 'customer-service';
-  const assistantLane = mode === 'customer-service' ? 'customer_service' : 'inbox';
-
-  const [assistantMessages, setAssistantMessages] = useState([]);
-  const [assistantInput, setAssistantInput] = useState(query);
-  const [assistantSessionId, setAssistantSessionId] = useState(localStorage.getItem('chat_session_id') || null);
-  const [assistantLoading, setAssistantLoading] = useState(false);
-  const [assistantError, setAssistantError] = useState('');
+  const [messages, setMessages] = useState([
+    {
+      sender: 'bot',
+      text: 'Customer Service AI is for disputes and complaint handling only. Share your dispute details.',
+    },
+  ]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [sessionId, setSessionId] = useState(localStorage.getItem('customer_service_session_id') || null);
   const endRef = useRef(null);
 
   useEffect(() => {
-    if (!isAssistantMode) {
-      return;
-    }
-
-    const openingMessage = mode === 'customer-service'
-      ? 'You are in Customer Service mode for disputes and complaint guidance.'
-      : 'Welcome to GIGI AI support. Ask for recommendations, product guidance, or help center support.';
-
-    setAssistantMessages([{ sender: 'bot', text: openingMessage }]);
-  }, [isAssistantMode, mode]);
-
-  useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [assistantMessages, assistantLoading]);
+  }, [messages, loading]);
 
-  const modeLabel = useMemo(() => (mode === 'customer-service' ? 'Customer Service AI' : 'GIGI AI Assistant'), [mode]);
+  if (mode !== 'customer-service') {
+    return <Navigate to="/inbox" replace />;
+  }
 
-  const handleAssistantSend = async (event) => {
+  const onSubmit = async (event) => {
     event.preventDefault();
-    const trimmed = assistantInput.trim();
-    if (!trimmed || assistantLoading) {
+    const value = input.trim();
+    if (!value || loading) {
       return;
     }
 
-    setAssistantError('');
-    setAssistantMessages((prev) => [...prev, { sender: 'user', text: trimmed }]);
-    setAssistantInput('');
+    setError('');
+    setMessages((prev) => [...prev, { sender: 'user', text: value }]);
+    setInput('');
 
     try {
-      setAssistantLoading(true);
-      const response = await sendAssistantMessage(trimmed, assistantSessionId, null, assistantLane);
+      setLoading(true);
+      const response = await sendCustomerServiceMessage(value, sessionId);
       if (response?.session_id) {
-        setAssistantSessionId(response.session_id);
-        localStorage.setItem('chat_session_id', response.session_id);
+        setSessionId(response.session_id);
+        localStorage.setItem('customer_service_session_id', response.session_id);
       }
-      setAssistantMessages((prev) => [...prev, { sender: 'bot', text: response?.reply || 'No response returned.' }]);
-    } catch (error) {
-      setAssistantError(error?.message || 'Unable to contact assistant right now.');
+      setMessages((prev) => [...prev, { sender: 'bot', text: response?.reply || 'No response returned.' }]);
+    } catch (err) {
+      setError(err?.message || 'Unable to contact Customer Service AI.');
     } finally {
-      setAssistantLoading(false);
+      setLoading(false);
     }
   };
 
-  if (isAssistantMode) {
-    return (
-      <div className="min-h-screen pt-20 pb-12 bg-black">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-              <Headset className="w-6 h-6 text-blue-400" /> {modeLabel}
-            </h1>
-            <Link to="/chat" className="inline-flex items-center gap-2 text-sm text-blue-300 hover:text-blue-200 transition">
-              <Inbox className="w-4 h-4" /> Open Inbox
-            </Link>
-          </div>
-
-          <div className="rounded-xl border border-gray-700 bg-gray-900 min-h-[65vh] flex flex-col">
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {assistantMessages.map((msg, index) => (
-                <div key={`${msg.sender}-${index}`} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[85%] rounded-xl px-4 py-3 text-sm ${msg.sender === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-100 border border-gray-700'}`}>
-                    {msg.text}
-                  </div>
-                </div>
-              ))}
-              {assistantLoading && <p className="text-sm text-gray-400">GIGI AI is thinking...</p>}
-              {assistantError && <p className="text-sm text-red-300">{assistantError}</p>}
-              <div ref={endRef} />
-            </div>
-
-            <form onSubmit={handleAssistantSend} className="border-t border-gray-700 p-3 flex items-center gap-2">
-              <input
-                type="text"
-                value={assistantInput}
-                onChange={(event) => setAssistantInput(event.target.value)}
-                placeholder={mode === 'customer-service' ? 'Describe your dispute issue...' : 'Ask GIGI AI anything about products...'}
-                className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-              />
-              <button
-                type="submit"
-                disabled={assistantLoading || !assistantInput.trim()}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-70"
-              >
-                <Send className="w-4 h-4" /> Send
-              </button>
-            </form>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen pt-20 pb-12 bg-black">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <MarketplaceInbox initialConversationId={conversationId} />
+    <div className="min-h-screen pt-20 pb-8 bg-[#050d1b]">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="rounded-2xl border border-purple-500/20 bg-[#0b1222] overflow-hidden min-h-[72vh] flex flex-col">
+          <div className="p-4 border-b border-purple-500/20 flex items-center gap-2 text-white font-semibold">
+            <Headset className="w-5 h-5 text-purple-300" /> Customer Service AI
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#08101f]">
+            {messages.map((msg, index) => (
+              <div key={`${msg.sender}-${index}`} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[82%] rounded-2xl px-4 py-2 text-sm ${msg.sender === 'user' ? 'bg-gradient-to-r from-[#2c77d1] to-[#9426f4] text-white' : 'bg-[#1b2846] text-gray-100'}`}>
+                  {msg.text}
+                </div>
+              </div>
+            ))}
+            {loading && <p className="text-sm text-gray-400">Customer Service AI is thinking...</p>}
+            {error && <p className="text-sm text-red-300">{error}</p>}
+            <div ref={endRef} />
+          </div>
+
+          <form onSubmit={onSubmit} className="sticky bottom-0 border-t border-purple-500/20 p-3 bg-[#0b1222] flex gap-2">
+            <input
+              type="text"
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              placeholder="Describe your dispute issue"
+              className="flex-1 rounded-full bg-[#111b32] border border-purple-500/20 px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-400"
+            />
+            <button
+              type="submit"
+              disabled={!input.trim() || loading}
+              className="inline-flex items-center justify-center rounded-full px-4 py-2 bg-gradient-to-r from-[#2c77d1] to-[#9426f4] text-white font-semibold disabled:opacity-50"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );

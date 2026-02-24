@@ -10,7 +10,7 @@ import {
 } from '../../services/api';
 
 const getConversationTitle = (conversation) => (
-  conversation?.product?.title || conversation?.product?.name || 'Chat'
+  conversation?.product?.title || conversation?.product?.name || 'Conversation'
 );
 
 const getPersonLabel = (person) => (
@@ -24,23 +24,21 @@ const getPersonLabel = (person) => (
 const getOtherParticipantLabel = (conversation, user) => {
   const sellerId = conversation?.seller?.id;
   const buyerId = conversation?.buyer?.id;
-  const isSeller = String(user?.id) === String(sellerId);
-
-  if (isSeller) {
+  if (String(user?.id) === String(sellerId)) {
     return getPersonLabel(conversation?.buyer);
   }
-
   if (String(user?.id) === String(buyerId)) {
     return getPersonLabel(conversation?.seller);
   }
-
   return getPersonLabel(conversation?.seller);
 };
 
+const MESSAGE_WINDOW_SIZE = 250;
+
 export default function MarketplaceInbox({
   initialConversationId = null,
-  containerClassName = 'h-[calc(100vh-100px)]',
-  headerTitle = 'Messages',
+  containerClassName = 'h-[calc(100vh-140px)]',
+  headerTitle = 'Conversations',
   emptyListLabel = 'No conversations yet',
 }) {
   const { user } = useAuth();
@@ -51,7 +49,8 @@ export default function MarketplaceInbox({
   const [sendingMessage, setSendingMessage] = useState(false);
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [connectionStatus, setConnectionStatus] = useState('disconnected');
+  const [connectionStatus, setConnectionStatus] = useState('offline');
+  const [showConversationListMobile, setShowConversationListMobile] = useState(true);
   const messagesEndRef = useRef(null);
   const wsRef = useRef(null);
 
@@ -68,7 +67,7 @@ export default function MarketplaceInbox({
         }
 
         const matched = initialConversationId
-          ? nextConversations.find((conversation) => String(conversation.id) === String(initialConversationId))
+          ? nextConversations.find((item) => String(item.id) === String(initialConversationId))
           : null;
 
         setSelectedConversation(matched || nextConversations[0]);
@@ -89,106 +88,99 @@ export default function MarketplaceInbox({
   useEffect(() => {
     if (!selectedConversation) {
       setMessages([]);
-      setConnectionStatus('disconnected');
+      setConnectionStatus('offline');
       return undefined;
     }
 
-    let isMounted = true;
+    let active = true;
 
-    const closeSocket = () => {
+    const teardown = () => {
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;
       }
     };
 
-    const loadMessages = async () => {
-      const data = await getChatMessages(selectedConversation.id);
-      if (!isMounted) {
-        return;
-      }
-
-      const nextMessages = Array.isArray(data?.messages)
-        ? data.messages
-        : Array.isArray(data)
-          ? data
-          : data?.results || [];
-
-      setMessages(nextMessages);
-    };
-
-    const connectSocket = async () => {
+    const openConversation = async () => {
       try {
         setConnectionStatus('connecting');
-        await loadMessages();
+        const data = await getChatMessages(selectedConversation.id);
+        if (!active) {
+          return;
+        }
+        const initialMessages = Array.isArray(data?.messages)
+          ? data.messages
+          : Array.isArray(data)
+            ? data
+            : data?.results || [];
+        setMessages(initialMessages);
 
         const wsTokenResponse = await getConversationWsToken(selectedConversation.id);
+        if (!active) {
+          return;
+        }
         const wsUrl = getChatWebSocketUrl(selectedConversation.id, wsTokenResponse.ws_token);
         const socket = new WebSocket(wsUrl);
-
         wsRef.current = socket;
 
         socket.onopen = () => {
-          if (isMounted) {
-            setConnectionStatus('connected');
+          if (active) {
+            setConnectionStatus('online');
           }
         };
 
         socket.onmessage = (event) => {
-          if (!isMounted) {
+          if (!active) {
             return;
           }
-
           try {
             const payload = JSON.parse(event.data);
-
             if (payload.type === 'chat_message' && payload.message?.id) {
               setMessages((prev) => {
-                if (prev.some((message) => message.id === payload.message.id)) {
+                if (prev.some((item) => item.id === payload.message.id)) {
                   return prev;
                 }
                 return [...prev, payload.message];
               });
             }
-
             if (payload.type === 'message_deleted' && payload.message_id) {
-              setMessages((prev) => prev.filter((message) => message.id !== payload.message_id));
+              setMessages((prev) => prev.filter((item) => item.id !== payload.message_id));
             }
-          } catch (parseError) {
-            console.error('WebSocket payload parse error:', parseError);
+          } catch (error) {
+            console.error('WebSocket payload parse error:', error);
           }
         };
 
         socket.onerror = (error) => {
-          if (isMounted) {
+          if (active) {
             console.error('WebSocket error:', error);
           }
         };
 
         socket.onclose = () => {
-          if (isMounted) {
-            setConnectionStatus('disconnected');
+          if (active) {
+            setConnectionStatus('offline');
           }
         };
       } catch (error) {
-        if (isMounted) {
+        if (active) {
           console.error('Error connecting to conversation:', error);
-          setConnectionStatus('disconnected');
+          setConnectionStatus('offline');
         }
       }
     };
 
-    connectSocket();
+    openConversation();
 
     return () => {
-      isMounted = false;
-      closeSocket();
+      active = false;
+      teardown();
     };
   }, [selectedConversation]);
 
   const handleSendMessage = async (event) => {
     event.preventDefault();
-    if (!newMessage.trim() || !selectedConversation) {
+    if (!newMessage.trim() || !selectedConversation || sendingMessage) {
       return;
     }
 
@@ -196,10 +188,9 @@ export default function MarketplaceInbox({
       setSendingMessage(true);
       const response = await sendMarketplaceChatMessage(selectedConversation.id, newMessage.trim());
       setNewMessage('');
-
       if (response?.message?.id) {
         setMessages((prev) => {
-          if (prev.some((message) => message.id === response.message.id)) {
+          if (prev.some((item) => item.id === response.message.id)) {
             return prev;
           }
           return [...prev, response.message];
@@ -207,7 +198,6 @@ export default function MarketplaceInbox({
       }
     } catch (error) {
       console.error('Error sending message:', error);
-      alert('Failed to send message');
     } finally {
       setSendingMessage(false);
     }
@@ -221,150 +211,119 @@ export default function MarketplaceInbox({
     [conversations, searchQuery, user],
   );
 
+  const visibleMessages = useMemo(() => messages.slice(-MESSAGE_WINDOW_SIZE), [messages]);
+
   return (
-    <div className={`${containerClassName}`}>
-      <div className="h-full flex flex-col lg:flex-row gap-4">
-        <div className="lg:w-80 flex flex-col bg-[#1a1a1a] border border-[#2c77d1]/20 rounded-2xl overflow-hidden">
-          <div className="p-6 border-b border-[#2c77d1]/20">
-            <h1 className="text-2xl font-bold mb-4">{headerTitle}</h1>
-            <div className="relative">
-              <Search className="w-5 h-5 absolute left-3 top-3 text-gray-500" />
+    <div className={containerClassName}>
+      <div className="h-full rounded-2xl border border-[#2c77d1]/20 bg-[#0b1222] overflow-hidden grid grid-cols-1 lg:grid-cols-[340px_1fr]">
+        <aside className={`${showConversationListMobile ? 'block' : 'hidden'} lg:block border-r border-[#2c77d1]/20`}>
+          <div className="p-4 border-b border-[#2c77d1]/20 sticky top-0 bg-[#0b1222] z-10">
+            <h2 className="text-white font-semibold text-lg">{headerTitle}</h2>
+            <div className="mt-3 relative">
+              <Search className="w-4 h-4 absolute left-3 top-3 text-gray-500" />
               <input
                 type="text"
-                placeholder="Search conversations..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-[#2a2a2a] border border-[#2c77d1]/20 rounded-lg focus:outline-none focus:border-[#2c77d1] text-white text-sm"
+                placeholder="Search conversations"
+                className="w-full rounded-full bg-[#111b32] border border-[#2c77d1]/20 py-2 pl-9 pr-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#2c77d1]"
               />
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto">
+          <div className="h-[calc(100%-90px)] overflow-y-auto">
             {loading ? (
-              <div className="flex items-center justify-center h-32">
-                <div className="w-6 h-6 border-2 border-[#2c77d1] border-t-transparent rounded-full animate-spin" />
-              </div>
+              <div className="p-4 text-sm text-gray-400">Loading conversations...</div>
             ) : filteredConversations.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-32 text-gray-400">
-                <MessageCircle className="w-8 h-8 mb-2" />
-                <p className="text-sm">{emptyListLabel}</p>
+              <div className="p-6 text-center text-sm text-gray-400">
+                <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-60" />
+                {emptyListLabel}
               </div>
             ) : (
               filteredConversations.map((conversation) => (
                 <button
                   key={conversation.id}
-                  onClick={() => setSelectedConversation(conversation)}
-                  className={`w-full p-4 border-b border-[#2c77d1]/10 text-left hover:bg-[#2c77d1]/10 transition ${
-                    selectedConversation?.id === conversation.id
-                      ? 'bg-[#2c77d1]/20 border-l-2 border-l-[#2c77d1]'
-                      : ''
-                  }`}
+                  onClick={() => {
+                    setSelectedConversation(conversation);
+                    setShowConversationListMobile(false);
+                  }}
+                  className={`w-full text-left px-4 py-3 border-b border-[#2c77d1]/10 hover:bg-[#111b32] transition ${selectedConversation?.id === conversation.id ? 'bg-[#14203d]' : ''}`}
                 >
-                  <h3 className="font-semibold text-white truncate">{getConversationTitle(conversation)}</h3>
-                  <p className="text-xs text-gray-400 truncate mt-1">
-                    {getOtherParticipantLabel(conversation, user)}
-                  </p>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-semibold text-white truncate">{getConversationTitle(conversation)}</p>
+                    <span className="text-[11px] text-gray-500">{new Date(conversation.updated_at || conversation.created_at).toLocaleDateString()}</span>
+                  </div>
+                  <p className="text-xs text-gray-400 truncate mt-1">{getOtherParticipantLabel(conversation, user)}</p>
                 </button>
               ))
             )}
           </div>
-        </div>
+        </aside>
 
-        <div className="flex-1 flex flex-col bg-[#1a1a1a] border border-[#2c77d1]/20 rounded-2xl overflow-hidden">
+        <section className={`${showConversationListMobile ? 'hidden' : 'flex'} lg:flex flex-col`}>
           {selectedConversation ? (
             <>
-              <div className="p-6 border-b border-[#2c77d1]/20 flex items-center justify-between">
+              <header className="px-4 py-3 border-b border-[#2c77d1]/20 flex items-center justify-between sticky top-0 bg-[#0b1222] z-10">
                 <div>
-                  <h2 className="text-xl font-semibold text-white">
-                    {getConversationTitle(selectedConversation)}
-                  </h2>
-                  <p className="text-sm text-gray-400 mt-1">
+                  <h3 className="text-white font-semibold">{getConversationTitle(selectedConversation)}</h3>
+                  <p className="text-xs text-gray-400">
                     {String(selectedConversation?.seller?.id) === String(user?.id)
                       ? `Buyer: ${getPersonLabel(selectedConversation?.buyer)}`
                       : `Seller: ${getPersonLabel(selectedConversation?.seller)}`}
                   </p>
                 </div>
-                <span
-                  className={`text-xs font-medium px-3 py-1 rounded-full ${
-                    connectionStatus === 'connected'
-                      ? 'bg-green-500/20 text-green-400'
-                      : connectionStatus === 'connecting'
-                        ? 'bg-yellow-500/20 text-yellow-400'
-                        : 'bg-gray-500/20 text-gray-300'
-                  }`}
-                >
-                  {connectionStatus}
-                </span>
-              </div>
+                <div className="flex items-center gap-3">
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${connectionStatus === 'online' ? 'bg-green-500/20 text-green-300' : connectionStatus === 'connecting' ? 'bg-yellow-500/20 text-yellow-300' : 'bg-gray-500/20 text-gray-300'}`}>
+                    {connectionStatus}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowConversationListMobile(true)}
+                    className="lg:hidden text-xs text-blue-300"
+                  >
+                    Back
+                  </button>
+                </div>
+              </header>
 
-              <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                {messages.length === 0 ? (
-                  <div className="flex items-center justify-center h-full text-gray-500">
-                    <p>No messages yet. Start the conversation!</p>
-                  </div>
-                ) : (
-                  messages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`flex ${
-                        message.sender?.id === user?.id ? 'justify-end' : 'justify-start'
-                      }`}
-                    >
-                      <div
-                        className={`max-w-xs px-4 py-3 rounded-2xl ${
-                          message.sender?.id === user?.id
-                            ? 'bg-gradient-to-r from-[#2c77d1] to-[#9426f4] text-white'
-                            : 'bg-[#2a2a2a] text-gray-200'
-                        }`}
-                      >
-                        <p className="break-words">{message.content || message.message}</p>
-                        <p
-                          className={`text-xs mt-1 opacity-70 ${
-                            message.sender?.id === user?.id ? 'text-white' : 'text-gray-400'
-                          }`}
-                        >
-                          {new Date(message.created_at || message.timestamp).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </p>
-                      </div>
+              <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-[#08101f]">
+                {visibleMessages.length === 0 ? (
+                  <div className="h-full min-h-[220px] flex items-center justify-center text-sm text-gray-500">No messages yet.</div>
+                ) : visibleMessages.map((message) => (
+                  <div key={message.id} className={`flex ${message.sender?.id === user?.id ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[82%] rounded-2xl px-4 py-2 ${message.sender?.id === user?.id ? 'bg-gradient-to-r from-[#2c77d1] to-[#9426f4] text-white rounded-br-md' : 'bg-[#1b2846] text-gray-100 rounded-bl-md'}`}>
+                      <p className="text-sm whitespace-pre-wrap break-words">{message.content || message.message}</p>
+                      <p className="text-[11px] mt-1 opacity-75 text-right">
+                        {new Date(message.created_at || message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
                     </div>
-                  ))
-                )}
+                  </div>
+                ))}
                 <div ref={messagesEndRef} />
               </div>
 
-              <form
-                onSubmit={handleSendMessage}
-                className="p-6 border-t border-[#2c77d1]/20 flex gap-3"
-              >
+              <form onSubmit={handleSendMessage} className="sticky bottom-0 border-t border-[#2c77d1]/20 p-3 bg-[#0b1222] flex items-center gap-2">
                 <input
                   type="text"
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Type a message..."
+                  placeholder="Type a message"
                   disabled={sendingMessage}
-                  className="flex-1 px-4 py-3 bg-[#2a2a2a] border border-[#2c77d1]/20 rounded-lg focus:outline-none focus:border-[#2c77d1] text-white placeholder-gray-500 disabled:opacity-50"
+                  className="flex-1 rounded-full bg-[#111b32] border border-[#2c77d1]/20 px-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#2c77d1] disabled:opacity-60"
                 />
                 <button
                   type="submit"
                   disabled={!newMessage.trim() || sendingMessage}
-                  className="px-4 py-3 bg-gradient-to-r from-[#2c77d1] to-[#9426f4] rounded-lg hover:opacity-90 transition disabled:opacity-50 flex items-center gap-2 font-semibold"
+                  className="inline-flex items-center justify-center rounded-full px-4 py-2 bg-gradient-to-r from-[#2c77d1] to-[#9426f4] text-white font-semibold disabled:opacity-50"
                 >
-                  <Send className="w-5 h-5" />
+                  <Send className="w-4 h-4" />
                 </button>
               </form>
             </>
           ) : (
-            <div className="flex items-center justify-center h-full text-gray-500">
-              <div className="text-center">
-                <MessageCircle className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                <p>Select a conversation to start messaging</p>
-              </div>
-            </div>
+            <div className="h-full flex items-center justify-center text-gray-400 text-sm">Select a conversation.</div>
           )}
-        </div>
+        </section>
       </div>
     </div>
   );
