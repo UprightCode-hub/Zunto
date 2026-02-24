@@ -718,6 +718,19 @@ export const sendAssistantMessage = (message, sessionId = null, userId = null, a
   });
 };
 
+
+export const getAssistantSessions = ({ assistantMode = null, excludeCustomerService = false } = {}) => {
+  const params = new URLSearchParams();
+  if (assistantMode) {
+    params.set('assistant_mode', assistantMode);
+  }
+  if (excludeCustomerService) {
+    params.set('exclude_customer_service', 'true');
+  }
+  const query = params.toString();
+  return apiCall(`/assistant/api/chat/sessions/${query ? `?${query}` : ''}`);
+};
+
 export const sendHomepageRecommendationMessage = (message, sessionId = null, userId = null) => (
   sendAssistantMessage(message, sessionId, userId, 'homepage_reco')
 );

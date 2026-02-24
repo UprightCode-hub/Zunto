@@ -106,8 +106,9 @@ export default function Navbar() {
               </Link>
             )}
 
-            <Link to="/chat" className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition" aria-label="Inbox">
+            <Link to="/inbox" className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition relative" aria-label="Inbox">
               <Inbox className="w-6 h-6 text-gray-700 dark:text-gray-300" />
+              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#2c77d1]" />
             </Link>
 
             {isAuthenticated ? (
@@ -153,7 +154,8 @@ export default function Navbar() {
               <Link to="/shop" className="py-2 text-gray-700 dark:text-gray-300 font-medium" onClick={closeMenus}>Products</Link>
               <Link to="/shop?mode=ai" className="py-2 text-gray-700 dark:text-gray-300 font-medium" onClick={closeMenus}>AI Mode</Link>
               <Link to="/orders" className="py-2 text-gray-700 dark:text-gray-300 font-medium" onClick={closeMenus}>Orders</Link>
-              <Link to="/chat" className="py-2 text-gray-700 dark:text-gray-300 font-medium" onClick={closeMenus}>Inbox</Link>
+              <Link to="/inbox" className="py-2 text-gray-700 dark:text-gray-300 font-medium" onClick={closeMenus}>Inbox</Link>
+              {isAuthenticated && <Link to="/inbox/ai" className="py-2 text-gray-700 dark:text-gray-300 font-medium" onClick={closeMenus}>Gigi AI Workspace</Link>}
               {isAuthenticated && <Link to="/chat?mode=customer-service" className="py-2 text-gray-700 dark:text-gray-300 font-medium" onClick={closeMenus}>Customer Service</Link>}
               <Link to="/faqs" className="py-2 text-gray-700 dark:text-gray-300 font-medium" onClick={closeMenus}>Help Center</Link>
               {user?.role !== 'seller' && <Link to="/seller" className="py-2 text-gray-700 dark:text-gray-300 font-medium" onClick={closeMenus}>Become a Seller</Link>}

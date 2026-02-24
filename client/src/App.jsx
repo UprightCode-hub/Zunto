@@ -20,6 +20,8 @@ const Orders = lazy(() => import("./pages/Orders"));
 const Reviews = lazy(() => import("./pages/Reviews"));
 const Notifications = lazy(() => import("./pages/Notifications"));
 const Chat = lazy(() => import("./pages/Chat"));
+const Inbox = lazy(() => import("./pages/Inbox"));
+const InboxAI = lazy(() => import("./pages/InboxAI"));
 const VerifyRegistration = lazy(() => import("./pages/VerifyRegistration"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
@@ -84,6 +86,22 @@ function AppLayout() {
           <Route path="/terms" element={<Terms />} />
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/faqs" element={<FAQs />} />
+          <Route
+            path="/inbox"
+            element={
+              <ProtectedRoute>
+                <Inbox />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/inbox/ai"
+            element={
+              <ProtectedRoute>
+                <InboxAI />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/chat"
             element={
