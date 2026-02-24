@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MessageCircle, Search, Send } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -8,6 +8,7 @@ import {
   getConversationWsToken,
   sendMarketplaceChatMessage,
 } from '../../services/api';
+import { buildClientWsEnvelope, dispatchInboxWsEvent, parseAndNormalizeWsEvent } from './wsProtocol';
 
 const getConversationTitle = (conversation) => (
   conversation?.product?.title || conversation?.product?.name || 'Conversation'
@@ -33,6 +34,15 @@ const getOtherParticipantLabel = (conversation, user) => {
   return getPersonLabel(conversation?.seller);
 };
 
+
+
+const getConversationPreview = (conversation) => (
+  conversation?.last_message?.content
+  || conversation?.last_message?.message
+  || conversation?.last_message_preview
+  || ''
+);
+
 const MESSAGE_WINDOW_SIZE = 250;
 
 export default function MarketplaceInbox({
@@ -53,6 +63,335 @@ export default function MarketplaceInbox({
   const [showConversationListMobile, setShowConversationListMobile] = useState(true);
   const messagesEndRef = useRef(null);
   const wsRef = useRef(null);
+  const processedEventIdsRef = useRef(new Set());
+  const typingStopTimerRef = useRef(null);
+  const isTypingActiveRef = useRef(false);
+  const [typingMap, setTypingMap] = useState(new Map());
+  const [presenceMap, setPresenceMap] = useState(new Map());
+  const [readMap, setReadMap] = useState(new Map());
+  const lastSeenSeqRef = useRef(new Map());
+  const reorderBufferRef = useRef(new Map());
+  const pendingReplayRef = useRef(new Set());
+  const telemetryRef = useRef({
+    duplicateEvents: 0,
+    droppedMalformedEvents: 0,
+    reorderBufferOverflow: 0,
+    unsupportedProtocolVersion: 0,
+  });
+
+
+  const clearTypingForConversation = (conversationId) => {
+    setTypingMap((prev) => {
+      const next = new Map(prev);
+      next.delete(String(conversationId));
+      return next;
+    });
+  };
+
+  const upsertTyping = (conversationId, actorId) => {
+    const expiresAt = Date.now() + 3000;
+    setTypingMap((prev) => {
+      const next = new Map(prev);
+      next.set(String(conversationId), {
+        actor_id: String(actorId),
+        expiresAt,
+      });
+      return next;
+    });
+  };
+
+
+  const setParticipantPresence = (conversationId, actorId, status) => {
+    if (!conversationId || !actorId) return;
+    setPresenceMap((prev) => {
+      const next = new Map(prev);
+      const convPresence = new Map(next.get(String(conversationId)) || []);
+      convPresence.set(String(actorId), status);
+      next.set(String(conversationId), convPresence);
+      return next;
+    });
+  };
+
+  const applyPresenceSnapshot = (conversationId, participants) => {
+    if (!conversationId || !Array.isArray(participants)) return;
+    setPresenceMap((prev) => {
+      const next = new Map(prev);
+      const convPresence = new Map();
+      participants.forEach((participant) => {
+        if (!participant?.actor_id) return;
+        convPresence.set(String(participant.actor_id), participant.status === 'online' ? 'online' : 'offline');
+      });
+      next.set(String(conversationId), convPresence);
+      return next;
+    });
+  };
+
+  const getOtherParticipantOnline = (conversation) => {
+    const convPresence = presenceMap.get(String(conversation?.id));
+    if (!convPresence) return false;
+    const otherActorId = String(conversation?.seller?.id) === String(user?.id)
+      ? String(conversation?.buyer?.id || '')
+      : String(conversation?.seller?.id || '');
+    return convPresence.get(otherActorId) === 'online';
+  };
+
+
+  const applyReadSnapshot = (conversationId, watermarks) => {
+    if (!conversationId || !Array.isArray(watermarks)) return;
+    setReadMap((prev) => {
+      const next = new Map(prev);
+      const convReads = new Map();
+      watermarks.forEach((item) => {
+        if (!item?.actor_id || !item?.last_read_message_id) return;
+        convReads.set(String(item.actor_id), String(item.last_read_message_id));
+      });
+      next.set(String(conversationId), convReads);
+      return next;
+    });
+  };
+
+  const updateReadWatermark = (conversationId, actorId, lastReadMessageId) => {
+    if (!conversationId || !actorId || !lastReadMessageId) return;
+    setReadMap((prev) => {
+      const next = new Map(prev);
+      const convReads = new Map(next.get(String(conversationId)) || []);
+      convReads.set(String(actorId), String(lastReadMessageId));
+      next.set(String(conversationId), convReads);
+      return next;
+    });
+  };
+
+  const getOtherParticipantReadMessageId = (conversation) => {
+    const convReads = readMap.get(String(conversation?.id));
+    if (!convReads) return null;
+    const otherActorId = String(conversation?.seller?.id) === String(user?.id)
+      ? String(conversation?.buyer?.id || '')
+      : String(conversation?.seller?.id || '');
+    return convReads.get(otherActorId) || null;
+  };
+
+  const emitReadUpdate = useCallback((socket, conversationId, lastReadMessageId) => {
+    if (!socket || socket.readyState !== WebSocket.OPEN || !conversationId || !lastReadMessageId) {
+      return;
+    }
+    socket.send(JSON.stringify(buildClientWsEnvelope({
+      type: 'chat.read.updated',
+      conversationId,
+      actorId: user?.id,
+      payload: {
+        last_read_message_id: String(lastReadMessageId),
+      },
+      idempotencyKey: `read-${conversationId}-${lastReadMessageId}`,
+    })));
+  }, [user?.id]);
+
+  const emitTypingEvent = useCallback((socket, type, conversationIdOverride = null) => {
+    const conversationId = conversationIdOverride || selectedConversation?.id;
+    if (!socket || socket.readyState !== WebSocket.OPEN || !conversationId) {
+      return;
+    }
+    socket.send(JSON.stringify(buildClientWsEnvelope({
+      type,
+      conversationId,
+      actorId: user?.id,
+      payload: {},
+    })));
+  }, [selectedConversation?.id, user?.id]);
+
+  const scheduleTypingStop = useCallback((socket, conversationIdOverride = null) => {
+    if (typingStopTimerRef.current) {
+      window.clearTimeout(typingStopTimerRef.current);
+    }
+    typingStopTimerRef.current = window.setTimeout(() => {
+      if (!isTypingActiveRef.current) {
+        return;
+      }
+      emitTypingEvent(socket, 'chat.typing.stop', conversationIdOverride);
+      isTypingActiveRef.current = false;
+    }, 3000);
+  }, [emitTypingEvent]);
+
+  const stopTypingNow = useCallback((socket, conversationIdOverride = null) => {
+    if (typingStopTimerRef.current) {
+      window.clearTimeout(typingStopTimerRef.current);
+      typingStopTimerRef.current = null;
+    }
+    if (isTypingActiveRef.current) {
+      emitTypingEvent(socket, 'chat.typing.stop', conversationIdOverride);
+      isTypingActiveRef.current = false;
+    }
+  }, [emitTypingEvent]);
+
+
+  const incrementTelemetry = (metric) => {
+    telemetryRef.current[metric] = (telemetryRef.current[metric] || 0) + 1;
+  };
+
+  const sendReplayRequest = (socket, conversationId, fromSeq) => {
+    const replayKey = `${conversationId}:${fromSeq}`;
+    if (pendingReplayRef.current.has(replayKey)) {
+      return;
+    }
+    pendingReplayRef.current.add(replayKey);
+    socket.send(JSON.stringify(buildClientWsEnvelope({
+      type: 'chat.replay.request',
+      conversationId,
+      actorId: user?.id,
+      payload: { from_seq: fromSeq },
+      idempotencyKey: `replay-${conversationId}-${fromSeq}`,
+    })));
+  };
+
+  const getConversationHandlers = (socket) => ({
+    'chat.message.created': (typedEvent) => {
+      const nextMessage = typedEvent?.payload?.message;
+      clearTypingForConversation(typedEvent.conversation_id);
+      if (!nextMessage?.id) return;
+      setMessages((prev) => {
+        if (prev.some((item) => item.id === nextMessage.id)) {
+          return prev;
+        }
+        return [...prev, nextMessage];
+      });
+    },
+    'chat.message.deleted': (typedEvent) => {
+      const messageId = typedEvent?.payload?.message_id;
+      if (!messageId) return;
+      setMessages((prev) => prev.filter((item) => String(item.id) !== String(messageId)));
+    },
+    'chat.message.ack': () => {},
+    'chat.history.synced': (typedEvent) => {
+      const history = typedEvent?.payload?.messages;
+      if (!Array.isArray(history)) return;
+      setMessages(history);
+    },
+    'chat.error': (typedEvent) => {
+      console.warn('Chat protocol error:', typedEvent?.payload?.reason || typedEvent?.payload?.message);
+    },
+    'chat.warning': () => {},
+    'chat.typing.start': (typedEvent) => {
+      const actorId = typedEvent?.payload?.actor_id || typedEvent?.actor_id;
+      if (!actorId || String(actorId) === String(user?.id)) return;
+      upsertTyping(typedEvent.conversation_id, actorId);
+    },
+    'chat.typing.stop': (typedEvent) => {
+      clearTypingForConversation(typedEvent.conversation_id);
+    },
+    'chat.presence.online': (typedEvent) => {
+      const actorId = typedEvent?.payload?.actor_id;
+      setParticipantPresence(typedEvent.conversation_id, actorId, 'online');
+    },
+    'chat.presence.offline': (typedEvent) => {
+      const actorId = typedEvent?.payload?.actor_id;
+      setParticipantPresence(typedEvent.conversation_id, actorId, 'offline');
+    },
+    'chat.presence.snapshot': (typedEvent) => {
+      applyPresenceSnapshot(typedEvent.conversation_id, typedEvent?.payload?.participants);
+    },
+    'chat.read.updated': (typedEvent) => {
+      const actorId = typedEvent?.payload?.actor_id;
+      const lastReadMessageId = typedEvent?.payload?.last_read_message_id;
+      updateReadWatermark(typedEvent.conversation_id, actorId, lastReadMessageId);
+    },
+    'chat.read.snapshot': (typedEvent) => {
+      applyReadSnapshot(typedEvent.conversation_id, typedEvent?.payload?.watermarks);
+    },
+    'chat.replay.chunk': (typedEvent) => {
+      const events = typedEvent?.payload?.events;
+      if (!Array.isArray(events)) return;
+      events.forEach((event) => processWsEvent(event, socket, true));
+    },
+    'chat.replay.complete': (typedEvent) => {
+      const fromSeq = typedEvent?.payload?.from_seq;
+      pendingReplayRef.current.delete(`${typedEvent.conversation_id}:${fromSeq}`);
+    },
+    'chat.ping': () => {
+      socket.send(JSON.stringify(buildClientWsEnvelope({
+        type: 'chat.pong',
+        conversationId: selectedConversation.id,
+        actorId: user?.id,
+        payload: { timestamp: Date.now() },
+      })));
+    },
+    'chat.pong': () => {},
+    'chat.message.updated': () => {},
+  });
+
+  const processWsEvent = (wsEvent, socket, fromReplay = false) => {
+    if (processedEventIdsRef.current.has(wsEvent.event_id)) {
+      incrementTelemetry('duplicateEvents');
+      return;
+    }
+    processedEventIdsRef.current.add(wsEvent.event_id);
+
+    if (processedEventIdsRef.current.size > 1500) {
+      const values = Array.from(processedEventIdsRef.current.values());
+      processedEventIdsRef.current = new Set(values.slice(-1200));
+    }
+
+    const convId = String(wsEvent.conversation_id);
+    if (convId !== String(selectedConversation?.id)) {
+      return;
+    }
+
+    const seq = Number.isInteger(wsEvent.seq) ? wsEvent.seq : null;
+    const lastSeen = lastSeenSeqRef.current.get(convId) || 0;
+
+    if (seq !== null) {
+      if (seq <= lastSeen) {
+        incrementTelemetry('duplicateEvents');
+        return;
+      }
+
+      if (seq > lastSeen + 1) {
+        let convBuffer = reorderBufferRef.current.get(convId);
+        if (!convBuffer) {
+          convBuffer = new Map();
+          reorderBufferRef.current.set(convId, convBuffer);
+        }
+        if (convBuffer.size >= 30) {
+          incrementTelemetry('reorderBufferOverflow');
+          const firstKey = convBuffer.keys().next().value;
+          if (firstKey !== undefined) {
+            convBuffer.delete(firstKey);
+          }
+        }
+        convBuffer.set(seq, wsEvent);
+        if (!fromReplay) {
+          sendReplayRequest(socket, convId, lastSeen + 1);
+        }
+        return;
+      }
+
+      lastSeenSeqRef.current.set(convId, seq);
+    }
+
+    dispatchInboxWsEvent({
+      event: wsEvent,
+      handlers: getConversationHandlers(socket),
+      onUnhandled: (_unknownEvent, reason) => {
+        console.warn('Unhandled ws event dropped:', reason);
+      },
+    });
+
+    const convBuffer = reorderBufferRef.current.get(convId);
+    if (!convBuffer || convBuffer.size === 0) {
+      return;
+    }
+
+    let nextSeq = (lastSeenSeqRef.current.get(convId) || 0) + 1;
+    while (convBuffer.has(nextSeq)) {
+      const bufferedEvent = convBuffer.get(nextSeq);
+      convBuffer.delete(nextSeq);
+      lastSeenSeqRef.current.set(convId, nextSeq);
+      dispatchInboxWsEvent({
+        event: bufferedEvent,
+        handlers: getConversationHandlers(socket),
+        onUnhandled: () => {},
+      });
+      nextSeq += 1;
+    }
+  };
 
   useEffect(() => {
     const loadConversations = async () => {
@@ -86,6 +425,30 @@ export default function MarketplaceInbox({
   }, [messages]);
 
   useEffect(() => {
+    const interval = window.setInterval(() => {
+      const now = Date.now();
+      setTypingMap((prev) => {
+        const next = new Map(prev);
+        let changed = false;
+        next.forEach((value, key) => {
+          if (!value || value.expiresAt <= now) {
+            next.delete(key);
+            changed = true;
+          }
+        });
+        return changed ? next : prev;
+      });
+    }, 500);
+
+    return () => {
+      window.clearInterval(interval);
+      if (typingStopTimerRef.current) {
+        window.clearTimeout(typingStopTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!selectedConversation) {
       setMessages([]);
       setConnectionStatus('offline');
@@ -95,10 +458,12 @@ export default function MarketplaceInbox({
     let active = true;
 
     const teardown = () => {
+      stopTypingNow(wsRef.current, selectedConversation?.id);
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;
       }
+      clearTypingForConversation(selectedConversation?.id);
     };
 
     const openConversation = async () => {
@@ -114,6 +479,8 @@ export default function MarketplaceInbox({
             ? data
             : data?.results || [];
         setMessages(initialMessages);
+        lastSeenSeqRef.current.set(String(selectedConversation.id), 0);
+        reorderBufferRef.current.set(String(selectedConversation.id), new Map());
 
         const wsTokenResponse = await getConversationWsToken(selectedConversation.id);
         if (!active) {
@@ -133,22 +500,19 @@ export default function MarketplaceInbox({
           if (!active) {
             return;
           }
-          try {
-            const payload = JSON.parse(event.data);
-            if (payload.type === 'chat_message' && payload.message?.id) {
-              setMessages((prev) => {
-                if (prev.some((item) => item.id === payload.message.id)) {
-                  return prev;
-                }
-                return [...prev, payload.message];
-              });
+
+          const parsed = parseAndNormalizeWsEvent(event.data);
+          if (!parsed.ok) {
+            if (String(parsed.reason || '').startsWith('unsupported_v_')) {
+              incrementTelemetry('unsupportedProtocolVersion');
+            } else {
+              incrementTelemetry('droppedMalformedEvents');
             }
-            if (payload.type === 'message_deleted' && payload.message_id) {
-              setMessages((prev) => prev.filter((item) => item.id !== payload.message_id));
-            }
-          } catch (error) {
-            console.error('WebSocket payload parse error:', error);
+            console.warn('Dropped malformed/unsupported WS event:', parsed.reason);
+            return;
           }
+
+          processWsEvent(parsed.event, socket, false);
         };
 
         socket.onerror = (error) => {
@@ -158,6 +522,7 @@ export default function MarketplaceInbox({
         };
 
         socket.onclose = () => {
+          stopTypingNow(socket);
           if (active) {
             setConnectionStatus('offline');
           }
@@ -176,7 +541,7 @@ export default function MarketplaceInbox({
       active = false;
       teardown();
     };
-  }, [selectedConversation]);
+  }, [processWsEvent, selectedConversation, stopTypingNow, user?.id]);
 
   const handleSendMessage = async (event) => {
     event.preventDefault();
@@ -185,6 +550,7 @@ export default function MarketplaceInbox({
     }
 
     try {
+      stopTypingNow(wsRef.current, selectedConversation?.id);
       setSendingMessage(true);
       const response = await sendMarketplaceChatMessage(selectedConversation.id, newMessage.trim());
       setNewMessage('');
@@ -212,6 +578,41 @@ export default function MarketplaceInbox({
   );
 
   const visibleMessages = useMemo(() => messages.slice(-MESSAGE_WINDOW_SIZE), [messages]);
+
+  const activeTyping = typingMap.get(String(selectedConversation?.id || ''));
+  const isConversationTyping = Boolean(activeTyping && activeTyping.expiresAt > Date.now() && String(activeTyping.actor_id) !== String(user?.id));
+
+
+  useEffect(() => {
+    if (!selectedConversation?.id || visibleMessages.length === 0) {
+      return;
+    }
+
+    const socket = wsRef.current;
+    const latestMessage = visibleMessages[visibleMessages.length - 1];
+    if (!latestMessage?.id) {
+      return;
+    }
+
+    emitReadUpdate(socket, selectedConversation.id, latestMessage.id);
+    updateReadWatermark(selectedConversation.id, user?.id, latestMessage.id);
+  }, [emitReadUpdate, visibleMessages, selectedConversation?.id, user?.id]);
+
+  const handleComposerChange = (value) => {
+    setNewMessage(value);
+    const socket = wsRef.current;
+
+    if (!value.trim()) {
+      stopTypingNow(socket);
+      return;
+    }
+
+    if (!isTypingActiveRef.current) {
+      emitTypingEvent(socket, 'chat.typing.start');
+      isTypingActiveRef.current = true;
+    }
+    scheduleTypingStop(socket, selectedConversation?.id);
+  };
 
   return (
     <div className={containerClassName}>
@@ -253,7 +654,7 @@ export default function MarketplaceInbox({
                     <p className="text-sm font-semibold text-white truncate">{getConversationTitle(conversation)}</p>
                     <span className="text-[11px] text-gray-500">{new Date(conversation.updated_at || conversation.created_at).toLocaleDateString()}</span>
                   </div>
-                  <p className="text-xs text-gray-400 truncate mt-1">{getOtherParticipantLabel(conversation, user)}</p>
+                  <p className="text-xs text-gray-400 truncate mt-1">{typingMap.get(String(conversation.id))?.expiresAt > Date.now() && String(typingMap.get(String(conversation.id))?.actor_id) !== String(user?.id) ? 'Typing…' : `${getOtherParticipantOnline(conversation) ? '● ' : ''}${getConversationPreview(conversation) || getOtherParticipantLabel(conversation, user)}`}</p>
                 </button>
               ))
             )}
@@ -270,6 +671,7 @@ export default function MarketplaceInbox({
                     {String(selectedConversation?.seller?.id) === String(user?.id)
                       ? `Buyer: ${getPersonLabel(selectedConversation?.buyer)}`
                       : `Seller: ${getPersonLabel(selectedConversation?.seller)}`}
+                    {getOtherParticipantOnline(selectedConversation) ? ' · online' : ''}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -289,24 +691,36 @@ export default function MarketplaceInbox({
               <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-[#08101f]">
                 {visibleMessages.length === 0 ? (
                   <div className="h-full min-h-[220px] flex items-center justify-center text-sm text-gray-500">No messages yet.</div>
-                ) : visibleMessages.map((message) => (
-                  <div key={message.id} className={`flex ${message.sender?.id === user?.id ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[82%] rounded-2xl px-4 py-2 ${message.sender?.id === user?.id ? 'bg-gradient-to-r from-[#2c77d1] to-[#9426f4] text-white rounded-br-md' : 'bg-[#1b2846] text-gray-100 rounded-bl-md'}`}>
-                      <p className="text-sm whitespace-pre-wrap break-words">{message.content || message.message}</p>
-                      <p className="text-[11px] mt-1 opacity-75 text-right">
-                        {new Date(message.created_at || message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </p>
+                ) : visibleMessages.map((message, index) => {
+                  const isOwn = message.sender?.id === user?.id;
+                  const isLastOwn = isOwn && index === visibleMessages.length - 1;
+                  const seenMessageId = getOtherParticipantReadMessageId(selectedConversation);
+                  const isSeen = isLastOwn && seenMessageId && String(seenMessageId) === String(message.id);
+                  return (
+                    <div key={message.id} className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[82%] rounded-2xl px-4 py-2 ${isOwn ? 'bg-gradient-to-r from-[#2c77d1] to-[#9426f4] text-white rounded-br-md' : 'bg-[#1b2846] text-gray-100 rounded-bl-md'}`}>
+                        <p className="text-sm whitespace-pre-wrap break-words">{message.content || message.message}</p>
+                        <p className="text-[11px] mt-1 opacity-75 text-right">
+                          {new Date(message.created_at || message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {isSeen ? ' · Seen' : ''}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 <div ref={messagesEndRef} />
               </div>
+
+              {isConversationTyping ? (
+                <div className="px-4 py-2 text-xs text-gray-400 border-t border-[#2c77d1]/10">Typing…</div>
+              ) : null}
 
               <form onSubmit={handleSendMessage} className="sticky bottom-0 border-t border-[#2c77d1]/20 p-3 bg-[#0b1222] flex items-center gap-2">
                 <input
                   type="text"
                   value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
+                  onChange={(e) => handleComposerChange(e.target.value)}
+                  onBlur={() => stopTypingNow(wsRef.current)}
                   placeholder="Type a message"
                   disabled={sendingMessage}
                   className="flex-1 rounded-full bg-[#111b32] border border-[#2c77d1]/20 px-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#2c77d1] disabled:opacity-60"

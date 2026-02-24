@@ -1,10 +1,12 @@
 #server/chat/consumers.py
 import json
+from uuid import uuid4
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.core.cache import cache
 from .models import Conversation
 from .utils import verify_ws_token
+from .ws_protocol import build_envelope, parse_ws_message, PROTOCOL_VERSION
 import logging
 import time
 import asyncio
@@ -22,6 +24,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
     HEARTBEAT_INTERVAL = 30
     HEARTBEAT_TIMEOUT = 45
     IDLE_TIMEOUT = 300
+    EVENT_DEDUPE_TTL_SECONDS = 300
+    REPLAY_REQUEST_LIMIT = 8
+    REPLAY_REQUEST_WINDOW = 60
+    REPLAY_BUFFER_LIMIT = 200
+    REPLAY_CHUNK_SIZE = 50
 
     async def connect(self):
         self.user = self.scope['user']
@@ -64,14 +71,26 @@ class ChatConsumer(AsyncWebsocketConsumer):
         self.last_heartbeat = time.time()
         self.connection_id = f"{self.user.id}_{self.channel_name}"
         self.delivered_messages = set()
+        self.seen_inbound_event_ids = set()
 
         await self.close_previous_connection()
         await self.register_connection()
 
         await self.accept()
 
+        await self.channel_layer.group_add(
+            f"conversation_{self.conversation_id}",
+            self.channel_name
+        )
+        self.conversations.add(str(self.conversation_id))
+        self.conversation_cache[str(self.conversation_id)] = conversation_access
+        await self.mark_user_online(str(self.conversation_id))
+        await self.broadcast_presence_event(str(self.conversation_id), 'online')
+        await self.send_presence_snapshot(str(self.conversation_id))
+        await self.send_read_snapshot(str(self.conversation_id))
+
         await self.log_event('ws_connected', str(self.conversation_id), None)
-        await self.send_ack('connected', None, True)
+        await self.send_ack('connected', str(self.conversation_id), True)
         
         asyncio.create_task(self.heartbeat_monitor())
         
@@ -79,6 +98,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def disconnect(self, close_code):
         for conv_id in list(self.conversations):
+            await self.broadcast_presence_event(str(conv_id), 'offline')
+            await self.mark_user_offline(str(conv_id))
             await self.channel_layer.group_discard(
                 f"conversation_{conv_id}",
                 self.channel_name
@@ -92,37 +113,74 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def receive(self, text_data):
         self.last_activity = time.time()
-        
+
         try:
-            data = json.loads(text_data)
-            msg_type = data.get('type')
+            event, parse_error = parse_ws_message(text_data)
+            if parse_error:
+                await self.increment_telemetry_counter('dropped_malformed_events')
+                if str(parse_error).startswith('unsupported_protocol_version'):
+                    await self.increment_telemetry_counter('unsupported_protocol_version')
+                await self.send_error(
+                    'Malformed or unsupported websocket payload',
+                    reason=parse_error,
+                )
+                return
 
-            if msg_type == 'join':
-                await self.handle_join(data)
-            elif msg_type == 'leave':
-                await self.handle_leave(data)
-            elif msg_type == 'typing':
-                await self.handle_typing(data)
-            elif msg_type == 'ping':
+            if await self.is_duplicate_inbound_event(event['event_id'], event.get('conversation_id')):
+                await self.increment_telemetry_counter('duplicate_events')
+                await self.send_ack(
+                    'duplicate',
+                    event.get('conversation_id'),
+                    False,
+                    'duplicate_event_id',
+                    correlation_id=event.get('correlation_id'),
+                )
+                return
+
+            msg_type = event.get('type')
+            payload = event.get('payload', {})
+
+            if msg_type == 'chat.join':
+                await self.handle_join(event.get('conversation_id'))
+            elif msg_type == 'chat.leave':
+                await self.handle_leave(event.get('conversation_id'))
+            elif msg_type == 'chat.ping':
                 self.last_heartbeat = time.time()
-                await self.send(json.dumps({
-                    'type': 'pong',
-                    'timestamp': str(data.get('timestamp', ''))
-                }))
-            elif msg_type == 'heartbeat':
+                await self.send_event(
+                    event_type='chat.pong',
+                    conversation_id=event.get('conversation_id') or str(self.conversation_id),
+                    payload={'timestamp': str(payload.get('timestamp', ''))},
+                    correlation_id=event.get('event_id'),
+                )
+            elif msg_type == 'chat.pong':
                 self.last_heartbeat = time.time()
-                await self.send(json.dumps({
-                    'type': 'heartbeat_ack',
-                    'timestamp': time.time()
-                }))
+            elif msg_type == 'chat.typing.start':
+                await self.handle_typing_event(event, is_typing=True)
+            elif msg_type == 'chat.typing.stop':
+                await self.handle_typing_event(event, is_typing=False)
+            elif msg_type == 'chat.read.updated':
+                await self.handle_read_event(event)
+            elif msg_type == 'chat.replay.request':
+                await self.handle_replay_request(event)
+            elif msg_type == 'chat.message.send':
+                await self.send_ack(
+                    'chat.message.send',
+                    event.get('conversation_id'),
+                    False,
+                    'message_send_via_rest_only',
+                    correlation_id=event.get('event_id'),
+                )
             else:
-                await self.send_error(f"Unknown message type: {msg_type}")
+                await self.send_error(
+                    'Unknown message type',
+                    conv_id=event.get('conversation_id'),
+                    reason=msg_type,
+                    correlation_id=event.get('event_id'),
+                )
 
-        except json.JSONDecodeError:
-            await self.send_error("Invalid JSON format")
         except Exception as e:
             print(f"❌ WebSocket error: {e}")
-            await self.send_error(str(e))
+            await self.send_error('Websocket processing failed', reason=str(e))
 
     async def heartbeat_monitor(self):
         try:
@@ -145,18 +203,18 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     if not await self.check_product_available(conv_id):
                         break
                 
-                await self.send(json.dumps({
-                    'type': 'heartbeat_request',
-                    'timestamp': current_time
-                }))
+                await self.send_event(
+                    event_type='chat.ping',
+                    conversation_id=str(self.conversation_id),
+                    payload={'timestamp': current_time},
+                )
                 
         except asyncio.CancelledError:
             pass
         except Exception as e:
             logger.error(f"heartbeat_monitor_error user_id={self.user.id} error={str(e)}")
 
-    async def handle_join(self, data):
-        conv_id = data.get('conversation_id')
+    async def handle_join(self, conv_id):
 
         if not conv_id:
             await self.send_error("conversation_id is required")
@@ -194,20 +252,17 @@ class ChatConsumer(AsyncWebsocketConsumer):
         self.conversation_cache[conv_id] = conversation_data
 
         await self.mark_user_online(conv_id)
+        await self.broadcast_presence_event(conv_id, 'online')
+        await self.send_presence_snapshot(conv_id)
+        await self.send_read_snapshot(conv_id)
 
         await self.log_event('ws_joined', conv_id, None)
 
-        await self.send(json.dumps({
-            'type': 'joined',
-            'conversation_id': conv_id,
-            'message': 'Successfully joined conversation',
-            'ack': True
-        }))
+        await self.send_ack('join', conv_id, True)
 
         print(f"✅ User {self.user.get_full_name()} joined conversation {conv_id}")
 
-    async def handle_leave(self, data):
-        conv_id = data.get('conversation_id')
+    async def handle_leave(self, conv_id):
 
         if not conv_id:
             return
@@ -221,21 +276,16 @@ class ChatConsumer(AsyncWebsocketConsumer):
             self.conversation_cache.pop(conv_id, None)
 
             await self.mark_user_offline(conv_id)
+            await self.broadcast_presence_event(conv_id, 'offline')
 
             await self.log_event('ws_left', conv_id, None)
 
-            await self.send(json.dumps({
-                'type': 'left',
-                'conversation_id': conv_id,
-                'message': 'Successfully left conversation',
-                'ack': True
-            }))
+            await self.send_ack('leave', conv_id, True)
 
             print(f"✅ User {self.user.get_full_name()} left conversation {conv_id}")
 
-    async def handle_typing(self, data):
-        conv_id = data.get('conversation_id')
-        is_typing = data.get('is_typing', False)
+    async def handle_typing_event(self, event, is_typing):
+        conv_id = event.get('conversation_id')
 
         if not conv_id:
             return
@@ -292,7 +342,10 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'conversation_id': conv_id,
                 'user_id': str(self.user.id),
                 'username': self.user.get_full_name(),
-                'is_typing': is_typing
+                'is_typing': is_typing,
+                'event_id': event.get('event_id') or str(uuid4()),
+                'occurred_at': event.get('occurred_at'),
+                'correlation_id': event.get('correlation_id'),
             }
         )
 
@@ -337,95 +390,138 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         self.delivered_messages.add(message_id)
 
-        await self.send(text_data=json.dumps({
-            'type': 'message',
-            'conversation_id': conv_id,
-            'message': message_data,
-            'delivered': True
-        }))
+        await self.send_event(
+            event_type='chat.message.created',
+            conversation_id=conv_id,
+            payload={'message': message_data},
+            event_id=event.get('event_id') or str(uuid4()),
+            occurred_at=event.get('occurred_at'),
+            seq=event.get('seq'),
+            correlation_id=event.get('correlation_id'),
+        )
 
     async def typing_indicator(self, event):
         if str(event['user_id']) == str(self.user.id):
             return
 
-        await self.send(text_data=json.dumps({
-            'type': 'typing',
-            'conversation_id': event.get('conversation_id'),
-            'user': {
-                'id': event['user_id'],
-                'username': event['username']
-            },
-            'is_typing': event['is_typing']
-        }))
-
-    async def read_receipt(self, event):
-        if str(event['read_by']) == str(self.user.id):
+        if event.get('conversation_id') not in self.conversations:
             return
 
-        await self.send(text_data=json.dumps({
-            'type': 'read',
-            'conversation_id': event['conversation_id'],
-            'message_ids': event['message_ids'],
-            'read_by': event['read_by'],
-            'read_at': event.get('read_at')
-        }))
+        await self.send_event(
+            event_type='chat.typing.start' if event.get('is_typing') else 'chat.typing.stop',
+            conversation_id=event.get('conversation_id'),
+            payload={
+                'actor_id': str(event['user_id']),
+            },
+            event_id=event.get('event_id') or str(uuid4()),
+            occurred_at=event.get('occurred_at'),
+            correlation_id=event.get('correlation_id'),
+        )
+
+    async def read_receipt(self, event):
+        await self.send_event(
+            event_type='chat.read.updated',
+            conversation_id=event.get('conversation_id') or str(self.conversation_id),
+            payload={
+                'actor_id': str(event.get('read_by') or event.get('actor_id') or event.get('user_id')),
+                'last_read_message_id': event.get('last_read_message_id'),
+                'message_ids': event.get('message_ids'),
+                'read_at': event.get('read_at'),
+            },
+            event_id=event.get('event_id') or str(uuid4()),
+            occurred_at=event.get('occurred_at'),
+        )
 
     async def message_deleted(self, event):
-        await self.send(text_data=json.dumps({
-            'type': 'message_deleted',
-            'conversation_id': event['conversation_id'],
-            'message_id': event['message_id']
-        }))
+        await self.send_event(
+            event_type='chat.message.deleted',
+            conversation_id=event['conversation_id'],
+            payload={'message_id': event['message_id']},
+            event_id=event.get('event_id') or str(uuid4()),
+            occurred_at=event.get('occurred_at'),
+            seq=event.get('seq'),
+        )
 
     async def user_status(self, event):
-        await self.send(text_data=json.dumps({
-            'type': 'user_status',
-            'user_id': event['user_id'],
-            'status': event['status'],
-            'last_seen': event.get('last_seen')
-        }))
+        status = event.get('status')
+        event_type = 'chat.presence.online' if status == 'online' else 'chat.presence.offline'
+        await self.send_event(
+            event_type=event_type,
+            conversation_id=event.get('conversation_id') or str(self.conversation_id),
+            payload={
+                'actor_id': str(event.get('user_id')),
+                'status': status,
+            },
+            event_id=event.get('event_id') or str(uuid4()),
+            occurred_at=event.get('occurred_at'),
+        )
 
     async def force_disconnect(self, event):
         await self.log_event('ws_force_disconnect', None, 'duplicate_connection')
-        await self.send(json.dumps({
-            'type': 'disconnected',
-            'reason': 'New connection established elsewhere'
-        }))
+        await self.send_event(
+            event_type='chat.warning',
+            conversation_id=str(self.conversation_id),
+            payload={'reason': 'New connection established elsewhere'},
+        )
         await self.close(code=4411)
 
-    async def send_error(self, message, conv_id=None):
-        error_data = {
-            'type': 'error',
-            'message': message,
-            'delivered': False
+    async def send_event(self, event_type, conversation_id, payload, **kwargs):
+        replayable_types = {
+            'chat.message.created',
+            'chat.message.updated',
+            'chat.message.deleted',
+            'chat.typing.start',
+            'chat.typing.stop',
+            'chat.presence.online',
+            'chat.presence.offline',
+            'chat.read.updated',
         }
-        if conv_id:
-            error_data['conversation_id'] = conv_id
 
-        await self.send(text_data=json.dumps(error_data))
+        conv_id = str(conversation_id)
+        seq = kwargs.pop('seq', None)
+        if seq is None and event_type in replayable_types:
+            seq = await self.next_conversation_seq(conv_id)
 
-    async def send_ack(self, action, conv_id, success, reason=None):
-        ack_data = {
-            'type': 'ack',
-            'action': action,
-            'success': success
-        }
-        if conv_id:
-            ack_data['conversation_id'] = conv_id
-        if reason:
-            ack_data['reason'] = reason
+        envelope = build_envelope(
+            event_type=event_type,
+            conversation_id=conv_id,
+            payload=payload,
+            actor_id=str(self.user.id) if hasattr(self, 'user') and self.user.is_authenticated else None,
+            protocol_version=PROTOCOL_VERSION,
+            seq=seq,
+            **kwargs,
+        )
 
-        await self.send(text_data=json.dumps(ack_data))
+        if event_type in replayable_types:
+            await self.append_replay_event(conv_id, envelope)
+
+        await self.send(text_data=json.dumps(envelope))
+
+    async def send_error(self, message, conv_id=None, reason=None, correlation_id=None):
+        await self.send_event(
+            event_type='chat.error',
+            conversation_id=str(conv_id or self.conversation_id),
+            payload={'message': message, 'reason': reason, 'delivered': False},
+            correlation_id=correlation_id,
+        )
+
+    async def send_ack(self, action, conv_id, success, reason=None, correlation_id=None):
+        await self.send_event(
+            event_type='chat.message.ack',
+            conversation_id=str(conv_id or self.conversation_id),
+            payload={'action': action, 'success': bool(success), 'reason': reason},
+            correlation_id=correlation_id,
+        )
 
     async def check_product_available(self, conv_id):
         conversation_data = await self.validate_conversation_access(conv_id)
         if not conversation_data:
             await self.log_event('ws_product_unavailable', conv_id, 'product_deleted_or_inactive')
-            await self.send(json.dumps({
-                'type': 'product_unavailable',
-                'conversation_id': conv_id,
-                'message': 'This product is no longer available'
-            }))
+            await self.send_error(
+                'This product is no longer available',
+                conv_id=conv_id,
+                reason='product_unavailable',
+            )
             
             await self.channel_layer.group_discard(
                 f"conversation_{conv_id}",
@@ -438,6 +534,159 @@ class ChatConsumer(AsyncWebsocketConsumer):
             await self.close(code=4410)
             return False
         return True
+
+
+    async def broadcast_presence_event(self, conv_id, status):
+        if not conv_id:
+            return
+
+        await self.channel_layer.group_send(
+            f"conversation_{conv_id}",
+            {
+                'type': 'user_status',
+                'conversation_id': str(conv_id),
+                'user_id': str(self.user.id),
+                'status': status,
+                'event_id': str(uuid4()),
+                'occurred_at': time.time(),
+            }
+        )
+
+    async def send_presence_snapshot(self, conv_id):
+        snapshot = await self.build_presence_snapshot(conv_id)
+        await self.send_event(
+            event_type='chat.presence.snapshot',
+            conversation_id=str(conv_id),
+            payload={'participants': snapshot},
+            event_id=str(uuid4()),
+        )
+
+    async def handle_read_event(self, event):
+        conv_id = event.get('conversation_id')
+        if not conv_id:
+            await self.send_ack('chat.read.updated', self.conversation_id, False, 'missing_conversation_id', correlation_id=event.get('event_id'))
+            return
+
+        if conv_id not in self.conversations:
+            await self.send_ack('chat.read.updated', conv_id, False, 'not_joined', correlation_id=event.get('event_id'))
+            return
+
+        conversation_data = await self.validate_conversation_access(conv_id)
+        if not conversation_data:
+            await self.send_ack('chat.read.updated', conv_id, False, 'unauthorized', correlation_id=event.get('event_id'))
+            return
+
+        payload = event.get('payload', {})
+        last_read_message_id = payload.get('last_read_message_id')
+        if not last_read_message_id:
+            message_ids = payload.get('message_ids') if isinstance(payload.get('message_ids'), list) else []
+            last_read_message_id = message_ids[-1] if message_ids else None
+
+        if not last_read_message_id:
+            await self.send_ack('chat.read.updated', conv_id, False, 'missing_last_read_message_id', correlation_id=event.get('event_id'))
+            return
+
+        accepted = await self.upsert_read_watermark(conv_id, str(self.user.id), str(last_read_message_id))
+        if not accepted:
+            await self.send_ack('chat.read.updated', conv_id, False, 'stale_watermark', correlation_id=event.get('event_id'))
+            return
+
+        await self.channel_layer.group_send(
+            f"conversation_{conv_id}",
+            {
+                'type': 'read_receipt',
+                'conversation_id': str(conv_id),
+                'read_by': str(self.user.id),
+                'last_read_message_id': str(last_read_message_id),
+                'read_at': time.time(),
+                'event_id': event.get('event_id') or str(uuid4()),
+                'occurred_at': event.get('occurred_at'),
+            }
+        )
+
+        await self.send_ack('chat.read.updated', conv_id, True, correlation_id=event.get('event_id'))
+
+    async def send_read_snapshot(self, conv_id):
+        snapshot = await self.build_read_snapshot(conv_id)
+        await self.send_event(
+            event_type='chat.read.snapshot',
+            conversation_id=str(conv_id),
+            payload={'watermarks': snapshot},
+            event_id=str(uuid4()),
+        )
+
+
+
+    async def handle_replay_request(self, event):
+        conv_id = event.get('conversation_id')
+        if not conv_id:
+            await self.send_ack('chat.replay.request', self.conversation_id, False, 'missing_conversation_id', correlation_id=event.get('event_id'))
+            return
+
+        if conv_id not in self.conversations:
+            await self.send_ack('chat.replay.request', conv_id, False, 'not_joined', correlation_id=event.get('event_id'))
+            return
+
+        if not await self.allow_replay_request(conv_id):
+            await self.send_ack('chat.replay.request', conv_id, False, 'rate_limited', correlation_id=event.get('event_id'))
+            return
+
+        payload = event.get('payload', {})
+        from_seq = payload.get('from_seq')
+        if not isinstance(from_seq, int) or from_seq < 1:
+            await self.send_ack('chat.replay.request', conv_id, False, 'invalid_from_seq', correlation_id=event.get('event_id'))
+            return
+
+        events = await self.get_replay_events_since(conv_id, from_seq)
+        if not events:
+            await self.send_event(
+                event_type='chat.replay.complete',
+                conversation_id=conv_id,
+                payload={'from_seq': from_seq, 'replayed_count': 0},
+                correlation_id=event.get('event_id'),
+            )
+            return
+
+        total = 0
+        for i in range(0, len(events), self.REPLAY_CHUNK_SIZE):
+            chunk = events[i:i+self.REPLAY_CHUNK_SIZE]
+            total += len(chunk)
+            await self.send_event(
+                event_type='chat.replay.chunk',
+                conversation_id=conv_id,
+                payload={
+                    'from_seq': from_seq,
+                    'events': chunk,
+                    'chunk_size': len(chunk),
+                },
+                correlation_id=event.get('event_id'),
+            )
+
+        last_seq = events[-1].get('seq')
+        await self.send_event(
+            event_type='chat.replay.complete',
+            conversation_id=conv_id,
+            payload={'from_seq': from_seq, 'to_seq': last_seq, 'replayed_count': total},
+            correlation_id=event.get('event_id'),
+        )
+
+
+
+    @database_sync_to_async
+    def is_duplicate_inbound_event(self, event_id, conv_id):
+        if not event_id:
+            return False
+
+        if event_id in self.seen_inbound_event_ids:
+            return True
+
+        self.seen_inbound_event_ids.add(event_id)
+        dedupe_key = f"chat_ws_evt:{self.user.id}:{conv_id}:{event_id}"
+        if cache.get(dedupe_key):
+            return True
+
+        cache.set(dedupe_key, True, self.EVENT_DEDUPE_TTL_SECONDS)
+        return False
 
     @database_sync_to_async
     def register_connection(self):
@@ -527,6 +776,98 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return None
         except Exception:
             return None
+
+
+    @database_sync_to_async
+    def build_presence_snapshot(self, conv_id):
+        conversation_data = self.conversation_cache.get(str(conv_id), {})
+        participant_ids = [
+            str(conversation_data.get('buyer_id')) if conversation_data.get('buyer_id') else None,
+            str(conversation_data.get('seller_id')) if conversation_data.get('seller_id') else None,
+        ]
+        snapshot = []
+        for participant_id in filter(None, participant_ids):
+            online_key = f"chat_online:{conv_id}:{participant_id}"
+            snapshot.append({
+                'actor_id': participant_id,
+                'status': 'online' if cache.get(online_key) else 'offline',
+            })
+        return snapshot
+
+
+
+    @database_sync_to_async
+    def build_read_snapshot(self, conv_id):
+        conversation_data = self.conversation_cache.get(str(conv_id), {})
+        participant_ids = [
+            str(conversation_data.get('buyer_id')) if conversation_data.get('buyer_id') else None,
+            str(conversation_data.get('seller_id')) if conversation_data.get('seller_id') else None,
+        ]
+        watermarks = []
+        for participant_id in filter(None, participant_ids):
+            key = f"chat_read_wm:{conv_id}:{participant_id}"
+            message_id = cache.get(key)
+            if message_id:
+                watermarks.append({'actor_id': participant_id, 'last_read_message_id': str(message_id)})
+        return watermarks
+
+    @database_sync_to_async
+    def upsert_read_watermark(self, conv_id, actor_id, last_read_message_id):
+        key = f"chat_read_wm:{conv_id}:{actor_id}"
+        current = cache.get(key)
+
+        def to_int(value):
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return None
+
+        incoming_int = to_int(last_read_message_id)
+        current_int = to_int(current)
+
+        if current_int is not None and incoming_int is not None and incoming_int < current_int:
+            return False
+
+        cache.set(key, str(last_read_message_id), 60 * 60 * 24)
+        return True
+
+    @database_sync_to_async
+    def next_conversation_seq(self, conv_id):
+        key = f"chat_seq:{conv_id}"
+        seq = cache.get(key, 0) + 1
+        cache.set(key, seq, 60 * 60 * 24)
+        return seq
+
+    @database_sync_to_async
+    def append_replay_event(self, conv_id, envelope):
+        key = f"chat_replay_buf:{conv_id}"
+        events = cache.get(key, [])
+        events.append(envelope)
+        if len(events) > self.REPLAY_BUFFER_LIMIT:
+            events = events[-self.REPLAY_BUFFER_LIMIT:]
+        cache.set(key, events, 60 * 60 * 24)
+
+    @database_sync_to_async
+    def get_replay_events_since(self, conv_id, from_seq):
+        key = f"chat_replay_buf:{conv_id}"
+        events = cache.get(key, [])
+        return [event for event in events if isinstance(event.get('seq'), int) and event.get('seq') >= from_seq]
+
+    @database_sync_to_async
+    def allow_replay_request(self, conv_id):
+        key = f"chat_replay_rate:{self.user.id}:{conv_id}"
+        count = cache.get(key, 0)
+        if count >= self.REPLAY_REQUEST_LIMIT:
+            return False
+        cache.set(key, count + 1, self.REPLAY_REQUEST_WINDOW)
+        return True
+
+    @database_sync_to_async
+    def increment_telemetry_counter(self, metric):
+        key = f"chat_ws_metric:{metric}"
+        count = cache.get(key, 0)
+        cache.set(key, count + 1, 60 * 60 * 24)
+
 
     @database_sync_to_async
     def check_typing_rate_limit(self, user_id, conv_id):
