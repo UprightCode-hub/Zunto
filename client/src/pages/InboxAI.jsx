@@ -1,8 +1,59 @@
+<<<<<<< codex/fix-errors-in-django-test-suite-0x3x8w
+import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { Bot, MessageSquare, RotateCcw, Send } from 'lucide-react';
+import { getAssistantSessions, sendAssistantMessage } from '../services/api';
+
+const modeLabel = (mode) => (mode === 'homepage_reco' ? 'Homepage AI' : 'Inbox AI');
+const MESSAGE_WINDOW_SIZE = 200;
+
+const MessageRow = memo(function MessageRow({ message, onRetry }) {
+  const isUser = message.sender === 'user';
+
+  return (
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+      <div className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm ${isUser ? 'bg-gradient-to-r from-[#2c77d1] to-[#9426f4] text-white' : 'bg-[#1c2742] text-gray-100'}`}>
+        <p>{message.text}</p>
+
+        {!isUser && message.status === 'pending' && (
+          <p className="text-[11px] text-gray-400 mt-1">Sending...</p>
+        )}
+
+        {!isUser && message.status === 'failed' && (
+          <div className="mt-2 flex items-center gap-2">
+            <span className="text-[11px] text-red-300">Failed</span>
+            <button
+              type="button"
+              onClick={() => onRetry(message)}
+              className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] bg-red-400/20 text-red-200 hover:bg-red-400/30"
+            >
+              <RotateCcw className="w-3 h-3" /> Retry
+            </button>
+          </div>
+        )}
+
+        {!isUser && message.status === 'aborted' && (
+          <div className="mt-2 flex items-center gap-2">
+            <span className="text-[11px] text-yellow-200">Aborted</span>
+            <button
+              type="button"
+              onClick={() => onRetry(message)}
+              className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] bg-yellow-400/20 text-yellow-100 hover:bg-yellow-400/30"
+            >
+              <RotateCcw className="w-3 h-3" /> Retry
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
+=======
 import React, { useEffect, useMemo, useState } from 'react';
 import { Bot, MessageSquare, Send } from 'lucide-react';
 import { getAssistantSessions, sendAssistantMessage } from '../services/api';
 
 const modeLabel = (mode) => (mode === 'homepage_reco' ? 'Homepage AI' : 'Inbox AI');
+>>>>>>> main
 
 export default function InboxAI() {
   const [sessions, setSessions] = useState([]);
@@ -13,22 +64,266 @@ export default function InboxAI() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
 
+<<<<<<< codex/fix-errors-in-django-test-suite-0x3x8w
+  const loadAbortRef = useRef(null);
+  const sendAbortRef = useRef(null);
+  const mountedRef = useRef(true);
+  const selectedRef = useRef(null);
+  const requestSeqRef = useRef(0);
+  const messageIdRef = useRef(0);
+  const inFlightRef = useRef(null);
+  const messageListRef = useRef(null);
+  const shouldStickToBottomRef = useRef(true);
+
+  const createMessageId = () => `m-${++messageIdRef.current}`;
+
+  const updateAssistantStatus = (messageId, nextStatus, fallbackText = null) => {
+    setMessages((prev) => prev.map((item) => {
+      if (item.id !== messageId) {
+        return item;
+      }
+      return {
+        ...item,
+        status: nextStatus,
+        text: fallbackText ?? item.text,
+      };
+    }));
+  };
+
+  const bumpSessionToTop = (session) => {
+    if (!session?.session_id) {
+      return;
+    }
+
+    const updatedSession = {
+      ...session,
+      last_activity: new Date().toISOString(),
+    };
+
+    setSessions((prev) => {
+      const others = prev.filter((item) => item.session_id !== session.session_id);
+      return [updatedSession, ...others];
+    });
+
+    setSelected((prevSelected) => {
+      if (!prevSelected || prevSelected.session_id !== session.session_id) {
+        return prevSelected;
+      }
+      return updatedSession;
+    });
+
+    selectedRef.current = updatedSession;
+  };
+
+  const abortActiveSend = (markAs = 'aborted') => {
+    if (sendAbortRef.current) {
+      sendAbortRef.current.abort();
+      sendAbortRef.current = null;
+    }
+
+    const inFlight = inFlightRef.current;
+    if (!inFlight) {
+      return;
+    }
+
+    if (markAs === 'aborted') {
+      updateAssistantStatus(inFlight.placeholderId, 'aborted', 'Message request was aborted.');
+    }
+
+    inFlightRef.current = null;
+    setSending(false);
+  };
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      loadAbortRef.current?.abort();
+      abortActiveSend('aborted');
+    };
+  }, []);
+
+  useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
+
+  useEffect(() => {
+    const list = messageListRef.current;
+    if (!list) {
+      return undefined;
+    }
+
+    const handleScroll = () => {
+      const distanceFromBottom = list.scrollHeight - list.scrollTop - list.clientHeight;
+      shouldStickToBottomRef.current = distanceFromBottom < 24;
+    };
+
+    handleScroll();
+    list.addEventListener('scroll', handleScroll);
+    return () => list.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    if (!shouldStickToBottomRef.current) {
+      return;
+    }
+    const list = messageListRef.current;
+    if (list) {
+      list.scrollTop = list.scrollHeight;
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    const load = async () => {
+      loadAbortRef.current?.abort();
+      const controller = new AbortController();
+      loadAbortRef.current = controller;
+
+      try {
+        setLoading(true);
+        const data = await getAssistantSessions({ excludeCustomerService: true, signal: controller.signal });
+        if (!mountedRef.current || controller.signal.aborted) {
+          return;
+        }
+=======
   useEffect(() => {
     const load = async () => {
       try {
         setLoading(true);
         const data = await getAssistantSessions({ excludeCustomerService: true });
+>>>>>>> main
         const next = (data?.sessions || []).filter((item) => item.assistant_mode !== 'customer_service');
         setSessions(next);
         setSelected(next[0] || null);
       } catch (err) {
+<<<<<<< codex/fix-errors-in-django-test-suite-0x3x8w
+        if (err?.name === 'AbortError' || !mountedRef.current) {
+          return;
+        }
+        setError(err?.message || 'Unable to load AI workspace sessions.');
+      } finally {
+        if (mountedRef.current && !controller.signal.aborted) {
+          setLoading(false);
+        }
+=======
         setError(err?.message || 'Unable to load AI workspace sessions.');
       } finally {
         setLoading(false);
+>>>>>>> main
       }
     };
 
     load();
+<<<<<<< codex/fix-errors-in-django-test-suite-0x3x8w
+
+    return () => {
+      loadAbortRef.current?.abort();
+    };
+  }, []);
+
+  const orderedMessages = useMemo(() => messages.slice(-MESSAGE_WINDOW_SIZE), [messages]);
+
+  const dispatchSend = async ({ text, targetSession }) => {
+    const requestSeq = requestSeqRef.current + 1;
+    requestSeqRef.current = requestSeq;
+
+    const userMessageId = createMessageId();
+    const assistantMessageId = createMessageId();
+
+    setMessages((prev) => [
+      ...prev,
+      { id: userMessageId, sender: 'user', text, status: 'completed' },
+      { id: assistantMessageId, sender: 'assistant', text: 'Working on your request...', status: 'pending', requestText: text },
+    ]);
+
+    setInput('');
+    setSending(true);
+    setError('');
+
+    bumpSessionToTop(targetSession);
+
+    abortActiveSend('aborted');
+    const controller = new AbortController();
+    sendAbortRef.current = controller;
+    inFlightRef.current = {
+      placeholderId: assistantMessageId,
+      requestSeq,
+      sessionId: targetSession.session_id,
+    };
+
+    try {
+      const response = await sendAssistantMessage(
+        text,
+        targetSession.session_id,
+        null,
+        targetSession.assistant_mode || 'inbox_general',
+        controller.signal,
+      );
+
+      if (
+        !mountedRef.current
+        || controller.signal.aborted
+        || requestSeq !== requestSeqRef.current
+        || selectedRef.current?.session_id !== targetSession.session_id
+      ) {
+        return;
+      }
+
+      setMessages((prev) => prev.map((item) => {
+        if (item.id !== assistantMessageId) {
+          return item;
+        }
+        return {
+          ...item,
+          text: response?.reply || 'No response.',
+          status: 'completed',
+        };
+      }));
+    } catch (err) {
+      if (!mountedRef.current || requestSeq !== requestSeqRef.current) {
+        return;
+      }
+
+      if (err?.name === 'AbortError') {
+        updateAssistantStatus(assistantMessageId, 'aborted', 'Message request was aborted.');
+        return;
+      }
+
+      updateAssistantStatus(assistantMessageId, 'failed', err?.message || 'Failed to send AI message.');
+      setError(err?.message || 'Failed to send AI message.');
+    } finally {
+      if (mountedRef.current && requestSeq === requestSeqRef.current) {
+        setSending(false);
+      }
+      if (inFlightRef.current?.placeholderId === assistantMessageId) {
+        inFlightRef.current = null;
+      }
+      if (sendAbortRef.current === controller) {
+        sendAbortRef.current = null;
+      }
+    }
+  };
+
+  const onSend = async (event) => {
+    event.preventDefault();
+    const text = input.trim();
+    const targetSession = selectedRef.current;
+    if (!text || !targetSession || sending) {
+      return;
+    }
+
+    await dispatchSend({ text, targetSession });
+  };
+
+  const onRetry = async (message) => {
+    const retryText = message.requestText?.trim();
+    const targetSession = selectedRef.current;
+    if (!retryText || !targetSession || sending) {
+      return;
+    }
+
+    await dispatchSend({ text: retryText, targetSession });
+=======
   }, []);
 
   const orderedMessages = useMemo(() => messages.slice(-200), [messages]);
@@ -53,6 +348,7 @@ export default function InboxAI() {
     } finally {
       setSending(false);
     }
+>>>>>>> main
   };
 
   return (
@@ -73,6 +369,11 @@ export default function InboxAI() {
                 <button
                   key={session.session_id}
                   onClick={() => {
+<<<<<<< codex/fix-errors-in-django-test-suite-0x3x8w
+                    requestSeqRef.current += 1;
+                    abortActiveSend('aborted');
+=======
+>>>>>>> main
                     setSelected(session);
                     setMessages([]);
                   }}
@@ -95,6 +396,12 @@ export default function InboxAI() {
                   <h2 className="text-white font-semibold truncate">{selected.conversation_title || 'AI Conversation'}</h2>
                   <p className="text-xs text-gray-400">{modeLabel(selected.assistant_mode)}</p>
                 </header>
+<<<<<<< codex/fix-errors-in-django-test-suite-0x3x8w
+                <div ref={messageListRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+                  {orderedMessages.length === 0 && <p className="text-sm text-gray-400">Start the conversation.</p>}
+                  {orderedMessages.map((msg) => (
+                    <MessageRow key={msg.id} message={msg} onRetry={onRetry} />
+=======
                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
                   {orderedMessages.length === 0 && <p className="text-sm text-gray-400">Start the conversation.</p>}
                   {orderedMessages.map((msg) => (
@@ -103,6 +410,7 @@ export default function InboxAI() {
                         {msg.text}
                       </div>
                     </div>
+>>>>>>> main
                   ))}
                 </div>
                 <form onSubmit={onSend} className="sticky bottom-0 p-4 border-t border-[#2c77d1]/20 bg-[#0b1222] flex gap-2">
