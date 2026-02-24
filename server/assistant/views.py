@@ -239,8 +239,8 @@ def faq_sections(request):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
-@throttle_classes([AssistantChatUserThrottle])
+@permission_classes([AllowAny])
+@throttle_classes([AssistantChatAnonThrottle, AssistantChatUserThrottle])
 def chat_endpoint(request):
     """
     Main chat endpoint.
@@ -293,10 +293,19 @@ def chat_endpoint(request):
         if 'session_id' not in sanitized_data:
             logger.info(f"New session created: {session_id[:8]}")
 
-                                                              
+        if not request.user.is_authenticated:
+            ephemeral_payload = _handle_ephemeral_chat(
+                message=message,
+                assistant_mode=assistant_mode,
+                lane=assistant_lane,
+            )
+            ephemeral_payload['session_id'] = session_id
+            response = Response(ephemeral_payload, status=status.HTTP_200_OK)
+            response.set_cookie('assistant_temp_session', session_id, max_age=15 * 60, httponly=True, samesite='Lax')
+            return response
+
         user_id = request.user.id
 
-                                                                 
         conv_manager = ConversationManager(session_id, user_id, assistant_mode=assistant_mode)
         
         logger.info(

@@ -15,7 +15,7 @@ import {
   WandSparkles,
   ChevronRight,
 } from 'lucide-react';
-import { getFeaturedProducts, getAdProducts, getCategories } from '../services/api';
+import { getFeaturedProducts, getAdProducts, getCategories, sendHomepageRecommendationMessage } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { getProductImage, getProductTitle } from '../utils/product';
 
@@ -85,6 +85,10 @@ export default function Home() {
   const [recentlyViewedProducts, setRecentlyViewedProducts] = useState([]);
   const [heroSearchTerm, setHeroSearchTerm] = useState('');
   const [aiSearchMode, setAiSearchMode] = useState('ai');
+  const [assistantReply, setAssistantReply] = useState('');
+  const [assistantError, setAssistantError] = useState('');
+  const [assistantLoading, setAssistantLoading] = useState(false);
+  const [assistantSessionId, setAssistantSessionId] = useState(() => localStorage.getItem('homepage_assistant_session_id') || null);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -189,6 +193,34 @@ export default function Home() {
       subtitle: 'The storefront stays polished while inventory is being staged.',
     };
   }, [user?.role, recentlyViewedProducts.length, hasLiveFeatured]);
+
+  const handleHeroSearchSubmit = async (event) => {
+    event.preventDefault();
+    const value = heroSearchTerm.trim() || 'Popular products';
+
+    if (aiSearchMode === 'products') {
+      navigate(`/shop?search=${encodeURIComponent(value)}`);
+      return;
+    }
+
+    setAssistantError('');
+
+    try {
+      setAssistantLoading(true);
+      const response = await sendHomepageRecommendationMessage(value, assistantSessionId);
+      if (response?.session_id) {
+        setAssistantSessionId(response.session_id);
+        localStorage.setItem('homepage_assistant_session_id', response.session_id);
+      }
+      setAssistantReply(response?.reply || 'No recommendation returned.');
+    } catch (error) {
+      const backendError = error?.data;
+      const message = backendError?.error || backendError?.detail || error?.message || 'Unable to fetch AI recommendations right now.';
+      setAssistantError(message);
+    } finally {
+      setAssistantLoading(false);
+    }
+  };
 
   const personalizedCategoryLinks = useMemo(() => {
     const liveCategoryMap = new Map(
@@ -430,15 +462,7 @@ export default function Home() {
                   {aiSearchMode === 'products' ? 'Search available listings instantly.' : 'Ask GIGI AI for recommendations from marketplace data.'}
                 </span>
               </div>
-              <form onSubmit={(event) => {
-                event.preventDefault();
-                const value = heroSearchTerm.trim() || 'Popular products';
-                if (aiSearchMode === 'ai') {
-                  navigate(`/chat?mode=assistant&q=${encodeURIComponent(value)}`);
-                  return;
-                }
-                navigate(`/shop?search=${encodeURIComponent(value)}`);
-              }} className="rounded-2xl border border-[#2c77d1]/30 bg-gray-50 dark:bg-[#111827] p-4 flex flex-col sm:flex-row gap-3 sm:items-center">
+              <form onSubmit={handleHeroSearchSubmit} className="rounded-2xl border border-[#2c77d1]/30 bg-gray-50 dark:bg-[#111827] p-4 flex flex-col sm:flex-row gap-3 sm:items-center">
                 <input
                   type="text"
                   value={heroSearchTerm}
@@ -446,10 +470,18 @@ export default function Home() {
                   placeholder={aiSearchMode === 'products' ? 'Search products in marketplace' : 'Ask AI for product recommendations'}
                   className="flex-1 bg-transparent text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none"
                 />
-                <button type="submit" className="inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-gradient-to-r from-[#2c77d1] to-[#9426f4] text-white font-semibold hover:opacity-90 transition">
-                  {aiSearchMode === 'products' ? 'Search' : 'Ask AI'}
+                <button type="submit" disabled={aiSearchMode === 'ai' && assistantLoading} className="inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-gradient-to-r from-[#2c77d1] to-[#9426f4] text-white font-semibold hover:opacity-90 transition disabled:opacity-70">
+                  {aiSearchMode === 'products' ? 'Search' : assistantLoading ? 'Thinking...' : 'Ask AI'}
                 </button>
               </form>
+              {aiSearchMode === 'ai' && (
+                <div className="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#0f172a] p-4 space-y-2">
+                  <p className="text-xs uppercase tracking-wide text-blue-600 dark:text-blue-300 font-semibold">GIGI AI Response</p>
+                  {assistantError && <p className="text-sm text-red-500 dark:text-red-300">{assistantError}</p>}
+                  {!assistantError && assistantReply && <p className="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-line">{assistantReply}</p>}
+                  {!assistantError && !assistantReply && <p className="text-sm text-gray-500 dark:text-gray-400">Ask for recommendations to get an inline response here.</p>}
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

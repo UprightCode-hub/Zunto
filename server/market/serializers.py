@@ -1,7 +1,6 @@
 #server/market/serializers.py
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from django.db import transaction
 from .models import (
     Category, Location, Product, ProductImage, 
     ProductVideo, Favorite, ProductReport
@@ -96,7 +95,7 @@ class ProductVideoSerializer(serializers.ModelSerializer):
 
         from market.tasks import schedule_product_video_scan
 
-        transaction.on_commit(lambda: schedule_product_video_scan(str(instance.id)))
+        schedule_product_video_scan(str(instance.id))
         return instance
 
 

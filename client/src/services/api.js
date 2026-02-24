@@ -690,16 +690,26 @@ export const sendMarketplaceChatMessage = (conversationId, content, messageType 
   });
 };
 
-export const sendAssistantMessage = (message, sessionId = null, userId = null, assistantLane = 'inbox') => {
-  const payload = { message };
+const normalizeAssistantMode = (modeOrLane = 'inbox_general') => {
+  if (modeOrLane === 'inbox') {
+    return 'inbox_general';
+  }
+  if (modeOrLane === 'general') {
+    return 'inbox_general';
+  }
+  return modeOrLane || 'inbox_general';
+};
+
+export const sendAssistantMessage = (message, sessionId = null, userId = null, assistantMode = 'inbox_general') => {
+  const payload = {
+    message,
+    assistant_mode: normalizeAssistantMode(assistantMode),
+  };
   if (sessionId) {
     payload.session_id = sessionId;
   }
   if (userId) {
     payload.user_id = userId;
-  }
-  if (assistantLane && assistantLane !== 'inbox') {
-    payload.assistant_lane = assistantLane;
   }
 
   return apiCall('/assistant/api/chat/', {
