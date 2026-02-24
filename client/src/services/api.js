@@ -700,11 +700,7 @@ const normalizeAssistantMode = (modeOrLane = 'inbox_general') => {
   return modeOrLane || 'inbox_general';
 };
 
-<<<<<<< codex/fix-errors-in-django-test-suite-0x3x8w
 export const sendAssistantMessage = (message, sessionId = null, userId = null, assistantMode = 'inbox_general', signal = undefined) => {
-=======
-export const sendAssistantMessage = (message, sessionId = null, userId = null, assistantMode = 'inbox_general') => {
->>>>>>> main
   const payload = {
     message,
     assistant_mode: normalizeAssistantMode(assistantMode),
@@ -724,11 +720,7 @@ export const sendAssistantMessage = (message, sessionId = null, userId = null, a
 };
 
 
-<<<<<<< codex/fix-errors-in-django-test-suite-0x3x8w
 export const getAssistantSessions = ({ assistantMode = null, excludeCustomerService = false, signal = undefined } = {}) => {
-=======
-export const getAssistantSessions = ({ assistantMode = null, excludeCustomerService = false } = {}) => {
->>>>>>> main
   const params = new URLSearchParams();
   if (assistantMode) {
     params.set('assistant_mode', assistantMode);
@@ -737,11 +729,7 @@ export const getAssistantSessions = ({ assistantMode = null, excludeCustomerServ
     params.set('exclude_customer_service', 'true');
   }
   const query = params.toString();
-<<<<<<< codex/fix-errors-in-django-test-suite-0x3x8w
   return apiCall(`/assistant/api/chat/sessions/${query ? `?${query}` : ''}`, { signal });
-=======
-  return apiCall(`/assistant/api/chat/sessions/${query ? `?${query}` : ''}`);
->>>>>>> main
 };
 
 export const sendHomepageRecommendationMessage = (message, sessionId = null, userId = null) => (

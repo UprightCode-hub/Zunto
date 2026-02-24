@@ -1,4 +1,3 @@
-<<<<<<< codex/fix-errors-in-django-test-suite-0x3x8w
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Bot, MessageSquare, RotateCcw, Send } from 'lucide-react';
 import { getAssistantSessions, sendAssistantMessage } from '../services/api';
@@ -47,13 +46,6 @@ const MessageRow = memo(function MessageRow({ message, onRetry }) {
     </div>
   );
 });
-=======
-import React, { useEffect, useMemo, useState } from 'react';
-import { Bot, MessageSquare, Send } from 'lucide-react';
-import { getAssistantSessions, sendAssistantMessage } from '../services/api';
-
-const modeLabel = (mode) => (mode === 'homepage_reco' ? 'Homepage AI' : 'Inbox AI');
->>>>>>> main
 
 export default function InboxAI() {
   const [sessions, setSessions] = useState([]);
@@ -64,7 +56,6 @@ export default function InboxAI() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
 
-<<<<<<< codex/fix-errors-in-django-test-suite-0x3x8w
   const loadAbortRef = useRef(null);
   const sendAbortRef = useRef(null);
   const mountedRef = useRef(true);
@@ -185,18 +176,10 @@ export default function InboxAI() {
         if (!mountedRef.current || controller.signal.aborted) {
           return;
         }
-=======
-  useEffect(() => {
-    const load = async () => {
-      try {
-        setLoading(true);
-        const data = await getAssistantSessions({ excludeCustomerService: true });
->>>>>>> main
         const next = (data?.sessions || []).filter((item) => item.assistant_mode !== 'customer_service');
         setSessions(next);
         setSelected(next[0] || null);
       } catch (err) {
-<<<<<<< codex/fix-errors-in-django-test-suite-0x3x8w
         if (err?.name === 'AbortError' || !mountedRef.current) {
           return;
         }
@@ -205,16 +188,10 @@ export default function InboxAI() {
         if (mountedRef.current && !controller.signal.aborted) {
           setLoading(false);
         }
-=======
-        setError(err?.message || 'Unable to load AI workspace sessions.');
-      } finally {
-        setLoading(false);
->>>>>>> main
       }
     };
 
     load();
-<<<<<<< codex/fix-errors-in-django-test-suite-0x3x8w
 
     return () => {
       loadAbortRef.current?.abort();
@@ -323,32 +300,6 @@ export default function InboxAI() {
     }
 
     await dispatchSend({ text: retryText, targetSession });
-=======
-  }, []);
-
-  const orderedMessages = useMemo(() => messages.slice(-200), [messages]);
-
-  const onSend = async (event) => {
-    event.preventDefault();
-    const text = input.trim();
-    if (!text || !selected || sending) {
-      return;
-    }
-
-    setSending(true);
-    setError('');
-    setMessages((prev) => [...prev, { sender: 'user', text, id: `${Date.now()}-u` }]);
-    setInput('');
-
-    try {
-      const response = await sendAssistantMessage(text, selected.session_id, null, selected.assistant_mode || 'inbox_general');
-      setMessages((prev) => [...prev, { sender: 'bot', text: response?.reply || 'No response.', id: `${Date.now()}-b` }]);
-    } catch (err) {
-      setError(err?.message || 'Failed to send AI message.');
-    } finally {
-      setSending(false);
-    }
->>>>>>> main
   };
 
   return (
@@ -369,11 +320,8 @@ export default function InboxAI() {
                 <button
                   key={session.session_id}
                   onClick={() => {
-<<<<<<< codex/fix-errors-in-django-test-suite-0x3x8w
                     requestSeqRef.current += 1;
                     abortActiveSend('aborted');
-=======
->>>>>>> main
                     setSelected(session);
                     setMessages([]);
                   }}
@@ -396,21 +344,10 @@ export default function InboxAI() {
                   <h2 className="text-white font-semibold truncate">{selected.conversation_title || 'AI Conversation'}</h2>
                   <p className="text-xs text-gray-400">{modeLabel(selected.assistant_mode)}</p>
                 </header>
-<<<<<<< codex/fix-errors-in-django-test-suite-0x3x8w
                 <div ref={messageListRef} className="flex-1 overflow-y-auto p-4 space-y-3">
                   {orderedMessages.length === 0 && <p className="text-sm text-gray-400">Start the conversation.</p>}
                   {orderedMessages.map((msg) => (
                     <MessageRow key={msg.id} message={msg} onRetry={onRetry} />
-=======
-                <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                  {orderedMessages.length === 0 && <p className="text-sm text-gray-400">Start the conversation.</p>}
-                  {orderedMessages.map((msg) => (
-                    <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[85%] rounded-2xl px-4 py-2 text-sm ${msg.sender === 'user' ? 'bg-gradient-to-r from-[#2c77d1] to-[#9426f4] text-white' : 'bg-[#1c2742] text-gray-100'}`}>
-                        {msg.text}
-                      </div>
-                    </div>
->>>>>>> main
                   ))}
                 </div>
                 <form onSubmit={onSend} className="sticky bottom-0 p-4 border-t border-[#2c77d1]/20 bg-[#0b1222] flex gap-2">

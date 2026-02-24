@@ -13,6 +13,7 @@ from django.core.cache import cache
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 import logging
+from uuid import uuid4
 import hashlib
 
 from .models import Conversation, Message, TransactionConfirmation
@@ -676,7 +677,10 @@ class MessageViewSet(viewsets.ModelViewSet):
                 {
                     'type': 'chat_message',
                     'conversation_id': str(conversation.id),
-                    'message': serializer.data
+                    'message': serializer.data,
+                    'event_id': str(uuid4()),
+                    'occurred_at': timezone.now().isoformat(),
+                    'seq': None,
                 }
             )
 
@@ -695,7 +699,10 @@ class MessageViewSet(viewsets.ModelViewSet):
                 {
                     'type': 'message_deleted',
                     'conversation_id': conversation_id,
-                    'message_id': message_id
+                    'message_id': message_id,
+                    'event_id': str(uuid4()),
+                    'occurred_at': timezone.now().isoformat(),
+                    'seq': None,
                 }
             )
         except Exception as e:
