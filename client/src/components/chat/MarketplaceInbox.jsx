@@ -299,6 +299,8 @@ export default function MarketplaceInbox({
             ? data
             : data?.results || [];
         setMessages(initialMessages);
+        lastSeenSeqRef.current.set(String(selectedConversation.id), 0);
+        reorderBufferRef.current.set(String(selectedConversation.id), new Map());
 
         const wsTokenResponse = await getConversationWsToken(selectedConversation.id);
         if (!active) {
