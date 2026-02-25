@@ -9,6 +9,12 @@ from .forms import AddToCartForm, UpdateCartItemForm, cart_summary
 from .utils import log_cart_event
 from market.models import Product
 
+VALID_INTERACTION_SOURCES = {'ai', 'normal_search', 'homepage_feed', 'direct'}
+
+def _resolve_interaction_source(raw_value):
+    source = str(raw_value or 'direct').strip().lower()
+    return source if source in VALID_INTERACTION_SOURCES else 'direct'
+
 
 def get_or_create_cart(request):
     """Get or create cart for user or guest"""
@@ -54,6 +60,7 @@ def add_to_cart(request):
         product = form.cleaned_data['product']
         quantity = form.cleaned_data['quantity']
         cart = get_or_create_cart(request)
+        source = _resolve_interaction_source(request.POST.get('source'))
 
         if request.user.is_authenticated and product.seller == request.user:
             messages.error(request, "You cannot add your own product to cart.")
@@ -84,14 +91,14 @@ def add_to_cart(request):
                     'product_id': str(product.id),
                     'quantity': new_quantity,
                     'price': float(product.price)
-                })
+                }, source=source)
         else:
             messages.success(request, "Product added to cart.")
             log_cart_event('cart_item_added', cart, request.user if request.user.is_authenticated else None, {
                 'product_id': str(product.id),
                 'quantity': quantity,
                 'price': float(product.price)
-            })
+            }, source=source)
 
     else:
         for field, errors in form.errors.items():
@@ -105,6 +112,7 @@ def update_cart_item(request, item_id):
     cart_item = get_object_or_404(
         CartItem, id=item_id, cart=get_or_create_cart(request)
     )
+    source = _resolve_interaction_source(request.POST.get('source'))
     form = UpdateCartItemForm(request.POST, instance=cart_item)
     if form.is_valid():
         form.save()
@@ -113,7 +121,7 @@ def update_cart_item(request, item_id):
             'product_id': str(cart_item.product.id),
             'quantity': cart_item.quantity,
             'price': float(cart_item.product.price)
-        })
+        }, source=source)
     else:
         for field, errors in form.errors.items():
             for error in errors:
@@ -126,10 +134,11 @@ def remove_cart_item(request, item_id):
     cart_item = get_object_or_404(
         CartItem, id=item_id, cart=get_or_create_cart(request)
     )
+    source = _resolve_interaction_source(request.POST.get('source'))
     log_cart_event('cart_item_removed', cart_item.cart, request.user if request.user.is_authenticated else None, {
         'product_id': str(cart_item.product.id),
         'quantity': cart_item.quantity
-    })
+    }, source=source)
     cart_item.delete()
     messages.success(request, "Item removed from cart.")
     return redirect("cart:cart")
@@ -147,10 +156,11 @@ def clear_cart(request):
 @require_POST
 def save_for_later(request, item_id):
     cart_item = get_object_or_404(CartItem, id=item_id, cart__user=request.user)
+    source = _resolve_interaction_source(request.POST.get('source'))
     log_cart_event('cart_item_saved', cart_item.cart, request.user, {
         'product_id': str(cart_item.product.id),
         'quantity': cart_item.quantity
-    })
+    }, source=source)
     SavedForLater.objects.get_or_create(user=request.user, product=cart_item.product)
     cart_item.delete()
     messages.success(request, "Item saved for later.")

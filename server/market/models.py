@@ -346,6 +346,17 @@ class Favorite(models.Model):
 
 class ProductView(models.Model):
     """Track product views"""
+
+    SOURCE_AI = 'ai'
+    SOURCE_NORMAL_SEARCH = 'normal_search'
+    SOURCE_HOMEPAGE_FEED = 'homepage_feed'
+    SOURCE_DIRECT = 'direct'
+    SOURCE_CHOICES = [
+        (SOURCE_AI, 'AI'),
+        (SOURCE_NORMAL_SEARCH, 'Normal Search'),
+        (SOURCE_HOMEPAGE_FEED, 'Homepage Feed'),
+        (SOURCE_DIRECT, 'Direct'),
+    ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     product = models.ForeignKey(
@@ -362,6 +373,7 @@ class ProductView(models.Model):
     )
     ip_address = models.GenericIPAddressField(null=True, blank=True)
     user_agent = models.TextField(blank=True)
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default=SOURCE_DIRECT, db_index=True)
     viewed_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
@@ -371,6 +383,7 @@ class ProductView(models.Model):
             models.Index(fields=['product', '-viewed_at']),
             models.Index(fields=['product', 'user']),
             models.Index(fields=['user', '-viewed_at']),
+            models.Index(fields=['source', '-viewed_at']),
         ]
     
     def __str__(self):

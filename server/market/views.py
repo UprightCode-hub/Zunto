@@ -40,6 +40,41 @@ MAX_PRODUCT_IMAGES = 5
 MAX_PRODUCT_VIDEOS = 2
 MAX_PRODUCT_VIDEO_SIZE_BYTES = 20 * 1024 * 1024
 
+VALID_INTERACTION_SOURCES = {'ai', 'normal_search', 'homepage_feed', 'direct'}
+
+def _resolve_interaction_source(request):
+    source = str(request.query_params.get('source') or 'direct').strip().lower()
+    return source if source in VALID_INTERACTION_SOURCES else 'direct'
+
+
+def _apply_feed_personalization(request, products):
+    if not request.user.is_authenticated:
+        return products
+    try:
+        from assistant.models import UserBehaviorProfile
+        profile = UserBehaviorProfile.objects.filter(user=request.user).first()
+    except Exception:
+        profile = None
+    if not profile or profile.ai_search_count <= profile.normal_search_count:
+        return products
+
+    category_weight = float(getattr(settings, 'RECO_FEED_CATEGORY_WEIGHT', 1.15))
+    budget_weight = float(getattr(settings, 'RECO_FEED_BUDGET_WEIGHT', 1.1))
+    dominant = set((profile.dominant_categories or [])[:3])
+    min_budget = float(profile.avg_budget_min or 0)
+    max_budget = float(profile.avg_budget_max or 0)
+
+    def score(product):
+        sc = 1.0
+        if product.category and product.category.name in dominant:
+            sc *= category_weight
+        if min_budget and max_budget and min_budget <= float(product.price) <= max_budget:
+            sc *= budget_weight
+        return sc
+
+    return sorted(products, key=score, reverse=True)
+
+
 
 def _invalidate_product_stats_cache(product_id):
     cache.delete(f'product_stats:{product_id}')
@@ -175,6 +210,7 @@ class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
             user=user,
             ip_address=ip_address,
             user_agent=user_agent,
+            source=_resolve_interaction_source(self.request),
         )
 
         Product.objects.filter(id=product.id).update(views_count=F('views_count') + 1)
@@ -442,7 +478,8 @@ class AdsProductsView(generics.ListAPIView):
             'category', 'location', 'seller'
         ).prefetch_related('images')
 
-        return sorted(queryset, key=lambda item: preserve_order.get(str(item.id), 9999))
+        ordered = sorted(queryset, key=lambda item: preserve_order.get(str(item.id), 9999))
+        return _apply_feed_personalization(self.request, ordered)
 
 
 class SimilarProductsView(generics.ListAPIView):

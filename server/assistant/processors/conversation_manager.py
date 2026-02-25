@@ -8,6 +8,7 @@ from django.conf import settings
 from assistant.models import ConversationSession
 from assistant.processors.query_processor import QueryProcessor
 from assistant.processors.local_model import LocalModelAdapter
+from assistant.services.recommendation_service import RecommendationService
 
 from assistant.ai import (
     classify_intent,
@@ -161,6 +162,9 @@ class ConversationManager:
             self._ensure_conversation_title(message)
 
             current_state = self.session.current_state
+
+            if self.assistant_mode == ASSISTANT_MODE_HOMEPAGE_RECO:
+                RecommendationService.initialize_context(self.session)
 
             if self.assistant_mode == ASSISTANT_MODE_CUSTOMER_SERVICE and current_state != STATE_DISPUTE_MODE:
                 self.dispute_flow.enter_dispute_mode()
@@ -493,6 +497,20 @@ class ConversationManager:
                 intent=intent.value,
                 emotion=emotion
             )
+
+            if self.assistant_mode == ASSISTANT_MODE_HOMEPAGE_RECO:
+                recommendation = RecommendationService.evaluate_recommendation_message(self.session, message)
+                final_reply = recommendation['reply']
+                self.context_mgr.add_message(
+                    role='assistant',
+                    content=final_reply,
+                    confidence=0.8
+                )
+                new_session_id = recommendation.get('new_session_id')
+                if new_session_id:
+                    self.session = ConversationSession.objects.get(session_id=new_session_id)
+                    self.context_mgr = ContextManager(self.session)
+                return final_reply
 
             use_context = getattr(settings, 'PHASE1_CONTEXT_INTEGRATION', True)
             

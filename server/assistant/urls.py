@@ -28,6 +28,9 @@ urlpatterns = [
                                                
     path('api/ask/', views.ask_assistant, name='ask'),
     path('api/report/', views.create_report, name='report'),
+    path('api/dispute-tickets/', views.create_dispute_ticket, name='create_dispute_ticket'),
+    path('api/dispute-tickets/<str:ticket_id>/', views.retrieve_dispute_ticket, name='retrieve_dispute_ticket'),
+    path('api/dispute-tickets/<str:ticket_id>/admin-decision/', views.dispute_ticket_admin_decision, name='dispute_ticket_admin_decision'),
                                           
     path('api/report/<int:report_id>/evidence/', views.upload_report_evidence, name='upload_report_evidence'),
     path('api/report/<int:report_id>/evidence/list/', views.list_report_evidence, name='list_report_evidence'),
@@ -39,6 +42,14 @@ urlpatterns = [
     path('api/admin/logs/', views.recent_logs, name='recent_logs'),
     path('api/admin/reports/', views.recent_reports, name='recent_reports'),
     path('api/admin/metrics/', views.assistant_metrics_summary, name='assistant_metrics_summary'),
+    path('api/admin/disputes/oversight-summary/', views.admin_disputes_oversight_summary, name='admin_disputes_oversight_summary'),
+    path('api/admin/disputes/escalated/', views.admin_disputes_escalated, name='admin_disputes_escalated'),
+    path('api/admin/disputes/high-risk/', views.admin_disputes_high_risk, name='admin_disputes_high_risk'),
+    path('api/admin/disputes/threshold-config/', views.admin_disputes_threshold_config, name='admin_disputes_threshold_config'),
+    path('admin/disputes/oversight-summary/', views.admin_disputes_oversight_summary, name='admin_disputes_oversight_summary_legacy'),
+    path('admin/disputes/escalated/', views.admin_disputes_escalated, name='admin_disputes_escalated_legacy'),
+    path('admin/disputes/high-risk/', views.admin_disputes_high_risk, name='admin_disputes_high_risk_legacy'),
+    path('admin/disputes/threshold-config/', views.admin_disputes_threshold_config, name='admin_disputes_threshold_config_legacy'),
     
                           
     path('api/docs/', views.api_documentation, name='api_docs'),
