@@ -5,8 +5,9 @@ from pathlib import Path
 
 from celery import shared_task
 from django.utils import timezone
+from django.db.models import Count, Q, Avg
 
-from assistant.models import DisputeMedia, ConversationSession, ConversationLog
+from assistant.models import DisputeMedia, ConversationSession, ConversationLog, UserBehaviorProfile, RecommendationDemandGap
 from assistant.services.dispute_storage import dispute_storage
 
 logger = logging.getLogger('audit')
@@ -127,3 +128,78 @@ def cleanup_assistant_archives_task(session_days: int = 30, log_days: int = 90):
     )
 
     return {'deleted_sessions': deleted_sessions, 'deleted_logs': deleted_logs}
+
+
+@shared_task
+def aggregate_user_behavior_profiles_task():
+    from django.contrib.auth import get_user_model
+    from cart.models import CartEvent
+    from market.models import ProductView
+
+    User = get_user_model()
+    users = User.objects.filter(is_active=True)
+    now = timezone.now()
+    updated = 0
+
+    for user in users.iterator():
+        ai_search_count = ConversationSession.objects.filter(
+            user=user,
+            assistant_mode='homepage_reco',
+            context_type=ConversationSession.CONTEXT_TYPE_RECOMMENDATION,
+        ).count()
+        normal_search_count = ProductView.objects.filter(user=user, source='normal_search').count()
+
+        dominant_categories = list(
+            ProductView.objects.filter(user=user)
+            .values('product__category__name')
+            .annotate(total=Count('id'))
+            .order_by('-total')
+            .values_list('product__category__name', flat=True)[:3]
+        )
+
+        budgets = ConversationSession.objects.filter(user=user).exclude(
+            Q(constraint_state__budget_range={}) | Q(constraint_state__budget_range__isnull=True)
+        ).values_list('constraint_state', flat=True)
+
+        mins, maxs = [], []
+        for st in budgets:
+            b = (st or {}).get('budget_range') if isinstance(st, dict) else None
+            if isinstance(b, dict):
+                if b.get('min') is not None:
+                    mins.append(float(b.get('min')))
+                if b.get('max') is not None:
+                    maxs.append(float(b.get('max')))
+
+        ai_cart_actions = CartEvent.objects.filter(user=user, data__source='ai', event_type='cart_item_added').count()
+        normal_cart_actions = CartEvent.objects.filter(user=user, data__source='normal_search', event_type='cart_item_added').count()
+
+        ai_conversion_rate = (ai_cart_actions / ai_search_count) if ai_search_count else 0.0
+        normal_conversion_rate = (normal_cart_actions / normal_search_count) if normal_search_count else 0.0
+
+        switched = ConversationSession.objects.filter(user=user, drift_flag=True).count()
+        total_reco = ConversationSession.objects.filter(user=user, assistant_mode='homepage_reco').count()
+        switch_frequency = (switched / total_reco) if total_reco else 0.0
+
+        profile, _ = UserBehaviorProfile.objects.get_or_create(user=user)
+        profile.ai_search_count = ai_search_count
+        profile.normal_search_count = normal_search_count
+        profile.dominant_categories = [c for c in dominant_categories if c]
+        profile.avg_budget_min = (sum(mins) / len(mins)) if mins else None
+        profile.avg_budget_max = (sum(maxs) / len(maxs)) if maxs else None
+        profile.ai_conversion_rate = ai_conversion_rate
+        profile.normal_conversion_rate = normal_conversion_rate
+        profile.switch_frequency = switch_frequency
+        profile.ai_high_intent_no_conversion = ai_search_count >= 3 and ai_cart_actions >= 2 and ai_conversion_rate < 0.25
+        profile.last_aggregated_at = now
+        profile.save()
+        updated += 1
+
+    return {'updated_profiles': updated}
+
+
+@shared_task
+def aggregate_demand_gap_task():
+    stale_gaps = RecommendationDemandGap.objects.filter(last_seen_at__lt=timezone.now() - timedelta(days=90))
+    deleted = stale_gaps.count()
+    stale_gaps.delete()
+    return {'deleted_stale_gaps': deleted}

@@ -6,7 +6,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def log_cart_event(event_type, cart, user=None, data=None):
+def log_cart_event(event_type, cart, user=None, data=None, source='direct'):
     """Log a cart-related event with exception handling"""
     try:
         with transaction.atomic():
@@ -14,7 +14,7 @@ def log_cart_event(event_type, cart, user=None, data=None):
                 event_type=event_type,
                 user=user,
                 cart_id=cart.id,
-                data=data or {}
+                data={**(data or {}), 'source': source}
             )
     except Exception as e:
         logger.error(f"Failed to log cart event {event_type}: {e}") 

@@ -1,6 +1,13 @@
 #server/assistant/serializers.py
 from rest_framework import serializers
-from .models import Report, ConversationLog, ConversationSession, DisputeMedia
+from .models import (
+    Report,
+    ConversationLog,
+    ConversationSession,
+    DisputeMedia,
+    DisputeTicket,
+    DisputeTicketCommunication,
+)
 
 
 class AskRequestSerializer(serializers.Serializer):
@@ -66,8 +73,9 @@ class ConversationSessionSerializer(serializers.ModelSerializer):
         model = ConversationSession
         fields = [
             'id', 'session_id', 'user', 'user_username', 'user_name',
-            'assistant_lane', 'is_persistent', 'conversation_title', 'title_generated_at',
-            'current_state', 'context_data', 'conversation_history',
+            'assistant_lane', 'assistant_mode', 'is_persistent', 'conversation_title', 'title_generated_at',
+            'current_state', 'context_type', 'active_product', 'constraint_state', 'intent_state', 'drift_flag', 'completed_at',
+            'context_data', 'conversation_history',
             'message_count', 'sentiment_score', 'satisfaction_score',
             'escalation_level', 'is_escalated', 'created_at',
             'last_activity', 'closed_at', 'is_active'
@@ -130,3 +138,87 @@ class DisputeMediaSerializer(serializers.ModelSerializer):
             'validation_status', 'validation_reason', 'validated_at',
             'retention_expires_at', 'is_deleted', 'deleted_at', 'created_at'
         ]
+
+
+class DisputeTicketCreateSerializer(serializers.Serializer):
+    order_id = serializers.UUIDField(required=False, allow_null=True)
+    product_id = serializers.UUIDField(required=False, allow_null=True)
+    dispute_category = serializers.CharField(max_length=100)
+    description = serializers.CharField(max_length=5000)
+    desired_resolution = serializers.CharField(max_length=255)
+    evidence = serializers.ListField(
+        child=serializers.CharField(max_length=1000),
+        required=False,
+        allow_empty=True,
+    )
+
+
+class DisputeTicketCommunicationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DisputeTicketCommunication
+        fields = ['id', 'sender_role', 'channel', 'message_type', 'body', 'meta', 'created_at']
+
+
+class DisputeTicketSerializer(serializers.ModelSerializer):
+    buyer_id = serializers.UUIDField(source='buyer.id', read_only=True)
+    seller_id = serializers.UUIDField(source='seller.id', read_only=True)
+    order_id = serializers.UUIDField(source='order.id', read_only=True)
+    product_id = serializers.UUIDField(source='product.id', read_only=True)
+    evidence_links = serializers.ListField(child=serializers.CharField(), read_only=True)
+    communications = DisputeTicketCommunicationSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = DisputeTicket
+        fields = [
+            'ticket_id',
+            'buyer_id',
+            'seller_id',
+            'seller_type',
+            'order_id',
+            'product_id',
+            'dispute_category',
+            'description',
+            'desired_resolution',
+            'evidence_links',
+            'status',
+            'ai_recommendation',
+            'ai_recommended_decision',
+            'ai_confidence_score',
+            'ai_risk_score',
+            'ai_reasoning_summary',
+            'ai_policy_flags',
+            'ai_evaluated_at',
+            'admin_decision',
+            'admin_decision_reason',
+            'admin_user',
+            'admin_decision_at',
+            'ai_admin_agreement',
+            'ai_override_flag',
+            'ai_override_reason',
+            'ai_evaluated_against_admin_at',
+            'risk_score',
+            'escrow_state',
+            'escrow_frozen_at',
+            'escrow_released_at',
+            'escrow_executed_at',
+            'escrow_execution_locked',
+            'escrow_execution_reference',
+            'escrow_execution_meta',
+            'seller_response_due_at',
+            'created_at',
+            'updated_at',
+            'communications',
+        ]
+
+
+class DisputeTicketAdminDecisionSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(
+        choices=[
+            DisputeTicket.STATUS_UNDER_REVIEW,
+            DisputeTicket.STATUS_RESOLVED_APPROVED,
+            DisputeTicket.STATUS_RESOLVED_DENIED,
+            DisputeTicket.STATUS_CLOSED,
+        ]
+    )
+    admin_decision = serializers.CharField(max_length=5000)
+    admin_decision_reason = serializers.CharField(max_length=5000, required=False, allow_blank=True)

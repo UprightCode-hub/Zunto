@@ -406,12 +406,24 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'core.tasks.monitor_system_health_alerts',
         'schedule': crontab(minute='*/5'),
     },
+    'aggregate-user-behavior-profiles': {
+        'task': 'assistant.tasks.aggregate_user_behavior_profiles_task',
+        'schedule': crontab(minute='*/15'),
+    },
+    'aggregate-recommendation-demand-gaps': {
+        'task': 'assistant.tasks.aggregate_demand_gap_task',
+        'schedule': crontab(hour=7, minute=0),
+    },
 }
                         
 
 PAYSTACK_SECRET_KEY = config('PAYSTACK_SECRET_KEY', default='')
 PAYSTACK_PUBLIC_KEY = config('PAYSTACK_PUBLIC_KEY', default='')
 PAYSTACK_BASE_URL = 'https://api.paystack.co'
+
+RECO_FEED_CATEGORY_WEIGHT = config('RECO_FEED_CATEGORY_WEIGHT', default=1.15, cast=float)
+RECO_FEED_BUDGET_WEIGHT = config('RECO_FEED_BUDGET_WEIGHT', default=1.1, cast=float)
+RECO_BEHAVIOR_AGGREGATION_MINUTES = config('RECO_BEHAVIOR_AGGREGATION_MINUTES', default=15, cast=int)
 
                     
 

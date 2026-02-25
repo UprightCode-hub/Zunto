@@ -4,6 +4,7 @@ import time
 import uuid
 import json
 from pathlib import Path
+from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
@@ -16,7 +17,7 @@ from django.utils import timezone
 from django.http import HttpResponse
 
 from assistant.utils.tts_utils import get_tts_service
-from assistant.models import ConversationSession, ConversationLog, Report, DisputeMedia
+from assistant.models import ConversationSession, ConversationLog, Report, DisputeMedia, DisputeTicket, DisputeTicketCommunication
 from assistant.processors.conversation_manager import ConversationManager
 from assistant.utils.assistant_modes import (
     normalize_assistant_mode,
@@ -28,8 +29,14 @@ from assistant.serializers import (
     ConversationSessionSerializer,
     ConversationLogSerializer,
     ReportSerializer,
-    DisputeMediaSerializer
+    DisputeMediaSerializer,
+    DisputeTicketCreateSerializer,
+    DisputeTicketAdminDecisionSerializer,
+    DisputeTicketSerializer,
 )
+from assistant.services.dispute_ticket_service import DisputeTicketService, DisputeTicketError
+from assistant.services.dispute_ai_service import DisputeAIService
+from assistant.services.dispute_oversight_metrics import DisputeOversightMetricsService
 
                    
 from assistant.utils.constants import (
@@ -333,7 +340,7 @@ def chat_endpoint(request):
                         
         response_data = {
             'reply': reply,
-            'session_id': session_id,
+            'session_id': conv_manager.session.session_id,
             'state': conv_manager.get_current_state(),
             'confidence': summary.get('satisfaction_score', 0.5),
             'escalated': is_escalated,
@@ -1042,6 +1049,31 @@ def create_report(request):
             report_data['user_id'] = user_id
         
         report = Report.objects.create(**report_data)
+
+        created_ticket_id = None
+        if report_type == 'dispute':
+            order_id = request.data.get('order_id')
+            product_id = request.data.get('product_id')
+            desired_resolution = request.data.get('desired_resolution', '')
+            dispute_category = request.data.get('category', '') or 'general'
+            evidence = request.data.get('evidence_links') or request.data.get('evidence') or []
+
+            if order_id or product_id:
+                try:
+                    ticket = DisputeTicketService.create_ticket(
+                        buyer=request.user,
+                        order_id=order_id,
+                        product_id=product_id,
+                        dispute_category=dispute_category,
+                        description=description,
+                        desired_resolution=desired_resolution,
+                        evidence=evidence,
+                        attached_report_id=report.id,
+                        session_id=report.meta.get('session_id', '') if isinstance(report.meta, dict) else '',
+                    )
+                    created_ticket_id = ticket.ticket_id
+                except DisputeTicketError as ticket_error:
+                    logger.warning(f"Ticket creation skipped for report #{report.id}: {ticket_error}")
         
         logger.info(f"Report created: ID={report.id}, Type={report_type}")
         audit_event(request, action='assistant.report.created', extra={'report_id': report.id, 'report_type': report_type})
@@ -1052,7 +1084,8 @@ def create_report(request):
             {
                 'message': SUCCESS_MSG_REPORT_SAVED,
                 'report_id': report.id,
-                'status': report.status
+                'status': report.status,
+                'ticket_id': created_ticket_id,
             },
             status=status.HTTP_201_CREATED
         )
@@ -1063,6 +1096,111 @@ def create_report(request):
             {'error': 'Failed to create report'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@throttle_classes([DisputeReportUserThrottle])
+def create_dispute_ticket(request):
+    """Create a universal dispute support ticket and trigger email notifications."""
+    serializer = DisputeTicketCreateSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+
+    payload = serializer.validated_data
+
+    try:
+        ticket = DisputeTicketService.create_ticket(
+            buyer=request.user,
+            order_id=str(payload.get('order_id')) if payload.get('order_id') else None,
+            product_id=str(payload.get('product_id')) if payload.get('product_id') else None,
+            dispute_category=payload['dispute_category'],
+            description=payload['description'],
+            desired_resolution=payload['desired_resolution'],
+            evidence=payload.get('evidence') or [],
+            session_id=(request.data.get('session_id') or '').strip(),
+        )
+    except DisputeTicketError as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    audit_event(
+        request,
+        action='assistant.dispute_ticket.created',
+        extra={
+            'ticket_id': ticket.ticket_id,
+            'seller_type': ticket.seller_type,
+            'seller_id': str(ticket.seller_id),
+        },
+    )
+    if request.user.is_staff:
+        audit_event(
+            request,
+            action='assistant.admin.dispute_ticket.created',
+            extra={'ticket_id': ticket.ticket_id, 'seller_type': ticket.seller_type},
+        )
+
+    return Response(DisputeTicketSerializer(ticket).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def retrieve_dispute_ticket(request, ticket_id: str):
+    try:
+        ticket = DisputeTicket.objects.select_related('buyer', 'seller', 'order', 'product').get(ticket_id=ticket_id)
+    except DisputeTicket.DoesNotExist:
+        return Response({'error': 'Ticket not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    if not request.user.is_staff and request.user.id not in {ticket.buyer_id, ticket.seller_id}:
+        return Response({'error': 'You do not have permission to view this ticket.'}, status=status.HTTP_403_FORBIDDEN)
+
+    return Response(DisputeTicketSerializer(ticket).data, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def dispute_ticket_admin_decision(request, ticket_id: str):
+    if not request.user.is_staff:
+        return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        ticket = DisputeTicket.objects.select_related('legacy_report').get(ticket_id=ticket_id)
+    except DisputeTicket.DoesNotExist:
+        return Response({'error': 'Ticket not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    serializer = DisputeTicketAdminDecisionSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+
+    payload = serializer.validated_data
+    try:
+        ticket = DisputeTicketService.apply_admin_decision(
+            ticket=ticket,
+            admin_user=request.user,
+            status=payload['status'],
+            decision=payload['admin_decision'],
+            reason=payload.get('admin_decision_reason', ''),
+        )
+    except DisputeTicketError as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    audit_event(
+        request,
+        action='assistant.dispute_ticket.admin_decision',
+        extra={
+            'ticket_id': ticket.ticket_id,
+            'status': ticket.status,
+            'legacy_report_id': ticket.legacy_report_id,
+        },
+    )
+    audit_event(
+        request,
+        action='assistant.admin.dispute_ticket.admin_decision',
+        extra={
+            'ticket_id': ticket.ticket_id,
+            'status': ticket.status,
+            'legacy_report_id': ticket.legacy_report_id,
+        },
+    )
+
+    return Response(DisputeTicketSerializer(ticket).data, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
@@ -1155,6 +1293,22 @@ def upload_report_evidence(request, report_id):
     audit_event(request, action='assistant.report.evidence_uploaded', extra={'report_id': report.id, 'media_id': media.id, 'media_type': media_type})
     if request.user.is_authenticated and request.user.is_staff:
         audit_event(request, action='assistant.admin.report.evidence_uploaded', extra={'report_id': report.id, 'media_id': media.id, 'media_type': media_type})
+
+    linked_ticket = getattr(report, 'dispute_ticket', None)
+    if linked_ticket:
+        DisputeTicketCommunication.objects.create(
+            ticket=linked_ticket,
+            sender_role=DisputeTicketCommunication.SENDER_BUYER,
+            channel=DisputeTicketCommunication.CHANNEL_SYSTEM,
+            message_type='evidence_uploaded',
+            body=f'New {media_type} evidence uploaded for legacy report {report.id}.',
+            meta={'report_id': report.id, 'media_id': media.id, 'media_type': media_type},
+        )
+        try:
+            DisputeAIService.evaluate_ticket(ticket=linked_ticket, trigger='evidence_uploaded')
+        except Exception:
+            logger.exception('Dispute AI evaluation failed after evidence upload')
+
     serializer = DisputeMediaSerializer(media, context={'request': request})
     return Response(serializer.data, status=status.HTTP_202_ACCEPTED)
 
@@ -1404,3 +1558,56 @@ def chat_interface(request):
     The React app will call the /assistant/api/chat/ endpoint.
     """
     return render(request, 'assistant/chat.html')
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_disputes_oversight_summary(request):
+    if not request.user.is_staff:
+        return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+    summary = DisputeOversightMetricsService.summary()
+    return Response(summary, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_disputes_escalated(request):
+    if not request.user.is_staff:
+        return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+    tickets = DisputeTicket.objects.filter(
+        status__in=[DisputeTicket.STATUS_ESCALATED, DisputeTicket.STATUS_UNDER_SENIOR_REVIEW]
+    ).order_by('-created_at')
+    return Response({'results': DisputeTicketSerializer(tickets, many=True).data}, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_disputes_high_risk(request):
+    if not request.user.is_staff:
+        return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+    threshold = float(getattr(settings, 'DISPUTE_AI_HIGH_RISK_THRESHOLD', 0.85))
+    tickets = DisputeTicket.objects.filter(ai_risk_score__gte=threshold).order_by('-created_at')
+    return Response(
+        {
+            'threshold': threshold,
+            'results': DisputeTicketSerializer(tickets, many=True).data,
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_disputes_threshold_config(request):
+    if not request.user.is_staff:
+        return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+    payload = {
+        'HIGH_RISK_THRESHOLD': float(getattr(settings, 'DISPUTE_AI_HIGH_RISK_THRESHOLD', 0.85)),
+        'HIGH_CONFIDENCE_THRESHOLD': float(getattr(settings, 'DISPUTE_AI_OVERRIDE_CONFIDENCE_THRESHOLD', 0.8)),
+        'HIGH_VALUE_THRESHOLD': float(getattr(settings, 'DISPUTE_HIGH_VALUE_THRESHOLD', 250000)),
+    }
+    return Response(payload, status=status.HTTP_200_OK)

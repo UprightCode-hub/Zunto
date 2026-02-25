@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django.core.serializers.json import DjangoJSONEncoder
 from django.utils import timezone
 from datetime import timedelta
+from django.utils.crypto import get_random_string
 
 User = get_user_model()
 
@@ -40,6 +41,13 @@ class ConversationSession(models.Model):
         ('homepage_reco', 'Homepage Recommendation Assistant'),
         ('inbox_general', 'Inbox General Assistant'),
         ('customer_service', 'Customer Service Assistant'),
+    ]
+
+    CONTEXT_TYPE_SUPPORT = 'support'
+    CONTEXT_TYPE_RECOMMENDATION = 'recommendation'
+    CONTEXT_TYPE_CHOICES = [
+        (CONTEXT_TYPE_SUPPORT, 'Support'),
+        (CONTEXT_TYPE_RECOMMENDATION, 'Recommendation'),
     ]
 
     session_id = models.CharField(
@@ -135,6 +143,24 @@ class ConversationSession(models.Model):
         help_text="Whether session has been escalated to human"
     )
 
+    context_type = models.CharField(
+        max_length=20,
+        choices=CONTEXT_TYPE_CHOICES,
+        default=CONTEXT_TYPE_SUPPORT,
+        help_text='Conversation context type: support or recommendation journey',
+    )
+    active_product = models.ForeignKey(
+        'market.Product',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='active_recommendation_sessions',
+    )
+    constraint_state = models.JSONField(default=dict, encoder=DjangoJSONEncoder, blank=True)
+    intent_state = models.JSONField(default=dict, encoder=DjangoJSONEncoder, blank=True)
+    drift_flag = models.BooleanField(default=False)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     last_activity = models.DateTimeField(auto_now=True)
     updated_at = models.DateTimeField(auto_now=True)                                  
@@ -147,6 +173,8 @@ class ConversationSession(models.Model):
             models.Index(fields=['-last_activity']),
             models.Index(fields=['user', '-last_activity']),
             models.Index(fields=['is_escalated', '-last_activity']),
+            models.Index(fields=['context_type', '-last_activity']),
+            models.Index(fields=['assistant_mode', 'context_type', '-last_activity']),
         ]
 
     def __str__(self):
@@ -287,6 +315,288 @@ class Report(models.Model):
 
     def __str__(self):
         return f"Report #{self.id} - {self.report_type} - {self.severity} - {self.status}"
+
+
+class DisputeTicket(models.Model):
+    SELLER_TYPE_VERIFIED = 'verified'
+    SELLER_TYPE_UNVERIFIED = 'unverified'
+    SELLER_TYPE_CHOICES = [
+        (SELLER_TYPE_VERIFIED, 'Verified'),
+        (SELLER_TYPE_UNVERIFIED, 'Unverified'),
+    ]
+
+    STATUS_OPEN = 'OPEN'
+    STATUS_UNDER_REVIEW = 'UNDER_REVIEW'
+    STATUS_RESOLVED_APPROVED = 'RESOLVED_APPROVED'
+    STATUS_RESOLVED_DENIED = 'RESOLVED_DENIED'
+    STATUS_CLOSED = 'CLOSED'
+    STATUS_ESCALATED = 'ESCALATED'
+    STATUS_UNDER_SENIOR_REVIEW = 'UNDER_SENIOR_REVIEW'
+    STATUS_CHOICES = [
+        (STATUS_OPEN, 'Open'),
+        (STATUS_UNDER_REVIEW, 'Under Review'),
+        (STATUS_RESOLVED_APPROVED, 'Resolved Approved'),
+        (STATUS_RESOLVED_DENIED, 'Resolved Denied'),
+        (STATUS_CLOSED, 'Closed'),
+        (STATUS_ESCALATED, 'Escalated'),
+        (STATUS_UNDER_SENIOR_REVIEW, 'Under Senior Review'),
+    ]
+
+    ESCROW_NOT_APPLICABLE = 'not_applicable'
+    ESCROW_FROZEN = 'frozen'
+    ESCROW_RELEASED_TO_BUYER = 'released_to_buyer'
+    ESCROW_RELEASED_TO_SELLER = 'released_to_seller'
+    ESCROW_STATE_CHOICES = [
+        (ESCROW_NOT_APPLICABLE, 'Not Applicable'),
+        (ESCROW_FROZEN, 'Frozen'),
+        (ESCROW_RELEASED_TO_BUYER, 'Released to Buyer'),
+        (ESCROW_RELEASED_TO_SELLER, 'Released to Seller'),
+    ]
+
+    ticket_id = models.CharField(max_length=20, unique=True, db_index=True)
+    buyer = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='dispute_tickets_opened'
+    )
+    seller = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='dispute_tickets_received'
+    )
+    legacy_report = models.OneToOneField(
+        Report,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='dispute_ticket',
+        help_text='Legacy Report mapping for backward-compatible dispute flow'
+    )
+    seller_type = models.CharField(max_length=20, choices=SELLER_TYPE_CHOICES)
+    order = models.ForeignKey(
+        'orders.Order',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='dispute_tickets'
+    )
+    product = models.ForeignKey(
+        'market.Product',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='dispute_tickets'
+    )
+    dispute_category = models.CharField(max_length=100)
+    description = models.TextField()
+    desired_resolution = models.CharField(max_length=255, blank=True)
+    evidence_links = models.JSONField(default=list, encoder=DjangoJSONEncoder, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_OPEN)
+    ai_recommendation = models.TextField(null=True, blank=True)
+    ai_recommended_decision = models.CharField(max_length=20, null=True, blank=True)
+    ai_confidence_score = models.FloatField(null=True, blank=True)
+    ai_risk_score = models.FloatField(null=True, blank=True)
+    ai_reasoning_summary = models.TextField(null=True, blank=True)
+    ai_policy_flags = models.JSONField(default=dict, encoder=DjangoJSONEncoder, blank=True)
+    ai_evaluated_at = models.DateTimeField(null=True, blank=True)
+    admin_decision = models.TextField(null=True, blank=True)
+    admin_decision_reason = models.TextField(null=True, blank=True)
+    admin_user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='dispute_tickets_decided'
+    )
+    admin_decision_at = models.DateTimeField(null=True, blank=True)
+    ai_admin_agreement = models.BooleanField(null=True, blank=True)
+    ai_override_flag = models.BooleanField(default=False)
+    ai_override_reason = models.TextField(null=True, blank=True)
+    ai_evaluated_against_admin_at = models.DateTimeField(null=True, blank=True)
+    risk_score = models.FloatField(null=True, blank=True)
+    escrow_state = models.CharField(max_length=30, choices=ESCROW_STATE_CHOICES, default=ESCROW_NOT_APPLICABLE)
+    escrow_frozen_at = models.DateTimeField(null=True, blank=True)
+    escrow_released_at = models.DateTimeField(null=True, blank=True)
+    escrow_executed_at = models.DateTimeField(null=True, blank=True)
+    escrow_execution_locked = models.BooleanField(default=False)
+    escrow_execution_reference = models.CharField(max_length=120, blank=True)
+    escrow_execution_meta = models.JSONField(default=dict, encoder=DjangoJSONEncoder, blank=True)
+    seller_response_due_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['ticket_id']),
+            models.Index(fields=['status', '-created_at']),
+            models.Index(fields=['seller_type', '-created_at']),
+            models.Index(fields=['buyer', '-created_at']),
+            models.Index(fields=['seller', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.ticket_id} ({self.status})"
+
+    @classmethod
+    def generate_ticket_id(cls) -> str:
+        year = timezone.now().year
+        for _ in range(10):
+            suffix = get_random_string(4, allowed_chars='0123456789')
+            candidate = f"TICKET-{year}-{suffix}"
+            if not cls.objects.filter(ticket_id=candidate).exists():
+                return candidate
+        raise ValueError('Unable to generate unique ticket id')
+
+
+class DisputeTicketCommunication(models.Model):
+    CHANNEL_CHAT = 'chat'
+    CHANNEL_EMAIL = 'email'
+    CHANNEL_SYSTEM = 'system'
+    CHANNEL_CHOICES = [
+        (CHANNEL_CHAT, 'Chat'),
+        (CHANNEL_EMAIL, 'Email'),
+        (CHANNEL_SYSTEM, 'System'),
+    ]
+
+    SENDER_BUYER = 'buyer'
+    SENDER_SELLER = 'seller'
+    SENDER_AI = 'ai'
+    SENDER_ADMIN = 'admin'
+    SENDER_SYSTEM = 'system'
+    SENDER_CHOICES = [
+        (SENDER_BUYER, 'Buyer'),
+        (SENDER_SELLER, 'Seller'),
+        (SENDER_AI, 'AI'),
+        (SENDER_ADMIN, 'Admin'),
+        (SENDER_SYSTEM, 'System'),
+    ]
+
+    ticket = models.ForeignKey(
+        DisputeTicket,
+        on_delete=models.CASCADE,
+        related_name='communications'
+    )
+    sender_role = models.CharField(max_length=20, choices=SENDER_CHOICES)
+    channel = models.CharField(max_length=20, choices=CHANNEL_CHOICES, default=CHANNEL_SYSTEM)
+    message_type = models.CharField(max_length=40, default='note')
+    body = models.TextField(blank=True)
+    meta = models.JSONField(default=dict, encoder=DjangoJSONEncoder, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['ticket', 'created_at']),
+            models.Index(fields=['sender_role', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.ticket.ticket_id} {self.sender_role}:{self.message_type}"
+
+
+class DisputeAuditLog(models.Model):
+    ACTION_STATUS_CHANGE = 'STATUS_CHANGE'
+    ACTION_ESCROW_EXECUTION = 'ESCROW_EXECUTION'
+    ACTION_ESCALATION_TRIGGER = 'ESCALATION_TRIGGER'
+    ACTION_ADMIN_DECISION = 'ADMIN_DECISION'
+    ACTION_AI_RECOMMENDATION = 'AI_RECOMMENDATION'
+    ACTION_AI_OVERRIDE_FLAGGED = 'AI_OVERRIDE_FLAGGED'
+
+    ACTION_CHOICES = [
+        (ACTION_STATUS_CHANGE, 'Status Change'),
+        (ACTION_ESCROW_EXECUTION, 'Escrow Execution'),
+        (ACTION_ESCALATION_TRIGGER, 'Escalation Trigger'),
+        (ACTION_ADMIN_DECISION, 'Admin Decision'),
+        (ACTION_AI_RECOMMENDATION, 'AI Recommendation'),
+        (ACTION_AI_OVERRIDE_FLAGGED, 'AI Override Flagged'),
+    ]
+
+    dispute_ticket = models.ForeignKey(
+        DisputeTicket,
+        on_delete=models.CASCADE,
+        related_name='audit_logs',
+    )
+    action_type = models.CharField(max_length=40, choices=ACTION_CHOICES)
+    performed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='dispute_audit_logs',
+    )
+    previous_value = models.JSONField(default=dict, encoder=DjangoJSONEncoder, null=True, blank=True)
+    new_value = models.JSONField(default=dict, encoder=DjangoJSONEncoder, null=True, blank=True)
+    metadata = models.JSONField(default=dict, encoder=DjangoJSONEncoder, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['dispute_ticket', '-created_at']),
+            models.Index(fields=['action_type', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.dispute_ticket.ticket_id}:{self.action_type}"
+
+
+
+
+class UserBehaviorProfile(models.Model):
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='behavior_profile'
+    )
+    ai_search_count = models.PositiveIntegerField(default=0)
+    normal_search_count = models.PositiveIntegerField(default=0)
+    dominant_categories = models.JSONField(default=list, encoder=DjangoJSONEncoder, blank=True)
+    avg_budget_min = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    avg_budget_max = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    ai_conversion_rate = models.FloatField(default=0.0)
+    normal_conversion_rate = models.FloatField(default=0.0)
+    switch_frequency = models.FloatField(default=0.0)
+    ai_high_intent_no_conversion = models.BooleanField(default=False)
+    last_aggregated_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+        indexes = [
+            models.Index(fields=['-last_aggregated_at']),
+            models.Index(fields=['ai_high_intent_no_conversion', '-updated_at']),
+        ]
+
+    def __str__(self):
+        return f"BehaviorProfile<{self.user_id}>"
+
+
+class RecommendationDemandGap(models.Model):
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='recommendation_demand_gaps'
+    )
+    requested_category = models.CharField(max_length=120, blank=True)
+    requested_attributes = models.JSONField(default=dict, encoder=DjangoJSONEncoder, blank=True)
+    user_location = models.CharField(max_length=200, blank=True)
+    frequency = models.PositiveIntegerField(default=1)
+    first_seen_at = models.DateTimeField(auto_now_add=True)
+    last_seen_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-last_seen_at']
+        indexes = [
+            models.Index(fields=['requested_category', '-last_seen_at']),
+            models.Index(fields=['frequency', '-last_seen_at']),
+        ]
+
+    def __str__(self):
+        return f"DemandGap<{self.requested_category or 'unknown'} x{self.frequency}>"
 
 
 class DisputeMedia(models.Model):

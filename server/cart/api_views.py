@@ -23,6 +23,12 @@ from .analytics import (
 from .utils import log_cart_event
 import uuid
 
+VALID_INTERACTION_SOURCES = {'ai', 'normal_search', 'homepage_feed', 'direct'}
+
+def _resolve_interaction_source(request):
+    source = str(request.data.get('source') or request.query_params.get('source') or 'direct').strip().lower()
+    return source if source in VALID_INTERACTION_SOURCES else 'direct'
+
 
 def get_or_create_cart(request):
     """Get or create cart for authenticated or guest user"""
@@ -67,6 +73,7 @@ def get_cart(request):
 def add_to_cart(request):
     """Add item to cart"""
     cart = get_or_create_cart(request)
+    source = _resolve_interaction_source(request)
 
     product_id = request.data.get('product_id') or request.data.get('product')
     quantity = request.data.get('quantity', 1)
@@ -101,13 +108,13 @@ def add_to_cart(request):
             'product_id': str(product.id),
             'quantity': new_quantity,
             'price': float(product.price)
-        })
+        }, source=source)
     else:
         log_cart_event('cart_item_added', cart, request.user if request.user.is_authenticated else None, {
             'product_id': str(product.id),
             'quantity': int(quantity),
             'price': float(product.price)
-        })
+        }, source=source)
 
     serializer = CartSerializer(cart)
     return Response(serializer.data)
@@ -118,6 +125,7 @@ def add_to_cart(request):
 def update_cart_item(request, item_id):
     """Update cart item quantity"""
     cart = get_or_create_cart(request)
+    source = _resolve_interaction_source(request)
     item = get_object_or_404(CartItem, id=item_id, cart=cart)
     quantity = request.data.get('quantity')
 
@@ -129,7 +137,7 @@ def update_cart_item(request, item_id):
         log_cart_event('cart_item_removed', cart, request.user if request.user.is_authenticated else None, {
             'product_id': str(item.product.id),
             'quantity': item.quantity
-        })
+        }, source=source)
         item.delete()
     else:
         if qty > item.product.quantity:
@@ -140,7 +148,7 @@ def update_cart_item(request, item_id):
             'product_id': str(item.product.id),
             'quantity': qty,
             'price': float(item.product.price)
-        })
+        }, source=source)
 
     return Response(CartSerializer(cart).data)
 
@@ -150,12 +158,13 @@ def update_cart_item(request, item_id):
 def remove_from_cart(request, item_id):
     """Remove item from cart"""
     cart = get_or_create_cart(request)
+    source = _resolve_interaction_source(request)
     try:
         item = CartItem.objects.get(id=item_id, cart=cart)
         log_cart_event('cart_item_removed', cart, request.user if request.user.is_authenticated else None, {
             'product_id': str(item.product.id),
             'quantity': item.quantity
-        })
+        }, source=source)
         item.delete()
     except CartItem.DoesNotExist:
         pass
