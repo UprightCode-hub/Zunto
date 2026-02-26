@@ -81,15 +81,15 @@ export default function OrderDetail() {
   };
 
   if (loading) {
-    return <div className="min-h-screen pt-24 text-center text-gray-400">Loading order...</div>;
+    return <div className="min-h-screen text-center text-gray-400">Loading order...</div>;
   }
 
   if (!order) {
-    return <div className="min-h-screen pt-24 text-center text-red-400">{error || 'Order not found.'}</div>;
+    return <div className="min-h-screen text-center text-red-400">{error || 'Order not found.'}</div>;
   }
 
   return (
-    <div className="min-h-screen pt-20 pb-12">
+    <div className="min-h-screen pb-12">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-6">
           <Link to="/orders" className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white">

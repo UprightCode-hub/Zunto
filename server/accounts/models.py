@@ -69,6 +69,8 @@ class User(AbstractUser):
     
                            
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='buyer')
+    is_seller = models.BooleanField(default=False)
+    is_verified_seller = models.BooleanField(default=False)
     is_verified = models.BooleanField(default=False)
     is_phone_verified = models.BooleanField(default=False)
     
@@ -126,7 +128,7 @@ class User(AbstractUser):
     @property
     def is_managed_seller(self):
         """Managed sellers are verified sellers that opted into Zunto-managed commerce."""
-        return self.role == 'seller' and self.is_verified and self.seller_commerce_mode == 'managed'
+        return self.is_seller and self.is_verified_seller and self.seller_commerce_mode == 'managed'
 
 
 class VerificationCode(models.Model):

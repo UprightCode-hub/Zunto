@@ -173,6 +173,7 @@ class Product(SoftDeleteModel):
         default=False, 
         help_text="Admin verified listing"
     )
+    is_verified_product = models.BooleanField(default=False)
     
                         
     views_count = models.PositiveIntegerField(default=0)

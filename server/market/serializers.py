@@ -108,7 +108,7 @@ class SellerInfoSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'email', 'full_name', 'profile_picture', 
-            'is_verified', 'created_at'
+            'is_verified', 'is_verified_seller', 'created_at'
         ]
         read_only_fields = fields
 
@@ -130,7 +130,7 @@ class ProductListSerializer(serializers.ModelSerializer):
             'id', 'title', 'slug', 'description', 'listing_type', 'price', 'negotiable',
             'condition', 'brand', 'status', 'category_name', 
             'location_display', 'seller_name', 'primary_image',
-            'is_featured', 'is_boosted', 'is_verified', 'is_favorited',
+            'is_featured', 'is_boosted', 'is_verified', 'is_verified_product', 'is_favorited',
             'views_count', 'favorites_count', 'average_rating', 'review_count',
              'created_at'
         ]
@@ -180,7 +180,7 @@ class ProductDetailSerializer(serializers.ModelSerializer):
             'id', 'seller', 'title', 'slug', 'description', 'listing_type',
             'category', 'location', 'price', 'negotiable', 'condition',
             'brand', 'quantity', 'status', 'is_featured', 'is_boosted',
-            'is_verified', 'is_favorited', 'views_count', 'favorites_count',
+            'is_verified', 'is_verified_product', 'is_favorited', 'views_count', 'favorites_count',
             'shares_count', 'images', 'videos', 'created_at', 'updated_at'
         ]
         read_only_fields = fields

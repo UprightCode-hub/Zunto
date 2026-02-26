@@ -47,7 +47,7 @@ const MESSAGE_WINDOW_SIZE = 250;
 
 export default function MarketplaceInbox({
   initialConversationId = null,
-  containerClassName = 'h-[calc(100vh-140px)]',
+  containerClassName = 'min-h-0 flex-1',
   headerTitle = 'Conversations',
   emptyListLabel = 'No conversations yet',
 }) {
@@ -516,8 +516,8 @@ export default function MarketplaceInbox({
 
   return (
     <div className={containerClassName}>
-      <div className="h-full rounded-2xl border border-[#2c77d1]/20 bg-[#0b1222] overflow-hidden grid grid-cols-1 lg:grid-cols-[340px_1fr]">
-        <aside className={`${showConversationListMobile ? 'block' : 'hidden'} lg:block border-r border-[#2c77d1]/20`}>
+      <div className="h-full min-h-0 rounded-2xl border border-[#2c77d1]/20 bg-[#0b1222] grid grid-cols-1 lg:grid-cols-[340px_1fr]">
+        <aside className={`${showConversationListMobile ? 'block' : 'hidden'} lg:block border-r border-[#2c77d1]/20 min-h-0`}>
           <div className="p-4 border-b border-[#2c77d1]/20 sticky top-0 bg-[#0b1222] z-10">
             <h2 className="text-white font-semibold text-lg">{headerTitle}</h2>
             <div className="mt-3 relative">
@@ -532,7 +532,7 @@ export default function MarketplaceInbox({
             </div>
           </div>
 
-          <div className="h-[calc(100%-90px)] overflow-y-auto">
+          <div className="h-full max-h-[calc(100%-90px)] overflow-y-auto">
             {loading ? (
               <div className="p-4 text-sm text-gray-400">Loading conversations...</div>
             ) : filteredConversations.length === 0 ? (
@@ -561,7 +561,7 @@ export default function MarketplaceInbox({
           </div>
         </aside>
 
-        <section className={`${showConversationListMobile ? 'hidden' : 'flex'} lg:flex flex-col`}>
+        <section className={`${showConversationListMobile ? 'hidden' : 'flex'} lg:flex flex-col min-h-0`}>
           {selectedConversation ? (
             <>
               <header className="px-4 py-3 border-b border-[#2c77d1]/20 flex items-center justify-between sticky top-0 bg-[#0b1222] z-10">
@@ -588,7 +588,7 @@ export default function MarketplaceInbox({
                 </div>
               </header>
 
-              <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-[#08101f]">
+              <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3 bg-[#08101f]">
                 {visibleMessages.length === 0 ? (
                   <div className="h-full min-h-[220px] flex items-center justify-center text-sm text-gray-500">No messages yet.</div>
                 ) : visibleMessages.map((message, index) => {
@@ -615,7 +615,7 @@ export default function MarketplaceInbox({
                 <div className="px-4 py-2 text-xs text-gray-400 border-t border-[#2c77d1]/10">Typing…</div>
               ) : null}
 
-              <form onSubmit={handleSendMessage} className="sticky bottom-0 border-t border-[#2c77d1]/20 p-3 bg-[#0b1222] flex items-center gap-2">
+              <form onSubmit={handleSendMessage} className="border-t border-[#2c77d1]/20 p-3 safe-bottom-pad bg-[#0b1222] flex items-center gap-2">
                 <input
                   type="text"
                   value={newMessage}
@@ -628,7 +628,7 @@ export default function MarketplaceInbox({
                 <button
                   type="submit"
                   disabled={!newMessage.trim() || sendingMessage}
-                  className="inline-flex items-center justify-center rounded-full px-4 py-2 bg-gradient-to-r from-[#2c77d1] to-[#9426f4] text-white font-semibold disabled:opacity-50"
+                  className="btn-primary"
                 >
                   <Send className="w-4 h-4" />
                 </button>

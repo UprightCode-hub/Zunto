@@ -197,6 +197,8 @@ class VerifyRegistrationView(APIView):
                     last_name=pending.last_name,
                     phone=pending.phone,
                     role=pending.role,
+                    is_seller=(pending.role == 'seller'),
+                    is_verified_seller=False,
                     seller_commerce_mode=pending.seller_commerce_mode,
                     is_verified=True,
                 )
@@ -229,6 +231,8 @@ class VerifyRegistrationView(APIView):
                     'first_name': user.first_name,
                     'last_name': user.last_name,
                     'role': user.role,
+                    'is_seller': user.is_seller,
+                    'is_verified_seller': user.is_verified_seller,
                     'is_verified': user.is_verified,
                     'seller_commerce_mode': user.seller_commerce_mode,
                     'is_managed_seller': user.is_managed_seller,
@@ -387,6 +391,8 @@ class GoogleAuthView(APIView):
                     'last_name': last_name,
                     'is_verified': True,
                     'role': 'buyer',
+                    'is_seller': False,
+                    'is_verified_seller': False,
                     'google_id': google_id,
                 },
             )
@@ -412,6 +418,8 @@ class GoogleAuthView(APIView):
                         'first_name': user.first_name,
                         'last_name': user.last_name,
                         'role': user.role,
+                        'is_seller': user.is_seller,
+                        'is_verified_seller': user.is_verified_seller,
                         'is_verified': user.is_verified,
                         'seller_commerce_mode': user.seller_commerce_mode,
                         'is_managed_seller': user.is_managed_seller,
@@ -434,6 +442,32 @@ class GoogleAuthView(APIView):
                 {'error': 'Authentication failed', 'details': str(exc)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+
+class SellerRegistrationView(APIView):
+    """Upgrade authenticated user to seller role."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+
+        updates = []
+        if user.role != 'seller':
+            user.role = 'seller'
+            updates.append('role')
+        if not user.is_seller:
+            user.is_seller = True
+            updates.append('is_seller')
+        if updates:
+            user.save(update_fields=updates)
+
+        return Response({
+            'message': 'Seller registration successful.',
+            'is_seller': user.is_seller,
+            'is_verified_seller': user.is_verified_seller,
+        }, status=status.HTTP_200_OK)
+
 
 
 class UserProfileView(generics.RetrieveUpdateAPIView):

@@ -72,7 +72,7 @@ class UserAdmin(BaseUserAdmin):
         'created_at'
     ]
     list_filter = [
-        'role', 
+        'role', 'is_seller', 'is_verified_seller', 
         VerificationStatusFilter,
         RecentUsersFilter,
         'is_active', 
@@ -93,7 +93,7 @@ class UserAdmin(BaseUserAdmin):
             'fields': ('first_name', 'last_name', 'phone', 'profile_picture', 'bio')
         }),
         (_('Role & Verification'), {
-            'fields': ('role', 'is_verified', 'is_phone_verified', 'nin', 'bvn')
+            'fields': ('role', 'is_seller', 'is_verified_seller', 'is_verified', 'is_phone_verified', 'nin', 'bvn')
         }),
         (_('Address'), {
             'fields': ('address', 'city', 'state', 'country'),

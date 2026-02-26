@@ -303,15 +303,15 @@ export default function InboxAI() {
   };
 
   return (
-    <div className="min-h-screen pt-20 pb-8 bg-[#050d1b]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-[calc(100vh-120px)]">
-        <div className="h-full grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4">
-          <aside className="rounded-2xl border border-[#2c77d1]/20 bg-[#0b1222] overflow-hidden">
+    <div className="min-h-[var(--app-min-height)] pb-8 bg-[#050d1b] flex flex-col">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex-1 min-h-0 flex flex-col">
+        <div className="flex-1 min-h-[65vh] grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4">
+          <aside className="rounded-2xl border border-[#2c77d1]/20 bg-[#0b1222] min-h-0 flex flex-col">
             <div className="p-4 border-b border-[#2c77d1]/20">
               <h1 className="text-lg font-bold text-white flex items-center gap-2"><Bot className="w-5 h-5 text-blue-300" /> AI Workspace</h1>
               <p className="text-xs text-gray-400 mt-1">Homepage and Inbox AI threads.</p>
             </div>
-            <div className="overflow-y-auto h-[calc(100%-74px)]">
+            <div className="overflow-y-auto flex-1 min-h-0">
               {loading ? (
                 <div className="p-4 text-gray-400 text-sm">Loading...</div>
               ) : sessions.length === 0 ? (
@@ -337,20 +337,20 @@ export default function InboxAI() {
             </div>
           </aside>
 
-          <section className="rounded-2xl border border-[#2c77d1]/20 bg-[#0b1222] overflow-hidden flex flex-col">
+          <section className="rounded-2xl border border-[#2c77d1]/20 bg-[#0b1222] min-h-0 flex flex-col">
             {selected ? (
               <>
                 <header className="p-4 border-b border-[#2c77d1]/20">
                   <h2 className="text-white font-semibold truncate">{selected.conversation_title || 'AI Conversation'}</h2>
                   <p className="text-xs text-gray-400">{modeLabel(selected.assistant_mode)}</p>
                 </header>
-                <div ref={messageListRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+                <div ref={messageListRef} className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
                   {orderedMessages.length === 0 && <p className="text-sm text-gray-400">Start the conversation.</p>}
                   {orderedMessages.map((msg) => (
                     <MessageRow key={msg.id} message={msg} onRetry={onRetry} />
                   ))}
                 </div>
-                <form onSubmit={onSend} className="sticky bottom-0 p-4 border-t border-[#2c77d1]/20 bg-[#0b1222] flex gap-2">
+                <form onSubmit={onSend} className="p-4 safe-bottom-pad border-t border-[#2c77d1]/20 bg-[#0b1222] flex gap-2">
                   <input
                     type="text"
                     value={input}
@@ -361,7 +361,7 @@ export default function InboxAI() {
                   <button
                     type="submit"
                     disabled={!input.trim() || sending}
-                    className="inline-flex items-center justify-center rounded-full px-4 py-2 bg-gradient-to-r from-[#2c77d1] to-[#9426f4] text-white font-semibold disabled:opacity-50"
+                    className="btn-primary"
                   >
                     <Send className="w-4 h-4" />
                   </button>

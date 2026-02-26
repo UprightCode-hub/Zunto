@@ -170,7 +170,7 @@ export default function ProductDetail() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center pt-20">
+      <div className="min-h-[var(--app-min-height)] flex items-center justify-center">
         <div className="w-16 h-16 border-4 border-[#2c77d1] border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
@@ -178,7 +178,7 @@ export default function ProductDetail() {
 
   if (!product) {
     return (
-      <div className="min-h-screen flex items-center justify-center pt-20">
+      <div className="min-h-[var(--app-min-height)] flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold mb-4">Product not found</h2>
           <Link to="/shop" className="text-[#2c77d1] hover:text-[#9426f4]">
@@ -201,7 +201,7 @@ export default function ProductDetail() {
     : [];
 
   return (
-    <div className="min-h-screen pt-20 pb-12">
+    <div className="min-h-screen pb-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-gray-400 mb-8">
@@ -349,14 +349,14 @@ export default function ProductDetail() {
                 <button
                   onClick={handleAddToCart}
                   disabled={product.stock === 0 || addingToCart}
-                  className="flex-1 bg-gradient-to-r from-[#2c77d1] to-[#9426f4] py-4 rounded-full font-semibold text-lg flex items-center justify-center gap-2 hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="btn-primary btn-primary-lg flex-1"
                 >
                   <ShoppingCart className="w-5 h-5" />
                   {addingToCart ? 'Adding...' : 'Add to Cart'}
                 </button>
                 <button
                   onClick={handleToggleFavorite}
-                  className={`p-4 border-2 rounded-full hover:bg-[#2c77d1]/10 transition ${
+                  className={`btn-icon-utility h-14 w-14 border-2 ${
                     isFavorite ? 'border-red-500 bg-red-500/10' : 'border-[#2c77d1]'
                   }`}
                 >
@@ -364,7 +364,7 @@ export default function ProductDetail() {
                 </button>
                 <button
                   onClick={handleShareProduct}
-                  className="p-4 border-2 border-[#2c77d1] rounded-full hover:bg-[#2c77d1]/10 transition"
+                  className="btn-icon-utility h-14 w-14 border-2 border-[#2c77d1]"
                   title="Share product"
                 >
                   <Share2 className="w-6 h-6" />
@@ -373,7 +373,7 @@ export default function ProductDetail() {
 
               <button
                 onClick={handleMessageSeller}
-                className="w-full py-3 px-5 rounded-full border border-[#2c77d1]/40 bg-[#2c77d1]/10 hover:bg-[#2c77d1]/20 transition flex items-center justify-center gap-2 font-semibold"
+                className="btn-secondary w-full"
               >
                 <MessageCircle className="w-5 h-5" />
                 Message Seller

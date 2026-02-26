@@ -47,10 +47,10 @@ export default function ProductCard({ product, viewMode = 'grid' }) {
               Sale
             </div>
           )}
-          <button
-            onClick={toggleFavorite}
-            className="absolute top-3 left-3 w-8 h-8 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-black/70 transition"
-          >
+            <button
+              onClick={toggleFavorite}
+              className="btn-icon-utility absolute top-3 left-3 h-8 w-8 border-0 bg-black/50 backdrop-blur-sm hover:bg-black/70"
+            >
             <Heart className={`w-4 h-4 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-white'}`} />
           </button>
         </div>
@@ -86,8 +86,9 @@ export default function ProductCard({ product, viewMode = 'grid' }) {
             <button
               onClick={handleAddToCart}
               disabled={isLoading || product.stock === 0}
-              className="bg-gradient-to-r from-[#2c77d1] to-[#9426f4] px-4 py-2 rounded-full text-sm font-semibold hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-primary"
             >
+              <ShoppingBag className="w-4 h-4" />
               {isLoading ? 'Adding...' : 'Add to Cart'}
             </button>
           </div>
@@ -114,7 +115,7 @@ export default function ProductCard({ product, viewMode = 'grid' }) {
         )}
         <button
           onClick={toggleFavorite}
-          className="absolute top-3 left-3 w-8 h-8 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-black/70 transition"
+          className="btn-icon-utility absolute top-3 left-3 h-8 w-8 border-0 bg-black/50 backdrop-blur-sm hover:bg-black/70"
         >
           <Heart className={`w-4 h-4 ${isFavorite ? 'fill-red-500 text-red-500' : 'text-white'}`} />
         </button>
@@ -146,12 +147,15 @@ export default function ProductCard({ product, viewMode = 'grid' }) {
           <button
             onClick={handleAddToCart}
             disabled={isLoading || product.stock === 0}
-            className="w-8 h-8 bg-gradient-to-r from-[#2c77d1] to-[#9426f4] rounded-full flex items-center justify-center hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-primary"
           >
             {isLoading ? (
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
             ) : (
-              <ShoppingBag className="w-4 h-4 text-white" />
+              <>
+                <ShoppingBag className="w-4 h-4 text-white" />
+                Add to Cart
+              </>
             )}
           </button>
         </div>

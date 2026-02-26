@@ -53,7 +53,7 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center pt-20">
+      <div className="min-h-[var(--app-min-height)] flex items-center justify-center">
         <div className="w-16 h-16 border-4 border-[#2c77d1] border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
@@ -61,7 +61,7 @@ export default function Dashboard() {
 
   if (user?.role === 'buyer') {
     return (
-      <div className="min-h-screen pt-20 pb-12">
+      <div className="min-h-screen pb-12">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-8">
             <h1 className="text-4xl font-bold mb-2">Welcome Back, {user?.first_name}!</h1>
@@ -149,7 +149,7 @@ export default function Dashboard() {
   // Seller Dashboard
   if (user?.role === 'seller') {
     return (
-      <div className="min-h-screen pt-20 pb-12">
+      <div className="min-h-screen pb-12">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-8">
             <h1 className="text-4xl font-bold mb-2">Seller Dashboard</h1>
@@ -265,7 +265,7 @@ export default function Dashboard() {
 
   // Admin Dashboard
   return (
-    <div className="min-h-screen pt-20 pb-12">
+    <div className="min-h-screen pb-12">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2">Admin Dashboard</h1>

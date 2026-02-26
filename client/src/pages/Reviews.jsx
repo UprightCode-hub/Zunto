@@ -92,7 +92,7 @@ export default function Reviews() {
   const filteredReviews = filterRating > 0 ? reviews.filter(r => r.rating === filterRating) : reviews;
 
   return (
-    <div className="min-h-screen pt-20 pb-12">
+    <div className="min-h-screen pb-12">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2">Product Reviews</h1>

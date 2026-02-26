@@ -61,7 +61,7 @@ export default function Cart() {
 
   if (loading && cart.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center pt-20">
+      <div className="min-h-[var(--app-min-height)] flex items-center justify-center">
         <div className="w-16 h-16 border-4 border-[#2c77d1] border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -69,7 +69,7 @@ export default function Cart() {
 
   if (cart.length === 0) {
     return (
-      <div className="min-h-screen pt-20 pb-12">
+      <div className="min-h-screen pb-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center py-20">
             <ShoppingBag className="w-24 h-24 mx-auto text-gray-600 mb-6" />
@@ -89,7 +89,7 @@ export default function Cart() {
   }
 
   return (
-    <div className="min-h-screen pt-20 pb-12">
+    <div className="min-h-screen pb-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between gap-4 mb-8">
           <h1 className="text-4xl font-bold">Shopping Cart</h1>

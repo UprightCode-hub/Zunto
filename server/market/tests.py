@@ -1344,3 +1344,73 @@ class SellerPermissionTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         schedule_mock.assert_not_called()
+
+
+class ProductFilteringTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.category = Category.objects.create(name='Phones')
+        self.seller_verified = User.objects.create_user(
+            email='verified-seller@example.com',
+            password='TestPass123!',
+            first_name='Verified',
+            last_name='Seller',
+            role='seller',
+            is_seller=True,
+            is_verified=True,
+            is_verified_seller=True,
+        )
+        self.seller_unverified = User.objects.create_user(
+            email='regular-seller@example.com',
+            password='TestPass123!',
+            first_name='Regular',
+            last_name='Seller',
+            role='seller',
+            is_seller=True,
+            is_verified=True,
+            is_verified_seller=False,
+        )
+
+        self.verified_product = Product.objects.create(
+            seller=self.seller_verified,
+            title='Verified Product',
+            description='Trusted listing',
+            listing_type='product',
+            category=self.category,
+            price=Decimal('100.00'),
+            quantity=1,
+            condition='new',
+            status='active',
+            is_verified=True,
+            is_verified_product=True,
+        )
+        self.unverified_product = Product.objects.create(
+            seller=self.seller_unverified,
+            title='Regular Product',
+            description='Unverified listing',
+            listing_type='product',
+            category=self.category,
+            price=Decimal('90.00'),
+            quantity=1,
+            condition='new',
+            status='active',
+            is_verified=False,
+            is_verified_product=False,
+        )
+
+    def test_products_can_be_filtered_by_seller(self):
+        response = self.client.get(f'/api/market/products/?seller={self.seller_verified.id}')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        titles = {item['title'] for item in response.data.get('results', response.data)}
+        self.assertEqual(titles, {'Verified Product'})
+
+    def test_products_can_be_filtered_by_verified_flags(self):
+        response = self.client.get('/api/market/products/?verified_product=true&verified_seller=true')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data.get('results', response.data)
+        self.assertEqual(len(data), 1)
+        self.assertTrue(data[0]['is_verified_product'])
+
+        detail = self.client.get(f'/api/market/products/{self.verified_product.slug}/')
+        self.assertEqual(detail.status_code, status.HTTP_200_OK)
+        self.assertTrue(detail.data['seller']['is_verified_seller'])

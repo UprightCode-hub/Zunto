@@ -53,7 +53,7 @@ export default function NotificationSettings() {
   };
 
   return (
-    <div className="min-h-screen pt-20 pb-12">
+    <div className="min-h-screen pb-12">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         <h1 className="text-3xl font-bold mb-2">Notification Preferences</h1>
         <p className="text-gray-400 mb-6">Control which updates you receive.</p>

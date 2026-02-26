@@ -1,5 +1,42 @@
 @import "tailwindcss";
 
+:root {
+  --app-min-height: 100vh;
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --app-min-height: 100dvh;
+  }
+}
+
+.safe-bottom-pad {
+  padding-bottom: max(0.75rem, var(--safe-area-bottom));
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#2c77d1] to-[#9426f4] px-5 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-primary-lg {
+    @apply min-h-12 px-8 py-3 text-base font-bold;
+  }
+
+  .btn-secondary {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[#2c77d1]/40 bg-transparent px-5 py-2.5 text-sm font-semibold transition hover:bg-[#2c77d1]/10;
+  }
+
+  .btn-utility {
+    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-[#2c77d1]/25 bg-transparent px-3 py-2 text-sm font-medium transition hover:bg-[#2c77d1]/10;
+  }
+
+  .btn-icon-utility {
+    @apply inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#2c77d1]/25 bg-transparent transition hover:bg-[#2c77d1]/10;
+  }
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;

@@ -70,6 +70,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             'first_name': self.user.first_name,
             'last_name': self.user.last_name,
             'role': self.user.role,
+            'is_seller': self.user.is_seller,
+            'is_verified_seller': self.user.is_verified_seller,
             'is_verified': self.user.is_verified,
             'seller_commerce_mode': self.user.seller_commerce_mode,
             'is_managed_seller': self.user.is_managed_seller,
@@ -88,11 +90,11 @@ class UserProfileSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'email', 'first_name', 'last_name', 'full_name', 'phone',
-            'profile_picture', 'bio', 'role', 'is_verified', 'is_phone_verified',
+            'profile_picture', 'bio', 'role', 'is_seller', 'is_verified_seller', 'is_verified', 'is_phone_verified',
             'address', 'city', 'state', 'country', 'seller_commerce_mode',
             'is_managed_seller', 'created_at'
         ]
-        read_only_fields = ['id', 'email', 'is_verified', 'is_phone_verified', 'created_at', 'is_managed_seller']
+        read_only_fields = ['id', 'email', 'is_seller', 'is_verified_seller', 'is_verified', 'is_phone_verified', 'created_at', 'is_managed_seller']
     
     def get_full_name(self, obj):
         return obj.get_full_name()
