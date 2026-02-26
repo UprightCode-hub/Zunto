@@ -57,14 +57,15 @@ function AppLayout() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#050d1b] text-gray-900 dark:text-white transition-colors duration-300">
+    <div className="min-h-[var(--app-min-height)] bg-white dark:bg-[#050d1b] text-gray-900 dark:text-white transition-colors duration-300 flex flex-col">
       {!isDashboard && <Navbar />}
 
-      <main className="min-h-[calc(100vh-200px)]">
+      <main className="flex-1">
         <Suspense fallback={<div className="px-4 py-12 text-center text-gray-500 dark:text-gray-400">Loading page...</div>}>
           <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/shop" element={<Shop />} />
+          <Route path="/products" element={<Shop />} />
           <Route path="/product/:slug" element={<ProductDetail />} />
           <Route path="/cart" element={<Cart />} />
           <Route path="/checkout" element={<Checkout />} />

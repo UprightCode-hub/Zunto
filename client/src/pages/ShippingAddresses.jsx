@@ -74,7 +74,7 @@ export default function ShippingAddresses() {
   };
 
   return (
-    <div className="min-h-screen pt-20 pb-12">
+    <div className="min-h-screen pb-12">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-2 gap-8">
         <section>
           <h1 className="text-3xl font-bold mb-2">Shipping Address Book</h1>

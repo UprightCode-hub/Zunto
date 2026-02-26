@@ -15,10 +15,14 @@ class ProductFilter(django_filters.FilterSet):
     condition = django_filters.MultipleChoiceFilter(choices=Product.CONDITION_CHOICES)
     listing_type = django_filters.ChoiceFilter(choices=Product.LISTING_TYPE_CHOICES)
     is_negotiable = django_filters.BooleanFilter(field_name='negotiable')
+    seller = django_filters.CharFilter(field_name='seller__id')
+    verified_product = django_filters.BooleanFilter(field_name='is_verified_product')
+    verified_seller = django_filters.BooleanFilter(field_name='seller__is_verified_seller')
     
     class Meta:
         model = Product
         fields = [
             'min_price', 'max_price', 'category', 'location', 
-            'state', 'city', 'condition', 'listing_type', 'is_negotiable'
+            'state', 'city', 'condition', 'listing_type', 'is_negotiable',
+            'seller', 'verified_product', 'verified_seller'
         ]

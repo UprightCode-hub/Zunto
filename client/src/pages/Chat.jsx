@@ -54,14 +54,14 @@ export default function Chat() {
   };
 
   return (
-    <div className="min-h-screen pt-20 pb-8 bg-[#050d1b]">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="rounded-2xl border border-purple-500/20 bg-[#0b1222] overflow-hidden min-h-[72vh] flex flex-col">
+    <div className="min-h-[var(--app-min-height)] pb-8 bg-[#050d1b] flex flex-col">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 flex-1 min-h-0 flex flex-col">
+        <div className="rounded-2xl border border-purple-500/20 bg-[#0b1222] flex-1 min-h-[65vh] flex flex-col">
           <div className="p-4 border-b border-purple-500/20 flex items-center gap-2 text-white font-semibold">
             <Headset className="w-5 h-5 text-purple-300" /> Customer Service AI
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#08101f]">
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 bg-[#08101f]">
             {messages.map((msg, index) => (
               <div key={`${msg.sender}-${index}`} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[82%] rounded-2xl px-4 py-2 text-sm ${msg.sender === 'user' ? 'bg-gradient-to-r from-[#2c77d1] to-[#9426f4] text-white' : 'bg-[#1b2846] text-gray-100'}`}>
@@ -74,7 +74,7 @@ export default function Chat() {
             <div ref={endRef} />
           </div>
 
-          <form onSubmit={onSubmit} className="sticky bottom-0 border-t border-purple-500/20 p-3 bg-[#0b1222] flex gap-2">
+          <form onSubmit={onSubmit} className="border-t border-purple-500/20 p-3 safe-bottom-pad bg-[#0b1222] flex gap-2">
             <input
               type="text"
               value={input}
@@ -85,7 +85,7 @@ export default function Chat() {
             <button
               type="submit"
               disabled={!input.trim() || loading}
-              className="inline-flex items-center justify-center rounded-full px-4 py-2 bg-gradient-to-r from-[#2c77d1] to-[#9426f4] text-white font-semibold disabled:opacity-50"
+              className="btn-primary"
             >
               <Send className="w-4 h-4" />
             </button>

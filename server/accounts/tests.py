@@ -177,3 +177,31 @@ class AuthenticationFlowTestCase(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['email'], user.email)
+
+
+class SellerRegistrationTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.url = '/api/seller/register/'
+        self.user = User.objects.create_user(
+            email='buyer-upgrade@example.com',
+            password='TestPass123!',
+            first_name='Buyer',
+            last_name='Upgrade',
+            role='buyer',
+            is_verified=True,
+        )
+
+    def test_seller_registration_requires_authentication(self):
+        response = self.client.post(self.url, {}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_seller_registration_sets_seller_flags(self):
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(self.url, {}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.role, 'seller')
+        self.assertTrue(self.user.is_seller)
+        self.assertFalse(self.user.is_verified_seller)

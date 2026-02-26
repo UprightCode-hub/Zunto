@@ -82,7 +82,7 @@ export default function Footer() {
               <Link to="/notifications" className="hover:text-blue-400 transition">
                 Notifications
               </Link>
-              <Link to="/seller" className="hover:text-blue-400 transition">
+              <Link to="/signup" className="hover:text-blue-400 transition">
                 Become a Seller
               </Link>
             </div>

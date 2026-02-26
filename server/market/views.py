@@ -138,9 +138,10 @@ class ProductListCreateView(generics.ListCreateAPIView):
     template_name = 'products.html'
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
                                      
     search_fields = ['title', 'description', 'brand']
+    filterset_class = ProductFilter
     ordering_fields = ['created_at', 'price', 'views_count', 'favorites_count']
     ordering = ['-created_at']
     

@@ -40,12 +40,12 @@ class ProductVideoInline(admin.TabularInline):
 class ProductAdmin(admin.ModelAdmin):
     list_display = [
         'title', 'seller', 'listing_type', 'price', 'category', 
-        'status', 'is_featured', 'is_boosted', 'views_count', 
+        'status', 'is_featured', 'is_boosted', 'is_verified_product', 'views_count', 
         'favorites_count', 'created_at'
     ]
     list_filter = [
         'listing_type', 'status', 'is_featured', 'is_boosted', 
-        'is_verified', 'category', 'condition', 'created_at'
+        'is_verified', 'is_verified_product', 'category', 'condition', 'created_at'
     ]
     search_fields = ['title', 'description', 'seller__email', 'brand']
     prepopulated_fields = {'slug': ('title',)}
@@ -63,7 +63,7 @@ class ProductAdmin(admin.ModelAdmin):
             'fields': ('price', 'negotiable', 'condition', 'brand', 'quantity')
         }),
         ('Status & Promotion', {
-            'fields': ('status', 'is_featured', 'is_boosted', 'boost_expires_at', 'is_verified', 'expires_at')
+            'fields': ('status', 'is_featured', 'is_boosted', 'boost_expires_at', 'is_verified', 'is_verified_product', 'expires_at')
         }),
         ('Engagement Metrics', {
             'fields': ('views_count', 'favorites_count', 'shares_count')
@@ -81,7 +81,7 @@ class ProductAdmin(admin.ModelAdmin):
     mark_as_featured.short_description = "Mark selected as featured"
     
     def mark_as_verified(self, request, queryset):
-        queryset.update(is_verified=True)
+        queryset.update(is_verified=True, is_verified_product=True)
         self.message_user(request, f"{queryset.count()} products marked as verified.")
     mark_as_verified.short_description = "Mark selected as verified"
     

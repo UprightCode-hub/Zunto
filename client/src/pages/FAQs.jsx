@@ -54,7 +54,7 @@ export default function FAQs() {
   };
 
   return (
-    <div className="min-h-screen pt-20 pb-14 bg-white dark:bg-gray-900 transition-colors">
+    <div className="min-h-screen pb-14 bg-white dark:bg-gray-900 transition-colors">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         <header className="mb-8">
           <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white">Frequently Asked Questions</h1>

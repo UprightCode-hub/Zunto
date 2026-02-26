@@ -45,7 +45,7 @@ export default function Refunds() {
   };
 
   return (
-    <div className="min-h-screen pt-20 pb-12">
+    <div className="min-h-screen pb-12">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-2 gap-8">
         <section className="bg-[#1a1a1a] rounded-2xl border border-[#2c77d1]/20 p-6 h-fit">
           <h1 className="text-2xl font-bold mb-2">Request Refund</h1>

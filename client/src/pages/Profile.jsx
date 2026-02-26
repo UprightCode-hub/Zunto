@@ -126,7 +126,7 @@ export default function Profile() {
   }
 
   return (
-    <div className="min-h-screen pt-20 pb-12 bg-gray-50 dark:bg-gray-900 transition-colors">
+    <div className="min-h-screen pb-12 bg-gray-50 dark:bg-gray-900 transition-colors">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <h1 className="text-4xl font-bold mb-8 text-gray-900 dark:text-white">My Account</h1>
 
