@@ -7,9 +7,9 @@ export default function Hero({
   title = 'Discover Amazing Products',
   subtitle = 'Shop the latest trends with up to 50% off on selected items',
   primaryButtonText = 'Shop Now',
-  primaryButtonLink = '/shop',
+  primaryButtonLink = '/products',
   secondaryButtonText = 'View Deals',
-  secondaryButtonLink = '/shop?sale=true',
+  secondaryButtonLink = '/products?sale=true',
 }) {
   return (
     <section className="pt-24 pb-12 px-4 sm:px-6 lg:px-8">

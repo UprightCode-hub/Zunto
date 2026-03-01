@@ -222,3 +222,43 @@ class DisputeTicketAdminDecisionSerializer(serializers.Serializer):
     )
     admin_decision = serializers.CharField(max_length=5000)
     admin_decision_reason = serializers.CharField(max_length=5000, required=False, allow_blank=True)
+
+
+
+
+class LogDemandGapRequestSerializer(serializers.Serializer):
+    raw_query = serializers.CharField(max_length=2000, required=True, allow_blank=False)
+    filters = serializers.DictField(required=True)
+    source = serializers.ChoiceField(choices=['homepage_reco', 'grid_search', 'future_use'])
+
+
+class LogDemandGapResponseSerializer(serializers.Serializer):
+    logged = serializers.BooleanField(required=True)
+
+class TranslateSearchRequestSerializer(serializers.Serializer):
+    query = serializers.CharField(max_length=2000, required=True)
+
+
+class TranslateSearchResponseSerializer(serializers.Serializer):
+    filters = serializers.DictField(required=True)
+    refined_query = serializers.CharField(required=True, allow_blank=True)
+    confidence = serializers.FloatField(required=True)
+
+    def validate_filters(self, value):
+        allowed_keys = {
+            'search',
+            'category',
+            'condition',
+            'min_price',
+            'max_price',
+            'is_negotiable',
+            'verified_product',
+            'verified_seller',
+            'ordering',
+        }
+
+        unknown = set(value.keys()) - allowed_keys
+        if unknown:
+            raise serializers.ValidationError(f'Unsupported filter keys: {sorted(unknown)}')
+
+        return value

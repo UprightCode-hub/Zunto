@@ -56,7 +56,7 @@ export default function CartSummary({ cartCount, cartTotal, busy, onCheckout, on
 
       <div className="space-y-3">
         <Link
-          to="/shop"
+          to="/products"
           className="block text-center text-[#2c77d1] hover:text-[#9426f4] transition"
         >
           Continue Shopping

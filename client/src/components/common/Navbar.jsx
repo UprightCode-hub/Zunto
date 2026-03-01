@@ -24,7 +24,7 @@ export default function Navbar() {
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      navigate(`/shop?search=${encodeURIComponent(searchQuery.trim())}`);
+      navigate(`/products?search=${encodeURIComponent(searchQuery.trim())}`);
       setSearchQuery('');
       setMobileMenuOpen(false);
     }
@@ -74,8 +74,8 @@ export default function Navbar() {
 
           <div className="hidden lg:flex items-center gap-6 shrink-0">
             <Link to="/" className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition">Home</Link>
-            <Link to="/shop" className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition">Products</Link>
-            <Link to="/shop?mode=ai" className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition">AI Mode</Link>
+            <Link to="/products" className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition">Products</Link>
+            <Link to="/products?mode=ai" className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition">AI Mode</Link>
             {user?.role === 'admin' && <Link to="/admin" className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition">Admin</Link>}
             {user?.role === 'seller' && <Link to="/seller" className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition">Seller</Link>}
           </div>
@@ -184,8 +184,8 @@ export default function Navbar() {
 
             <div className="flex flex-col gap-2">
               <Link to="/" className="py-2 text-gray-700 dark:text-gray-300 font-medium" onClick={closeMenus}>Home</Link>
-              <Link to="/shop" className="py-2 text-gray-700 dark:text-gray-300 font-medium" onClick={closeMenus}>Products</Link>
-              <Link to="/shop?mode=ai" className="py-2 text-gray-700 dark:text-gray-300 font-medium" onClick={closeMenus}>AI Mode</Link>
+              <Link to="/products" className="py-2 text-gray-700 dark:text-gray-300 font-medium" onClick={closeMenus}>Products</Link>
+              <Link to="/products?mode=ai" className="py-2 text-gray-700 dark:text-gray-300 font-medium" onClick={closeMenus}>AI Mode</Link>
               <Link to="/orders" className="py-2 text-gray-700 dark:text-gray-300 font-medium" onClick={closeMenus}>Orders</Link>
               {isAuthenticated && <Link to="/chat?mode=customer-service" className="py-2 text-gray-700 dark:text-gray-300 font-medium" onClick={closeMenus}>Customer Service</Link>}
               <Link to="/faqs" className="py-2 text-gray-700 dark:text-gray-300 font-medium" onClick={closeMenus}>Help Center</Link>
