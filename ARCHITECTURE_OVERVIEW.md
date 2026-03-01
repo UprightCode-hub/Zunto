@@ -122,7 +122,6 @@ Legacy endpoints remain present (e.g., `legacy_chat_endpoint`, `ask_assistant`) 
 6. **No duplicate demand model introduced for grid logging.**
 7. **Customer-service handling is centered on `DisputeFlow` under `ConversationManager` orchestration.**
 8. **Legacy compatibility endpoints exist but canonical runtime path is `/assistant/api/chat/`.**
-9. **Assistant lanes are strictly isolated; `homepage_reco` logic does not mutate `inbox_general` or `customer_service` sessions.**
 
 ---
 
