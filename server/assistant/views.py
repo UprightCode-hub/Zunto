@@ -15,6 +15,7 @@ from rest_framework import status
 from django.shortcuts import render
 from django.utils import timezone
 from django.http import HttpResponse
+from django.utils.text import slugify
 
 from assistant.utils.tts_utils import get_tts_service
 from assistant.models import ConversationSession, ConversationLog, Report, DisputeMedia, DisputeTicket, DisputeTicketCommunication
@@ -33,10 +34,16 @@ from assistant.serializers import (
     DisputeTicketCreateSerializer,
     DisputeTicketAdminDecisionSerializer,
     DisputeTicketSerializer,
+    TranslateSearchRequestSerializer,
+    TranslateSearchResponseSerializer,
+    LogDemandGapRequestSerializer,
+    LogDemandGapResponseSerializer,
 )
 from assistant.services.dispute_ticket_service import DisputeTicketService, DisputeTicketError
 from assistant.services.dispute_ai_service import DisputeAIService
 from assistant.services.dispute_oversight_metrics import DisputeOversightMetricsService
+from assistant.services.recommendation_service import RecommendationService
+from assistant.services.demand_gap_service import log_demand_gap
 
                    
 from assistant.utils.constants import (
@@ -141,6 +148,110 @@ def _build_title_from_first_message(message, product_name=None):
     if len(snippet) >= 8:
         return snippet
     return f"Conversation about {product_name or 'support'}"
+
+
+def _derive_translate_search_confidence(query: str, extracted: dict, filters: dict) -> float:
+    score = 0.35
+    lower = (query or '').lower()
+
+    if extracted.get('category'):
+        score += 0.25
+    budget = extracted.get('budget_range') if isinstance(extracted, dict) else None
+    if isinstance(budget, dict) and (budget.get('min') is not None or budget.get('max') is not None):
+        score += 0.2
+    if filters.get('condition'):
+        score += 0.1
+    if filters.get('ordering'):
+        score += 0.1
+    if any(token in lower for token in ['verified', 'authentic', 'original']):
+        score += 0.05
+
+    return round(min(score, 0.95), 2)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def translate_search(request):
+    """
+    Translate natural-language marketplace search into structured product filter params.
+
+    This endpoint is intentionally stateless:
+    - no conversation session creation
+    - no conversation logging
+    - no assistant reply generation
+    """
+    serializer = TranslateSearchRequestSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+
+    query = serializer.validated_data['query'].strip()
+    extracted = RecommendationService.extract_constraints(query)
+
+    filters = {
+        'search': query,
+    }
+
+    category = extracted.get('category')
+    if category:
+        filters['category'] = slugify(category)
+
+    budget = extracted.get('budget_range') if isinstance(extracted, dict) else None
+    if isinstance(budget, dict):
+        min_budget = budget.get('min')
+        max_budget = budget.get('max')
+        if min_budget is not None:
+            filters['min_price'] = str(int(min_budget))
+        if max_budget is not None:
+            filters['max_price'] = str(int(max_budget))
+
+    lower = query.lower()
+    if 'used' in lower:
+        filters['condition'] = 'used'
+    elif 'new' in lower or 'brand new' in lower:
+        filters['condition'] = 'new'
+
+    if any(token in lower for token in ['negotiable', 'nego']):
+        filters['is_negotiable'] = 'true'
+    if any(token in lower for token in ['verified product', 'authentic product']):
+        filters['verified_product'] = 'true'
+    if any(token in lower for token in ['verified seller', 'trusted seller']):
+        filters['verified_seller'] = 'true'
+
+    if any(token in lower for token in ['cheapest', 'lowest', 'low to high']):
+        filters['ordering'] = 'price'
+    elif any(token in lower for token in ['newest', 'latest', 'recent']):
+        filters['ordering'] = '-created_at'
+
+    response_payload = {
+        'filters': filters,
+        'refined_query': query,
+        'confidence': _derive_translate_search_confidence(query, extracted, filters),
+    }
+
+    response_serializer = TranslateSearchResponseSerializer(data=response_payload)
+    response_serializer.is_valid(raise_exception=True)
+    return Response(response_serializer.validated_data, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def log_demand_gap_endpoint(request):
+    """Stateless endpoint for logging demand gaps from non-chat surfaces."""
+    serializer = LogDemandGapRequestSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+
+    payload = serializer.validated_data
+    user = request.user if getattr(request.user, 'is_authenticated', False) else None
+
+    log_demand_gap(
+        raw_query=payload['raw_query'].strip(),
+        structured_filters=payload.get('filters') or {},
+        user=user,
+        source=payload['source'],
+    )
+
+    response_serializer = LogDemandGapResponseSerializer(data={'logged': True})
+    response_serializer.is_valid(raise_exception=True)
+    return Response(response_serializer.validated_data, status=status.HTTP_200_OK)
 
 
 def _handle_ephemeral_chat(message: str, assistant_mode: str, lane: str):

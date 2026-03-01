@@ -181,7 +181,7 @@ export default function ProductDetail() {
       <div className="min-h-[var(--app-min-height)] flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold mb-4">Product not found</h2>
-          <Link to="/shop" className="text-[#2c77d1] hover:text-[#9426f4]">
+          <Link to="/products" className="text-[#2c77d1] hover:text-[#9426f4]">
             Back to Shop
           </Link>
         </div>
@@ -207,7 +207,7 @@ export default function ProductDetail() {
         <div className="flex items-center gap-2 text-sm text-gray-400 mb-8">
           <Link to="/" className="hover:text-[#2c77d1]">Home</Link>
           <span>/</span>
-          <Link to="/shop" className="hover:text-[#2c77d1]">Shop</Link>
+          <Link to="/products" className="hover:text-[#2c77d1]">Shop</Link>
           <span>/</span>
           <span className="text-white">{productTitle}</span>
         </div>

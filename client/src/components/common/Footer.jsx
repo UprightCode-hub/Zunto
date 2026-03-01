@@ -35,13 +35,13 @@ export default function Footer() {
           <div>
             <h4 className="font-semibold text-white mb-4">Shop</h4>
             <div className="flex flex-col gap-2 text-gray-400">
-              <Link to="/shop" className="hover:text-blue-400 transition">
+              <Link to="/products" className="hover:text-blue-400 transition">
                 All Products
               </Link>
-              <Link to="/shop?new=true" className="hover:text-blue-400 transition">
+              <Link to="/products?new=true" className="hover:text-blue-400 transition">
                 New Arrivals
               </Link>
-              <Link to="/shop?sale=true" className="hover:text-blue-400 transition">
+              <Link to="/products?sale=true" className="hover:text-blue-400 transition">
                 On Sale
               </Link>
               <Link to="/admin" className="hover:text-blue-400 transition">

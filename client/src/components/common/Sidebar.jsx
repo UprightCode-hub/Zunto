@@ -10,7 +10,7 @@ export default function Sidebar() {
         <Link to="/dashboard" className="block px-4 py-3 rounded-lg bg-blue-600">
           Admin Dashboard
         </Link>
-        <Link to="/shop" className="block px-4 py-3 rounded-lg hover:bg-[#1a2d4a]">
+        <Link to="/products" className="block px-4 py-3 rounded-lg hover:bg-[#1a2d4a]">
           Shop
         </Link>
       </nav>

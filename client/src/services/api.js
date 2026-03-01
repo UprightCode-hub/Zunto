@@ -744,6 +744,27 @@ export const sendCustomerServiceMessage = (message, sessionId = null, userId = n
   sendAssistantMessage(message, sessionId, userId, 'customer_service')
 );
 
+export const translateSearchQuery = (query, signal = undefined) => {
+  return apiCall('/assistant/api/translate-search/', {
+    method: 'POST',
+    body: JSON.stringify({ query }),
+    signal,
+  });
+};
+
+
+export const logDemandGap = ({ rawQuery, filters, source = 'grid_search' }, signal = undefined) => {
+  return apiCall('/assistant/api/log-demand-gap/', {
+    method: 'POST',
+    body: JSON.stringify({
+      raw_query: rawQuery,
+      filters,
+      source,
+    }),
+    signal,
+  });
+};
+
 // ==========================================
 // DASHBOARD (dashboard/urls.py)
 // ==========================================

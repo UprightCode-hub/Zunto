@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useEffect } from "react";
-import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { ThemeProvider } from "./context/ThemeContext";
 import Navbar from "./components/common/Navbar";
 import Footer from "./components/common/Footer";
@@ -39,6 +39,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 function AppLayout() {
   const location = useLocation();
   const isDashboard = location.pathname === "/dashboard";
+  const shopRedirectPath = `/products${location.search || ''}${location.hash || ''}`;
 
   useEffect(() => {
     const applyClientClass = () => {
@@ -64,8 +65,8 @@ function AppLayout() {
         <Suspense fallback={<div className="px-4 py-12 text-center text-gray-500 dark:text-gray-400">Loading page...</div>}>
           <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/shop" element={<Shop />} />
           <Route path="/products" element={<Shop />} />
+          <Route path="/shop" element={<Navigate to={shopRedirectPath} replace />} />
           <Route path="/product/:slug" element={<ProductDetail />} />
           <Route path="/cart" element={<Cart />} />
           <Route path="/checkout" element={<Checkout />} />

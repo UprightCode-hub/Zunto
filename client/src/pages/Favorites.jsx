@@ -44,7 +44,7 @@ export default function Favorites() {
           <div className="py-12 text-center bg-[#1a1a1a] rounded-2xl border border-[#2c77d1]/20">
             <Heart className="w-10 h-10 mx-auto mb-3 text-gray-500" />
             <p className="text-gray-300">No favorites yet.</p>
-            <Link to="/shop" className="inline-block mt-4 text-[#2c77d1] hover:text-[#5aa5ff]">Browse products</Link>
+            <Link to="/products" className="inline-block mt-4 text-[#2c77d1] hover:text-[#5aa5ff]">Browse products</Link>
           </div>
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
