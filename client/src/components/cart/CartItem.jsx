@@ -8,7 +8,7 @@ export default function CartItem({ item, busy, onUpdateQuantity, onRemove }) {
   return (
     <div className="bg-[#050d1b] border border-[#2c77d1]/20 rounded-2xl p-6 flex flex-col sm:flex-row gap-6">
       <Link
-        to={productSlug ? `/product/${productSlug}` : '/shop'}
+        to={productSlug ? `/product/${productSlug}` : '/products'}
         className="w-full sm:w-32 h-40 sm:h-32 bg-gradient-to-br from-[#2c77d1]/20 to-[#9426f4]/20 rounded-lg overflow-hidden shrink-0"
       >
         <img
@@ -21,7 +21,7 @@ export default function CartItem({ item, busy, onUpdateQuantity, onRemove }) {
       <div className="flex-1">
         <div className="flex justify-between items-start gap-2 mb-2">
           <Link
-            to={productSlug ? `/product/${productSlug}` : '/shop'}
+            to={productSlug ? `/product/${productSlug}` : '/products'}
             className="text-lg sm:text-xl font-semibold hover:text-[#2c77d1] transition"
           >
             {item.product_name}

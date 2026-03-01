@@ -76,7 +76,7 @@ export default function Cart() {
             <h2 className="text-3xl font-bold mb-4">Your cart is empty</h2>
             <p className="text-gray-400 mb-8">Add some products to get started.</p>
             <Link
-              to="/shop"
+              to="/products"
               className="inline-flex items-center gap-2 bg-gradient-to-r from-[#2c77d1] to-[#9426f4] px-8 py-3 rounded-full font-semibold hover:opacity-90 transition"
             >
               Start Shopping <ArrowRight className="w-5 h-5" />

@@ -7,7 +7,8 @@ from typing import Dict, Optional
 from django.db import transaction
 from django.utils import timezone
 
-from assistant.models import ConversationSession, RecommendationDemandGap
+from assistant.models import ConversationSession
+from assistant.services.demand_gap_service import log_demand_gap
 from market.models import Category, Product
 
 logger = logging.getLogger(__name__)
@@ -157,19 +158,17 @@ class RecommendationService:
 
     @classmethod
     def log_demand_gap(cls, session: ConversationSession, constraints: Dict) -> None:
-        category = constraints.get('category') or ''
-        attrs = constraints.get('attributes') or {}
-        location = constraints.get('location') or ''
-        gap, created = RecommendationDemandGap.objects.get_or_create(
+        payload = {
+            'category': constraints.get('category') or '',
+            'location': constraints.get('location') or '',
+            **(constraints.get('attributes') or {}),
+        }
+        log_demand_gap(
+            raw_query='',
+            structured_filters=payload,
             user=session.user,
-            requested_category=category[:120],
-            requested_attributes=attrs,
-            user_location=location[:200],
-            defaults={'frequency': 1},
+            source='',
         )
-        if not created:
-            gap.frequency += 1
-            gap.save(update_fields=['frequency', 'last_seen_at'])
 
     @staticmethod
     def _infer_category(lower: str) -> Optional[str]:
