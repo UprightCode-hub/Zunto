@@ -37,7 +37,7 @@ export default function Home() {
     const value = heroSearchTerm.trim() || 'Popular products';
 
     if (aiSearchMode === 'products') {
-      navigate(`/shop?search=${encodeURIComponent(value)}`);
+      navigate(`/products?search=${encodeURIComponent(value)}`);
       return;
     }
 
@@ -101,7 +101,7 @@ export default function Home() {
             </div>
 
             <div className="flex gap-3 flex-wrap">
-              <Link to="/shop" className="btn-primary btn-primary-lg">
+              <Link to="/products" className="btn-primary btn-primary-lg">
                 Start Exploring <ArrowRight className="w-5 h-5" />
               </Link>
               <Link to={aiCtaHref} className="btn-secondary">
@@ -171,7 +171,6 @@ export default function Home() {
           <ProductGrid
             title="Discovery Feed"
             description="Homepage discovery now uses the same query-driven product renderer as the products page."
-            defaultParams={{ ordering: '-created_at' }}
             showFilters={false}
             showHeader
             limit={9}
