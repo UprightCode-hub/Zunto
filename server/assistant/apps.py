@@ -56,3 +56,5 @@ class AssistantConfig(AppConfig):
             except Exception as e:
                 logger.error(f"❌ Failed to preload assistant components: {e}")
                 logger.error("The assistant may not function properly. Check configuration.")
+
+        import assistant.signals  # noqa: F401

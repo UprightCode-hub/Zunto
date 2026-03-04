@@ -18,7 +18,7 @@ from django.http import HttpResponse
 from django.utils.text import slugify
 
 from assistant.utils.tts_utils import get_tts_service
-from assistant.models import ConversationSession, ConversationLog, Report, DisputeMedia, DisputeTicket, DisputeTicketCommunication
+from assistant.models import ConversationSession, ConversationLog, Report, DisputeMedia, DisputeTicket, DisputeTicketCommunication, DemandCluster
 from assistant.processors.conversation_manager import ConversationManager
 from assistant.utils.assistant_modes import (
     normalize_assistant_mode,
@@ -38,6 +38,7 @@ from assistant.serializers import (
     TranslateSearchResponseSerializer,
     LogDemandGapRequestSerializer,
     LogDemandGapResponseSerializer,
+    HotDemandClusterSerializer,
 )
 from assistant.services.dispute_ticket_service import DisputeTicketService, DisputeTicketError
 from assistant.services.dispute_ai_service import DisputeAIService
@@ -169,67 +170,24 @@ def _derive_translate_search_confidence(query: str, extracted: dict, filters: di
     return round(min(score, 0.95), 2)
 
 
-@api_view(['POST'])
+@api_view(['GET'])
 @permission_classes([AllowAny])
-def translate_search(request):
-    """
-    Translate natural-language marketplace search into structured product filter params.
+def hot_demand_clusters_endpoint(request):
+    clusters = DemandCluster.objects.filter(is_hot=True).select_related(
+        'category', 'location'
+    ).order_by('-hot_score')[:5]
 
-    This endpoint is intentionally stateless:
-    - no conversation session creation
-    - no conversation logging
-    - no assistant reply generation
-    """
-    serializer = TranslateSearchRequestSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
+    payload = [
+        {
+            'category': cluster.category.slug if cluster.category_id else '',
+            'location': str(cluster.location) if cluster.location_id else '',
+            'hot_score': round(float(cluster.hot_score or 0.0), 2),
+        }
+        for cluster in clusters
+    ]
 
-    query = serializer.validated_data['query'].strip()
-    extracted = RecommendationService.extract_constraints(query)
-
-    filters = {
-        'search': query,
-    }
-
-    category = extracted.get('category')
-    if category:
-        filters['category'] = slugify(category)
-
-    budget = extracted.get('budget_range') if isinstance(extracted, dict) else None
-    if isinstance(budget, dict):
-        min_budget = budget.get('min')
-        max_budget = budget.get('max')
-        if min_budget is not None:
-            filters['min_price'] = str(int(min_budget))
-        if max_budget is not None:
-            filters['max_price'] = str(int(max_budget))
-
-    lower = query.lower()
-    if 'used' in lower:
-        filters['condition'] = 'used'
-    elif 'new' in lower or 'brand new' in lower:
-        filters['condition'] = 'new'
-
-    if any(token in lower for token in ['negotiable', 'nego']):
-        filters['is_negotiable'] = 'true'
-    if any(token in lower for token in ['verified product', 'authentic product']):
-        filters['verified_product'] = 'true'
-    if any(token in lower for token in ['verified seller', 'trusted seller']):
-        filters['verified_seller'] = 'true'
-
-    if any(token in lower for token in ['cheapest', 'lowest', 'low to high']):
-        filters['ordering'] = 'price'
-    elif any(token in lower for token in ['newest', 'latest', 'recent']):
-        filters['ordering'] = '-created_at'
-
-    response_payload = {
-        'filters': filters,
-        'refined_query': query,
-        'confidence': _derive_translate_search_confidence(query, extracted, filters),
-    }
-
-    response_serializer = TranslateSearchResponseSerializer(data=response_payload)
-    response_serializer.is_valid(raise_exception=True)
-    return Response(response_serializer.validated_data, status=status.HTTP_200_OK)
+    serializer = HotDemandClusterSerializer(payload, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
