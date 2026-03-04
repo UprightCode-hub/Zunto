@@ -262,3 +262,9 @@ class TranslateSearchResponseSerializer(serializers.Serializer):
             raise serializers.ValidationError(f'Unsupported filter keys: {sorted(unknown)}')
 
         return value
+
+
+class HotDemandClusterSerializer(serializers.Serializer):
+    category = serializers.CharField(required=True)
+    location = serializers.CharField(required=True, allow_blank=True)
+    hot_score = serializers.FloatField(required=True)

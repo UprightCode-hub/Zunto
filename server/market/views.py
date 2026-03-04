@@ -48,28 +48,52 @@ def _resolve_interaction_source(request):
 
 
 def _apply_feed_personalization(request, products):
-    if not request.user.is_authenticated:
-        return products
     try:
-        from assistant.models import UserBehaviorProfile
+        from assistant.models import DemandCluster, UserBehaviorProfile
+        from assistant.services.demand_signal_service import RANKING_MULTIPLIER
+    except Exception:
+        DemandCluster = None
+        UserBehaviorProfile = None
+        RANKING_MULTIPLIER = 1.0
+
+    hot_category_ids = set()
+    if DemandCluster is not None:
+        category_ids = [p.category_id for p in products if getattr(p, 'category_id', None)]
+        if category_ids:
+            hot_category_ids = set(
+                DemandCluster.objects.filter(
+                    is_hot=True,
+                    category_id__in=category_ids,
+                ).values_list('category_id', flat=True)
+            )
+
+    if not request.user.is_authenticated or UserBehaviorProfile is None:
+        return sorted(
+            products,
+            key=lambda product: RANKING_MULTIPLIER if getattr(product, 'category_id', None) in hot_category_ids else 1.0,
+            reverse=True,
+        )
+
+    try:
         profile = UserBehaviorProfile.objects.filter(user=request.user).first()
     except Exception:
         profile = None
-    if not profile or profile.ai_search_count <= profile.normal_search_count:
-        return products
 
     category_weight = float(getattr(settings, 'RECO_FEED_CATEGORY_WEIGHT', 1.15))
     budget_weight = float(getattr(settings, 'RECO_FEED_BUDGET_WEIGHT', 1.1))
-    dominant = set((profile.dominant_categories or [])[:3])
-    min_budget = float(profile.avg_budget_min or 0)
-    max_budget = float(profile.avg_budget_max or 0)
+    dominant = set((profile.dominant_categories or [])[:3]) if profile else set()
+    min_budget = float(getattr(profile, 'avg_budget_min', 0) or 0)
+    max_budget = float(getattr(profile, 'avg_budget_max', 0) or 0)
 
     def score(product):
         sc = 1.0
-        if product.category and product.category.name in dominant:
-            sc *= category_weight
-        if min_budget and max_budget and min_budget <= float(product.price) <= max_budget:
-            sc *= budget_weight
+        if profile and profile.ai_search_count > profile.normal_search_count:
+            if product.category and product.category.name in dominant:
+                sc *= category_weight
+            if min_budget and max_budget and min_budget <= float(product.price) <= max_budget:
+                sc *= budget_weight
+        if getattr(product, 'category_id', None) in hot_category_ids:
+            sc *= RANKING_MULTIPLIER
         return sc
 
     return sorted(products, key=score, reverse=True)

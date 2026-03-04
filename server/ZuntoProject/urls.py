@@ -7,6 +7,7 @@ from django.http import JsonResponse
 from django.views.generic import RedirectView
 from core.views import health_check, marketplace_view
 from accounts.views import SellerRegistrationView
+from assistant import views as assistant_views
                                                           
                                           
 urlpatterns = [
@@ -50,6 +51,7 @@ urlpatterns = [
     path('api/orders/', include('orders.urls')),
     path('api/payments/', include('orders.payment_urls')),
     path('api/notifications/', include('notifications.urls')),
+    path('api/demand/hot/', assistant_views.hot_demand_clusters_endpoint, name='hot_demand_clusters_api'),
     path('chat/', include('chat.urls')),
 
            

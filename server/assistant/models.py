@@ -593,10 +593,52 @@ class RecommendationDemandGap(models.Model):
         indexes = [
             models.Index(fields=['requested_category', '-last_seen_at']),
             models.Index(fields=['frequency', '-last_seen_at']),
+            models.Index(
+                fields=['requested_category', 'user', 'user_location'],
+                name='demand_match_idx',
+            ),
         ]
 
     def __str__(self):
         return f"DemandGap<{self.requested_category or 'unknown'} x{self.frequency}>"
+
+
+
+
+class DemandCluster(models.Model):
+    category = models.ForeignKey(
+        'market.Category',
+        on_delete=models.CASCADE,
+        related_name='demand_clusters',
+    )
+    location = models.ForeignKey(
+        'market.Location',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='demand_clusters',
+    )
+    demand_count = models.IntegerField(default=0)
+    last_gap_at = models.DateTimeField(null=True, blank=True)
+    hot_score = models.FloatField(default=0.0)
+    is_hot = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-hot_score', '-updated_at']
+        constraints = [
+            models.UniqueConstraint(fields=['category', 'location'], name='unique_demand_cluster_category_location'),
+        ]
+        indexes = [
+            models.Index(fields=['is_hot', '-hot_score']),
+            models.Index(fields=['category', 'location']),
+        ]
+
+    def __str__(self):
+        category_name = self.category.name if self.category_id else 'unknown'
+        location_name = str(self.location) if self.location_id else 'any'
+        return f"DemandCluster<{category_name}@{location_name} d={self.demand_count}>"
 
 
 class DisputeMedia(models.Model):
