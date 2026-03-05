@@ -25,7 +25,14 @@ from notifications.tasks import (
     send_verification_email_to_recipient_task,
     send_welcome_email_task,
 )
-from .models import PendingRegistration, VerificationCode
+from accounts.seller_utils import (
+    get_seller_commerce_mode,
+    get_seller_profile,
+    is_active_seller,
+    is_pending_seller,
+    is_verified_seller,
+)
+from .models import PendingRegistration, SellerProfile, VerificationCode
 from .serializers import (
     ChangePasswordSerializer,
     CustomTokenObtainPairSerializer,
@@ -76,6 +83,30 @@ def _resend_available(email):
 
 def _set_resend_cooldown(email):
     cache.set(_resend_cooldown_key(email), True, timeout=RESEND_COOLDOWN_SECONDS)
+
+
+def _user_payload(user):
+    seller_profile = get_seller_profile(user)
+    return {
+        'id': str(user.id),
+        'email': user.email,
+        'first_name': user.first_name,
+        'last_name': user.last_name,
+        'role': user.role,
+        # legacy compatibility
+        'is_seller': user.is_seller,
+        'is_verified_seller': user.is_verified_seller,
+        'seller_commerce_mode': user.seller_commerce_mode,
+        # canonical seller identity contract
+        'isSellerActive': is_active_seller(user),
+        'isSellerPending': is_pending_seller(user),
+        'isVerifiedSeller': is_verified_seller(user),
+        'sellerProfileStatus': getattr(seller_profile, 'status', None),
+        'sellerCommerceMode': get_seller_commerce_mode(user),
+        'is_verified': user.is_verified,
+        'is_managed_seller': user.is_managed_seller,
+        'profile_picture': user.profile_picture.url if user.profile_picture else None,
+    }
 
 
 @method_decorator(ratelimit(key='ip', rate='50/h', method='POST'), name='post')
@@ -204,6 +235,15 @@ class VerifyRegistrationView(APIView):
                 )
                 user.password = pending.password_hash
                 user.save()
+                if pending.role == 'seller':
+                    SellerProfile.objects.update_or_create(
+                        user=user,
+                        defaults={
+                            'status': SellerProfile.STATUS_PENDING,
+                            'is_verified_seller': False,
+                            'seller_commerce_mode': pending.seller_commerce_mode,
+                        },
+                    )
                 pending.delete()
         except IntegrityError:
             return Response(
@@ -225,21 +265,7 @@ class VerifyRegistrationView(APIView):
             {
                 'access': str(refresh.access_token),
                 'refresh': str(refresh),
-                'user': {
-                    'id': str(user.id),
-                    'email': user.email,
-                    'first_name': user.first_name,
-                    'last_name': user.last_name,
-                    'role': user.role,
-                    'is_seller': user.is_seller,
-                    'is_verified_seller': user.is_verified_seller,
-                    'is_verified': user.is_verified,
-                    'seller_commerce_mode': user.seller_commerce_mode,
-                    'is_managed_seller': user.is_managed_seller,
-                    'profile_picture': (
-                        user.profile_picture.url if user.profile_picture else None
-                    ),
-                },
+                'user': _user_payload(user),
                 'message': 'Registration completed successfully.',
             },
             status=status.HTTP_201_CREATED,
@@ -412,21 +438,7 @@ class GoogleAuthView(APIView):
                 {
                     'access': str(refresh.access_token),
                     'refresh': str(refresh),
-                    'user': {
-                        'id': str(user.id),
-                        'email': user.email,
-                        'first_name': user.first_name,
-                        'last_name': user.last_name,
-                        'role': user.role,
-                        'is_seller': user.is_seller,
-                        'is_verified_seller': user.is_verified_seller,
-                        'is_verified': user.is_verified,
-                        'seller_commerce_mode': user.seller_commerce_mode,
-                        'is_managed_seller': user.is_managed_seller,
-                        'profile_picture': (
-                            user.profile_picture.url if user.profile_picture else None
-                        ),
-                    },
+                    'user': _user_payload(user),
                     'message': 'Account created successfully' if created else 'Login successful',
                 },
                 status=status.HTTP_200_OK,
@@ -445,27 +457,32 @@ class GoogleAuthView(APIView):
 
 
 class SellerRegistrationView(APIView):
-    """Upgrade authenticated user to seller role."""
+    """Create or update seller application profile. Requires admin approval to become active."""
 
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
         user = request.user
 
-        updates = []
-        if user.role != 'seller':
-            user.role = 'seller'
-            updates.append('role')
-        if not user.is_seller:
-            user.is_seller = True
-            updates.append('is_seller')
-        if updates:
-            user.save(update_fields=updates)
+        profile, created = SellerProfile.objects.get_or_create(
+            user=user,
+            defaults={
+                'status': SellerProfile.STATUS_PENDING,
+                'is_verified_seller': False,
+                'seller_commerce_mode': user.seller_commerce_mode,
+            },
+        )
+
+        if not created and profile.status == SellerProfile.STATUS_REJECTED:
+            profile.status = SellerProfile.STATUS_PENDING
+            profile.save(update_fields=['status'])
 
         return Response({
-            'message': 'Seller registration successful.',
-            'is_seller': user.is_seller,
-            'is_verified_seller': user.is_verified_seller,
+            'message': 'Seller registration submitted and pending admin approval.',
+            'seller_profile_status': profile.status,
+            'isSellerActive': is_active_seller(user),
+            'isSellerPending': is_pending_seller(user),
+            'isVerifiedSeller': is_verified_seller(user),
         }, status=status.HTTP_200_OK)
 
 

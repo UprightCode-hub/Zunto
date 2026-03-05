@@ -128,7 +128,82 @@ class User(AbstractUser):
     @property
     def is_managed_seller(self):
         """Managed sellers are verified sellers that opted into Zunto-managed commerce."""
-        return self.is_seller and self.is_verified_seller and self.seller_commerce_mode == 'managed'
+        try:
+            seller_profile = self.seller_profile
+        except SellerProfile.DoesNotExist:
+            return False
+        return (
+            seller_profile.status == SellerProfile.STATUS_APPROVED
+            and seller_profile.is_verified_seller
+            and seller_profile.seller_commerce_mode == 'managed'
+        )
+
+    @property
+    def is_seller_active(self):
+        try:
+            return self.seller_profile.status == SellerProfile.STATUS_APPROVED
+        except SellerProfile.DoesNotExist:
+            return False
+
+    @property
+    def is_seller_pending(self):
+        try:
+            return self.seller_profile.status == SellerProfile.STATUS_PENDING
+        except SellerProfile.DoesNotExist:
+            return False
+
+    @property
+    def is_verified_seller_effective(self):
+        try:
+            return bool(self.seller_profile.is_verified_seller)
+        except SellerProfile.DoesNotExist:
+            return False
+
+
+class SellerProfile(models.Model):
+    STATUS_PENDING = 'pending'
+    STATUS_APPROVED = 'approved'
+    STATUS_REJECTED = 'rejected'
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_APPROVED, 'Approved'),
+        (STATUS_REJECTED, 'Rejected'),
+    ]
+
+    SELLER_COMMERCE_MODE_CHOICES = User.SELLER_COMMERCE_MODE_CHOICES
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='seller_profile')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
+    is_verified_seller = models.BooleanField(default=False)
+    seller_commerce_mode = models.CharField(
+        max_length=20,
+        choices=SELLER_COMMERCE_MODE_CHOICES,
+        default='direct',
+        help_text='Direct sellers handle payment off-platform. Managed sellers use Zunto payment, shipping, and refunds.',
+    )
+    active_location = models.ForeignKey(
+        'market.Location',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='seller_profiles',
+        help_text='Canonical active location for seller listings.',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'seller_profiles'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['is_verified_seller']),
+        ]
+
+    def __str__(self):
+        return f"SellerProfile<{self.user.email}> ({self.status})"
 
 
 class VerificationCode(models.Model):

@@ -65,7 +65,7 @@ const SellerDashboard = () => {
   const [mediaError, setMediaError] = useState('');
   const [mediaSuccess, setMediaSuccess] = useState('');
   const [storeSettings, setStoreSettings] = useState({
-    seller_commerce_mode: Boolean(user?.seller_commerce_mode),
+    seller_commerce_mode: (user?.sellerCommerceMode || 'direct') === 'managed',
     bio: user?.bio || '',
   });
   const [savingSettings, setSavingSettings] = useState(false);
@@ -101,7 +101,7 @@ const SellerDashboard = () => {
 
   useEffect(() => {
     setStoreSettings({
-      seller_commerce_mode: Boolean(user?.seller_commerce_mode),
+      seller_commerce_mode: (user?.sellerCommerceMode || 'direct') === 'managed',
       bio: user?.bio || '',
     });
   }, [user]);

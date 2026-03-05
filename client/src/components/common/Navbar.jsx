@@ -12,9 +12,10 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const isSellerActive = Boolean(user?.isSellerActive);
 
-  const sellerCtaHref = user?.role === 'seller' ? '/seller' : '/signup';
-  const sellerCtaLabel = user?.role === 'seller' ? 'Seller Dashboard' : 'Become a Seller';
+  const sellerCtaHref = isSellerActive ? '/seller' : '/signup';
+  const sellerCtaLabel = isSellerActive ? 'Seller Dashboard' : 'Become a Seller';
 
   const closeMenus = () => {
     setMobileMenuOpen(false);
@@ -50,7 +51,7 @@ export default function Navbar() {
             {!user && (
               <Link to="/signup" className="hover:text-blue-600 dark:hover:text-[#2c77d1] transition">Create account</Link>
             )}
-            {(user?.role === 'seller' || !user) && (
+            {(isSellerActive || !user) && (
               <Link to={sellerCtaHref} className="hover:text-blue-600 dark:hover:text-[#2c77d1] transition">{sellerCtaLabel}</Link>
             )}
           </div>
@@ -77,7 +78,7 @@ export default function Navbar() {
             <Link to="/products" className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition">Products</Link>
             <Link to="/products?mode=ai" className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition">AI Mode</Link>
             {user?.role === 'admin' && <Link to="/admin" className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition">Admin</Link>}
-            {user?.role === 'seller' && <Link to="/seller" className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition">Seller</Link>}
+            {isSellerActive && <Link to="/seller" className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition">Seller</Link>}
           </div>
 
           <div className="hidden md:flex items-center gap-3 min-w-0 flex-1 justify-end">
@@ -135,7 +136,7 @@ export default function Navbar() {
                       <Link to="/orders" onClick={closeMenus} className="block px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"><Package className="w-4 h-4 inline mr-2" /> Orders</Link>
                       <Link to="/faqs" onClick={closeMenus} className="block px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"><Headset className="w-4 h-4 inline mr-2" /> Help Center</Link>
                       <Link to={sellerCtaHref} onClick={closeMenus} className="block px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
-                        {(user?.role === 'seller') ? <Settings className="w-4 h-4 inline mr-2" /> : <Store className="w-4 h-4 inline mr-2" />}
+                        {isSellerActive ? <Settings className="w-4 h-4 inline mr-2" /> : <Store className="w-4 h-4 inline mr-2" />}
                         {sellerCtaLabel}
                       </Link>
                       <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition"><LogOut className="w-4 h-4 inline mr-2" /> Logout</button>

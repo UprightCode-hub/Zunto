@@ -5,6 +5,7 @@ import { Star, Trash2, Edit2, MessageSquare } from 'lucide-react';
 
 export default function Reviews() {
   const { user } = useAuth();
+  const isSellerActive = Boolean(user?.isSellerActive);
   const [reviews, setReviews] = useState([]);
   const [myProducts, setMyProducts] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -16,10 +17,10 @@ export default function Reviews() {
   const [activeTab, setActiveTab] = useState('browse'); // browse or my-reviews
 
   useEffect(() => {
-    if (user?.role === 'seller') {
+    if (isSellerActive) {
       fetchMyProducts();
     }
-  }, [user]);
+  }, [isSellerActive]);
 
   const fetchMyProducts = async () => {
     try {
@@ -111,7 +112,7 @@ export default function Reviews() {
           >
             Browse Reviews
           </button>
-          {user?.role === 'seller' && (
+          {isSellerActive && (
             <button
               onClick={() => setActiveTab('my-reviews')}
               className={`pb-4 px-4 font-semibold transition ${

@@ -152,6 +152,10 @@ class OrderItem(models.Model):
     class Meta:
         db_table = 'order_items'
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['seller']),
+            models.Index(fields=['order', 'seller']),
+        ]
 
     def __str__(self):
         return f"{self.quantity}x {self.product_name}"
@@ -413,3 +417,22 @@ def update_order_totals(sender, instance, **kwargs):
     """
     if instance.order:
         instance.order.update_totals()
+
+
+@receiver(post_save, sender=OrderItem)
+def track_purchase_demand_event(sender, instance, created, **kwargs):
+    """Feed canonical market demand pipeline from completed order-item creation."""
+    if not created or not instance.product_id:
+        return
+
+    from market.models import DemandEvent
+    from market.demand_signals import track_demand_event
+
+    track_demand_event(
+        DemandEvent.EVENT_PURCHASE,
+        product_id=instance.product_id,
+        user=instance.order.customer,
+        source='order_checkout',
+        state=instance.order.shipping_state,
+        lga=instance.order.shipping_city,
+    )

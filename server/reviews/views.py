@@ -646,7 +646,7 @@ def top_rated_sellers(request):
     
                                                
     sellers = User.objects.filter(
-        role__in=['seller', 'service_provider'],
+        seller_profile__status='approved',
         seller_reviews_received__is_approved=True
     ).annotate(
         avg_rating=Avg('seller_reviews_received__rating'),

@@ -3,6 +3,7 @@ from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils.text import slugify
+from django.core.exceptions import ObjectDoesNotExist
 import uuid
 from core.models import SoftDeleteModel
 
@@ -179,6 +180,7 @@ class Product(SoftDeleteModel):
     views_count = models.PositiveIntegerField(default=0)
     favorites_count = models.PositiveIntegerField(default=0)
     shares_count = models.PositiveIntegerField(default=0)
+    embedding_vector = models.JSONField(null=True, blank=True, default=list)
     
                 
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
@@ -200,6 +202,14 @@ class Product(SoftDeleteModel):
         return self.title
     
     def save(self, *args, **kwargs):
+        if self.seller_id:
+            try:
+                seller_profile = self.seller.seller_profile
+            except ObjectDoesNotExist:
+                seller_profile = None
+            if seller_profile:
+                self.location_id = seller_profile.active_location_id
+
         if not self.slug:
             base_slug = slugify(self.title)
             slug = base_slug
@@ -419,6 +429,57 @@ class ProductShareEvent(models.Model):
 
     def __str__(self):
         return f"{self.user.email} shared {self.product.title}"
+
+
+class DemandEvent(models.Model):
+    """Canonical demand signal events across market, cart, orders, and assistant surfaces."""
+
+    EVENT_VIEW = 'view'
+    EVENT_FAVORITE = 'favorite'
+    EVENT_CART_ADD = 'cart_add'
+    EVENT_PURCHASE = 'purchase'
+    EVENT_SEARCH_INTEREST = 'search_interest'
+
+    EVENT_TYPES = [
+        (EVENT_VIEW, 'View'),
+        (EVENT_FAVORITE, 'Favorite'),
+        (EVENT_CART_ADD, 'Cart Add'),
+        (EVENT_PURCHASE, 'Purchase'),
+        (EVENT_SEARCH_INTEREST, 'Search Interest'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='demand_events',
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='market_demand_events',
+    )
+    event_type = models.CharField(max_length=20, choices=EVENT_TYPES, db_index=True)
+    state = models.CharField(max_length=100, blank=True, default='')
+    lga = models.CharField(max_length=100, blank=True, default='')
+    source = models.CharField(max_length=50, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = 'market_demand_events'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['product', 'event_type']),
+            models.Index(fields=['-created_at']),
+            models.Index(fields=['state', 'lga']),
+        ]
+
+    def __str__(self):
+        return f"{self.event_type} product={self.product_id} user={self.user_id}"
 
 
 class ProductReport(models.Model):
