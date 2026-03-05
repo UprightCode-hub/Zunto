@@ -1,5 +1,6 @@
 #server/core/permissions.py
 from rest_framework import permissions
+from accounts.seller_utils import is_active_seller
 
 
 class IsSeller(permissions.BasePermission):
@@ -13,7 +14,7 @@ class IsSeller(permissions.BasePermission):
             return False
         if user.is_staff or getattr(user, 'role', None) == 'admin':
             return True
-        return bool(getattr(user, 'is_seller', False) or getattr(user, 'role', None) == 'seller')
+        return is_active_seller(user)
 
 
 class IsSellerOrAdmin(permissions.BasePermission):
@@ -28,7 +29,7 @@ class IsSellerOrAdmin(permissions.BasePermission):
         role = getattr(user, 'role', None)
         if user.is_staff or role == 'admin':
             return True
-        return bool(getattr(user, 'is_seller', False) or role == 'seller')
+        return is_active_seller(user)
 
 
 

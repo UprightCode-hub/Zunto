@@ -43,7 +43,6 @@ from assistant.serializers import (
 from assistant.services.dispute_ticket_service import DisputeTicketService, DisputeTicketError
 from assistant.services.dispute_ai_service import DisputeAIService
 from assistant.services.dispute_oversight_metrics import DisputeOversightMetricsService
-from assistant.services.recommendation_service import RecommendationService
 from assistant.services.demand_gap_service import log_demand_gap
 
                    
@@ -70,6 +69,7 @@ from assistant.throttles import (
     DisputeEvidenceUploadUserThrottle,
 )
 from core.audit import audit_event
+from market.search.intent import detect_search_intent
 
 from assistant.utils.formatters import (
     format_processing_time,
@@ -151,14 +151,38 @@ def _build_title_from_first_message(message, product_name=None):
     return f"Conversation about {product_name or 'support'}"
 
 
-def _derive_translate_search_confidence(query: str, extracted: dict, filters: dict) -> float:
+
+
+def _merge_market_intent_filters(query: str, filters: dict):
+    """Reuse canonical market intent parser to avoid duplicate query-intent heuristics."""
+    intent = detect_search_intent(query)
+
+    if not filters.get('max_price') and isinstance(intent.get('price_intent'), int):
+        filters['max_price'] = intent['price_intent']
+
+    if intent.get('condition') and not filters.get('condition'):
+        condition = intent['condition']
+        if condition in {'new', 'like_new', 'good', 'fair', 'poor'}:
+            filters['condition'] = condition
+
+    if intent.get('brand') and not filters.get('search'):
+        filters['search'] = intent['brand']
+
+    if intent.get('location_intent') and not filters.get('state'):
+        filters['state'] = intent['location_intent']
+
+    if intent.get('category') and not filters.get('category'):
+        filters['category'] = slugify(str(intent['category']))
+
+    return intent
+
+def _derive_translate_search_confidence(query: str, intent: dict, filters: dict) -> float:
     score = 0.35
     lower = (query or '').lower()
 
-    if extracted.get('category'):
+    if intent.get('category'):
         score += 0.25
-    budget = extracted.get('budget_range') if isinstance(extracted, dict) else None
-    if isinstance(budget, dict) and (budget.get('min') is not None or budget.get('max') is not None):
+    if isinstance(intent.get('price_intent'), int) or intent.get('price_intent') == 'cheap':
         score += 0.2
     if filters.get('condition'):
         score += 0.1
@@ -168,6 +192,44 @@ def _derive_translate_search_confidence(query: str, extracted: dict, filters: di
         score += 0.05
 
     return round(min(score, 0.95), 2)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def translate_search(request):
+    """Stateless helper endpoint that converts natural-language search into product filters."""
+    serializer = TranslateSearchRequestSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+
+    query = serializer.validated_data['query'].strip()
+
+    filters = {}
+    raw_query = query
+    if raw_query:
+        filters['search'] = raw_query
+
+    intent = _merge_market_intent_filters(query, filters)
+
+    if intent.get('price_intent') == 'cheap' and not filters.get('ordering'):
+        filters['ordering'] = 'price'
+
+    lower = query.lower()
+    if 'verified seller' in lower or 'trusted seller' in lower:
+        filters['verified_seller'] = True
+    if 'verified product' in lower or 'authentic' in lower:
+        filters['verified_product'] = True
+    if 'negotiable' in lower:
+        filters['is_negotiable'] = True
+
+    confidence = _derive_translate_search_confidence(query, intent, filters)
+    payload = {
+        'filters': filters,
+        'refined_query': raw_query,
+        'confidence': confidence,
+    }
+    response_serializer = TranslateSearchResponseSerializer(data=payload)
+    response_serializer.is_valid(raise_exception=True)
+    return Response(response_serializer.validated_data, status=status.HTTP_200_OK)
 
 
 @api_view(['GET'])

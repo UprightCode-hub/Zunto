@@ -6,8 +6,15 @@ from .models import (
     ProductVideo, Favorite, ProductReport
 )
 from core.file_validation import validate_uploaded_file
+from accounts.seller_utils import get_seller_profile, is_active_seller, is_pending_seller, is_verified_seller
 
 User = get_user_model()
+
+def _build_media_url(request, image_field):
+    image_url = image_field.url
+    if request:
+        return request.build_absolute_uri(image_url)
+    return image_url
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -103,14 +110,32 @@ class SellerInfoSerializer(serializers.ModelSerializer):
     """Basic seller information"""
     
     full_name = serializers.CharField(source='get_full_name', read_only=True)
+    isSellerActive = serializers.SerializerMethodField()
+    isSellerPending = serializers.SerializerMethodField()
+    isVerifiedSeller = serializers.SerializerMethodField()
+    sellerProfileStatus = serializers.SerializerMethodField()
     
     class Meta:
         model = User
         fields = [
             'id', 'email', 'full_name', 'profile_picture', 
-            'is_verified', 'is_verified_seller', 'created_at'
+            'is_verified', 'is_verified_seller', 'created_at',
+            'isSellerActive', 'isSellerPending', 'isVerifiedSeller', 'sellerProfileStatus'
         ]
         read_only_fields = fields
+
+    def get_isSellerActive(self, obj):
+        return is_active_seller(obj)
+
+    def get_isSellerPending(self, obj):
+        return is_pending_seller(obj)
+
+    def get_isVerifiedSeller(self, obj):
+        return is_verified_seller(obj)
+
+    def get_sellerProfileStatus(self, obj):
+        seller_profile = get_seller_profile(obj)
+        return getattr(seller_profile, 'status', None)
 
 
 class ProductListSerializer(serializers.ModelSerializer):
@@ -121,8 +146,8 @@ class ProductListSerializer(serializers.ModelSerializer):
     seller_name = serializers.CharField(source='seller.get_full_name', read_only=True)
     primary_image = serializers.SerializerMethodField()
     is_favorited = serializers.SerializerMethodField()
-    average_rating = serializers.FloatField(read_only=True)
-    review_count = serializers.IntegerField(read_only=True)
+    average_rating = serializers.SerializerMethodField()
+    review_count = serializers.SerializerMethodField()
     
     class Meta:
         model = Product
@@ -136,32 +161,32 @@ class ProductListSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
     
+
+    def get_average_rating(self, obj):
+        if hasattr(obj, 'avg_rating'):
+            return round(float(obj.avg_rating or 0), 2)
+        return obj.average_rating
+
+    def get_review_count(self, obj):
+        if hasattr(obj, 'approved_review_count'):
+            return int(obj.approved_review_count or 0)
+        return obj.review_count
+
     def get_primary_image(self, obj):
-        primary = obj.images.filter(is_primary=True).first()
-        if primary:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(primary.image.url)
-            return primary.image.url
-        
-                                 
-        first_image = obj.images.first()
-        if first_image:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(first_image.image.url)
-            return first_image.image.url
-        
-        return None
-    
-    def get_is_favorited(self, obj):
         request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            return Favorite.objects.filter(
-                user=request.user, 
-                product=obj
-            ).exists()
-        return False
+
+        prefetched_images = getattr(obj, 'prefetched_images', None)
+        if prefetched_images:
+            return _build_media_url(request, prefetched_images[0].image)
+
+        primary_image = obj.images.order_by('-is_primary', 'order', 'uploaded_at').first()
+        if primary_image:
+            return _build_media_url(request, primary_image.image)
+
+        return None
+
+    def get_is_favorited(self, obj):
+        return bool(getattr(obj, 'is_favorited', False))
 
 
 class ProductDetailSerializer(serializers.ModelSerializer):

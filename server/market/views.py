@@ -11,11 +11,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Q, Count, Avg, F
+from django.db.models import Q, Count, F
 from django.db.models.functions import Greatest
 from django.db.models.functions import TruncDate
 from django.shortcuts import get_object_or_404
-from django_filters.rest_framework import DjangoFilterBackend
 from django.shortcuts import render
 from django.core.cache import cache
 
@@ -32,9 +31,12 @@ from .serializers import (
     ProductVideoModerationSerializer
 )
 from .permissions import IsSellerOrReadOnly
-from .filters import ProductFilter
+from .heuristics import should_count_view
+from .search import search_products
+from .demand_signals import track_demand_event
 from core.permissions import IsAdminOrStaff, IsSellerOrAdmin
 from core.audit import audit_event
+from accounts.seller_utils import is_active_seller
 
 MAX_PRODUCT_IMAGES = 5
 MAX_PRODUCT_VIDEOS = 2
@@ -135,6 +137,9 @@ def _is_allowed_direct_upload_content_type(content_type):
     return content_type in {'video/mp4', 'video/webm', 'video/quicktime'}
 
 
+
+
+
 class CategoryListView(generics.ListAPIView):
     """List all active categories"""
     
@@ -162,12 +167,11 @@ class ProductListCreateView(generics.ListCreateAPIView):
     template_name = 'products.html'
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [filters.OrderingFilter]
                                      
     search_fields = ['title', 'description', 'brand']
-    filterset_class = ProductFilter
     ordering_fields = ['created_at', 'price', 'views_count', 'favorites_count']
-    ordering = ['-created_at']
+    ordering = ['location_priority', '-created_at']
     
     def get_serializer_class(self):
         if self.request.method == 'POST':
@@ -175,11 +179,10 @@ class ProductListCreateView(generics.ListCreateAPIView):
         return ProductListSerializer
     
     def get_queryset(self):
-        queryset = Product.objects.filter(status='active').select_related(
-            'category', 'location', 'seller'
-        ).prefetch_related('images')
-        
-        return queryset
+        return search_products(
+            self.request,
+            Product.objects.filter(status='active'),
+        )
     
     def perform_create(self, serializer):
         if not IsSellerOrAdmin().has_permission(self.request, self):
@@ -225,9 +228,7 @@ class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
         if user and user == product.seller:
             return
 
-        viewer_key = f"u:{user.id}" if user else f"ip:{ip_address}"
-        dedupe_key = f"product_view:{product.id}:{viewer_key}"
-        if not cache.add(dedupe_key, True, timeout=60 * 60):
+        if not should_count_view(self.request, product.id):
             return
 
         ProductView.objects.create(
@@ -239,6 +240,13 @@ class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
         )
 
         Product.objects.filter(id=product.id).update(views_count=F('views_count') + 1)
+        track_demand_event(
+            'view',
+            product=product,
+            user=user,
+            request=self.request,
+            source=_resolve_interaction_source(self.request),
+        )
         product.refresh_from_db(fields=['views_count'])
         _invalidate_product_stats_cache(product.id)
     
@@ -260,13 +268,13 @@ class MyProductsView(generics.ListAPIView):
     permission_classes = [IsSellerOrAdmin]
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['created_at', 'price', 'views_count']
-    ordering = ['-created_at']
+    ordering = ['location_priority', '-created_at']
     
     def get_queryset(self):
-        queryset = Product.objects.select_related('category', 'location').prefetch_related('images')
-        if self.request.user.is_staff:
-            return queryset
-        return queryset.filter(seller=self.request.user)
+        queryset = Product.objects.all()
+        if not self.request.user.is_staff:
+            queryset = queryset.filter(seller=self.request.user)
+        return search_products(self.request, queryset)
 
 
 class ProductImageUploadView(APIView):
@@ -449,10 +457,10 @@ class FeaturedProductsView(generics.ListAPIView):
     permission_classes = [permissions.AllowAny]
     
     def get_queryset(self):
-        return Product.objects.filter(
-            status='active',
-            is_featured=True
-        ).select_related('category', 'location', 'seller').prefetch_related('images')[:20]
+        return search_products(
+            self.request,
+            Product.objects.filter(status='active', is_featured=True),
+        )[:20]
 
 
 class BoostedProductsView(generics.ListAPIView):
@@ -463,11 +471,14 @@ class BoostedProductsView(generics.ListAPIView):
     
     def get_queryset(self):
         from django.utils import timezone
-        return Product.objects.filter(
-            status='active',
-            is_boosted=True,
-            boost_expires_at__gt=timezone.now()
-        ).select_related('category', 'location', 'seller').prefetch_related('images')[:20]
+        return search_products(
+            self.request,
+            Product.objects.filter(
+                status='active',
+                is_boosted=True,
+                boost_expires_at__gt=timezone.now(),
+            ),
+        )[:20]
 
 
 class AdsProductsView(generics.ListAPIView):
@@ -499,9 +510,10 @@ class AdsProductsView(generics.ListAPIView):
             return Product.objects.none()
 
         preserve_order = {str(pid): index for index, pid in enumerate(ordered_ids)}
-        queryset = Product.objects.filter(id__in=ordered_ids).select_related(
-            'category', 'location', 'seller'
-        ).prefetch_related('images')
+        queryset = search_products(
+            self.request,
+            Product.objects.filter(id__in=ordered_ids),
+        )
 
         ordered = sorted(queryset, key=lambda item: preserve_order.get(str(item.id), 9999))
         return _apply_feed_personalization(self.request, ordered)
@@ -646,7 +658,7 @@ def share_product(request, product_slug):
     product = get_object_or_404(Product, slug=product_slug)
     user = request.user
 
-    is_seller_share = user.role == 'seller' and product.seller_id == user.id
+    is_seller_share = is_active_seller(user) and product.seller_id == user.id
     is_buyer_share = (
         user.role == 'buyer'
         and ProductView.objects.filter(product=product, user=user).exists()

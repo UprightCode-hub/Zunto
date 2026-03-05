@@ -6,7 +6,7 @@ from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 from django.db.models import Q
 from datetime import timedelta
-from .models import User, VerificationCode
+from .models import SellerProfile, User, VerificationCode
 
 
 class VerificationStatusFilter(admin.SimpleListFilter):
@@ -218,18 +218,17 @@ class VerificationCodeAdmin(admin.ModelAdmin):
     list_display = ['get_user_email', 'code_type', 'code', 'is_used', 'created_at', 'expires_at']
     list_filter = ['code_type', 'is_used', 'created_at']
     search_fields = ['user_email', 'code', 'userfirst_name', 'user_last_name']
-    readonly_fields = ['created_at', 'id']
-    date_hierarchy = 'created_at'
-    
+
     @admin.display(description='User Email', ordering='user__email')
     def get_user_email(self, obj):
-        """Safely get user email"""
-        try:
-            return obj.user.email
-        except:
-            return 'N/A'
-    
-    def get_queryset(self, request):
-        """Optimize queryset with select_related"""
-        qs = super().get_queryset(request)
-        return qs.select_related('user')
+        return getattr(getattr(obj, 'user', None), 'email', 'N/A')
+
+
+@admin.register(SellerProfile)
+class SellerProfileAdmin(admin.ModelAdmin):
+    list_display = ['user', 'status', 'is_verified_seller', 'seller_commerce_mode', 'created_at']
+    list_filter = ['status', 'is_verified_seller', 'seller_commerce_mode', 'created_at']
+    search_fields = ['user__email', 'user__first_name', 'user__last_name']
+    autocomplete_fields = ['user']
+    readonly_fields = ['created_at', 'updated_at']
+    date_hierarchy = 'created_at'

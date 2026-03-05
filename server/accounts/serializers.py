@@ -4,6 +4,13 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.exceptions import AuthenticationFailed
+from accounts.seller_utils import (
+    get_seller_profile,
+    get_seller_commerce_mode,
+    is_active_seller,
+    is_pending_seller,
+    is_verified_seller,
+)
 
 User = get_user_model()
 
@@ -75,6 +82,11 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             'is_verified': self.user.is_verified,
             'seller_commerce_mode': self.user.seller_commerce_mode,
             'is_managed_seller': self.user.is_managed_seller,
+            'isSellerActive': is_active_seller(self.user),
+            'isSellerPending': is_pending_seller(self.user),
+            'isVerifiedSeller': is_verified_seller(self.user),
+            'sellerProfileStatus': getattr(get_seller_profile(self.user), 'status', None),
+            'sellerCommerceMode': get_seller_commerce_mode(self.user),
             'profile_picture': self.user.profile_picture.url if self.user.profile_picture else None,
         }
         
@@ -92,12 +104,35 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'id', 'email', 'first_name', 'last_name', 'full_name', 'phone',
             'profile_picture', 'bio', 'role', 'is_seller', 'is_verified_seller', 'is_verified', 'is_phone_verified',
             'address', 'city', 'state', 'country', 'seller_commerce_mode',
-            'is_managed_seller', 'created_at'
+            'is_managed_seller', 'created_at',
+            'isSellerActive', 'isSellerPending', 'isVerifiedSeller', 'sellerProfileStatus', 'sellerCommerceMode'
         ]
         read_only_fields = ['id', 'email', 'is_seller', 'is_verified_seller', 'is_verified', 'is_phone_verified', 'created_at', 'is_managed_seller']
+
+    isSellerActive = serializers.SerializerMethodField()
+    isSellerPending = serializers.SerializerMethodField()
+    isVerifiedSeller = serializers.SerializerMethodField()
+    sellerProfileStatus = serializers.SerializerMethodField()
+    sellerCommerceMode = serializers.SerializerMethodField()
     
     def get_full_name(self, obj):
         return obj.get_full_name()
+
+    def get_isSellerActive(self, obj):
+        return is_active_seller(obj)
+
+    def get_isSellerPending(self, obj):
+        return is_pending_seller(obj)
+
+    def get_isVerifiedSeller(self, obj):
+        return is_verified_seller(obj)
+
+    def get_sellerProfileStatus(self, obj):
+        seller_profile = get_seller_profile(obj)
+        return getattr(seller_profile, 'status', None)
+
+    def get_sellerCommerceMode(self, obj):
+        return get_seller_commerce_mode(obj)
 
 
 class ChangePasswordSerializer(serializers.Serializer):

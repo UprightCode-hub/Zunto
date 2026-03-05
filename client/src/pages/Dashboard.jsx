@@ -6,6 +6,7 @@ import { getOrderStatistics, getSellerStatistics } from '../services/api';
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const isSellerActive = Boolean(user?.isSellerActive);
   const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -24,10 +25,10 @@ export default function Dashboard() {
 
     if (user.role === 'buyer') {
       fetchBuyerStats();
-    } else if (user.role === 'seller') {
+    } else if (isSellerActive) {
       fetchSellerStats();
     }
-  }, [navigate, user]);
+  }, [isSellerActive, navigate, user]);
 
   const fetchBuyerStats = async () => {
     try {
@@ -147,7 +148,7 @@ export default function Dashboard() {
   }
 
   // Seller Dashboard
-  if (user?.role === 'seller') {
+  if (isSellerActive) {
     return (
       <div className="min-h-screen pb-12">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">

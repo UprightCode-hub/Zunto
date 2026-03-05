@@ -4,7 +4,7 @@ from django.test import TestCase, override_settings
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from .models import PendingRegistration
+from .models import PendingRegistration, SellerProfile
 
 User = get_user_model()
 
@@ -196,12 +196,15 @@ class SellerRegistrationTests(TestCase):
         response = self.client.post(self.url, {}, format='json')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_seller_registration_sets_seller_flags(self):
+    def test_seller_registration_creates_pending_profile(self):
         self.client.force_authenticate(user=self.user)
         response = self.client.post(self.url, {}, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.user.refresh_from_db()
-        self.assertEqual(self.user.role, 'seller')
-        self.assertTrue(self.user.is_seller)
-        self.assertFalse(self.user.is_verified_seller)
+        self.assertEqual(response.data['seller_profile_status'], SellerProfile.STATUS_PENDING)
+        self.assertTrue(response.data['isSellerPending'])
+        self.assertFalse(response.data['isSellerActive'])
+
+        profile = SellerProfile.objects.get(user=self.user)
+        self.assertEqual(profile.status, SellerProfile.STATUS_PENDING)
+        self.assertFalse(profile.is_verified_seller)

@@ -8,6 +8,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from market.models import Category, Product
+from accounts.models import SellerProfile
 from .models import Order, OrderItem, Payment, Refund
 
 
@@ -32,6 +33,12 @@ class SellerOrderPermissionTests(TestCase):
             last_name='User',
             role='seller',
             is_verified=True,
+        )
+        SellerProfile.objects.create(
+            user=self.seller,
+            status=SellerProfile.STATUS_APPROVED,
+            is_verified_seller=True,
+            seller_commerce_mode='managed',
         )
         self.admin_role_user = User.objects.create_user(
             email='admin-role-orders@example.com',
@@ -441,6 +448,12 @@ class InitializePaymentSecurityTests(TestCase):
             password='TestPass123!',
             role='seller',
             is_verified=True,
+            seller_commerce_mode='managed',
+        )
+        SellerProfile.objects.create(
+            user=self.seller,
+            status=SellerProfile.STATUS_APPROVED,
+            is_verified_seller=True,
             seller_commerce_mode='managed',
         )
         category = Category.objects.create(name='InitPay Phones')
