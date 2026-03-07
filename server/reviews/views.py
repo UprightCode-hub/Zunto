@@ -23,6 +23,7 @@ from .serializers import (
 )
 from .permissions import IsReviewerOrReadOnly, IsSellerOrReadOnly
 from market.models import Product
+from market.search import search_products
 from django.contrib.auth import get_user_model
 from core.permissions import IsAdminOrStaff
 from core.audit import audit_event
@@ -616,22 +617,24 @@ class SellerReviewStatsView(APIView):
 @throttle_classes([PublicReviewStatsThrottle])
 def top_rated_products(request):
     """Get top rated products"""
-    
+
     from market.models import Product
     from market.serializers import ProductListSerializer
-    
-                                                
-    products = Product.objects.filter(
-        status='active',
-        reviews__is_approved=True
-    ).annotate(
-        avg_rating=Avg('reviews__rating'),
-        review_count=Count('reviews')
-    ).filter(
-        review_count__gte=5,                      
-        avg_rating__gte=4.0                  
-    ).order_by('-avg_rating', '-review_count')[:20]
-    
+
+    base_queryset = Product.objects.filter(status='active')
+    products = search_products(request, base_queryset).filter(
+        approved_review_count__gte=5,
+        avg_rating__gte=4.0,
+    ).order_by(
+        '-avg_rating',
+        '-approved_review_count',
+        'location_priority',
+        '-intent_match_score',
+        '-semantic_score',
+        '-popularity_score',
+        '-created_at',
+    )[:20]
+
     serializer = ProductListSerializer(products, many=True, context={'request': request})
     return Response(serializer.data)
 

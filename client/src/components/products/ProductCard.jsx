@@ -4,6 +4,17 @@ import { Star, ShoppingBag, Heart } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { getProductImage, getProductTitle } from '../../utils/product';
 
+const formatConditionLabel = (condition) => {
+  const value = String(condition || '').trim().toLowerCase();
+  if (!value) return 'N/A';
+  if (value === 'new') return 'New';
+  if (value === 'like_new') return 'Used – Like New';
+  if (value === 'good') return 'Used – Good';
+  if (value === 'fair') return 'Used – Fair';
+  if (value === 'poor') return 'Used – Poor';
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
 export default function ProductCard({ product, viewMode = 'grid' }) {
   const { addToCart } = useCart();
   const [isLoading, setIsLoading] = useState(false);
@@ -39,6 +50,7 @@ export default function ProductCard({ product, viewMode = 'grid' }) {
         <div className="relative bg-gradient-to-br from-[#2c77d1]/20 to-[#9426f4]/20 w-48 h-48 shrink-0">
           <img
             src={getProductImage(product)}
+            loading="lazy"
             alt={getProductTitle(product)}
             className="w-full h-full object-cover"
           />
@@ -71,6 +83,7 @@ export default function ProductCard({ product, viewMode = 'grid' }) {
                 ({product.reviews_count || 0} reviews)
               </span>
             </div>
+            <p className="text-xs text-gray-400 mb-2">Condition: {formatConditionLabel(product.condition)}</p>
           </div>
           <div className="flex items-center justify-between">
             <div>
@@ -105,6 +118,7 @@ export default function ProductCard({ product, viewMode = 'grid' }) {
       <div className="relative bg-gradient-to-br from-[#2c77d1]/20 to-[#9426f4]/20 aspect-square overflow-hidden">
         <img
           src={getProductImage(product)}
+          loading="lazy"
           alt={getProductTitle(product)}
           className="w-full h-full object-cover group-hover:scale-110 transition duration-500"
         />
@@ -133,6 +147,7 @@ export default function ProductCard({ product, viewMode = 'grid' }) {
             ({product.reviews_count || 0})
           </span>
         </div>
+        <p className="text-xs text-gray-400 mb-2">Condition: {formatConditionLabel(product.condition)}</p>
         <div className="mt-auto flex items-center justify-between">
           <div>
             <span className="text-xl font-bold text-[#2c77d1]">

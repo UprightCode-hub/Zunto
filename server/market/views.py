@@ -509,35 +509,45 @@ class AdsProductsView(generics.ListAPIView):
         if not ordered_ids:
             return Product.objects.none()
 
-        preserve_order = {str(pid): index for index, pid in enumerate(ordered_ids)}
+        placement_case = Case(
+            *[When(id=pid, then=Value(index)) for index, pid in enumerate(ordered_ids)],
+            default=Value(len(ordered_ids)),
+            output_field=IntegerField(),
+        )
+
         queryset = search_products(
             self.request,
             Product.objects.filter(id__in=ordered_ids),
+        ).annotate(
+            ad_placement_rank=placement_case,
+        ).order_by(
+            'ad_placement_rank',
+            'location_priority',
+            '-intent_match_score',
+            '-semantic_score',
+            '-popularity_score',
+            '-created_at',
         )
 
-        ordered = sorted(queryset, key=lambda item: preserve_order.get(str(item.id), 9999))
-        return _apply_feed_personalization(self.request, ordered)
+        return _apply_feed_personalization(self.request, list(queryset))
 
 
 class SimilarProductsView(generics.ListAPIView):
     """Get similar products based on category and location"""
-    
+
     serializer_class = ProductListSerializer
     permission_classes = [permissions.AllowAny]
-    
+
     def get_queryset(self):
         product_slug = self.kwargs.get('product_slug')
         product = get_object_or_404(Product, slug=product_slug)
-        
-                                                             
-        similar_products = Product.objects.filter(
+
+        base_queryset = Product.objects.filter(
             Q(category=product.category) | Q(location=product.location),
-            status='active'
-        ).exclude(id=product.id).select_related(
-            'category', 'location', 'seller'
-        ).prefetch_related('images')[:10]
-        
-        return similar_products
+            status='active',
+        ).exclude(id=product.id)
+
+        return search_products(self.request, base_queryset)[:10]
 
 
 class ProductStatsView(APIView):

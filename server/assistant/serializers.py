@@ -268,3 +268,15 @@ class HotDemandClusterSerializer(serializers.Serializer):
     category = serializers.CharField(required=True)
     location = serializers.CharField(required=True, allow_blank=True)
     hot_score = serializers.FloatField(required=True)
+
+
+class SuggestionQuerySerializer(serializers.Serializer):
+    q = serializers.CharField(max_length=200, required=False, allow_blank=True, default='')
+
+
+class SuggestionResponseSerializer(serializers.Serializer):
+    query = serializers.CharField(required=True)
+    suggestions = serializers.ListField(
+        child=serializers.CharField(),
+        required=True,
+    )

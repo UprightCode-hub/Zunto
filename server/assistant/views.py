@@ -3,6 +3,7 @@ import logging
 import time
 import uuid
 import json
+from collections import Counter
 from pathlib import Path
 from django.conf import settings
 from django.http import JsonResponse
@@ -16,6 +17,7 @@ from django.shortcuts import render
 from django.utils import timezone
 from django.http import HttpResponse
 from django.utils.text import slugify
+from django.db.models import Count
 
 from assistant.utils.tts_utils import get_tts_service
 from assistant.models import ConversationSession, ConversationLog, Report, DisputeMedia, DisputeTicket, DisputeTicketCommunication, DemandCluster
@@ -39,6 +41,8 @@ from assistant.serializers import (
     LogDemandGapRequestSerializer,
     LogDemandGapResponseSerializer,
     HotDemandClusterSerializer,
+    SuggestionQuerySerializer,
+    SuggestionResponseSerializer,
 )
 from assistant.services.dispute_ticket_service import DisputeTicketService, DisputeTicketError
 from assistant.services.dispute_ai_service import DisputeAIService
@@ -70,6 +74,8 @@ from assistant.throttles import (
 )
 from core.audit import audit_event
 from market.search.intent import detect_search_intent
+from market.models import DemandEvent, Product
+from market.demand_engine import get_trending_products
 
 from assistant.utils.formatters import (
     format_processing_time,
@@ -194,6 +200,56 @@ def _derive_translate_search_confidence(query: str, intent: dict, filters: dict)
     return round(min(score, 0.95), 2)
 
 
+def _normalize_suggestion_text(value: str) -> str:
+    return ' '.join(str(value or '').strip().split())
+
+
+def _score_query_suggestions(prefix: str, limit: int = 8):
+    normalized_prefix = _normalize_suggestion_text(prefix).lower()
+    if not normalized_prefix:
+        return []
+
+    weighted = Counter()
+
+    # Priority 1: recent canonical search-interest query signals from DemandEvent.source tags.
+    demand_events = DemandEvent.objects.filter(
+        event_type=DemandEvent.EVENT_SEARCH_INTEREST,
+    ).order_by('-created_at')[:400]
+    for event in demand_events:
+        raw_source = _normalize_suggestion_text(event.source)
+        if not raw_source.startswith('query:'):
+            continue
+        candidate = _normalize_suggestion_text(raw_source.split(':', 1)[1])
+        if candidate and candidate.lower().startswith(normalized_prefix):
+            weighted[candidate.lower()] += 3
+
+    # Priority 2: popular product titles, weighted by demand events.
+    product_rows = Product.objects.filter(
+        status='active',
+        title__istartswith=normalized_prefix,
+    ).values('title').annotate(demand_count=Count('demand_events')).order_by('-demand_count', '-id')[:60]
+    for row in product_rows:
+        candidate = _normalize_suggestion_text(row.get('title'))
+        if candidate:
+            weighted[candidate.lower()] += 2 + int(row.get('demand_count') or 0)
+
+    # Priority 3: trending titles from canonical DemandEvent-based trending engine.
+    trending_ids = get_trending_products(limit=30)
+    if trending_ids:
+        trending_rows = Product.objects.filter(id__in=trending_ids, status='active').values_list('title', flat=True)
+        for title in trending_rows:
+            candidate = _normalize_suggestion_text(title)
+            if candidate and candidate.lower().startswith(normalized_prefix):
+                weighted[candidate.lower()] += 1
+
+    canonical_text = {}
+    for key in weighted.keys():
+        canonical_text[key] = key
+
+    ranked = sorted(weighted.items(), key=lambda item: (-item[1], item[0]))
+    return [canonical_text[key] for key, _score in ranked[:limit]]
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def translate_search(request):
@@ -228,6 +284,25 @@ def translate_search(request):
         'confidence': confidence,
     }
     response_serializer = TranslateSearchResponseSerializer(data=payload)
+    response_serializer.is_valid(raise_exception=True)
+    return Response(response_serializer.validated_data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def query_suggestions(request):
+    serializer = SuggestionQuerySerializer(data=request.query_params)
+    serializer.is_valid(raise_exception=True)
+
+    query = serializer.validated_data.get('q', '')
+    suggestions = _score_query_suggestions(query)
+
+    response_serializer = SuggestionResponseSerializer(
+        data={
+            'query': _normalize_suggestion_text(query),
+            'suggestions': suggestions,
+        }
+    )
     response_serializer.is_valid(raise_exception=True)
     return Response(response_serializer.validated_data, status=status.HTTP_200_OK)
 
@@ -1036,42 +1111,6 @@ def health_check(request):
 
 
                                          
-@csrf_exempt
-@require_http_methods(["POST"])
-def legacy_chat_endpoint(request):
-    """
-    Legacy chat endpoint for backward compatibility.
-    Redirects to new chat_endpoint.
-    
-    DEPRECATED: Use /api/chat/ instead.
-    """
-    import json
-    
-    try:
-        data = json.loads(request.body)
-        
-                                         
-        class FakeRequest:
-            def __init__(self, data, user):
-                self.data = data
-                self.user = user
-        
-        fake_request = FakeRequest(data, request.user)
-        
-                           
-        response = chat_endpoint(fake_request)
-        
-                                                    
-        return JsonResponse(response.data, status=response.status_code)
-    
-    except Exception as e:
-        logger.error(f"Legacy endpoint error: {e}")
-        return JsonResponse(
-            {'error': str(e)},
-            status=500
-        )
-
-
 """
 Legacy View Functions - Backward compatibility for existing API clients.
 """

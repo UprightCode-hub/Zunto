@@ -2,14 +2,17 @@ import logging
 import re
 import uuid
 from decimal import Decimal
+from types import SimpleNamespace
 from typing import Dict, Optional
 
 from django.db import transaction
+from django.http import QueryDict
 from django.utils import timezone
 
 from assistant.models import ConversationSession
 from assistant.services.demand_gap_service import log_demand_gap
 from market.models import Category, Product
+from market.search import search_products
 
 logger = logging.getLogger(__name__)
 
@@ -194,14 +197,32 @@ class RecommendationService:
 
     @staticmethod
     def _find_products(constraints: Dict):
-        qs = Product.objects.filter(status='active').select_related('category').order_by('-created_at')
+        query_params = QueryDict('', mutable=True)
+        query_params.update({'source': 'ai'})
+
+        raw_query = (constraints.get('raw_query') or '').strip()
+        if raw_query:
+            query_params.update({'search': raw_query})
+
+        location = (constraints.get('location') or '').strip()
+        if location:
+            query_params.update({'state': location})
+
+        request = SimpleNamespace(
+            query_params=query_params,
+            user=SimpleNamespace(is_authenticated=False),
+        )
+
+        qs = Product.objects.filter(status='active')
         category = constraints.get('category')
         if category:
             qs = qs.filter(category__name__icontains=category)
+
         budget = constraints.get('budget_range') or {}
         if isinstance(budget, dict):
             if budget.get('min') is not None:
-                qs = qs.filter(price__gte=budget['min'])
+                query_params.update({'min_price': str(budget['min'])})
             if budget.get('max') is not None:
-                qs = qs.filter(price__lte=budget['max'])
-        return list(qs[:5])
+                query_params.update({'max_price': str(budget['max'])})
+
+        return list(search_products(request, qs)[:5])

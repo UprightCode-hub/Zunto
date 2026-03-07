@@ -4,6 +4,7 @@ import { ArrowRight, CheckCircle2, Sparkles } from 'lucide-react';
 import { getCategories, sendHomepageRecommendationMessage } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ProductGrid from '../components/products/ProductGrid';
+import TrendingProducts from '../components/TrendingProducts';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -165,6 +166,8 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <TrendingProducts />
 
       <section className="px-4 pb-12 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">

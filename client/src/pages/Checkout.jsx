@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { CreditCard, Truck, MapPin, Lock } from 'lucide-react';
 import { useCart } from '../context/CartContext';
-import { checkout } from '../services/api';
+import { checkout, initializeOrderPayment } from '../services/api';
 
 export default function Checkout() {
   const navigate = useNavigate();
   const { cart, cartTotal, cartCount } = useCart();
   const [loading, setLoading] = useState(false);
+  const [paymentRedirecting, setPaymentRedirecting] = useState(false);
   
   const [formData, setFormData] = useState({
     // Shipping Info
@@ -22,6 +23,7 @@ export default function Checkout() {
     country: '',
     
     // Payment Info
+    paymentMethod: 'paystack',
     cardNumber: '',
     cardName: '',
     expiryDate: '',
@@ -40,10 +42,12 @@ export default function Checkout() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
+    const selectedPaymentMethod = formData.paymentMethod || 'paystack';
+
     try {
       setLoading(true);
-      
+
       const payload = {
         shipping_address: formData.address,
         shipping_city: formData.city,
@@ -51,15 +55,33 @@ export default function Checkout() {
         shipping_country: formData.country || 'Nigeria',
         shipping_phone: formData.phone,
         shipping_email: formData.email,
-        payment_method: 'cash_on_delivery',
+        payment_method: selectedPaymentMethod,
         notes: formData.notes,
         save_address: false,
       };
 
       const response = await checkout(payload);
+      const orderNumber = response?.order?.order_number;
+
+      if (selectedPaymentMethod === 'paystack') {
+        if (!orderNumber) {
+          throw new Error('Order was created but order number is missing.');
+        }
+
+        setPaymentRedirecting(true);
+        const callbackUrl = `${window.location.origin}/payment/verify/${orderNumber}/`;
+        const initialized = await initializeOrderPayment(orderNumber, callbackUrl);
+        const authorizationUrl = initialized?.data?.authorization_url;
+
+        if (!authorizationUrl) {
+          throw new Error('Payment initialized, but authorization URL was not returned.');
+        }
+
+        window.location.href = authorizationUrl;
+        return;
+      }
 
       alert(response?.message || 'Order placed successfully!');
-      const orderNumber = response?.order?.order_number;
       if (orderNumber) {
         navigate(`/orders/${orderNumber}`);
       } else {
@@ -71,8 +93,9 @@ export default function Checkout() {
         const names = blockedSellers.map((seller) => seller.seller_name).join(', ');
         alert(`This cart contains direct/unverified sellers (${names}). Zunto checkout works only for managed sellers.`);
       } else {
-        alert(error?.data?.error || error?.data?.detail || 'Failed to place order. Please try again.');
+        alert(error?.data?.error || error?.data?.detail || error?.message || 'Failed to place order. Please try again.');
       }
+      setPaymentRedirecting(false);
     } finally {
       setLoading(false);
     }
@@ -214,7 +237,25 @@ export default function Checkout() {
 
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium mb-2">Card Number *</label>
+                    <label className="block text-sm font-medium mb-2">Payment Method *</label>
+                    <select
+                      name="paymentMethod"
+                      value={formData.paymentMethod}
+                      onChange={handleChange}
+                      className="w-full bg-[#050d1b] border border-[#2c77d1]/30 rounded-lg px-4 py-3 focus:outline-none focus:border-[#2c77d1]"
+                    >
+                      <option value="paystack">Paystack (Card/Bank Transfer)</option>
+                      <option value="cash_on_delivery">Cash on Delivery</option>
+                    </select>
+                  </div>
+
+                  {formData.paymentMethod === 'paystack' ? (
+                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
+                      ⚠ Do not refresh or close this page while payment is processing.
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Card Number</label>
                     <input
                       type="text"
                       name="cardNumber"
@@ -227,7 +268,7 @@ export default function Checkout() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Cardholder Name *</label>
+                    <label className="block text-sm font-medium mb-2">Cardholder Name</label>
                     <input
                       type="text"
                       name="cardName"
@@ -239,7 +280,7 @@ export default function Checkout() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium mb-2">Expiry Date *</label>
+                      <label className="block text-sm font-medium mb-2">Expiry Date</label>
                       <input
                         type="text"
                         name="expiryDate"
@@ -252,7 +293,7 @@ export default function Checkout() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-2">CVV *</label>
+                      <label className="block text-sm font-medium mb-2">CVV</label>
                       <input
                         type="text"
                         name="cvv"
@@ -266,6 +307,7 @@ export default function Checkout() {
                     </div>
                   </div>
                 </div>
+                  )}
 
                 <div className="flex items-center gap-2 mt-4 text-sm text-gray-400">
                   <Lock className="w-4 h-4" />
@@ -336,12 +378,18 @@ export default function Checkout() {
                   </div>
                 </div>
 
+                {(paymentRedirecting || (loading && formData.paymentMethod === 'paystack')) && (
+                  <p className="mt-4 text-sm text-amber-300 border border-amber-500/30 bg-amber-500/10 rounded-lg px-3 py-2">
+                    ⚠ Do not refresh or close this page while payment is processing.
+                  </p>
+                )}
+
                 <button
                   type="submit"
                   disabled={loading}
                   className="w-full bg-gradient-to-r from-[#2c77d1] to-[#9426f4] py-4 rounded-full font-semibold text-lg mt-6 hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {loading ? 'Processing...' : 'Place Order'}
+                  {loading ? (formData.paymentMethod === 'paystack' ? 'Redirecting to Paystack...' : 'Processing...') : 'Place Order'}
                 </button>
               </div>
             </div>

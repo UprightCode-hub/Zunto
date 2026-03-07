@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase
 from rest_framework import status
 from .models import Report, ConversationLog
+from market.models import Product, DemandEvent
 from .processors.faq_retriever import FAQRetriever
 from .processors.rule_engine import RuleEngine
 from .processors.query_processor import QueryProcessor
@@ -113,7 +114,7 @@ class APIEndpointTests(APITestCase):
     
     def test_ask_endpoint(self):
         """Test main ask endpoint."""
-        url = '/assistant/api/ask/'
+        url = '/assistant/api/chat/'
         data = {'message': 'How do I track my order?'}
         
         response = self.client.post(url, data, format='json')
@@ -124,11 +125,44 @@ class APIEndpointTests(APITestCase):
     
     def test_ask_endpoint_validation(self):
         """Test input validation."""
-        url = '/assistant/api/ask/'
+        url = '/assistant/api/chat/'
         data = {}                                    
         
         response = self.client.post(url, data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_suggestions_endpoint_returns_query_and_suggestions(self):
+        product = Product.objects.create(
+            seller=self.user,
+            title='iphone 13 pro',
+            description='Flagship phone',
+            price='450000',
+            status='active',
+        )
+        DemandEvent.objects.create(
+            product=product,
+            event_type=DemandEvent.EVENT_SEARCH_INTEREST,
+            source='query:iphone 13',
+        )
+        DemandEvent.objects.create(
+            product=product,
+            event_type=DemandEvent.EVENT_VIEW,
+            source='feed',
+        )
+
+        response = self.client.get('/assistant/api/suggestions/?q=iph')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data.get('query'), 'iph')
+        self.assertTrue(len(response.data.get('suggestions', [])) >= 1)
+        self.assertIn('iphone 13', response.data['suggestions'])
+
+    def test_suggestions_endpoint_handles_empty_query(self):
+        response = self.client.get('/assistant/api/suggestions/?q=')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data.get('query'), '')
+        self.assertEqual(response.data.get('suggestions'), [])
     
     def test_report_endpoint(self):
         """Test report creation."""

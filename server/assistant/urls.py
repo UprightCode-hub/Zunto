@@ -26,8 +26,8 @@ urlpatterns = [
     path('api/tts/health/', views.tts_health, name='tts_health'),
     
                                                
-    path('api/ask/', views.ask_assistant, name='ask'),
     path('api/translate-search/', views.translate_search, name='translate_search'),
+    path('api/suggestions/', views.query_suggestions, name='query_suggestions'),
     path('api/log-demand-gap/', views.log_demand_gap_endpoint, name='log_demand_gap'),
     path('api/demand/hot/', views.hot_demand_clusters_endpoint, name='hot_demand_clusters'),
     path('api/report/', views.create_report, name='report'),
@@ -39,7 +39,6 @@ urlpatterns = [
     path('api/report/<int:report_id>/evidence/list/', views.list_report_evidence, name='list_report_evidence'),
     path('api/report/<int:report_id>/close/', views.close_report, name='close_report'),
 
-    path('api/legacy/chat/', views.legacy_chat_endpoint, name='legacy_chat'),
     
                                   
     path('api/admin/logs/', views.recent_logs, name='recent_logs'),
@@ -49,10 +48,6 @@ urlpatterns = [
     path('api/admin/disputes/escalated/', views.admin_disputes_escalated, name='admin_disputes_escalated'),
     path('api/admin/disputes/high-risk/', views.admin_disputes_high_risk, name='admin_disputes_high_risk'),
     path('api/admin/disputes/threshold-config/', views.admin_disputes_threshold_config, name='admin_disputes_threshold_config'),
-    path('admin/disputes/oversight-summary/', views.admin_disputes_oversight_summary, name='admin_disputes_oversight_summary_legacy'),
-    path('admin/disputes/escalated/', views.admin_disputes_escalated, name='admin_disputes_escalated_legacy'),
-    path('admin/disputes/high-risk/', views.admin_disputes_high_risk, name='admin_disputes_high_risk_legacy'),
-    path('admin/disputes/threshold-config/', views.admin_disputes_threshold_config, name='admin_disputes_threshold_config_legacy'),
     
                           
     path('api/docs/', views.api_documentation, name='api_docs'),

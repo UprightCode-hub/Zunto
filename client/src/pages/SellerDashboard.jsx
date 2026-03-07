@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import {
   Plus,
   Trash2,
@@ -6,13 +6,11 @@ import {
   Package,
   DollarSign,
   ShoppingCart,
-  Inbox,
   RefreshCw,
   ImagePlus,
   Video,
   X,
 } from 'lucide-react';
-import MarketplaceInbox from '../components/chat/MarketplaceInbox';
 import { useAuth } from '../context/AuthContext';
 import {
   createProduct,
@@ -22,10 +20,20 @@ import {
   getLocations,
   getMyProducts,
   getProductDetail,
+  getSellerOrderDetail,
+  getSellerOrders,
+  getSellerStatistics,
+  markProductAsSold,
+  reactivateProduct,
+  updateOrderItemStatus,
   updateUserProfile,
   uploadProductImage,
   uploadProductVideo,
 } from '../services/api';
+
+const OrdersTab = lazy(() => import('./sellerTabs/OrdersTab'));
+const InboxTab = lazy(() => import('./sellerTabs/InboxTab'));
+const SettingsTab = lazy(() => import('./sellerTabs/SettingsTab'));
 
 const INITIAL_FORM = {
   title: '',
@@ -44,13 +52,25 @@ const INITIAL_FORM = {
 const MAX_IMAGES = 5;
 const MAX_VIDEOS = 2;
 const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
-
 const SellerDashboard = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('products');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showMediaModal, setShowMediaModal] = useState(false);
   const [products, setProducts] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [orderDetailLoading, setOrderDetailLoading] = useState(false);
+  const [updatingItemId, setUpdatingItemId] = useState('');
+  const [sellerStats, setSellerStats] = useState({
+    total_orders: 0,
+    total_sales: 0,
+    total_items_sold: 0,
+    pending_items: 0,
+    shipped_items: 0,
+    cancelled_items: 0,
+  });
   const [categories, setCategories] = useState([]);
   const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -75,22 +95,41 @@ const SellerDashboard = () => {
       if (showLoader) {
         setLoading(true);
       }
+      setOrdersLoading(true);
       setRefreshing(!showLoader);
       setError('');
 
-      const [productsData, categoriesData, locationsData] = await Promise.all([
+      const [
+        productsData,
+        categoriesData,
+        locationsData,
+        ordersData,
+        statsData,
+      ] = await Promise.all([
         getMyProducts(),
         getCategories(),
         getLocations(),
+        getSellerOrders(),
+        getSellerStatistics(),
       ]);
 
       setProducts(productsData?.results || productsData || []);
       setCategories(categoriesData?.results || categoriesData || []);
       setLocations(locationsData?.results || locationsData || []);
+      setOrders(ordersData?.results || ordersData || []);
+      setSellerStats({
+        total_orders: Number(statsData?.total_orders || 0),
+        total_sales: Number(statsData?.total_sales || 0),
+        total_items_sold: Number(statsData?.total_items_sold || 0),
+        pending_items: Number(statsData?.pending_items || 0),
+        shipped_items: Number(statsData?.shipped_items || 0),
+        cancelled_items: Number(statsData?.cancelled_items || 0),
+      });
     } catch (fetchError) {
       setError(fetchError?.message || 'Unable to load seller dashboard data.');
     } finally {
       setLoading(false);
+      setOrdersLoading(false);
       setRefreshing(false);
     }
   };
@@ -107,18 +146,80 @@ const SellerDashboard = () => {
   }, [user]);
 
   const stats = useMemo(() => {
-    const totalProducts = products.length;
-    const totalViews = products.reduce((sum, item) => sum + Number(item.views_count || 0), 0);
-    const totalFavorites = products.reduce((sum, item) => sum + Number(item.favorites_count || 0), 0);
-    const activeCount = products.filter((item) => item.status === 'active').length;
-
     return [
-      { label: 'Total Products', value: totalProducts.toString(), icon: Package, accent: 'text-blue-600 dark:text-blue-400' },
-      { label: 'Active Listings', value: activeCount.toString(), icon: ShoppingCart, accent: 'text-green-600 dark:text-green-400' },
-      { label: 'Total Views', value: totalViews.toString(), icon: TrendingUp, accent: 'text-purple-600 dark:text-purple-400' },
-      { label: 'Favorites', value: totalFavorites.toString(), icon: DollarSign, accent: 'text-amber-600 dark:text-amber-400' },
+      { label: 'Total Orders', value: String(sellerStats.total_orders), icon: ShoppingCart, accent: 'text-blue-600 dark:text-blue-400' },
+      { label: 'Total Sales', value: `${sellerStats.total_sales.toLocaleString()}`, icon: DollarSign, accent: 'text-green-600 dark:text-green-400' },
+      { label: 'Items Sold', value: String(sellerStats.total_items_sold), icon: Package, accent: 'text-purple-600 dark:text-purple-400' },
+      { label: 'Pending Items', value: String(sellerStats.pending_items), icon: TrendingUp, accent: 'text-amber-600 dark:text-amber-400' },
+      { label: 'Shipped Items', value: String(sellerStats.shipped_items), icon: TrendingUp, accent: 'text-emerald-600 dark:text-emerald-400' },
+      { label: 'Cancelled Items', value: String(sellerStats.cancelled_items), icon: TrendingUp, accent: 'text-red-600 dark:text-red-400' },
     ];
-  }, [products]);
+  }, [sellerStats]);
+
+  const handleOpenOrder = async (orderNumber) => {
+    try {
+      setOrderDetailLoading(true);
+      setError('');
+      const detail = await getSellerOrderDetail(orderNumber);
+      setSelectedOrder(detail);
+    } catch (detailError) {
+      setError(detailError?.message || 'Unable to load order detail.');
+    } finally {
+      setOrderDetailLoading(false);
+    }
+  };
+
+  const handleOrderItemStatusUpdate = async (itemId, statusValue) => {
+    if (!itemId || !statusValue) return;
+
+    try {
+      setUpdatingItemId(String(itemId));
+      setError('');
+      await updateOrderItemStatus(itemId, statusValue);
+      if (selectedOrder?.order_number) {
+        const refreshed = await getSellerOrderDetail(selectedOrder.order_number);
+        setSelectedOrder(refreshed);
+      }
+      const refreshedOrders = await getSellerOrders();
+      setOrders(refreshedOrders?.results || refreshedOrders || []);
+      const refreshedStats = await getSellerStatistics();
+      setSellerStats({
+        total_orders: Number(refreshedStats?.total_orders || 0),
+        total_sales: Number(refreshedStats?.total_sales || 0),
+        total_items_sold: Number(refreshedStats?.total_items_sold || 0),
+        pending_items: Number(refreshedStats?.pending_items || 0),
+        shipped_items: Number(refreshedStats?.shipped_items || 0),
+        cancelled_items: Number(refreshedStats?.cancelled_items || 0),
+      });
+      setSuccessMessage('Order item status updated successfully.');
+    } catch (updateError) {
+      setError(updateError?.message || 'Unable to update order item status.');
+    } finally {
+      setUpdatingItemId('');
+    }
+  };
+
+  const handleMarkAsSold = async (slug) => {
+    try {
+      setError('');
+      await markProductAsSold(slug);
+      await fetchDashboardData(false);
+      setSuccessMessage('Product marked as sold.');
+    } catch (statusError) {
+      setError(statusError?.message || 'Unable to mark product as sold.');
+    }
+  };
+
+  const handleReactivateProduct = async (slug) => {
+    try {
+      setError('');
+      await reactivateProduct(slug);
+      await fetchDashboardData(false);
+      setSuccessMessage('Product reactivated successfully.');
+    } catch (statusError) {
+      setError(statusError?.message || 'Unable to reactivate product.');
+    }
+  };
 
   const closeModal = () => {
     setShowCreateModal(false);
@@ -322,7 +423,7 @@ const SellerDashboard = () => {
 
         <div className="flex justify-between items-center mb-6 gap-4 flex-wrap">
           <div className="border-b border-gray-200 dark:border-gray-700 flex gap-4">
-            {['products', 'inbox', 'settings'].map((tab) => (
+            {['products', 'orders', 'inbox', 'settings'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -387,6 +488,21 @@ const SellerDashboard = () => {
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
+                        {product.status === 'active' ? (
+                          <button
+                            onClick={() => handleMarkAsSold(product.slug)}
+                            className="text-orange-600 hover:text-orange-800 dark:text-orange-400 dark:hover:text-orange-300 text-xs font-semibold"
+                          >
+                            Mark Sold
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleReactivateProduct(product.slug)}
+                            className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 text-xs font-semibold"
+                          >
+                            Reactivate
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -396,62 +512,30 @@ const SellerDashboard = () => {
           </div>
         )}
 
-        {activeTab === 'inbox' && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <Inbox className="w-5 h-5" />
-                Seller Inbox
-              </h2>
-            </div>
-            <div className="p-6">
-              <MarketplaceInbox
-                containerClassName="h-[70vh]"
-                headerTitle="Seller Inbox"
-                emptyListLabel="No buyer conversations yet"
-              />
-            </div>
-          </div>
-        )}
+        <Suspense fallback={<div className="p-8 text-center text-gray-500 dark:text-gray-400">Loading tab...</div>}>
+          {activeTab === 'orders' && (
+            <OrdersTab
+              orders={orders}
+              ordersLoading={ordersLoading}
+              onOpenOrder={handleOpenOrder}
+              selectedOrder={selectedOrder}
+              orderDetailLoading={orderDetailLoading}
+              onUpdateOrderItemStatus={handleOrderItemStatusUpdate}
+              updatingItemId={updatingItemId}
+            />
+          )}
 
-        {activeTab === 'settings' && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Seller Settings</h2>
-            <form onSubmit={handleStoreSettingsSave} className="space-y-5 max-w-3xl">
-              <label className="flex items-center justify-between gap-4 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-                <span>
-                  <span className="block font-semibold text-gray-900 dark:text-white">Seller commerce mode</span>
-                  <span className="block text-sm text-gray-500 dark:text-gray-400">Enable seller-focused controls across buyer and profile experiences.</span>
-                </span>
-                <input
-                  type="checkbox"
-                  checked={storeSettings.seller_commerce_mode}
-                  onChange={(event) => setStoreSettings((current) => ({ ...current, seller_commerce_mode: event.target.checked }))}
-                  className="w-5 h-5"
-                />
-              </label>
+          {activeTab === 'inbox' && <InboxTab />}
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">Store bio</label>
-                <textarea
-                  rows="4"
-                  value={storeSettings.bio}
-                  onChange={(event) => setStoreSettings((current) => ({ ...current, bio: event.target.value }))}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  placeholder="Tell buyers about your store, quality, and response times."
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={savingSettings}
-                className="bg-green-600 hover:bg-green-700 disabled:opacity-70 text-white font-semibold px-6 py-2 rounded-lg transition-colors"
-              >
-                {savingSettings ? 'Saving...' : 'Save Seller Settings'}
-              </button>
-            </form>
-          </div>
-        )}
+          {activeTab === 'settings' && (
+            <SettingsTab
+              storeSettings={storeSettings}
+              setStoreSettings={setStoreSettings}
+              handleStoreSettingsSave={handleStoreSettingsSave}
+              savingSettings={savingSettings}
+            />
+          )}
+        </Suspense>
 
         {showCreateModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -593,7 +677,7 @@ const SellerDashboard = () => {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {(selectedProduct.images || []).map((image) => (
                       <div key={image.id} className="relative border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                        <img src={image.image} alt={image.caption || 'Product image'} className="w-full h-32 object-cover" />
+                        <img src={image.image} loading="lazy" alt={image.caption || 'Product image'} className="w-full h-32 object-cover" />
                         <button
                           type="button"
                           onClick={() => handleDeleteImage(image.id)}
