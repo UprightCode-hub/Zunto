@@ -18,6 +18,7 @@ export default function OrderDetail() {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busyAction, setBusyAction] = useState('');
+  const [showPaymentWarning, setShowPaymentWarning] = useState(false);
   const [error, setError] = useState('');
 
   const loadOrder = useCallback(async () => {
@@ -65,6 +66,7 @@ export default function OrderDetail() {
   const handlePayNow = async () => {
     try {
       setBusyAction('pay');
+      setShowPaymentWarning(true);
       const callbackUrl = `${window.location.origin}/payment/verify/${orderNumber}/`;
       const response = await initializeOrderPayment(orderNumber, callbackUrl);
       const authUrl = response?.data?.authorization_url;
@@ -73,8 +75,10 @@ export default function OrderDetail() {
         return;
       }
       alert('Payment initialized, but authorization URL was not returned.');
+      setShowPaymentWarning(false);
     } catch (apiError) {
       alert(apiError?.data?.detail || apiError?.data?.error || 'Unable to initialize payment.');
+      setShowPaymentWarning(false);
     } finally {
       setBusyAction('');
     }
@@ -149,6 +153,12 @@ export default function OrderDetail() {
             <div className="flex justify-between font-bold text-lg"><span>Total</span><span className="text-[#2c77d1]">₦{Number(order.total_amount || 0).toFixed(2)}</span></div>
           </div>
         </div>
+
+        {(showPaymentWarning || busyAction === 'pay') && (
+          <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-200">
+            ⚠ Do not refresh or close this page while payment is processing.
+          </div>
+        )}
 
         <div className="flex flex-wrap gap-3">
           {order.can_cancel && (

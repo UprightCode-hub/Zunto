@@ -18,6 +18,7 @@ from .serializers import PaymentSerializer
 from .commerce import is_managed_order
 from core.audit import audit_event
 from core.permissions import IsAdminOrStaff
+from notifications.email_service import EmailService
 
 
 class InitializePaymentView(APIView):
@@ -83,7 +84,7 @@ class InitializePaymentView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
         
                                     
-        payment_reference = order.generate_payment_reference()
+        payment_reference = order.payment_reference or order.generate_payment_reference()
 
         callback_url, callback_error = self._resolve_callback_url(request, order_number)
         if callback_error:
@@ -121,6 +122,9 @@ class InitializePaymentView(APIView):
                     'user_agent': request.META.get('HTTP_USER_AGENT', '')
                 }
             )
+            if payment.gateway_reference != order.payment_reference:
+                payment.gateway_reference = order.payment_reference
+                payment.save(update_fields=['gateway_reference'])
             
             return Response({
                 'message': 'Payment initialized successfully.',
@@ -317,14 +321,15 @@ class PaystackWebhookView(APIView):
                 gateway_reference=reference
             )
             order = payment.order
-            
-                            
+
+            if payment.status == 'success':
+                return Response({'status': 'success'}, status=status.HTTP_200_OK)
+
             payment.status = 'success'
             payment.paid_at = timezone.now()
             payment.gateway_response = data
             payment.save()
             
-                          
             if order.payment_status != 'paid':
                 old_status = order.status
                 order.payment_status = 'paid'

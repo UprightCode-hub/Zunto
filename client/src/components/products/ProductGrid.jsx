@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Filter, Grid, List, X } from 'lucide-react';
-import { getCategories, getProducts, logDemandGap, translateSearchQuery } from '../../services/api';
+import { getCategories, getProducts, getSearchSuggestions, logDemandGap, translateSearchQuery } from '../../services/api';
 import useProductFilters from '../../hooks/useProductFilters';
 import ProductCard from './ProductCard';
 
@@ -49,10 +49,19 @@ const shouldTranslateWithAI = (query) => {
   return AI_TRIGGER_KEYWORDS.some((keyword) => trimmed.includes(keyword));
 };
 
-function ProductFilters({ filters, categories, onSearchChange, onImmediateChange, onReset }) {
+function ProductFilters({
+  filters,
+  categories,
+  onSearchChange,
+  onImmediateChange,
+  onReset,
+  suggestions = [],
+  showSuggestions = false,
+  onSuggestionClick,
+}) {
   return (
     <div className="space-y-4">
-      <div>
+      <div className="relative">
         <label className="block text-sm font-medium mb-2">Search</label>
         <input
           type="text"
@@ -61,6 +70,20 @@ function ProductFilters({ filters, categories, onSearchChange, onImmediateChange
           placeholder="Search products..."
           className="w-full bg-white dark:bg-[#050d1b] border border-gray-300 dark:border-[#2c77d1]/30 rounded-lg px-4 py-2 focus:outline-none focus:border-[#2c77d1]"
         />
+        {showSuggestions && suggestions.length > 0 && (
+          <div className="absolute z-20 mt-1 w-full bg-white dark:bg-[#050d1b] border border-gray-200 dark:border-[#2c77d1]/30 rounded-lg shadow-lg overflow-hidden">
+            {suggestions.map((suggestion) => (
+              <button
+                key={suggestion}
+                type="button"
+                onClick={() => onSuggestionClick?.(suggestion)}
+                className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-[#0a1f3d]"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div>
@@ -180,6 +203,8 @@ export default function ProductGrid({
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   const [viewMode, setViewMode] = useState(initialViewMode);
   const [searchDraft, setSearchDraft] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const lastAiAppliedFiltersRef = useRef({});
   const loggedZeroResultSearchesRef = useRef(new Set());
 
@@ -226,6 +251,38 @@ export default function ProductGrid({
   useEffect(() => {
     setSearchDraft(normalizedFilters.search);
   }, [normalizedFilters.search]);
+
+  useEffect(() => {
+    const query = searchDraft.trim();
+    if (query.length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        const response = await getSearchSuggestions(query);
+        const nextSuggestions = response?.suggestions || [];
+        setSuggestions(nextSuggestions);
+        setShowSuggestions(nextSuggestions.length > 0);
+      } catch {
+        setSuggestions([]);
+        setShowSuggestions(false);
+      }
+    }, 220);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchDraft]);
+
+  const handleSuggestionSelect = (value) => {
+    const normalizedValue = String(value || '').trim();
+    if (!normalizedValue) return;
+
+    setSearchDraft(normalizedValue);
+    setShowSuggestions(false);
+    updateFilters({ search: normalizedValue, page: '1' });
+  };
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -394,6 +451,9 @@ export default function ProductGrid({
                 filters={{ ...normalizedFilters, search: searchDraft }}
                 categories={categories}
                 onSearchChange={setSearchDraft}
+                suggestions={suggestions}
+                showSuggestions={showSuggestions}
+                onSuggestionClick={handleSuggestionSelect}
                 onImmediateChange={applyImmediateFilterChange}
                 onReset={resetFilters}
               />
@@ -459,6 +519,9 @@ export default function ProductGrid({
               filters={{ ...normalizedFilters, search: searchDraft }}
               categories={categories}
               onSearchChange={setSearchDraft}
+              suggestions={suggestions}
+              showSuggestions={showSuggestions}
+              onSuggestionClick={handleSuggestionSelect}
               onImmediateChange={applyImmediateFilterChange}
               onReset={resetFilters}
             />

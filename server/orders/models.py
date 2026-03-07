@@ -102,6 +102,18 @@ class Order(models.Model):
             self.order_number = f"ORD-{date_str}-{random_part}"
         super().save(*args, **kwargs)
 
+    def generate_payment_reference(self):
+        """Generate and persist a unique Paystack payment reference for this order."""
+        if self.payment_reference:
+            return self.payment_reference
+
+        while True:
+            reference = f"ZUNTO_{timezone.now().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex[:8].upper()}"
+            if not Order.objects.filter(payment_reference=reference).exists():
+                self.payment_reference = reference
+                self.save(update_fields=['payment_reference', 'updated_at'])
+                return reference
+
     def update_totals(self):
         """Update subtotal and total_amount based on order items"""
         subtotal = self.items.aggregate(

@@ -199,7 +199,7 @@ class CheckoutView(APIView):
                 from .paystack_service import PaystackService
                 
                                             
-                payment_reference = order.generate_payment_reference()
+                payment_reference = order.payment_reference or order.generate_payment_reference()
                 
                                   
                 callback_url = f"{request.scheme}://{request.get_host()}/payment/verify/{order.order_number}/"
@@ -230,7 +230,7 @@ class CheckoutView(APIView):
                         order=order,
                         payment_method='paystack',
                         amount=order.total_amount,
-                        gateway_reference=payment_reference,
+                        gateway_reference=order.payment_reference,
                         status='pending',
                         ip_address=self.get_client_ip(request),
                         user_agent=request.META.get('HTTP_USER_AGENT', '')
@@ -239,7 +239,7 @@ class CheckoutView(APIView):
                     payment_data = {
                         'authorization_url': data['authorization_url'],
                         'access_code': data['access_code'],
-                        'reference': payment_reference
+                        'reference': order.payment_reference
                     }
             
             order_serializer = OrderDetailSerializer(order, context={'request': request})

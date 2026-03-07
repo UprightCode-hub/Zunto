@@ -242,6 +242,10 @@ export const getAdProducts = () => {
   return apiCall('/api/market/products/ads/');
 };
 
+export const getTrendingProducts = () => {
+  return apiCall('/api/products/trending/');
+};
+
 export const getProductDetail = (slug) => {
   return apiCall(`/api/market/products/${slug}/`);
 };
@@ -400,14 +404,6 @@ export const cancelOrder = (orderNumber) => {
     method: 'POST',
   });
 };
-
-export const verifyPayment = (orderNumber, reference) => {
-  return apiCall(`/api/orders/orders/${orderNumber}/verify-payment/`, {
-    method: 'POST',
-    body: JSON.stringify({ reference }),
-  });
-};
-
 export const initializeOrderPayment = (orderNumber, callbackUrl = null) => {
   return apiCall(`/api/payments/initialize/${orderNumber}/`, {
     method: 'POST',
@@ -442,7 +438,7 @@ export const getSellerOrderDetail = (orderNumber) => {
 
 export const updateOrderItemStatus = (itemId, status) => {
   return apiCall(`/api/orders/seller/items/${itemId}/update-status/`, {
-    method: 'POST',
+    method: 'PATCH',
     body: JSON.stringify({ status }),
   });
 };
@@ -750,6 +746,11 @@ export const translateSearchQuery = (query, signal = undefined) => {
     body: JSON.stringify({ query }),
     signal,
   });
+};
+
+export const getSearchSuggestions = (query, signal = undefined) => {
+  const params = new URLSearchParams({ q: query || '' });
+  return apiCall(`/assistant/api/suggestions/?${params.toString()}`, { signal });
 };
 
 

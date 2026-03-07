@@ -52,9 +52,15 @@ def track_demand_event(
             lga=lga,
         )
 
+        resolved_user = user
+        if resolved_user is None and request is not None:
+            candidate = getattr(request, 'user', None)
+            if getattr(candidate, 'is_authenticated', False):
+                resolved_user = candidate
+
         event = DemandEvent.objects.create(
             product_id=product.id if product is not None else product_id,
-            user=user if getattr(user, 'is_authenticated', False) else None,
+            user=resolved_user if getattr(resolved_user, 'is_authenticated', False) else None,
             event_type=event_type,
             state=resolved_state,
             lga=resolved_lga,

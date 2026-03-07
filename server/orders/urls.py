@@ -15,7 +15,6 @@ from .views import (
     MyRefundsView,
     order_statistics,
     seller_statistics,
-    verify_payment,
     reorder,
 )
 
@@ -29,7 +28,6 @@ urlpatterns = [
     path('my-orders/', MyOrdersView.as_view(), name='my_orders'),
     path('orders/<str:order_number>/', OrderDetailView.as_view(), name='order_detail'),
     path('orders/<str:order_number>/cancel/', CancelOrderView.as_view(), name='cancel_order'),
-    path('orders/<str:order_number>/verify-payment/', verify_payment, name='verify_payment'),
     path('orders/<str:order_number>/reorder/', reorder, name='reorder'),
     path('statistics/', order_statistics, name='order_statistics'),
     

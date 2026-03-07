@@ -6,6 +6,17 @@ import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { getProductImage, getProductTitle } from '../utils/product';
 
+const formatConditionLabel = (condition) => {
+  const value = String(condition || '').trim().toLowerCase();
+  if (!value) return 'N/A';
+  if (value === 'new') return 'New';
+  if (value === 'like_new') return 'Used – Like New';
+  if (value === 'good') return 'Used – Good';
+  if (value === 'fair') return 'Used – Fair';
+  if (value === 'poor') return 'Used – Poor';
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
 export default function ProductDetail() {
   const { slug } = useParams();
   const navigate = useNavigate();
@@ -61,6 +72,18 @@ export default function ProductDetail() {
       alert('Product added to cart!');
     } catch {
       alert('Failed to add to cart');
+    } finally {
+      setAddingToCart(false);
+    }
+  };
+
+  const handleBuyNow = async () => {
+    try {
+      setAddingToCart(true);
+      await addToCart(product.id, quantity);
+      navigate('/checkout');
+    } catch {
+      alert('Failed to proceed to checkout');
     } finally {
       setAddingToCart(false);
     }
@@ -199,6 +222,7 @@ export default function ProductDetail() {
       .map((video) => (typeof video === 'string' ? video : video.video))
       .filter(Boolean)
     : [];
+  const sellerIsVerified = Boolean(product?.seller?.isVerifiedSeller ?? product?.seller?.is_verified_seller);
 
   return (
     <div className="min-h-screen pb-12">
@@ -218,6 +242,7 @@ export default function ProductDetail() {
             <div className="bg-gradient-to-br from-[#2c77d1]/20 to-[#9426f4]/20 rounded-2xl aspect-square mb-4 overflow-hidden">
               <img
                 src={images[selectedImage] || '/placeholder.svg'}
+                loading="lazy"
                 alt={productTitle}
                 className="w-full h-full object-cover"
               />
@@ -232,7 +257,7 @@ export default function ProductDetail() {
                       selectedImage === idx ? 'border-[#2c77d1]' : 'border-[#2c77d1]/20'
                     }`}
                   >
-                    <img src={img} alt={`${productTitle} ${idx + 1}`} className="w-full h-full object-cover" />
+                    <img src={img} loading="lazy" alt={`${productTitle} ${idx + 1}`} className="w-full h-full object-cover" />
                   </button>
                 ))}
               </div>
@@ -319,66 +344,108 @@ export default function ProductDetail() {
               )}
             </div>
 
-            {/* Quantity Selector */}
-            <div className="mb-8">
-              <label className="block text-sm font-medium mb-3">Quantity</label>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center border border-[#2c77d1]/30 rounded-lg">
+            {sellerIsVerified ? (
+              <>
+                {/* Quantity Selector */}
+                <div className="mb-8">
+                  <label className="block text-sm font-medium mb-3">Quantity</label>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center border border-[#2c77d1]/30 rounded-lg">
+                      <button
+                        onClick={decrementQuantity}
+                        disabled={quantity <= 1}
+                        className="p-3 hover:bg-[#2c77d1]/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Minus className="w-5 h-5" />
+                      </button>
+                      <span className="px-6 font-semibold">{quantity}</span>
+                      <button
+                        onClick={incrementQuantity}
+                        disabled={quantity >= product.stock}
+                        className="p-3 hover:bg-[#2c77d1]/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Plus className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="space-y-3 mb-8">
+                  <div className="flex gap-4">
+                    <button
+                      onClick={handleBuyNow}
+                      disabled={product.stock === 0 || addingToCart}
+                      className="btn-primary btn-primary-lg flex-1"
+                    >
+                      <ShoppingCart className="w-5 h-5" />
+                      {addingToCart ? 'Processing...' : 'Buy Now'}
+                    </button>
+                    <button
+                      onClick={handleAddToCart}
+                      disabled={product.stock === 0 || addingToCart}
+                      className="btn-secondary flex-1"
+                    >
+                      <ShoppingCart className="w-5 h-5" />
+                      {addingToCart ? 'Adding...' : 'Add to Cart'}
+                    </button>
+                    <button
+                      onClick={handleToggleFavorite}
+                      className={`btn-icon-utility h-14 w-14 border-2 ${
+                        isFavorite ? 'border-red-500 bg-red-500/10' : 'border-[#2c77d1]'
+                      }`}
+                    >
+                      <Heart className={`w-6 h-6 ${isFavorite ? 'fill-red-500 text-red-500' : ''}`} />
+                    </button>
+                    <button
+                      onClick={handleShareProduct}
+                      className="btn-icon-utility h-14 w-14 border-2 border-[#2c77d1]"
+                      title="Share product"
+                    >
+                      <Share2 className="w-6 h-6" />
+                    </button>
+                  </div>
+
                   <button
-                    onClick={decrementQuantity}
-                    disabled={quantity <= 1}
-                    className="p-3 hover:bg-[#2c77d1]/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={handleMessageSeller}
+                    className="btn-secondary w-full"
                   >
-                    <Minus className="w-5 h-5" />
+                    <MessageCircle className="w-5 h-5" />
+                    Contact Seller
                   </button>
-                  <span className="px-6 font-semibold">{quantity}</span>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-3 mb-8">
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
+                  This seller uses direct commerce mode. Contact seller to complete purchase.
+                </div>
+                <div className="flex gap-4">
                   <button
-                    onClick={incrementQuantity}
-                    disabled={quantity >= product.stock}
-                    className="p-3 hover:bg-[#2c77d1]/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={handleMessageSeller}
+                    className="btn-secondary flex-1"
                   >
-                    <Plus className="w-5 h-5" />
+                    <MessageCircle className="w-5 h-5" />
+                    Contact Seller
+                  </button>
+                  <button
+                    onClick={handleToggleFavorite}
+                    className={`btn-icon-utility h-14 w-14 border-2 ${
+                      isFavorite ? 'border-red-500 bg-red-500/10' : 'border-[#2c77d1]'
+                    }`}
+                  >
+                    <Heart className={`w-6 h-6 ${isFavorite ? 'fill-red-500 text-red-500' : ''}`} />
+                  </button>
+                  <button
+                    onClick={handleShareProduct}
+                    className="btn-icon-utility h-14 w-14 border-2 border-[#2c77d1]"
+                    title="Share product"
+                  >
+                    <Share2 className="w-6 h-6" />
                   </button>
                 </div>
               </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="space-y-3 mb-8">
-              <div className="flex gap-4">
-                <button
-                  onClick={handleAddToCart}
-                  disabled={product.stock === 0 || addingToCart}
-                  className="btn-primary btn-primary-lg flex-1"
-                >
-                  <ShoppingCart className="w-5 h-5" />
-                  {addingToCart ? 'Adding...' : 'Add to Cart'}
-                </button>
-                <button
-                  onClick={handleToggleFavorite}
-                  className={`btn-icon-utility h-14 w-14 border-2 ${
-                    isFavorite ? 'border-red-500 bg-red-500/10' : 'border-[#2c77d1]'
-                  }`}
-                >
-                  <Heart className={`w-6 h-6 ${isFavorite ? 'fill-red-500 text-red-500' : ''}`} />
-                </button>
-                <button
-                  onClick={handleShareProduct}
-                  className="btn-icon-utility h-14 w-14 border-2 border-[#2c77d1]"
-                  title="Share product"
-                >
-                  <Share2 className="w-6 h-6" />
-                </button>
-              </div>
-
-              <button
-                onClick={handleMessageSeller}
-                className="btn-secondary w-full"
-              >
-                <MessageCircle className="w-5 h-5" />
-                Message Seller
-              </button>
-            </div>
+            )}
 
             {/* Features */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
@@ -420,6 +487,10 @@ export default function ProductDetail() {
                 <div className="flex justify-between">
                   <span className="text-gray-400">Brand:</span>
                   <span>{product.brand || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Condition:</span>
+                  <span>{formatConditionLabel(product.condition)}</span>
                 </div>
               </div>
             </div>
