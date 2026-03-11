@@ -95,6 +95,15 @@ class ProductReview(models.Model):
         ]
         return sum(ratings) / len(ratings) if ratings else self.rating
 
+    @property
+    def user(self):
+        return self.reviewer    
+
+    @property
+    def verified_purchase(self):
+        return self.is_verified_purchase
+
+
 
 class SellerReview(models.Model):
     """Reviews for sellers"""

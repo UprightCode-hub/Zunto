@@ -18,6 +18,8 @@ from .views import (
     SellerReviewStatsView,
     top_rated_products,
     top_rated_sellers,
+    add_review,
+    report_product,
 )
 
 app_name = 'reviews'
@@ -53,4 +55,10 @@ urlpatterns = [
                
     path('top-rated-products/', top_rated_products, name='top_rated_products'),
     path('top-rated-sellers/', top_rated_sellers, name='top_rated_sellers'),
+
+    # ---------------------------------------------------
+    # Additional endpoints for quick review + product report
+    # ---------------------------------------------------
+    path('reviews/add/', add_review, name='add_review'),
+    path('products/report/', report_product, name='report_product'),    
 ]

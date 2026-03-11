@@ -177,6 +177,11 @@ class SellerProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='seller_profile')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
     is_verified_seller = models.BooleanField(default=False)
+
+    verified = models.BooleanField(default=False)
+    rating = models.FloatField(default=0)
+    total_reviews = models.PositiveIntegerField(default=0)
+    
     seller_commerce_mode = models.CharField(
         max_length=20,
         choices=SELLER_COMMERCE_MODE_CHOICES,
@@ -200,10 +205,26 @@ class SellerProfile(models.Model):
         indexes = [
             models.Index(fields=['status']),
             models.Index(fields=['is_verified_seller']),
-        ]
+            
+            # ADD THESE
+            models.Index(fields=['verified']),
+            models.Index(fields=['rating']),
+        ]    
 
     def __str__(self):
         return f"SellerProfile<{self.user.email}> ({self.status})"
+
+    def update_rating(self):
+        from reviews.models import ProductReview
+        from django.db.models import Avg
+
+        reviews = ProductReview.objects.filter(product__seller=self.user)
+
+        if reviews.exists():
+            avg = reviews.aggregate(Avg("rating"))["rating__avg"]
+            self.rating = round(avg, 2)
+            self.total_reviews = reviews.count()
+            self.save()    
 
 
 class VerificationCode(models.Model):

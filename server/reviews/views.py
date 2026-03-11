@@ -661,3 +661,87 @@ def top_rated_sellers(request):
     
     serializer = SellerInfoSerializer(sellers, many=True)
     return Response(serializer.data)
+
+# ---------------------------------------------------------
+# Additional endpoints for product review submission
+# and reporting fake / low-quality products
+# ---------------------------------------------------------
+
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def add_review(request):
+    """
+    Simple endpoint to create a product review directly.
+    This works alongside the existing review system.
+    """
+
+    product_id = request.data.get("product")
+    rating = request.data.get("rating")
+    comment = request.data.get("comment")
+
+    if not product_id or not rating:
+        return Response(
+            {"error": "Product and rating are required."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    product = get_object_or_404(Product, id=product_id)
+
+    review = ProductReview.objects.create(
+        product=product,
+        reviewer=request.user,
+        rating=rating,
+        comment=comment,
+        is_verified_purchase=True
+    )
+
+    serializer = ProductReviewSerializer(review, context={"request": request})
+
+    return Response(
+        {"message": "review added", "review": serializer.data},
+        status=status.HTTP_201_CREATED
+    )
+
+
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def report_product(request):
+    """
+    Allows users to report fake / low quality products.
+    Uses the existing ReviewFlag system.
+    """
+
+    product_id = request.data.get("product")
+    reason = request.data.get("reason")
+
+    if not product_id or not reason:
+        return Response(
+            {"error": "Product and reason are required."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    product = get_object_or_404(Product, id=product_id)
+
+    flag = ReviewFlag.objects.create(
+        flagger=request.user,
+        product_review=None,
+        seller_review=None,
+        reason="inappropriate",  # or map reason to your choices
+        admin_notes=f"Product report: {reason}"
+    )
+
+    audit_event(
+        request,
+        action="product.reported",
+        extra={
+            "product_id": str(product.id),
+            "reason": reason,
+        },
+    )
+
+    serializer = ReviewFlagSerializer(flag, context={"request": request})
+
+    return Response(
+        {"message": "report submitted", "flag": serializer.data},
+        status=status.HTTP_201_CREATED
+    )
