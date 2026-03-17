@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Review Seller - Zunto</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-dark: #050d1b;
+            --primary-blue: #2c77d1;
+            --primary-purple: #9426f4;
+            --text-light: #ffffff;
+            --text-gray: #a0aec0;
+            --bg-dark: #0a1628;
+            --card-bg: #1a2332;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--primary-dark);
+            color: var(--text-light);
+            line-height: 1.6;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--bg-dark) 100%);
+            padding: 1rem 0;
+            box-shadow: 0 4px 20px rgba(148, 38, 244, 0.2);
+        }
+
+        nav {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 2rem;
+            font-weight: bold;
+            background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            cursor: pointer;
+        }
+
+        .back-btn {
+            background: var(--card-bg);
+            color: var(--text-light);
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .back-btn:hover {
+            background: var(--primary-blue);
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+
+        .page-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .page-title {
+            font-size: 2.5rem;
+            background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Seller Info Card */
+        .seller-card {
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: 15px;
+            display: flex;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+            align-items: center;
+        }
+
+        .seller-avatar {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+        }
+
+        .seller-info h3 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .verified-badge {
+            display: inline-block;
+            background: #10b981;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 15px;
+            font-size: 0.85rem;
+            margin-left: 0.5rem;
+        }
+
+        .seller-stats {
+            display: flex;
+            gap: 1.5rem;
+            margin-top: 1rem;
+            color: var(--text-gray);
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Review Form */
+        .review-form {
+            background: var(--card-bg);
+            padding: 2.5rem;
+            border-radius: 20px;
+        }
+
+        .form-section {
+            margin-bottom: 2rem;
+        }
+
+        .section-title {
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .rating-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .rating-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-gray);
+            font-size: 1rem;
+        }
+
+        .star-rating {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .star {
+            font-size: 2.5rem;
+            cursor: pointer;
+            color: var(--bg-dark);
+            transition: all 0.2s;
+            user-select: none;
+        }
+
+        .star:hover,
+        .star.active {
+            color: #fbbf24;
+            transform: scale(1.1);
+        }
+
+        .rating-text {
+            margin-left: 1rem;
+            color: var(--text-gray);
+            font-size: 1.1rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-gray);
+            font-size: 1rem;
+        }
+
+        .form-group input[type="text"],
+        .form-group textarea {
+            width: 100%;
+            padding: 1rem;
+            background: var(--bg-dark);
+            border: 2px solid transparent;
+            border-radius: 12px;
+            color: var(--text-light);
+            font-size: 1rem;
+            font-family: inherit;
+            transition: all 0.3s;
+        }
+
+        .form-group textarea {
+            min-height: 150px;
+            resize: vertical;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 20px rgba(44, 119, 209, 0.3);
+        }
+
+        .char-count {
+            text-align: right;
+            color: var(--text-gray);
+            font-size: 0.9rem;
+            margin-top: 0.25rem;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .submit-btn {
+            flex: 1;
+            padding: 1.25rem;
+            background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+            color: white;
+            border: none;
+            border-radius: 15px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .submit-btn:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(148, 38, 244, 0.5);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .cancel-btn {
+            padding: 1.25rem 2rem;
+            background: var(--bg-dark);
+            color: var(--text-light);
+            border: 2px solid var(--primary-blue);
+            border-radius: 15px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .cancel-btn:hover {
+            background: var(--primary-blue);
+        }
+
+        .message {
+            padding: 1rem 1.5rem;
+            border-radius: 10px;
+            margin-bottom: 1.5rem;
+            display: none;
+        }
+
+        .message.success {
+            background: rgba(16, 185, 129, 0.2);
+            border: 2px solid #10b981;
+            color: #6ee7b7;
+        }
+
+        .message.error {
+            background: rgba(239, 68, 68, 0.2);
+            border: 2px solid #ef4444;
+            color: #fca5a5;
+        }
+
+        @media (max-width: 768px) {
+            .seller-card {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .seller-stats {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+
+            .review-form {
+                padding: 1.5rem;
+            }
+
+            .form-actions {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo" onclick="window.location.href='/'">Zunto</div>
+            <button class="back-btn" onclick="history.back()">← Back</button>
+        </nav>
+    </header>
+
+    <div class="container">
+        <div class="page-header">
+            <h1 class="page-title">Review Seller</h1>
+            <p class="page-subtitle">Share your experience with this seller</p>
+        </div>
+
+        <div class="message success" id="successMessage"></div>
+        <div class="message error" id="errorMessage"></div>
+
+        <!-- Seller Info -->
+        <div class="seller-card">
+            <div class="seller-avatar" id="sellerAvatar">👤</div>
+            <div class="seller-info">
+                <div>
+                    <h3 id="sellerName">Loading...</h3>
+                    <span class="verified-badge" id="verifiedBadge" style="display: none">✓ Verified Seller</span>
+                </div>
+                <div class="seller-stats">
+                    <div class="stat-item">
+                        <span>⭐</span>
+                        <span id="sellerRating">0.0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>📦</span>
+                        <span id="sellerProducts">0 Products</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>💬</span>
+                        <span id="sellerReviews">0 Reviews</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Review Form -->
+        <div class="review-form">
+            <form id="reviewForm" onsubmit="submitReview(event)">
+                <!-- Overall Rating -->
+                <div class="form-section">
+                    <div class="section-title">⭐ Overall Rating</div>
+                    <div class="rating-group">
+                        <label class="rating-label">How would you rate this seller?</label>
+                        <div class="star-rating">
+                            <span class="star" data-rating="1" onclick="setRating('overall', 1)">★</span>
+                            <span class="star" data-rating="2" onclick="setRating('overall', 2)">★</span>
+                            <span class="star" data-rating="3" onclick="setRating('overall', 3)">★</span>
+                            <span class="star" data-rating="4" onclick="setRating('overall', 4)">★</span>
+                            <span class="star" data-rating="5" onclick="setRating('overall', 5)">★</span>
+                            <span class="rating-text" id="overallRatingText">Select a rating</span>
+                        </div>
+                        <input type="hidden" id="overallRating" required>
+                    </div>
+                </div>
+
+                <!-- Detailed Ratings -->
+                <div class="form-section">
+                    <div class="section-title">📊 Detailed Ratings (Optional)</div>
+                    
+                    <div class="rating-group">
+                        <label class="rating-label">Communication</label>
+                        <div class="star-rating">
+                            <span class="star" onclick="setRating('communication', 1)">★</span>
+                            <span class="star" onclick="setRating('communication', 2)">★</span>
+                            <span class="star" onclick="setRating('communication', 3)">★</span>
+                            <span class="star" onclick="setRating('communication', 4)">★</span>
+                            <span class="star" onclick="setRating('communication', 5)">★</span>
+                        </div>
+                        <input type="hidden" id="communicationRating">
+                    </div>
+
+                    <div class="rating-group">
+                        <label class="rating-label">Reliability</label>
+                        <div class="star-rating">
+                            <span class="star" onclick="setRating('reliability', 1)">★</span>
+                            <span class="star" onclick="setRating('reliability', 2)">★</span>
+                            <span class="star" onclick="setRating('reliability', 3)">★</span>
+                            <span class="star" onclick="setRating('reliability', 4)">★</span>
+                            <span class="star" onclick="setRating('reliability', 5)">★</span>
+                        </div>
+                        <input type="hidden" id="reliabilityRating">
+                    </div>
+
+                    <div class="rating-group">
+                        <label class="rating-label">Professionalism</label>
+                        <div class="star-rating">
+                            <span class="star" onclick="setRating('professionalism', 1)">★</span>
+                            <span class="star" onclick="setRating('professionalism', 2)">★</span>
+                            <span class="star" onclick="setRating('professionalism', 3)">★</span>
+                            <span class="star" onclick="setRating('professionalism', 4)">★</span>
+                            <span class="star" onclick="setRating('professionalism', 5)">★</span>
+                        </div>
+                        <input type="hidden" id="professionalismRating">
+                    </div>
+                </div>
+
+                <!-- Review Details -->
+                <div class="form-section">
+                    <div class="section-title">✍️ Review Details</div>
+                    <div class="form-group">
+                        <label for="reviewTitle">Review Title (Optional)</label>
+                        <input type="text" id="reviewTitle" placeholder="Sum up your experience" maxlength="200">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="reviewComment">Your Review *</label>
+                    <textarea id="reviewComment" required maxlength="2000" 
+                              placeholder="Tell us about your experience with this seller..." 
+                              oninput="updateCharCount()"></textarea>
+                    <div class="char-count" id="charCount">0 / 2000 characters</div>
+                </div>
+
+                <!-- Form Actions -->
+                <div class="form-actions">
+                    <button type="button" class="cancel-btn" onclick="history.back()">Cancel</button>
+                    <button type="submit" class="submit-btn" id="submitBtn">Submit Review</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = '/api';
+        let currentSeller = null;
+        let currentProduct = null;
+        const ratings = {
+            overall: 0,
+            communication: 0,
+            reliability: 0,
+            professionalism: 0
+        };
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const sellerId = urlParams.get('seller');
+        const productId = urlParams.get('product');
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!sellerId) {
+                showError('Seller not specified');
+                setTimeout(() => window.location.href = '/', 2000);
+                return;
+            }
+            await loadSeller();
+        });
+
+        async function loadSeller() {
+            try {
+                // Load seller reviews to get stats
+                const response = await fetch(`${API_BASE_URL}/reviews/sellers/${sellerId}/reviews/stats/`);
+                const stats = await response.json();
+
+                // Load seller basic info (you'll need to create this endpoint or get from product)
+                document.getElementById('sellerName').textContent = 'Seller'; // Will be updated from product
+                document.getElementById('sellerRating').textContent = stats.average_rating?.toFixed(1) || '0.0';
+                document.getElementById('sellerReviews').textContent = `${stats.total_reviews || 0} Reviews`;
+
+                if (productId) {
+                    const productResponse = await fetch(`${API_BASE_URL}/market/products/${productId}/`);
+                    currentProduct = await productResponse.json();
+                    document.getElementById('sellerName').textContent = currentProduct.seller?.full_name || 'Unknown Seller';
+                    
+                    if (currentProduct.seller?.is_verified) {
+                        document.getElementById('verifiedBadge').style.display = 'inline-block';
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading seller:', error);
+                showError('Error loading seller information');
+            }
+        }
+
+        function setRating(type, value) {
+            ratings[type] = value;
+            
+            if (type === 'overall') {
+                document.getElementById('overallRating').value = value;
+                document.getElementById('overallRatingText').textContent = getRatingText(value);
+            } else {
+                document.getElementById(`${type}Rating`).value = value;
+            }
+
+            const container = event.target.parentElement;
+            const stars = container.querySelectorAll('.star');
+            stars.forEach((star, index) => {
+                if (index < value) {
+                    star.classList.add('active');
+                } else {
+                    star.classList.remove('active');
+                }
+            });
+        }
+
+        function getRatingText(rating) {
+            const texts = {
+                1: 'Poor ⭐',
+                2: 'Fair ⭐⭐',
+                3: 'Good ⭐⭐⭐',
+                4: 'Very Good ⭐⭐⭐⭐',
+                5: 'Excellent ⭐⭐⭐⭐⭐'
+            };
+            return texts[rating] || 'Select a rating';
+        }
+
+        function updateCharCount() {
+            const textarea = document.getElementById('reviewComment');
+            const count = textarea.value.length;
+            document.getElementById('charCount').textContent = `${count} / 2000 characters`;
+        }
+
+        async function submitReview(event) {
+            event.preventDefault();
+
+            if (ratings.overall === 0) {
+                showError('Please select an overall rating');
+                return;
+            }
+
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Submitting...';
+
+            const reviewData = {
+                seller: sellerId,
+                product: productId || null,
+                rating: ratings.overall,
+                communication_rating: ratings.communication || null,
+                reliability_rating: ratings.reliability || null,
+                professionalism_rating: ratings.professionalism || null,
+                title: document.getElementById('reviewTitle').value,
+                comment: document.getElementById('reviewComment').value
+            };
+
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch(`${API_BASE_URL}/reviews/sellers/${sellerId}/reviews/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(reviewData)
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showSuccess('Review submitted successfully! Thank you for your feedback.');
+                    setTimeout(() => {
+                        if (productId && currentProduct) {
+                            window.location.href = `/product-detail.html?slug=${currentProduct.slug}`;
+                        } else {
+                            window.location.href = '/';
+                        }
+                    }, 2000);
+                } else {
+                    showError(data.detail || data.error || 'Failed to submit review');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Submit Review';
+                }
+            } catch (error) {
+                console.error('Error submitting review:', error);
+                showError('An error occurred. Please try again.');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit Review';
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            document.getElementById('successMessage').style.display = 'none';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.getElementById('successMessage');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+            document.getElementById('errorMessage').style.display = 'none';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>

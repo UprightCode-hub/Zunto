@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Write a Review - Zunto</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-dark: #050d1b;
+            --primary-blue: #2c77d1;
+            --primary-purple: #9426f4;
+            --text-light: #ffffff;
+            --text-gray: #a0aec0;
+            --bg-dark: #0a1628;
+            --card-bg: #1a2332;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--primary-dark);
+            color: var(--text-light);
+            line-height: 1.6;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--bg-dark) 100%);
+            padding: 1rem 0;
+            box-shadow: 0 4px 20px rgba(148, 38, 244, 0.2);
+        }
+
+        nav {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 2rem;
+            font-weight: bold;
+            background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            cursor: pointer;
+        }
+
+        .back-btn {
+            background: var(--card-bg);
+            color: var(--text-light);
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .back-btn:hover {
+            background: var(--primary-blue);
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+
+        .page-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .page-title {
+            font-size: 2.5rem;
+            background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        .page-subtitle {
+            color: var(--text-gray);
+            font-size: 1.1rem;
+        }
+
+        /* Product Info Card */
+        .product-card {
+            background: var(--card-bg);
+            padding: 1.5rem;
+            border-radius: 15px;
+            display: flex;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+            align-items: center;
+        }
+
+        .product-image {
+            width: 120px;
+            height: 120px;
+            object-fit: cover;
+            border-radius: 10px;
+        }
+
+        .product-info h3 {
+            font-size: 1.3rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .product-category {
+            color: var(--text-gray);
+            margin-bottom: 0.5rem;
+        }
+
+        .product-price {
+            color: var(--primary-blue);
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        /* Review Form */
+        .review-form {
+            background: var(--card-bg);
+            padding: 2.5rem;
+            border-radius: 20px;
+        }
+
+        .form-section {
+            margin-bottom: 2rem;
+        }
+
+        .section-title {
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Star Rating */
+        .rating-section {
+            margin-bottom: 2rem;
+        }
+
+        .rating-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .rating-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-gray);
+            font-size: 1rem;
+        }
+
+        .star-rating {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .star {
+            font-size: 2.5rem;
+            cursor: pointer;
+            color: var(--bg-dark);
+            transition: all 0.2s;
+            user-select: none;
+        }
+
+        .star:hover,
+        .star.active {
+            color: #fbbf24;
+            transform: scale(1.1);
+        }
+
+        .rating-text {
+            margin-left: 1rem;
+            color: var(--text-gray);
+            font-size: 1.1rem;
+        }
+
+        /* Form Groups */
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-gray);
+            font-size: 1rem;
+        }
+
+        .form-group input[type="text"],
+        .form-group textarea {
+            width: 100%;
+            padding: 1rem;
+            background: var(--bg-dark);
+            border: 2px solid transparent;
+            border-radius: 12px;
+            color: var(--text-light);
+            font-size: 1rem;
+            font-family: inherit;
+            transition: all 0.3s;
+        }
+
+        .form-group textarea {
+            min-height: 150px;
+            resize: vertical;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 20px rgba(44, 119, 209, 0.3);
+        }
+
+        .char-count {
+            text-align: right;
+            color: var(--text-gray);
+            font-size: 0.9rem;
+            margin-top: 0.25rem;
+        }
+
+        /* Image Upload */
+        .image-upload {
+            margin-bottom: 2rem;
+        }
+
+        .upload-area {
+            border: 2px dashed var(--primary-blue);
+            border-radius: 15px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: var(--bg-dark);
+        }
+
+        .upload-area:hover {
+            background: rgba(44, 119, 209, 0.1);
+            border-color: var(--primary-purple);
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .upload-text {
+            color: var(--text-gray);
+        }
+
+        .upload-text strong {
+            color: var(--primary-blue);
+        }
+
+        #imageInput {
+            display: none;
+        }
+
+        .image-preview {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .preview-item {
+            position: relative;
+            width: 120px;
+            height: 120px;
+        }
+
+        .preview-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 10px;
+        }
+
+        .remove-image {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+
+        .remove-image:hover {
+            background: #dc2626;
+            transform: scale(1.1);
+        }
+
+        /* Checkboxes */
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .checkbox-group label {
+            color: var(--text-gray);
+            cursor: pointer;
+        }
+
+        /* Buttons */
+        .form-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .submit-btn {
+            flex: 1;
+            padding: 1.25rem;
+            background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+            color: white;
+            border: none;
+            border-radius: 15px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .submit-btn:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(148, 38, 244, 0.5);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .cancel-btn {
+            padding: 1.25rem 2rem;
+            background: var(--bg-dark);
+            color: var(--text-light);
+            border: 2px solid var(--primary-blue);
+            border-radius: 15px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .cancel-btn:hover {
+            background: var(--primary-blue);
+        }
+
+        /* Success/Error Messages */
+        .message {
+            padding: 1rem 1.5rem;
+            border-radius: 10px;
+            margin-bottom: 1.5rem;
+            display: none;
+        }
+
+        .message.success {
+            background: rgba(16, 185, 129, 0.2);
+            border: 2px solid #10b981;
+            color: #6ee7b7;
+        }
+
+        .message.error {
+            background: rgba(239, 68, 68, 0.2);
+            border: 2px solid #ef4444;
+            color: #fca5a5;
+        }
+
+        @media (max-width: 768px) {
+            .product-card {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .review-form {
+                padding: 1.5rem;
+            }
+
+            .star {
+                font-size: 2rem;
+            }
+
+            .form-actions {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="logo" onclick="window.location.href='/'">Zunto</div>
+            <button class="back-btn" onclick="history.back()">← Back</button>
+        </nav>
+    </header>
+
+    <div class="container">
+        <div class="page-header">
+            <h1 class="page-title">Write a Review</h1>
+            <p class="page-subtitle">Share your experience with this product</p>
+        </div>
+
+        <!-- Messages -->
+        <div class="message success" id="successMessage"></div>
+        <div class="message error" id="errorMessage"></div>
+
+        <!-- Product Info -->
+        <div class="product-card" id="productCard">
+            <img src="" alt="Product" class="product-image" id="productImage">
+            <div class="product-info">
+                <h3 id="productTitle">Loading...</h3>
+                <div class="product-category" id="productCategory"></div>
+                <div class="product-price" id="productPrice"></div>
+            </div>
+        </div>
+
+        <!-- Review Form -->
+        <div class="review-form">
+            <form id="reviewForm" onsubmit="submitReview(event)">
+                <!-- Overall Rating -->
+                <div class="form-section">
+                    <div class="section-title">⭐ Overall Rating</div>
+                    <div class="rating-group">
+                        <label class="rating-label">How would you rate this product?</label>
+                        <div class="star-rating">
+                            <span class="star" data-rating="1" onclick="setRating('overall', 1)">★</span>
+                            <span class="star" data-rating="2" onclick="setRating('overall', 2)">★</span>
+                            <span class="star" data-rating="3" onclick="setRating('overall', 3)">★</span>
+                            <span class="star" data-rating="4" onclick="setRating('overall', 4)">★</span>
+                            <span class="star" data-rating="5" onclick="setRating('overall', 5)">★</span>
+                            <span class="rating-text" id="overallRatingText">Select a rating</span>
+                        </div>
+                        <input type="hidden" id="overallRating" name="rating" required>
+                    </div>
+                </div>
+
+                <!-- Detailed Ratings -->
+                <div class="form-section">
+                    <div class="section-title">📊 Detailed Ratings (Optional)</div>
+                    
+                    <!-- Quality Rating -->
+                    <div class="rating-group">
+                        <label class="rating-label">Quality</label>
+                        <div class="star-rating">
+                            <span class="star" data-rating="1" onclick="setRating('quality', 1)">★</span>
+                            <span class="star" data-rating="2" onclick="setRating('quality', 2)">★</span>
+                            <span class="star" data-rating="3" onclick="setRating('quality', 3)">★</span>
+                            <span class="star" data-rating="4" onclick="setRating('quality', 4)">★</span>
+                            <span class="star" data-rating="5" onclick="setRating('quality', 5)">★</span>
+                        </div>
+                        <input type="hidden" id="qualityRating" name="quality_rating">
+                    </div>
+
+                    <!-- Value Rating -->
+                    <div class="rating-group">
+                        <label class="rating-label">Value for Money</label>
+                        <div class="star-rating">
+                            <span class="star" data-rating="1" onclick="setRating('value', 1)">★</span>
+                            <span class="star" data-rating="2" onclick="setRating('value', 2)">★</span>
+                            <span class="star" data-rating="3" onclick="setRating('value', 3)">★</span>
+                            <span class="star" data-rating="4" onclick="setRating('value', 4)">★</span>
+                            <span class="star" data-rating="5" onclick="setRating('value', 5)">★</span>
+                        </div>
+                        <input type="hidden" id="valueRating" name="value_rating">
+                    </div>
+
+                    <!-- Accuracy Rating -->
+                    <div class="rating-group">
+                        <label class="rating-label">Description Accuracy</label>
+                        <div class="star-rating">
+                            <span class="star" data-rating="1" onclick="setRating('accuracy', 1)">★</span>
+                            <span class="star" data-rating="2" onclick="setRating('accuracy', 2)">★</span>
+                            <span class="star" data-rating="3" onclick="setRating('accuracy', 3)">★</span>
+                            <span class="star" data-rating="4" onclick="setRating('accuracy', 4)">★</span>
+                            <span class="star" data-rating="5" onclick="setRating('accuracy', 5)">★</span>
+                        </div>
+                        <input type="hidden" id="accuracyRating" name="accuracy_rating">
+                    </div>
+                </div>
+
+                <!-- Review Title -->
+                <div class="form-section">
+                    <div class="section-title">✍️ Review Details</div>
+                    <div class="form-group">
+                        <label for="reviewTitle">Review Title (Optional)</label>
+                        <input type="text" id="reviewTitle" name="title" 
+                               placeholder="Sum up your experience in one line" maxlength="200">
+                    </div>
+                </div>
+
+                <!-- Review Comment -->
+                <div class="form-group">
+                    <label for="reviewComment">Your Review *</label>
+                    <textarea id="reviewComment" name="comment" 
+                              placeholder="Tell us about your experience with this product..." 
+                              required maxlength="2000" oninput="updateCharCount()"></textarea>
+                    <div class="char-count" id="charCount">0 / 2000 characters</div>
+                </div>
+
+                <!-- Image Upload -->
+                <div class="form-section">
+                    <div class="section-title">📷 Add Photos (Optional)</div>
+                    <div class="image-upload">
+                        <div class="upload-area" onclick="document.getElementById('imageInput').click()">
+                            <div class="upload-icon">📸</div>
+                            <div class="upload-text">
+                                <strong>Click to upload</strong> or drag and drop<br>
+                                <small>PNG, JPG, GIF up to 5MB (Max 5 images)</small>
+                            </div>
+                        </div>
+                        <input type="file" id="imageInput" accept="image/*" multiple onchange="handleImageUpload(event)">
+                        <div class="image-preview" id="imagePreview"></div>
+                    </div>
+                </div>
+
+                <!-- Verified Purchase -->
+                <div class="checkbox-group">
+                    <input type="checkbox" id="verifiedPurchase" disabled checked>
+                    <label for="verifiedPurchase">✓ Verified Purchase</label>
+                </div>
+
+                <!-- Form Actions -->
+                <div class="form-actions">
+                    <button type="button" class="cancel-btn" onclick="history.back()">Cancel</button>
+                    <button type="submit" class="submit-btn" id="submitBtn">Submit Review</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = '/api';
+        let currentProduct = null;
+        let uploadedImages = [];
+        const ratings = {
+            overall: 0,
+            quality: 0,
+            value: 0,
+            accuracy: 0
+        };
+
+        // Get product slug from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const productSlug = urlParams.get('product');
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!productSlug) {
+                showError('Product not specified');
+                setTimeout(() => window.location.href = '/', 2000);
+                return;
+            }
+
+            await loadProduct();
+        });
+
+        async function loadProduct() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/market/products/${productSlug}/`);
+                currentProduct = await response.json();
+
+                document.getElementById('productImage').src = currentProduct.primary_image || 'https://via.placeholder.com/120';
+                document.getElementById('productTitle').textContent = currentProduct.title;
+                document.getElementById('productCategory').textContent = currentProduct.category?.name || 'Uncategorized';
+                document.getElementById('productPrice').textContent = `₦${parseFloat(currentProduct.price).toLocaleString()}`;
+            } catch (error) {
+                console.error('Error loading product:', error);
+                showError('Error loading product details');
+            }
+        }
+
+        function setRating(type, value) {
+            ratings[type] = value;
+            
+            // Update hidden input
+            if (type === 'overall') {
+                document.getElementById('overallRating').value = value;
+                document.getElementById('overallRatingText').textContent = getRatingText(value);
+            } else {
+                document.getElementById(`${type}Rating`).value = value;
+            }
+
+            // Update star display
+            const container = event.target.parentElement;
+            const stars = container.querySelectorAll('.star');
+            stars.forEach((star, index) => {
+                if (index < value) {
+                    star.classList.add('active');
+                } else {
+                    star.classList.remove('active');
+                }
+            });
+        }
+
+        function getRatingText(rating) {
+            const texts = {
+                1: 'Poor ⭐',
+                2: 'Fair ⭐⭐',
+                3: 'Good ⭐⭐⭐',
+                4: 'Very Good ⭐⭐⭐⭐',
+                5: 'Excellent ⭐⭐⭐⭐⭐'
+            };
+            return texts[rating] || 'Select a rating';
+        }
+
+        function updateCharCount() {
+            const textarea = document.getElementById('reviewComment');
+            const count = textarea.value.length;
+            document.getElementById('charCount').textContent = `${count} / 2000 characters`;
+        }
+
+        function handleImageUpload(event) {
+            const files = Array.from(event.target.files);
+            
+            if (uploadedImages.length + files.length > 5) {
+                showError('Maximum 5 images allowed');
+                return;
+            }
+
+            files.forEach(file => {
+                if (file.size > 5 * 1024 * 1024) {
+                    showError(`${file.name} is too large. Max 5MB per image.`);
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    uploadedImages.push({
+                        file: file,
+                        dataUrl: e.target.result
+                    });
+                    renderImagePreviews();
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function renderImagePreviews() {
+            const container = document.getElementById('imagePreview');
+            container.innerHTML = '';
+
+            uploadedImages.forEach((img, index) => {
+                const div = document.createElement('div');
+                div.className = 'preview-item';
+                div.innerHTML = `
+                    <img src="${img.dataUrl}" class="preview-image">
+                    <button type="button" class="remove-image" onclick="removeImage(${index})">×</button>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function removeImage(index) {
+            uploadedImages.splice(index, 1);
+            renderImagePreviews();
+        }
+
+        async function submitReview(event) {
+            event.preventDefault();
+
+            if (ratings.overall === 0) {
+                showError('Please select an overall rating');
+                return;
+            }
+
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Submitting...';
+
+            const reviewData = {
+                product: currentProduct.id,
+                rating: ratings.overall,
+                quality_rating: ratings.quality || null,
+                value_rating: ratings.value || null,
+                accuracy_rating: ratings.accuracy || null,
+                title: document.getElementById('reviewTitle').value,
+                comment: document.getElementById('reviewComment').value
+            };
+
+            try {
+                const token = localStorage.getItem('authToken');
+                const response = await fetch(`${API_BASE_URL}/reviews/products/${productSlug}/reviews/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(reviewData)
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Upload images if any
+                    if (uploadedImages.length > 0) {
+                        await uploadReviewImages(data.id);
+                    }
+
+                    showSuccess('Review submitted successfully! Thank you for your feedback.');
+                    setTimeout(() => {
+                        window.location.href = `/product-detail.html?slug=${productSlug}`;
+                    }, 2000);
+                } else {
+                    showError(data.detail || data.error || 'Failed to submit review');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Submit Review';
+                }
+            } catch (error) {
+                console.error('Error submitting review:', error);
+                showError('An error occurred. Please try again.');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit Review';
+            }
+        }
+
+        async function uploadReviewImages(reviewId) {
+            for (const img of uploadedImages) {
+                const formData = new FormData();
+                formData.append('image', img.file);
+
+                try {
+                    const token = localStorage.getItem('authToken');
+                    await fetch(`${API_BASE_URL}/reviews/reviews/product/${reviewId}/images/`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: formData
+                    });
+                } catch (error) {
+                    console.error('Error uploading image:', error);
+                }
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            document.getElementById('successMessage').style.display = 'none';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.getElementById('successMessage');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+            document.getElementById('errorMessage').style.display = 'none';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>

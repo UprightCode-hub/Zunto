@@ -1,0 +1,3302 @@
+{
+  "faqs": [
+    {
+      "id": 13,
+      "question": "How do I create an account on Zunto?",
+      "answer": "Download the Zunto app or visit our website and tap 'Sign Up'. You can register using your email, phone number, or Google login. Complete the verification process to unlock all buying and selling features.",
+      "keywords": [
+        "create account",
+        "join zunto",
+        "new account",
+        "register",
+        "sign up"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 14,
+      "question": "Do I need to verify my email or phone number?",
+      "answer": "Yes. Verification helps maintain account security and reduces fraudulent listings. You will receive a verification code via SMS or email to complete your registration.",
+      "keywords": [
+        "email verify",
+        "phone verify",
+        "verification",
+        "verification code",
+        "verify"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 15,
+      "question": "Why am I not receiving my verification code?",
+      "answer": "This may occur due to network delays or email filtering. Check your spam or junk folder, wait a few minutes, then tap 'Resend Code' if needed.",
+      "keywords": [
+        "code not coming",
+        "not receiving code",
+        "resend code",
+        "spam folder",
+        "verification code"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 16,
+      "question": "Can I use Zunto without an account?",
+      "answer": "You can browse listings without an account, but you must register to chat with sellers, save items, or complete transactions.",
+      "keywords": [
+        "browse without account",
+        "guest",
+        "no account",
+        "without registration"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 17,
+      "question": "How do I reset my password?",
+      "answer": "Tap 'Forgot Password' on the login screen, enter your registered email or phone number, and follow the instructions sent to you to create a new password.",
+      "keywords": [
+        "can't login",
+        "change password",
+        "forgot password",
+        "password recovery",
+        "reset password"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 18,
+      "question": "What should I do if I forget my login email or phone?",
+      "answer": "Check previous Zunto notifications in your email or messages. If you still cannot locate your credentials, contact support with proof of account ownership.",
+      "keywords": [
+        "can't remember login",
+        "forgot email",
+        "forgot phone",
+        "lost credentials"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 19,
+      "question": "How do I update my email or phone number?",
+      "answer": "Navigate to Settings > Account Information and select the field you wish to update. You will be required to verify the new details for security purposes.",
+      "keywords": [
+        "change email",
+        "change phone number",
+        "edit contact",
+        "update email",
+        "update phone"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 20,
+      "question": "Why is my account restricted or suspended?",
+      "answer": "Accounts may be restricted due to suspicious activity, policy violations, fraudulent listings, or multiple user reports. You will receive a notification explaining the reason and any available remediation steps.",
+      "keywords": [
+        "account banned",
+        "account locked",
+        "account restricted",
+        "restricted account",
+        "suspended"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 21,
+      "question": "Can I have multiple accounts?",
+      "answer": "Multiple accounts are discouraged to prevent fraudulent activity. Operating multiple accounts may trigger security measures and result in restrictions.",
+      "keywords": [
+        "duplicate account",
+        "multiple accounts",
+        "second account",
+        "two accounts"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 22,
+      "question": "How do I delete my account?",
+      "answer": "Go to Settings > Privacy & Security and select 'Delete Account'. Once confirmed, your data and listings will be permanently removed within a few days.",
+      "keywords": [
+        "cancel account",
+        "close account",
+        "deactivate account",
+        "delete account",
+        "remove account"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 23,
+      "question": "Can I recover a deleted account?",
+      "answer": "No. Account deletion is permanent. You will need to create a new account if you wish to use Zunto again.",
+      "keywords": [
+        "get account back",
+        "recover account",
+        "restore deleted account",
+        "undelete account"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 24,
+      "question": "What personal information is required to register?",
+      "answer": "We require your name, email or phone number, and a password. Additional details may be requested when you initiate transactions.",
+      "keywords": [
+        "personal information",
+        "registration info",
+        "required details",
+        "sign up info",
+        "what info needed"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 25,
+      "question": "Is my personal information secure?",
+      "answer": "Yes. Zunto uses industry-standard encryption and does not share your personal data with third parties without your consent.",
+      "keywords": [
+        "data protection",
+        "data secure",
+        "information safe",
+        "privacy",
+        "security"
+      ],
+      "metadata": {
+        "section": "trust_safety",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 26,
+      "question": "Why was my account flagged for unusual activity?",
+      "answer": "This is a security measure triggered by suspicious login attempts, chat patterns, or listing behaviour. Follow the on-screen prompts to verify your identity.",
+      "keywords": [
+        "account flagged",
+        "flagged account",
+        "security alert",
+        "suspicious activity",
+        "unusual activity"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 27,
+      "question": "How do I switch from a buyer to a seller account?",
+      "answer": "All Zunto accounts can both buy and sell. To start selling, simply create your first listing. You may complete additional seller verification for enhanced credibility.",
+      "keywords": [
+        "become seller",
+        "sell on zunto",
+        "seller account",
+        "start selling",
+        "switch to seller"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 28,
+      "question": "How do I restore a restricted account?",
+      "answer": "Follow the instructions provided during login or contact Zunto Support with relevant details to request a review of your account status.",
+      "keywords": [
+        "account review",
+        "appeal restriction",
+        "lift restriction",
+        "restore account",
+        "unrestrict account"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 29,
+      "question": "What is a Verified User on Zunto?",
+      "answer": "Verified users have completed identity verification, which may include phone number, email, or ID confirmation. They display a verification badge on their profile.",
+      "keywords": [
+        "trust badge",
+        "verification badge",
+        "verified account",
+        "verified seller",
+        "verified user"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 30,
+      "question": "Do I need to be verified to sell?",
+      "answer": "Verification is not mandatory, but verified sellers receive increased visibility and buyer trust.",
+      "keywords": [
+        "must verify",
+        "need verification",
+        "selling without verification",
+        "verification required"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 31,
+      "question": "How do I verify my account?",
+      "answer": "Go to Settings > Verification and follow the prompts. Options may include phone number verification, email confirmation, or ID submission.",
+      "keywords": [
+        "account verification",
+        "get verified",
+        "how to verify",
+        "verification process",
+        "verify account"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 32,
+      "question": "Are verified accounts guaranteed to be safe?",
+      "answer": "Verification significantly reduces fraudulent accounts but does not guarantee every transaction. Always exercise caution and follow safe trading practices.",
+      "keywords": [
+        "safe verified",
+        "verification guarantee",
+        "verified safe",
+        "verified trustworthy"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 33,
+      "question": "What benefits do verified sellers receive?",
+      "answer": "Verified sellers enjoy higher search ranking, a trust badge on their profile, and increased buyer confidence in their listings.",
+      "keywords": [
+        "verification advantages",
+        "verification perks",
+        "verified benefits",
+        "verified seller benefits",
+        "why verify"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 34,
+      "question": "How do I buy an item on Zunto?",
+      "answer": "Browse or search for the item you want, review the listing details, and tap 'Chat with Seller' to discuss the product, negotiate price, and arrange payment and meetup or delivery.",
+      "keywords": [
+        "buy item",
+        "buying process",
+        "how to buy",
+        "make purchase",
+        "purchase"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 35,
+      "question": "Can I negotiate prices with sellers?",
+      "answer": "Yes. Zunto supports flexible pricing, and many sellers are open to negotiation unless they indicate 'fixed price'. Use the chat feature to discuss pricing respectfully.",
+      "keywords": [
+        "bargain",
+        "haggle",
+        "lower price",
+        "negotiate",
+        "negotiate price",
+        "price negotiation"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 36,
+      "question": "How do I know if a seller is trustworthy?",
+      "answer": "Review the seller's ratings, read buyer reviews, check for a verification badge, and assess their response quality in chat before proceeding.",
+      "keywords": [
+        "check seller",
+        "reliable seller",
+        "safe seller",
+        "seller trust",
+        "trustworthy seller"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 37,
+      "question": "How do I request more details about an item?",
+      "answer": "Tap 'Chat with Seller' to ask questions, request additional photos or videos, or clarify product specifications.",
+      "keywords": [
+        "ask seller",
+        "item details",
+        "more info",
+        "more photos",
+        "product details",
+        "product questions"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 38,
+      "question": "Can I purchase multiple items from one seller?",
+      "answer": "Yes. Discuss bulk purchases with the seller via chat. Some sellers may offer discounts for multiple items.",
+      "keywords": [
+        "bulk order",
+        "bulk purchase",
+        "buy multiple",
+        "multiple items",
+        "several items"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 39,
+      "question": "What does 'Out of Stock' mean?",
+      "answer": "The seller has either sold the item or temporarily paused the listing. You can tap 'Notify Me' to receive an alert if it becomes available again.",
+      "keywords": [
+        "item sold",
+        "not available",
+        "out of stock",
+        "sold out",
+        "unavailable"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 40,
+      "question": "Can I save items for later?",
+      "answer": "Yes. Add items to your Wishlist to track them. You will receive notifications if the price changes or stock is low.",
+      "keywords": [
+        "bookmark item",
+        "favorites",
+        "save for later",
+        "save item",
+        "wishlist"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 41,
+      "question": "How do I know if a product is new or used?",
+      "answer": "Each listing displays the item condition, such as 'Brand New', 'Like New', 'Fairly Used', or 'Used'. Sellers are required to accurately state the condition.",
+      "keywords": [
+        "brand new",
+        "item condition",
+        "new or used",
+        "product condition",
+        "used item"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 42,
+      "question": "What should I do if a seller is unresponsive?",
+      "answer": "If a seller does not respond within a reasonable time, consider other listings. You may report consistently unresponsive sellers.",
+      "keywords": [
+        "no reply",
+        "seller ignoring",
+        "seller not responding",
+        "seller won't answer",
+        "unresponsive seller"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 43,
+      "question": "How do I avoid fake sellers?",
+      "answer": "Check seller reviews and ratings, ask detailed questions, request real photos or videos, and always inspect items before completing payment.",
+      "keywords": [
+        "avoid scam",
+        "fake seller",
+        "fraudulent seller",
+        "identify fake",
+        "scam seller"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 44,
+      "question": "How do I confirm an item is still available?",
+      "answer": "Send a message to the seller. Availability is updated manually, so direct confirmation is recommended before arranging a transaction.",
+      "keywords": [
+        "check availability",
+        "confirm stock",
+        "in stock",
+        "item available",
+        "still available"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 45,
+      "question": "Can I block a seller?",
+      "answer": "Yes. Open the chat, access the options menu, and select 'Block'. This will prevent further communication from that user.",
+      "keywords": [
+        "block account",
+        "block seller",
+        "block user",
+        "prevent contact",
+        "stop messages"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 46,
+      "question": "How do I post a listing?",
+      "answer": "Tap 'Sell', upload clear photos of your item, write a detailed description, set your price, and select the appropriate category.",
+      "keywords": [
+        "add listing",
+        "create listing",
+        "list item",
+        "post listing",
+        "sell item",
+        "upload product"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 47,
+      "question": "How many items can I list?",
+      "answer": "There is no strict limit, but duplicate or spam listings may be removed to maintain marketplace quality.",
+      "keywords": [
+        "how many items",
+        "listing limit",
+        "maximum listings",
+        "number of listings"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 48,
+      "question": "Why was my listing rejected or removed?",
+      "answer": "Listings may be rejected for containing prohibited items, misleading information, low-quality images, or policy violations.",
+      "keywords": [
+        "listing blocked",
+        "listing deleted",
+        "listing rejected",
+        "listing removed",
+        "why rejected"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 49,
+      "question": "What items are prohibited on Zunto?",
+      "answer": "Prohibited items include illegal goods, weapons, counterfeit products, stolen property, explicit content, fake documents, and restricted pharmaceuticals.",
+      "keywords": [
+        "banned items",
+        "forbidden items",
+        "illegal items",
+        "not allowed",
+        "prohibited items",
+        "restricted items"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 50,
+      "question": "Can I edit my listing after posting?",
+      "answer": "Yes. You can update photos, price, description, and category at any time from your listing management page.",
+      "keywords": [
+        "change listing",
+        "edit listing",
+        "modify listing",
+        "update listing",
+        "update price"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 51,
+      "question": "Why is my listing not appearing in search results?",
+      "answer": "Your listing may be under review, flagged for policy review, or require additional information. Check your notifications for updates.",
+      "keywords": [
+        "can't find listing",
+        "listing hidden",
+        "listing invisible",
+        "listing not showing",
+        "not in search"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 52,
+      "question": "Can I boost my listing for more visibility?",
+      "answer": "Listing promotion features are planned for future updates. Currently, high-quality photos and detailed descriptions help improve visibility.",
+      "keywords": [
+        "boost listing",
+        "featured listing",
+        "increase visibility",
+        "promote listing",
+        "top listing"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 53,
+      "question": "Do I need to describe products honestly?",
+      "answer": "Yes. Accurate descriptions are mandatory. Misleading information or hidden defects may result in penalties and negative reviews.",
+      "keywords": [
+        "accurate listing",
+        "honest description",
+        "misleading info",
+        "truthful description"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 54,
+      "question": "Can I use stock photos for my listing?",
+      "answer": "No. Photos must show the actual item being sold. Using stock or misleading images violates Zunto policies.",
+      "keywords": [
+        "actual photos",
+        "fake photos",
+        "own photos",
+        "real photos",
+        "stock photos"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 55,
+      "question": "Can I block buyers?",
+      "answer": "Yes. You can block buyers who are unserious, harassing, or disruptive to prevent further contact.",
+      "keywords": [
+        "annoying buyer",
+        "block buyer",
+        "block user",
+        "prevent contact",
+        "unserious buyer"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 56,
+      "question": "How do I mark an item as sold?",
+      "answer": "Once a transaction is complete, update your listing status to 'Sold' or remove the listing from your active inventory.",
+      "keywords": [
+        "close listing",
+        "item sold",
+        "mark as sold",
+        "mark sold",
+        "sold status"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 57,
+      "question": "Can I relist an item that didn't sell?",
+      "answer": "Yes. You can refresh or relist items that did not sell. Consider updating your photos, description, or price to attract buyers.",
+      "keywords": [
+        "list again",
+        "refresh listing",
+        "relist item",
+        "repost listing",
+        "reupload"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 58,
+      "question": "Are digital products supported?",
+      "answer": "Yes, but digital products must meet marketplace standards. Delivery confirmation may differ depending on the digital item type.",
+      "keywords": [
+        "digital goods",
+        "digital items",
+        "digital products",
+        "ebooks",
+        "software"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 59,
+      "question": "Can I set different shipping costs for different regions?",
+      "answer": "Yes. Regional shipping fees must be clearly indicated in the product listing before purchase.",
+      "keywords": [
+        "delivery fees",
+        "different regions",
+        "regional shipping",
+        "shipping costs",
+        "shipping rates"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 60,
+      "question": "Can I request advanced payment for custom orders?",
+      "answer": "Yes, provided it is clearly stated in the product listing and the buyer agrees to in-app payment terms.",
+      "keywords": [
+        "advance payment",
+        "custom order",
+        "deposit",
+        "prepayment",
+        "upfront payment"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 61,
+      "question": "What payment methods are supported on Zunto?",
+      "answer": "All in-app payments are processed securely through Paystack, allowing users to pay with cards, bank transfers, or other supported channels.",
+      "keywords": [
+        "accepted payments",
+        "how to pay",
+        "payment methods",
+        "payment options",
+        "paystack"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 62,
+      "question": "Is using the in-app payment system compulsory?",
+      "answer": "No. Buyers may choose between direct payment to the seller (outside the app) or in-app protected payment through Paystack.",
+      "keywords": [
+        "compulsory payment",
+        "must use app payment",
+        "payment choice",
+        "payment required"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 63,
+      "question": "What is the advantage of paying through the app?",
+      "answer": "Choosing in-app payment provides buyer protection, secure fund holding via escrow, and platform-managed delivery until the product is successfully received.",
+      "keywords": [
+        "buyer protection",
+        "in-app payment",
+        "payment benefits",
+        "secure payment",
+        "why use app payment"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 64,
+      "question": "What happens if I pay the seller directly outside the app?",
+      "answer": "The transaction becomes unprotected. The platform cannot assist with delivery issues, disputes, refunds, or lost items for off-platform payments.",
+      "keywords": [
+        "direct payment",
+        "no protection",
+        "off-platform payment",
+        "outside app",
+        "pay seller directly"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 65,
+      "question": "How does the in-app payment process work?",
+      "answer": "The buyer pays through Paystack, the platform holds the funds securely in escrow, the product is dispatched through delivery partners, and upon buyer confirmation of delivery, funds are released to the seller.",
+      "keywords": [
+        "escrow process",
+        "how payment works",
+        "payment flow",
+        "payment process",
+        "payment steps"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 66,
+      "question": "When is the seller paid?",
+      "answer": "The seller receives payment only after the buyer confirms successful delivery of the item.",
+      "keywords": [
+        "payment release",
+        "payment timing",
+        "seller gets money",
+        "seller payment",
+        "when paid"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 67,
+      "question": "Does Zunto operate an escrow system?",
+      "answer": "Yes. The in-app payment method functions as a secure escrow, holding funds until transaction completion is confirmed.",
+      "keywords": [
+        "escrow",
+        "escrow system",
+        "held funds",
+        "payment protection",
+        "secure payment"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 68,
+      "question": "Is my payment information secure?",
+      "answer": "Yes. Paystack uses advanced encryption and industry-standard security protocols to protect all financial data. Sellers never see your card or bank details.",
+      "keywords": [
+        "card security",
+        "payment privacy",
+        "payment security",
+        "safe payment",
+        "secure payment"
+      ],
+      "metadata": {
+        "section": "trust_safety",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 69,
+      "question": "Are there fees for using the in-app payment method?",
+      "answer": "Any applicable service or processing fees will be clearly displayed before you complete your payment.",
+      "keywords": [
+        "charges",
+        "payment fees",
+        "processing fees",
+        "service fees",
+        "transaction fees"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 70,
+      "question": "What happens if my payment fails?",
+      "answer": "You may retry the transaction or choose another payment method. If funds were debited, Paystack or your bank will automatically reverse the charge.",
+      "keywords": [
+        "failed transaction",
+        "payment declined",
+        "payment error",
+        "payment failed",
+        "transaction failed"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 71,
+      "question": "Can I pay using bank transfer through Paystack?",
+      "answer": "Yes. Paystack supports transfers, cards, and other available channels depending on your region.",
+      "keywords": [
+        "bank payment",
+        "bank transfer",
+        "pay by transfer",
+        "transfer payment"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 72,
+      "question": "Can I use a virtual or prepaid card?",
+      "answer": "Yes, if the card is supported by Paystack in your region.",
+      "keywords": [
+        "card types",
+        "debit card",
+        "prepaid card",
+        "virtual card"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 73,
+      "question": "Can I save multiple cards for future transactions?",
+      "answer": "Yes. Buyers may securely save multiple cards via Paystack for faster checkout.",
+      "keywords": [
+        "multiple cards",
+        "quick checkout",
+        "remember card",
+        "save card",
+        "saved payment"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 74,
+      "question": "Can I use international cards?",
+      "answer": "Yes, subject to Paystack's supported card networks and regional availability.",
+      "keywords": [
+        "card support",
+        "foreign card",
+        "international card",
+        "mastercard",
+        "visa"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 75,
+      "question": "Can I pay using mobile wallets?",
+      "answer": "Yes. Any wallet or payment method supported by Paystack is valid for in-app transactions.",
+      "keywords": [
+        "digital wallet",
+        "mobile money",
+        "mobile wallet",
+        "wallet payment"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 76,
+      "question": "What currencies are supported?",
+      "answer": "Payments are processed in the currency supported by Paystack for your region.",
+      "keywords": [
+        "currency",
+        "naira",
+        "payment currency",
+        "supported currency",
+        "what currency"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 77,
+      "question": "Can I pay for multiple items from different sellers in one transaction?",
+      "answer": "Not currently. Each seller's items must be paid for separately to ensure proper tracking and delivery management.",
+      "keywords": [
+        "combined payment",
+        "different sellers",
+        "multiple sellers",
+        "one payment"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 78,
+      "question": "Can I pay for multiple items from the same seller in one transaction?",
+      "answer": "Yes. Multiple items from a single seller can be paid for together in one in-app transaction.",
+      "keywords": [
+        "bulk payment",
+        "bundle payment",
+        "multiple items",
+        "one transaction",
+        "same seller"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 79,
+      "question": "Does Zunto support installment payments?",
+      "answer": "Not at the moment. All in-app payments must be made in full at checkout.",
+      "keywords": [
+        "installment",
+        "installments",
+        "partial payment",
+        "pay later",
+        "payment plan"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 80,
+      "question": "Can I change my payment method after selecting one?",
+      "answer": "No. Once a payment method is chosen for a specific order, it cannot be changed.",
+      "keywords": [
+        "change payment",
+        "different payment method",
+        "switch payment",
+        "update payment"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 81,
+      "question": "Can buyers schedule payments for a future date?",
+      "answer": "Not currently. Payments must be processed immediately at checkout.",
+      "keywords": [
+        "delayed payment",
+        "future payment",
+        "pay later date",
+        "schedule payment"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 82,
+      "question": "Does Zunto support recurring payments or subscriptions?",
+      "answer": "Not currently. The platform only supports one-time payments.",
+      "keywords": [
+        "auto payment",
+        "recurring payment",
+        "repeat payment",
+        "subscription"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 83,
+      "question": "Are payment receipts provided?",
+      "answer": "Yes. Buyers automatically receive digital receipts for every in-app payment, which can be used for tax or accounting purposes.",
+      "keywords": [
+        "invoice",
+        "payment receipt",
+        "proof of payment",
+        "receipt",
+        "transaction receipt"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 84,
+      "question": "Will I be notified when payment is processed?",
+      "answer": "Yes. Buyers receive an in-app confirmation and may also receive email or SMS alerts depending on settings.",
+      "keywords": [
+        "notified payment",
+        "payment alert",
+        "payment confirmation",
+        "payment notification"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 85,
+      "question": "Can sellers track payment status?",
+      "answer": "Yes. Sellers can view real-time status of each order including awaiting payment, payment received, delivery in progress, awaiting buyer confirmation, and payment released.",
+      "keywords": [
+        "check payment",
+        "order status",
+        "payment status",
+        "payment tracking",
+        "track payment"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 86,
+      "question": "Do sellers need a Paystack account?",
+      "answer": "No. Payments collected from buyers are handled by the platform and distributed to sellers automatically.",
+      "keywords": [
+        "need paystack",
+        "paystack account",
+        "seller account",
+        "seller payment setup"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 87,
+      "question": "What happens if the seller's bank rejects the payout?",
+      "answer": "The seller will be notified to update their bank details. The platform will retry payment after corrections are made.",
+      "keywords": [
+        "bank details wrong",
+        "bank rejection",
+        "payment failed",
+        "payout error",
+        "payout rejected"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 88,
+      "question": "How long does it take to release funds to sellers after confirmation?",
+      "answer": "Funds are typically released immediately after buyer confirmation, but slight delays may occur due to banking processing times.",
+      "keywords": [
+        "fund release",
+        "how long payment",
+        "payment release time",
+        "seller payment timing"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 89,
+      "question": "Can sellers request early payment before buyer confirmation?",
+      "answer": "No. All payments follow the escrow flow. Early disbursement is not permitted for security reasons.",
+      "keywords": [
+        "advance payment seller",
+        "early payment",
+        "early release",
+        "payment before confirmation"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 90,
+      "question": "Are sellers charged fees for receiving payments?",
+      "answer": "Any applicable fees will be displayed clearly before payment is processed or released.",
+      "keywords": [
+        "payment fees seller",
+        "seller charges",
+        "seller fees",
+        "transaction charges"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 91,
+      "question": "Can a seller refuse in-app payment and force direct payment?",
+      "answer": "No. Buyers retain full control over the payment option they choose.",
+      "keywords": [
+        "force payment",
+        "must pay direct",
+        "payment choice",
+        "seller refuse payment"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 92,
+      "question": "Can sellers charge extra after payment is made?",
+      "answer": "No. All charges must be included in the original listing price. Additional charges after payment are prohibited.",
+      "keywords": [
+        "additional fees",
+        "charge more",
+        "extra charges",
+        "extra payment",
+        "hidden charges"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 93,
+      "question": "Can sellers set different payment options for different products?",
+      "answer": "Yes. Sellers can allow or disallow in-app payments per listing, but buyers retain the final choice for payment method.",
+      "keywords": [
+        "different payment",
+        "listing payment",
+        "payment options",
+        "payment settings"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 94,
+      "question": "Are there transaction limits?",
+      "answer": "Yes. Limits may apply to mitigate fraud and comply with regulatory guidelines.",
+      "keywords": [
+        "maximum payment",
+        "payment cap",
+        "payment limit",
+        "transaction limit"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 95,
+      "question": "What happens if Paystack experiences downtime?",
+      "answer": "Users will be unable to complete in-app payments until the service is restored. No funds will be deducted during downtime.",
+      "keywords": [
+        "can't pay",
+        "payment service down",
+        "payment unavailable",
+        "paystack down"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 96,
+      "question": "Are all transactions logged?",
+      "answer": "Yes. All payments, refunds, and disputes are securely logged for transparency and audit purposes.",
+      "keywords": [
+        "payment history",
+        "payment tracking",
+        "transaction log",
+        "transaction record"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 97,
+      "question": "What if a buyer's payment is flagged for review by Paystack?",
+      "answer": "The transaction will be temporarily held until Paystack verifies the payment. Buyers may be asked for additional authentication.",
+      "keywords": [
+        "payment flagged",
+        "payment held",
+        "payment review",
+        "under review"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 98,
+      "question": "How does the platform handle chargebacks?",
+      "answer": "Chargebacks are handled according to Paystack's policies. The platform assists with evidence submission and dispute resolution.",
+      "keywords": [
+        "chargeback",
+        "dispute charge",
+        "payment reversal",
+        "reverse payment"
+      ],
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 99,
+      "question": "What happens if a transaction is reversed by Paystack or the bank?",
+      "answer": "The platform will notify both parties. Funds may be temporarily held or refunded depending on the cause.",
+      "keywords": [
+        "payment cancelled",
+        "payment reversed",
+        "reversal",
+        "transaction reversed"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 100,
+      "question": "How does escrow protect buyers?",
+      "answer": "When you pay through the app, funds are held securely until you confirm receipt of your item. This ensures sellers only receive payment after successful delivery.",
+      "keywords": [
+        "buyer protection",
+        "escrow protection",
+        "how escrow works",
+        "protected payment",
+        "secure payment"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 101,
+      "question": "How long are funds held in escrow?",
+      "answer": "Funds are held until buyer confirmation. There is no automatic release timer unless future policy updates specify otherwise.",
+      "keywords": [
+        "escrow duration",
+        "escrow time",
+        "funds held",
+        "how long held"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 102,
+      "question": "Can buyers verify that funds are safely held before delivery?",
+      "answer": "Yes. Escrow status and payment verification are visible in the buyer's account.",
+      "keywords": [
+        "check funds",
+        "escrow status",
+        "funds safe",
+        "payment held",
+        "verify escrow"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 103,
+      "question": "Can sellers confirm escrow before shipping?",
+      "answer": "Yes. Sellers can verify that funds are securely held before dispatching products.",
+      "keywords": [
+        "check escrow",
+        "confirm payment",
+        "payment confirmed",
+        "seller verify escrow"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 104,
+      "question": "What happens if the buyer does not confirm delivery?",
+      "answer": "If delivery is successful but the buyer does not confirm, the platform may conduct verification. Once confirmed, payment will be released to the seller.",
+      "keywords": [
+        "buyer not confirming",
+        "didn't confirm",
+        "no confirmation",
+        "no delivery confirmation"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 105,
+      "question": "What happens if a buyer refuses delivery without reason?",
+      "answer": "The platform reviews delivery evidence. If the refusal is unjustified, the buyer may not be eligible for a refund, and redelivery fees may apply.",
+      "keywords": [
+        "delivery refused",
+        "refuse delivery",
+        "rejected delivery",
+        "won't accept"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 106,
+      "question": "Can the platform freeze funds?",
+      "answer": "Yes. If there is evidence of fraud, dispute, or policy violations, funds may be held pending investigation.",
+      "keywords": [
+        "freeze funds",
+        "frozen payment",
+        "hold funds",
+        "payment frozen"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 107,
+      "question": "Are in-app payments insured against loss or fraud?",
+      "answer": "Yes. The escrow system and platform policies protect buyers from loss or fraud during transactions.",
+      "keywords": [
+        "fraud protection",
+        "insured payment",
+        "payment insurance",
+        "protected against fraud"
+      ],
+      "metadata": {
+        "section": "trust_safety",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 108,
+      "question": "Can the platform hold payments indefinitely?",
+      "answer": "No. Payments are held until delivery confirmation or dispute resolution, not indefinitely.",
+      "keywords": [
+        "hold forever",
+        "how long hold",
+        "indefinite hold",
+        "payment stuck"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 109,
+      "question": "Are refunds available?",
+      "answer": "Yes. Refunds are issued when delivery fails, the item is not delivered, the product significantly differs from its description, or fraud is detected.",
+      "keywords": [
+        "get refund",
+        "money back",
+        "refund",
+        "refund available",
+        "return money"
+      ],
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 110,
+      "question": "Who processes refunds?",
+      "answer": "All refunds are handled directly by the platform. Sellers do not issue refunds through personal accounts.",
+      "keywords": [
+        "platform refund",
+        "refund handled",
+        "refund process",
+        "who refunds"
+      ],
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 111,
+      "question": "How long does it take to receive a refund?",
+      "answer": "Refund timing varies depending on Paystack and your bank, typically ranging from a few hours to 1-7 business days.",
+      "keywords": [
+        "how long refund",
+        "refund processing time",
+        "refund time",
+        "refund timing",
+        "when refund"
+      ],
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 112,
+      "question": "Are refunds guaranteed for every in-app payment?",
+      "answer": "Refunds are guaranteed only when there is a valid issue, such as delivery failure, fraud, or product misrepresentation.",
+      "keywords": [
+        "always refund",
+        "guaranteed refund",
+        "refund guarantee",
+        "refund policy"
+      ],
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 113,
+      "question": "Can I get a refund if I simply change my mind?",
+      "answer": "Change-of-mind refunds may be subject to seller approval unless the order has not yet been dispatched.",
+      "keywords": [
+        "cancel order",
+        "change mind",
+        "changed mind",
+        "don't want anymore",
+        "mind changed"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 114,
+      "question": "Can I cancel an in-app payment after placing an order?",
+      "answer": "Cancellation is possible if the seller has not yet shipped the item. After dispatch, cancellation may require a dispute review.",
+      "keywords": [
+        "cancel order",
+        "cancel payment",
+        "cancellation",
+        "stop payment",
+        "undo payment"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 115,
+      "question": "What happens if a seller cancels an order after payment?",
+      "answer": "The buyer will be refunded in full once the cancellation is confirmed.",
+      "keywords": [
+        "cancelled order",
+        "order cancelled",
+        "seller cancel",
+        "seller cancels"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 116,
+      "question": "What happens if the product is out of stock after payment?",
+      "answer": "The seller must inform the buyer immediately. The buyer will receive a refund if no suitable alternative is provided.",
+      "keywords": [
+        "no stock",
+        "out of stock",
+        "stock out",
+        "unavailable after payment"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 117,
+      "question": "What happens if the seller does not ship the product?",
+      "answer": "For in-app payments, the funds remain on hold and the buyer may request a refund after review.",
+      "keywords": [
+        "didn't ship",
+        "no shipment",
+        "not sending",
+        "not shipped",
+        "seller not shipping"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 118,
+      "question": "Can I request a refund if a seller refuses to communicate?",
+      "answer": "Yes. If the seller remains unresponsive and the order cannot proceed, you may request a refund through the platform.",
+      "keywords": [
+        "no communication",
+        "seller ignoring",
+        "seller not responding",
+        "unresponsive seller refund"
+      ],
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 119,
+      "question": "What happens if the seller delivers later than promised?",
+      "answer": "Buyers may request a refund or open a dispute if the delay is excessive or unjustified.",
+      "keywords": [
+        "delayed delivery",
+        "delivery late",
+        "late delivery",
+        "not on time",
+        "overdue delivery"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 120,
+      "question": "Can buyers request partial refunds?",
+      "answer": "Partial refunds may be issued at the platform's discretion if only part of an order is problematic or for partially delivered orders.",
+      "keywords": [
+        "half refund",
+        "incomplete order",
+        "part refund",
+        "partial refund",
+        "some money back"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 121,
+      "question": "Are delivery fees refundable?",
+      "answer": "Yes, if the refund is due to platform or seller error. Fees may be non-refundable if the buyer cancels without justification.",
+      "keywords": [
+        "delivery cost back",
+        "delivery fee refund",
+        "refund delivery",
+        "shipping refund"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 122,
+      "question": "Are transaction fees refundable?",
+      "answer": "Platform and processing fees may or may not be refundable depending on the type of dispute and payment channel policies.",
+      "keywords": [
+        "fees refunded",
+        "processing fee back",
+        "service fee refund",
+        "transaction fee refund"
+      ],
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 123,
+      "question": "Will I be notified when my refund is processed?",
+      "answer": "Yes. Buyers receive instant updates once a refund has been initiated and when Paystack confirms completion.",
+      "keywords": [
+        "notified refund",
+        "refund alert",
+        "refund notification",
+        "refund update"
+      ],
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 124,
+      "question": "Are sellers notified of refunds?",
+      "answer": "Yes. Sellers receive notifications whenever funds are refunded or reversed.",
+      "keywords": [
+        "refund to seller",
+        "seller alert refund",
+        "seller notified",
+        "seller refund notice"
+      ],
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 125,
+      "question": "Can sellers dispute refund claims?",
+      "answer": "Yes. Sellers may provide evidence to contest a refund, which the platform will review before finalizing.",
+      "keywords": [
+        "appeal refund",
+        "contest refund",
+        "dispute refund",
+        "refund dispute",
+        "seller challenge"
+      ],
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 126,
+      "question": "Can the platform reverse a payment after releasing it to the seller?",
+      "answer": "Reversals are extremely rare and only occur in severe cases of fraud or legal requirements.",
+      "keywords": [
+        "payment reversal",
+        "reverse after release",
+        "reverse payment",
+        "take back payment"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 127,
+      "question": "What happens if the buyer pays twice by mistake?",
+      "answer": "The duplicate transaction will be refunded once verified.",
+      "keywords": [
+        "charged twice",
+        "double payment",
+        "duplicate payment",
+        "paid twice",
+        "two payments"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 128,
+      "question": "Can buyers request expedited refunds?",
+      "answer": "Emergency refund requests are reviewed case-by-case, and priority may be given when justified.",
+      "keywords": [
+        "emergency refund",
+        "expedited refund",
+        "fast refund",
+        "quick refund",
+        "urgent refund"
+      ],
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 129,
+      "question": "What happens if a seller is banned after payment but before delivery?",
+      "answer": "Funds are refunded to the buyer if the seller is removed due to policy violations.",
+      "keywords": [
+        "banned seller refund",
+        "seller banned",
+        "seller removed",
+        "seller suspended"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 130,
+      "question": "Are refunds processed automatically?",
+      "answer": "Refunds are processed by the platform after verification. Automated triggers exist for certain clear-cut cases.",
+      "keywords": [
+        "auto refund",
+        "automatic refund",
+        "instant refund",
+        "refund automatic"
+      ],
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 131,
+      "question": "Are refunds processed faster for digital products?",
+      "answer": "Yes. Digital product refunds are often processed immediately upon verification.",
+      "keywords": [
+        "digital product refund",
+        "digital refund",
+        "ebook refund",
+        "software refund"
+      ],
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 132,
+      "question": "Are refunds processed faster for verified buyers?",
+      "answer": "Yes. Verified accounts may experience faster refund processing.",
+      "keywords": [
+        "faster refund",
+        "quick refund verified",
+        "verified buyer refund",
+        "verified refund speed"
+      ],
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 133,
+      "question": "Can the platform intervene in disputes?",
+      "answer": "The platform can intervene only for transactions made through the in-app payment system. Direct or off-platform payments are not eligible for support.",
+      "keywords": [
+        "dispute help",
+        "get help dispute",
+        "intervene dispute",
+        "platform help",
+        "platform support dispute"
+      ],
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 2
+      }
+    },
+    {
+      "id": 134,
+      "question": "How are disputed payments handled?",
+      "answer": "The platform reviews evidence from both parties and makes a decision based on policies, delivery logs, and communication records.",
+      "keywords": [
+        "dispute handling",
+        "dispute process",
+        "dispute resolution",
+        "how disputes work",
+        "payment dispute"
+      ],
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 2
+      }
+    },
+    {
+      "id": 135,
+      "question": "What happens if the product delivered is different from the listing?",
+      "answer": "Buyers can file a dispute. If the claim is verified, the buyer will receive a refund and appropriate actions may be taken against the seller.",
+      "keywords": [
+        "different item",
+        "incorrect product",
+        "not as described",
+        "wrong item delivered",
+        "wrong product"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 2
+      }
+    },
+    {
+      "id": 136,
+      "question": "What happens if the product delivered is damaged?",
+      "answer": "Buyers can open a dispute. The platform will investigate, and if confirmed, the buyer will be refunded.",
+      "keywords": [
+        "broken item",
+        "damaged delivery",
+        "damaged product",
+        "defective product",
+        "item broken"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 2
+      }
+    },
+    {
+      "id": 137,
+      "question": "What happens if the product delivered is counterfeit?",
+      "answer": "Verified counterfeit products qualify for a full refund, and the seller may face penalties.",
+      "keywords": [
+        "counterfeit",
+        "fake item",
+        "fake product",
+        "imitation",
+        "not authentic",
+        "replica"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 2
+      }
+    },
+    {
+      "id": 138,
+      "question": "What happens if the delivery service loses my item?",
+      "answer": "If the buyer paid through the app, the platform investigates. Verified loss cases result in a full refund.",
+      "keywords": [
+        "delivery lost",
+        "item lost",
+        "lost delivery",
+        "lost package",
+        "missing item"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 2
+      }
+    },
+    {
+      "id": 139,
+      "question": "Can I still open a dispute after confirming delivery?",
+      "answer": "In rare exceptional cases, disputes can be reviewed after confirmation if strong evidence is provided, subject to platform policy.",
+      "keywords": [
+        "already confirmed",
+        "confirmed delivery dispute",
+        "dispute after confirmation",
+        "late dispute"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 2
+      }
+    },
+    {
+      "id": 140,
+      "question": "What proof is required for disputes?",
+      "answer": "Depending on the issue, buyers may need to provide photos, videos, delivery confirmation codes, or signature confirmation.",
+      "keywords": [
+        "dispute evidence",
+        "dispute proof",
+        "documentation dispute",
+        "evidence needed",
+        "what proof"
+      ],
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 2
+      }
+    },
+    {
+      "id": 141,
+      "question": "How long does it take to resolve a payment dispute?",
+      "answer": "Investigation times vary depending on complexity but typically range from 1-7 business days.",
+      "keywords": [
+        "dispute duration",
+        "dispute resolution time",
+        "dispute time",
+        "how long dispute"
+      ],
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 2
+      }
+    },
+    {
+      "id": 142,
+      "question": "Does the platform cover return shipping during disputes?",
+      "answer": "Return shipping policies vary. In cases where the seller is at fault, they may be responsible for return costs.",
+      "keywords": [
+        "return fees",
+        "return shipping",
+        "shipping cost return",
+        "who pays return"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 2
+      }
+    },
+    {
+      "id": 143,
+      "question": "What happens if the seller provides fake tracking information?",
+      "answer": "Such cases are investigated. If confirmed, the seller may face penalties, and the buyer may receive a refund.",
+      "keywords": [
+        "fake tracking",
+        "fake tracking number",
+        "false tracking",
+        "fraudulent tracking",
+        "wrong tracking"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 2
+      }
+    },
+    {
+      "id": 144,
+      "question": "Can I dispute a transaction paid directly to the seller outside the platform?",
+      "answer": "No. Off-platform payments are not eligible for dispute resolution, refunds, or support.",
+      "keywords": [
+        "cash payment dispute",
+        "direct payment dispute",
+        "off-platform dispute",
+        "outside app dispute"
+      ],
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 2
+      }
+    },
+    {
+      "id": 145,
+      "question": "Can sellers appeal dispute decisions?",
+      "answer": "Yes. Sellers may provide additional evidence for review before the final decision is made.",
+      "keywords": [
+        "appeal dispute",
+        "challenge dispute",
+        "contest decision",
+        "dispute appeal",
+        "seller appeal"
+      ],
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 2
+      }
+    },
+    {
+      "id": 146,
+      "question": "How can I escalate a payment dispute if unsatisfied with the resolution?",
+      "answer": "Contact platform support with additional evidence. Serious unresolved cases may be escalated to senior administration for review.",
+      "keywords": [
+        "dispute escalation",
+        "escalate case",
+        "escalate dispute",
+        "higher authority",
+        "unhappy with resolution"
+      ],
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 2
+      }
+    },
+    {
+      "id": 147,
+      "question": "Can payment disputes be escalated to regulators?",
+      "answer": "In extreme cases, unresolved disputes may be escalated to financial authorities or legal channels.",
+      "keywords": [
+        "financial authority",
+        "legal action",
+        "legal dispute",
+        "regulators",
+        "report to authorities"
+      ],
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 2
+      }
+    },
+    {
+      "id": 148,
+      "question": "Are multiple disputes allowed for the same order?",
+      "answer": "No. Only one active dispute per order is permitted to maintain clarity and fairness.",
+      "keywords": [
+        "duplicate dispute",
+        "more than one dispute",
+        "multiple disputes",
+        "two disputes"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 2
+      }
+    },
+    {
+      "id": 149,
+      "question": "Are recurring disputes flagged for review?",
+      "answer": "Yes. Repeated disputes by either buyer or seller are monitored for potential policy violations.",
+      "keywords": [
+        "frequent disputes",
+        "many disputes",
+        "multiple disputes user",
+        "pattern disputes",
+        "repeat disputes"
+      ],
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 2
+      }
+    },
+    {
+      "id": 150,
+      "question": "Can buyers or sellers request platform-assisted mediation?",
+      "answer": "Yes. Both parties can request platform-assisted mediation to reach a resolution.",
+      "keywords": [
+        "assisted resolution",
+        "help resolve",
+        "mediate dispute",
+        "mediation",
+        "platform mediation"
+      ],
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 2
+      }
+    },
+    {
+      "id": 151,
+      "question": "Does Zunto offer delivery services?",
+      "answer": "Yes. Delivery is available only when the buyer chooses the in-app payment method.",
+      "keywords": [
+        "courier service",
+        "delivery available",
+        "delivery service",
+        "does zunto deliver",
+        "shipping"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 152,
+      "question": "How do transactions work without in-app payment?",
+      "answer": "For direct payments, Zunto is a meetup-based marketplace. Buyers and sellers communicate via chat to arrange a convenient and safe location to complete the transaction.",
+      "keywords": [
+        "direct transaction",
+        "face to face",
+        "meet in person",
+        "meet seller",
+        "meetup",
+        "no delivery"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 153,
+      "question": "How do I choose a safe meetup location?",
+      "answer": "Select well-lit, public locations such as shopping malls, bank premises, or areas with security personnel. Avoid isolated or unfamiliar locations.",
+      "keywords": [
+        "meeting location",
+        "meetup safety",
+        "public location",
+        "safe meetup",
+        "safe place",
+        "where to meet"
+      ],
+      "metadata": {
+        "section": "trust_safety",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 154,
+      "question": "Can sellers deliver items personally?",
+      "answer": "Yes, if both parties agree. Discuss delivery arrangements, including any associated costs, within the chat before finalizing.",
+      "keywords": [
+        "direct delivery",
+        "hand delivery",
+        "personal delivery",
+        "seller bring item",
+        "seller deliver"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 155,
+      "question": "Can I use a ride or pickup service?",
+      "answer": "Yes. Depending on the product and seller preference, you may arrange third-party pickup or delivery services. Coordinate details with the seller via chat.",
+      "keywords": [
+        "courier",
+        "dispatch rider",
+        "pickup service",
+        "ride service",
+        "third party delivery"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 156,
+      "question": "Are delivery fees included in the payment?",
+      "answer": "For in-app payments, delivery fees are displayed during checkout and added to the total payable amount.",
+      "keywords": [
+        "delivery charge",
+        "delivery fee",
+        "delivery price",
+        "shipping cost",
+        "shipping fee"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 157,
+      "question": "Can I track my delivery?",
+      "answer": "Yes. Real-time delivery tracking is available for in-app payment orders using supported courier partners.",
+      "keywords": [
+        "delivery status",
+        "track delivery",
+        "track order",
+        "track shipment",
+        "tracking",
+        "where is delivery"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 158,
+      "question": "What proof does the seller need to show for dispatch?",
+      "answer": "Sellers may need to provide dispatch receipt, tracking number, courier confirmation, or delivery slip depending on the delivery method.",
+      "keywords": [
+        "delivery receipt",
+        "dispatch proof",
+        "shipment proof",
+        "shipping proof",
+        "tracking number"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 159,
+      "question": "What happens if the buyer is not available during delivery?",
+      "answer": "The delivery partner will attempt contact. If unsuccessful, the item may be returned and redelivery fees may apply.",
+      "keywords": [
+        "delivery attempt",
+        "missed delivery",
+        "not available",
+        "not home",
+        "unavailable delivery"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 160,
+      "question": "What if I entered the wrong delivery address?",
+      "answer": "If the order has not been dispatched, you can update the address. Once shipped, address changes may not be possible and could affect eligibility for refunds.",
+      "keywords": [
+        "change address",
+        "delivery address error",
+        "incorrect address",
+        "update address",
+        "wrong address"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 161,
+      "question": "Can sellers ship internationally for in-app payments?",
+      "answer": "Yes, provided the delivery option and fees are clearly communicated to the buyer before payment.",
+      "keywords": [
+        "foreign delivery",
+        "international shipping",
+        "overseas delivery",
+        "ship abroad",
+        "ship international"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 162,
+      "question": "Is partial delivery allowed?",
+      "answer": "Partial delivery is allowed only when agreed upon by both parties or clearly stated in the product listing.",
+      "keywords": [
+        "incomplete delivery",
+        "part delivery",
+        "partial delivery",
+        "some items",
+        "split delivery"
+      ],
+      "metadata": {
+        "section": "orders_shipping",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 163,
+      "question": "What should I do if I feel unsafe during a meetup?",
+      "answer": "Prioritise your safety. Leave the location immediately if you feel uncomfortable and report the user through the app.",
+      "keywords": [
+        "dangerous situation",
+        "feel unsafe",
+        "safety concern",
+        "uncomfortable meeting",
+        "unsafe meetup"
+      ],
+      "metadata": {
+        "section": "trust_safety",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 164,
+      "question": "Should I inspect items before paying?",
+      "answer": "Absolutely. Always inspect items thoroughly at the meetup to verify condition, functionality, and authenticity before completing payment.",
+      "keywords": [
+        "check item",
+        "examine product",
+        "inspect before buying",
+        "inspect item",
+        "test before pay",
+        "verify item"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 165,
+      "question": "Why should I use Zunto chat instead of exchanging phone numbers?",
+      "answer": "The in-app chat protects your privacy and allows our system to detect fraudulent behaviour patterns. We recommend using Zunto chat until you are comfortable with the other party.",
+      "keywords": [
+        "chat benefits",
+        "in-app chat",
+        "phone number",
+        "privacy chat",
+        "use chat",
+        "why chat"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 166,
+      "question": "Can I send images in chat?",
+      "answer": "Yes. Both buyers and sellers can share images within the chat for better product clarity and communication.",
+      "keywords": [
+        "image chat",
+        "photo sharing",
+        "send images",
+        "send pictures",
+        "share photos"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 167,
+      "question": "Why can't I send external links in chat?",
+      "answer": "External links are restricted to protect users from phishing attempts and scam websites.",
+      "keywords": [
+        "external links",
+        "link blocked",
+        "send links",
+        "share link",
+        "why no links"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 168,
+      "question": "Why was my chat frozen or restricted?",
+      "answer": "Chats may be temporarily frozen during investigations or when suspicious activity is detected. Contact support if you believe this is an error.",
+      "keywords": [
+        "can't chat",
+        "chat blocked",
+        "chat disabled",
+        "chat frozen",
+        "chat restricted"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 169,
+      "question": "Can I block someone in chat?",
+      "answer": "Yes. Blocking a user stops all communication and restricts their access to your profile and listings.",
+      "keywords": [
+        "block chat",
+        "block person",
+        "block user",
+        "prevent chat",
+        "stop messages"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 170,
+      "question": "Why can't I message a seller?",
+      "answer": "The seller may have disabled messaging, reached their chat limit, or may have blocked your account.",
+      "keywords": [
+        "can't chat seller",
+        "can't message",
+        "chat not working",
+        "messaging disabled",
+        "unable to message"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 171,
+      "question": "Are my messages encrypted?",
+      "answer": "Yes. Zunto uses secure encryption to protect your conversations.",
+      "keywords": [
+        "chat security",
+        "encrypted messages",
+        "message security",
+        "private messages",
+        "secure chat"
+      ],
+      "metadata": {
+        "section": "trust_safety",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 172,
+      "question": "Does Zunto share my phone number with other users?",
+      "answer": "No. Your contact information remains private unless you choose to share it. All initial communication occurs through our secure chat system.",
+      "keywords": [
+        "contact privacy",
+        "phone number visible",
+        "phone privacy",
+        "privacy protection",
+        "share phone number"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 173,
+      "question": "Can I rate buyers and sellers?",
+      "answer": "Yes. Ratings help build community trust. Both parties can rate each other after completing a transaction.",
+      "keywords": [
+        "leave rating",
+        "rate buyer",
+        "rate seller",
+        "rate user",
+        "rating",
+        "review"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 174,
+      "question": "When can I leave a review?",
+      "answer": "Reviews can be submitted after a transaction is marked as complete.",
+      "keywords": [
+        "leave review",
+        "post review",
+        "review timing",
+        "when review",
+        "write review"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 175,
+      "question": "Can I edit or delete my review?",
+      "answer": "Reviews can be edited for clarity but cannot be deleted unless they violate community guidelines.",
+      "keywords": [
+        "change review",
+        "delete review",
+        "edit review",
+        "remove review",
+        "update review"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 176,
+      "question": "Why don't I have any ratings yet?",
+      "answer": "Ratings are earned through completed transactions. New users will accumulate ratings as they buy or sell successfully.",
+      "keywords": [
+        "get ratings",
+        "new account ratings",
+        "no ratings",
+        "no reviews",
+        "zero ratings"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 177,
+      "question": "How do ratings affect my account?",
+      "answer": "Higher ratings increase your credibility and visibility on the platform. Consistently low ratings may result in reduced visibility or account review.",
+      "keywords": [
+        "low ratings",
+        "rating effect",
+        "rating impact",
+        "rating importance",
+        "ratings matter"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 178,
+      "question": "What should I do if I receive an unfair review?",
+      "answer": "You may respond to the review publicly or contact support if you believe the review violates guidelines or is fraudulent.",
+      "keywords": [
+        "bad review",
+        "dispute review",
+        "fake review",
+        "false review",
+        "unfair review",
+        "wrong review"
+      ],
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 179,
+      "question": "How do I stay safe while using Zunto?",
+      "answer": "Verify items before payment, meet in safe public locations, use in-app chat, avoid sharing sensitive personal information, and trust your instincts.",
+      "keywords": [
+        "how to be safe",
+        "protect myself",
+        "safe usage",
+        "safety guide",
+        "safety tips",
+        "stay safe"
+      ],
+      "metadata": {
+        "section": "trust_safety",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 180,
+      "question": "How can I identify scam sellers?",
+      "answer": "Warning signs include unusually low prices, pressure to complete transactions quickly, refusal to meet in safe locations, requests for advance payment, and reluctance to provide additional photos or information.",
+      "keywords": [
+        "fake seller",
+        "fraud seller",
+        "identify scam",
+        "scam seller",
+        "scam warning",
+        "spot scammer"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 181,
+      "question": "How can I identify scam buyers?",
+      "answer": "Be cautious of buyers who request personal information, pressure you to ship before payment, or refuse to inspect items in person.",
+      "keywords": [
+        "buyer scam",
+        "fake buyer",
+        "fraud buyer",
+        "identify scam buyer",
+        "scam buyer"
+      ],
+      "metadata": {
+        "section": "trust_safety",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 182,
+      "question": "Can I report a user?",
+      "answer": "Yes. Use the 'Report' button on the user's profile or within the chat to flag suspicious accounts or behaviour.",
+      "keywords": [
+        "flag user",
+        "report account",
+        "report buyer",
+        "report scam",
+        "report seller",
+        "report user"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 183,
+      "question": "What happens when I report someone?",
+      "answer": "Our moderation team reviews all reports and may issue warnings, temporary restrictions, or permanent bans depending on the severity of the violation.",
+      "keywords": [
+        "after report",
+        "report action",
+        "report outcome",
+        "report result",
+        "what happens report"
+      ],
+      "metadata": {
+        "section": "trust_safety",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 184,
+      "question": "What should I do if someone threatens me?",
+      "answer": "Block the user immediately and report the account. If you feel in immediate danger, contact local authorities.",
+      "keywords": [
+        "danger",
+        "harassment threat",
+        "threat",
+        "threatening",
+        "threats",
+        "violent threat"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 185,
+      "question": "What should I do if I was scammed?",
+      "answer": "Report the user immediately with all relevant evidence including chat screenshots and transaction details. While Zunto cannot guarantee recovery for off-platform payments, reports help us take action against fraudulent accounts.",
+      "keywords": [
+        "cheated",
+        "fraud victim",
+        "got scammed",
+        "lost money",
+        "scam happened",
+        "scammed"
+      ],
+      "metadata": {
+        "section": "trust_safety",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 186,
+      "question": "How does the platform prevent fraud?",
+      "answer": "All transactions are monitored using secure escrow, verification processes, AI-powered fraud detection, and manual reviews for unusual activity.",
+      "keywords": [
+        "anti-fraud",
+        "fraud prevention",
+        "fraud protection",
+        "prevent fraud",
+        "security measures"
+      ],
+      "metadata": {
+        "section": "trust_safety",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 187,
+      "question": "How are fraudulent sellers handled?",
+      "answer": "If fraudulent activity is confirmed, the seller may face suspension, fund withholding, or permanent removal from the platform.",
+      "keywords": [
+        "fraud action",
+        "fraud seller",
+        "fraudulent seller penalty",
+        "scammer banned",
+        "seller punishment"
+      ],
+      "metadata": {
+        "section": "seller_tools",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 188,
+      "question": "How are fraudulent buyers handled?",
+      "answer": "Fraudulent buyers may have their accounts restricted or banned. Any ongoing transactions may be halted pending investigation.",
+      "keywords": [
+        "buyer banned",
+        "buyer fraud",
+        "fraud buyer",
+        "fraudulent buyer penalty",
+        "scam buyer action"
+      ],
+      "metadata": {
+        "section": "trust_safety",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 189,
+      "question": "What should I do if I notice unauthorized activity on my account?",
+      "answer": "Contact support immediately. The platform will freeze pending transactions and investigate unauthorized activity.",
+      "keywords": [
+        "account breach",
+        "account compromised",
+        "hacked account",
+        "suspicious activity",
+        "unauthorized activity"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 190,
+      "question": "What categories are available on Zunto?",
+      "answer": "Zunto features categories including Electronics, Phones & Tablets, Fashion, Home Appliances, Vehicles, Property, Beauty, Gaming, Furniture, and more.",
+      "keywords": [
+        "available categories",
+        "categories",
+        "category list",
+        "product categories",
+        "what categories"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 191,
+      "question": "Can I request a new category?",
+      "answer": "Yes. Submit category suggestions through the feedback option in the app. Popular requests are reviewed for future updates.",
+      "keywords": [
+        "add category",
+        "category suggestion",
+        "new category",
+        "request category",
+        "suggest category"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 192,
+      "question": "Why was my item moved to a different category?",
+      "answer": "Moderators may recategorise listings to ensure accurate placement and improve discoverability for buyers.",
+      "keywords": [
+        "category changed",
+        "changed category",
+        "moved category",
+        "recategorised",
+        "wrong category"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 193,
+      "question": "How do I find specific items?",
+      "answer": "Use the search bar with keywords or apply filters such as category, price range, location, condition, and seller rating to narrow results.",
+      "keywords": [
+        "filter search",
+        "find items",
+        "find products",
+        "how to search",
+        "search function",
+        "search items"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 194,
+      "question": "Why am I not receiving notifications?",
+      "answer": "Ensure notifications are enabled for Zunto in your device settings. Also check that in-app notification preferences are configured correctly.",
+      "keywords": [
+        "missing notifications",
+        "no notifications",
+        "not getting alerts",
+        "notification problem",
+        "notifications not working"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 195,
+      "question": "Can I mute notifications for specific chats?",
+      "answer": "Yes. Open the chat, access settings, and select 'Mute' to silence notifications for that conversation.",
+      "keywords": [
+        "disable chat alerts",
+        "mute chat",
+        "mute notifications",
+        "silence notifications",
+        "turn off notifications"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 196,
+      "question": "Why did I receive a warning notification?",
+      "answer": "Warnings are issued when your account activity triggers policy concerns or when other users report your account. Review the notification details and take any recommended actions.",
+      "keywords": [
+        "account warning",
+        "policy warning",
+        "received warning",
+        "warning message",
+        "warning notification"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 197,
+      "question": "What notifications will I receive?",
+      "answer": "You may receive notifications for new messages, listing updates, price drops on wishlist items, payment confirmations, refunds, disputes, and account alerts.",
+      "keywords": [
+        "alerts received",
+        "notification kinds",
+        "notification list",
+        "notification types",
+        "what notifications"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 198,
+      "question": "Are all notifications logged?",
+      "answer": "Yes. All notifications regarding payments, refunds, disputes, and account activity are securely logged for reference.",
+      "keywords": [
+        "notification history",
+        "notification log",
+        "notification record",
+        "saved notifications"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 199,
+      "question": "What happens if I break Zunto rules?",
+      "answer": "Violations result in escalating consequences: initial warning, temporary restriction, and ultimately permanent ban for repeated or severe offences.",
+      "keywords": [
+        "break rules",
+        "breaking rules",
+        "consequences",
+        "policy violation",
+        "rule violation",
+        "violate policy"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 200,
+      "question": "Is abusive behaviour allowed?",
+      "answer": "No. Harassment, insults, hate speech, discrimination, and threats are strictly prohibited and will result in immediate action.",
+      "keywords": [
+        "abuse",
+        "abusive behaviour",
+        "discrimination",
+        "harassment",
+        "hate speech",
+        "insults"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 201,
+      "question": "Can I appeal a ban or restriction?",
+      "answer": "Yes. Contact Zunto Support with a detailed explanation of your situation to request a review of your account status.",
+      "keywords": [
+        "appeal ban",
+        "appeal restriction",
+        "challenge ban",
+        "contest ban",
+        "reverse ban",
+        "unban"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 202,
+      "question": "Why was my account flagged?",
+      "answer": "Flags are triggered when multiple users report your account or when automated systems detect suspicious activity patterns.",
+      "keywords": [
+        "account flag",
+        "account flagged",
+        "flagged account",
+        "flagged warning",
+        "why flagged"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 203,
+      "question": "What are Zunto's community guidelines?",
+      "answer": "Users must trade honestly, communicate respectfully, avoid prohibited items, refrain from fraudulent activity, and follow safe transaction practices.",
+      "keywords": [
+        "community guidelines",
+        "community rules",
+        "guidelines",
+        "platform rules",
+        "policies",
+        "rules"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 204,
+      "question": "Can sellers block buyers with a history of disputes?",
+      "answer": "Yes. Repeat offenders may be restricted from transacting with specific sellers.",
+      "keywords": [
+        "block dispute buyers",
+        "block problem buyers",
+        "problematic buyers",
+        "seller block buyer"
+      ],
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 205,
+      "question": "Are recurring offenders flagged by the platform?",
+      "answer": "Yes. Buyers or sellers repeatedly filing disputes or engaging in fraud may have accounts restricted or suspended.",
+      "keywords": [
+        "frequent disputes",
+        "multiple violations",
+        "pattern violations",
+        "recurring offenders",
+        "repeat offenders"
+      ],
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 206,
+      "question": "Why is the app not loading?",
+      "answer": "Try clearing the app cache, ensuring you have the latest version installed, checking your internet connection, or restarting your device.",
+      "keywords": [
+        "app not loading",
+        "app stuck",
+        "app won't load",
+        "loading problem",
+        "won't open"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 207,
+      "question": "Why can't I upload photos?",
+      "answer": "Ensure Zunto has permission to access your camera and storage. Also verify that your internet connection is stable.",
+      "keywords": [
+        "can't upload",
+        "image upload",
+        "photo error",
+        "photo upload",
+        "upload failed",
+        "upload problem"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 208,
+      "question": "Why does the app keep crashing?",
+      "answer": "Crashes may result from an outdated app version, insufficient device storage, or unstable internet connection. Update the app and restart your device.",
+      "keywords": [
+        "app crash",
+        "app crashes",
+        "app crashing",
+        "crash problem",
+        "keeps crashing"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 209,
+      "question": "Why can't I log in?",
+      "answer": "Common causes include incorrect credentials, account restrictions, or server maintenance. Reset your password or contact support if issues persist.",
+      "keywords": [
+        "can't login",
+        "login error",
+        "login failed",
+        "login problem",
+        "unable to login"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 210,
+      "question": "How do I update the Zunto app?",
+      "answer": "Visit your device's app store, search for Zunto, and tap 'Update' if a new version is available.",
+      "keywords": [
+        "app update",
+        "latest version",
+        "new version",
+        "update app",
+        "upgrade app"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 211,
+      "question": "Is Zunto available on both iOS and Android?",
+      "answer": "Yes. Zunto is available for download on both the Apple App Store and Google Play Store.",
+      "keywords": [
+        "android",
+        "app store",
+        "apple",
+        "devices",
+        "google play",
+        "ios",
+        "iphone"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 212,
+      "question": "Can I use Zunto on a web browser?",
+      "answer": "Yes. Zunto is accessible via web browser at our official website, in addition to our mobile apps.",
+      "keywords": [
+        "browser",
+        "desktop",
+        "online",
+        "web access",
+        "web version",
+        "website"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 213,
+      "question": "Are in-app payments protected against technical failures?",
+      "answer": "Yes. Failed or interrupted payments are automatically detected and resolved, with refunds issued as necessary.",
+      "keywords": [
+        "failed payment",
+        "payment error",
+        "payment failure",
+        "payment protection",
+        "technical failure"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 214,
+      "question": "How do I contact Zunto Support?",
+      "answer": "Access the 'Help & Support' section within the app to submit enquiries or report issues.",
+      "keywords": [
+        "contact support",
+        "contact us",
+        "customer support",
+        "get help",
+        "help",
+        "support team"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 215,
+      "question": "How long does support take to respond?",
+      "answer": "Our team typically responds within 24 to 48 hours, depending on enquiry volume.",
+      "keywords": [
+        "how long support",
+        "response time",
+        "support response time",
+        "support speed",
+        "wait time"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 216,
+      "question": "Is live chat support available?",
+      "answer": "Live chat support is planned for future updates. Currently, support is provided through in-app messaging.",
+      "keywords": [
+        "chat support",
+        "instant support",
+        "live chat",
+        "live help",
+        "real-time support"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 217,
+      "question": "Does Zunto have a customer service phone number?",
+      "answer": "Phone support is not currently available. All support requests are handled through the app.",
+      "keywords": [
+        "call support",
+        "contact number",
+        "phone number",
+        "phone support",
+        "telephone support"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 218,
+      "question": "Can I suggest new features?",
+      "answer": "Yes. We welcome user feedback. Submit suggestions through the 'Feedback' option in the app.",
+      "keywords": [
+        "feature request",
+        "feature suggestion",
+        "feedback",
+        "new feature",
+        "suggest feature",
+        "suggestion"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 219,
+      "question": "Will my feature suggestion be implemented?",
+      "answer": "All suggestions are reviewed by our team. Implementation depends on feasibility, demand, and development priorities.",
+      "keywords": [
+        "feature implementation",
+        "implement feature",
+        "suggestion review",
+        "will feature be added"
+      ],
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1
+      }
+    },
+    {
+      "id": 220,
+      "question": "Can I request payment history reports?",
+      "answer": "Yes. Both buyers and sellers can request detailed transaction reports via the platform for accounting purposes.",
+      "keywords": [
+        "account statement",
+        "payment history",
+        "payment report",
+        "transaction history",
+        "transaction report"
+      ],
+      "metadata": {
+        "section": "account_access",
+        "duplicate_count": 1
+      }
+    }
+  ]
+}
