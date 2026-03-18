@@ -111,7 +111,7 @@ def _build_direct_upload_key(product_id, filename):
 
     suffix = Path(filename or 'upload.bin').suffix.lower() or '.bin'
     token = hashlib.sha256(f"{product_id}:{time.time_ns()}".encode('utf-8')).hexdigest()[:24]
-    return f"products/videos/{product_id}/{token}{suffix}"
+    return f"public/products/videos/{product_id}/{token}{suffix}"
 
 
 def _sign_upload_callback_payload(payload):

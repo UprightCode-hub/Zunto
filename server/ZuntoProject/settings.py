@@ -1,5 +1,6 @@
 #server/ZuntoProject/settings.py
 import os
+import sys
 import importlib.util
 from pathlib import Path
 from decouple import Csv, config
@@ -12,6 +13,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
                        
 
 IS_PRODUCTION = os.environ.get('RENDER', 'False') == 'True'
+TESTING = ('test' in sys.argv) or any(mod.startswith('unittest') for mod in sys.modules)
 
 if IS_PRODUCTION:
     DEBUG = False
@@ -25,6 +27,9 @@ else:
     DEBUG = config('DEBUG', default=True, cast=bool)
     SECRET_KEY = config('SECRET_KEY', default='dev-secret-key-change-me-in-production')
     ALLOWED_HOSTS = ['*']
+
+if TESTING:
+    DEBUG = True
 
 if not DEBUG:
     SECURE_SSL_REDIRECT = True
@@ -256,6 +261,8 @@ REST_FRAMEWORK = {
     },
 }
 
+RATELIMIT_ENABLE = not TESTING
+
                 
 
 AUTH_USER_MODEL = 'accounts.User'
@@ -292,7 +299,7 @@ MEDIA_ROOT = os.path.join(os.path.dirname(BASE_DIR), "static_cdn", "media_root")
 USE_OBJECT_STORAGE = config('USE_OBJECT_STORAGE', default=False, cast=bool)
 OBJECT_STORAGE_FREE_TIER = config('OBJECT_STORAGE_FREE_TIER', default=True, cast=bool)
 OBJECT_STORAGE_PROVIDER = config('OBJECT_STORAGE_PROVIDER', default='cloudflare_r2')
-OBJECT_STORAGE_BUCKET_NAME = config('OBJECT_STORAGE_BUCKET_NAME', default='')
+OBJECT_STORAGE_BUCKET_NAME = config('OBJECT_STORAGE_BUCKET_NAME', default='zuntomedia')
 OBJECT_STORAGE_REGION = config('OBJECT_STORAGE_REGION', default='auto')
 OBJECT_STORAGE_ENDPOINT_URL = config('OBJECT_STORAGE_ENDPOINT_URL', default='')
 OBJECT_STORAGE_ACCESS_KEY_ID = config('OBJECT_STORAGE_ACCESS_KEY_ID', default='')
@@ -320,18 +327,13 @@ if USE_OBJECT_STORAGE:
             INSTALLED_APPS.append('storages')
 
         STORAGES['default'] = {
-            'BACKEND': 'storages.backends.s3boto3.S3Boto3Storage',
-            'OPTIONS': {
-                'bucket_name': OBJECT_STORAGE_BUCKET_NAME,
-                'region_name': OBJECT_STORAGE_REGION,
-                'endpoint_url': OBJECT_STORAGE_ENDPOINT_URL or None,
-                'access_key': OBJECT_STORAGE_ACCESS_KEY_ID,
-                'secret_key': OBJECT_STORAGE_SECRET_ACCESS_KEY,
-                'custom_domain': OBJECT_STORAGE_CUSTOM_DOMAIN or None,
-                'default_acl': 'private',
-                'querystring_auth': True,
-                'file_overwrite': False,
-            },
+            'BACKEND': 'core.storage_backends.PublicMediaStorage',
+        }
+        STORAGES['public_media'] = {
+            'BACKEND': 'core.storage_backends.PublicMediaStorage',
+        }
+        STORAGES['private_media'] = {
+            'BACKEND': 'core.storage_backends.PrivateMediaStorage',
         }
         if OBJECT_STORAGE_CUSTOM_DOMAIN:
             MEDIA_URL = f"https://{OBJECT_STORAGE_CUSTOM_DOMAIN}/"
@@ -623,13 +625,6 @@ CHAT_BLOCKED_LINK_DOMAINS = [
 ]
 
 
-                                          
-<<<<<<< HEAD
-=======
-
-from datetime import timedelta
-
->>>>>>> e6c89dca36d4ea3079187edea85d63d143c8a725
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),

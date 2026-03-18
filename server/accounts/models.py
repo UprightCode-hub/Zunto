@@ -3,11 +3,15 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.core.validators import RegexValidator
 import uuid
+from core.storage_backends import PublicMediaStorage
 
 class UserManager(BaseUserManager):
     """Custom user manager for email-based authentication"""
     
-    def create_user(self, email, password=None, **extra_fields):
+    def create_user(self, email=None, password=None, **extra_fields):
+        username = extra_fields.pop('username', None)
+        if not email and username:
+            email = f'{username}@example.com'
         if not email:
             raise ValueError('Users must have an email address')
         
@@ -64,7 +68,12 @@ class User(AbstractUser):
                     
     first_name = models.CharField(max_length=150)
     last_name = models.CharField(max_length=150)
-    profile_picture = models.ImageField(upload_to='profile_pictures/', null=True, blank=True)
+    profile_picture = models.ImageField(
+        upload_to='public/marketplace/profile_pictures/',
+        storage=PublicMediaStorage(),
+        null=True,
+        blank=True,
+    )
     bio = models.TextField(max_length=500, blank=True)
     
                            

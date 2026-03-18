@@ -446,7 +446,7 @@ class UpdateOrderItemStatusView(APIView):
 
     def patch(self, request, item_id):
         item_qs = OrderItem.objects.filter(id=item_id)
-        if not request.user.is_staff:
+        if not _is_admin_actor(request.user):
             item_qs = item_qs.filter(seller=request.user)
         item = get_object_or_404(item_qs)
 
@@ -672,14 +672,12 @@ def seller_statistics(request):
     }
 
     audit_event(request, action='orders.seller.statistics_viewed', extra={'is_staff': request.user.is_staff})
-    if request.user.is_staff or getattr(request.user, 'role', '') == 'admin':
+    if _is_admin_actor(request.user):
         audit_event(
             request,
             action='orders.admin.seller.statistics_viewed',
             extra={'is_staff': request.user.is_staff, 'role': getattr(request.user, 'role', None)},
         )
-    if _is_admin_actor(request.user):
-        audit_event(request, action='orders.admin.seller.statistics_viewed', extra={'is_staff': request.user.is_staff})
     return Response(stats)
 
 

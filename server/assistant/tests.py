@@ -5,11 +5,12 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase
 from rest_framework import status
-from .models import Report, ConversationLog
+from .models import Report, ConversationLog, ConversationSession
 from market.models import Product, DemandEvent
 from .processors.faq_retriever import FAQRetriever
 from .processors.rule_engine import RuleEngine
 from .processors.query_processor import QueryProcessor
+from .serializers import ConversationSessionSerializer
 
 User = get_user_model()
 
@@ -122,6 +123,52 @@ class APIEndpointTests(APITestCase):
         self.assertIn('reply', response.data)
         self.assertIn('confidence', response.data)
         self.assertIn('explanation', response.data)
+        self.assertIsInstance(response.data.get('reply'), str)
+        self.assertIsInstance(response.data.get('session_id'), str)
+
+    def test_chat_response_matches_frontend_text_contract(self):
+        response = self.client.post(
+            '/assistant/api/chat/',
+            {'message': 'hello from frontend'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsInstance(response.data.get('reply'), str)
+        self.assertIsInstance(response.data.get('explanation'), str)
+        self.assertIsInstance(response.data.get('confidence'), float)
+        self.assertIsInstance(response.data.get('state'), str)
+        self.assertIsInstance(response.data.get('session_id'), str)
+
+    def test_list_sessions_serialization_works_without_username_field(self):
+        ConversationSession.objects.create(
+            session_id='sess-frontend-contract',
+            user=self.user,
+            user_name='',
+            assistant_mode='inbox_general',
+            current_state='chat_mode',
+            context={},
+        )
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get('/assistant/api/chat/sessions/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        sessions = response.data.get('sessions', [])
+        self.assertGreaterEqual(len(sessions), 1)
+        self.assertIn('user_name', sessions[0])
+        self.assertIsInstance(sessions[0].get('assistant_mode'), str)
+
+    def test_conversation_session_serializer_supports_email_user_model(self):
+        session = ConversationSession.objects.create(
+            session_id='sess-serializer-contract',
+            user=self.user,
+            user_name='',
+            assistant_mode='inbox_general',
+            current_state='chat_mode',
+            context={},
+        )
+        payload = ConversationSessionSerializer(session).data
+        self.assertIsInstance(payload.get('user_username'), str)
     
     def test_ask_endpoint_validation(self):
         """Test input validation."""

@@ -291,6 +291,8 @@ def translate_search(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def query_suggestions(request):
+    if str(request.query_params.get('q', '')).strip() == '':
+        return Response({'query': '', 'suggestions': []}, status=status.HTTP_200_OK)
     serializer = SuggestionQuerySerializer(data=request.query_params)
     serializer.is_valid(raise_exception=True)
 
@@ -356,6 +358,7 @@ def _handle_ephemeral_chat(message: str, assistant_mode: str, lane: str):
         return {
             'reply': gate_reply,
             'state': 'chat_mode',
+            'explanation': 'Policy mode gate response.',
             'confidence': 0.92,
             'escalated': False,
             'metadata': {
@@ -376,6 +379,7 @@ def _handle_ephemeral_chat(message: str, assistant_mode: str, lane: str):
                 "You can also upload screenshots and OPUS/WAV audio evidence after opening the dispute."
             ),
             'state': 'dispute_mode',
+            'explanation': 'Routed to customer service dispute flow.',
             'confidence': 0.95,
             'escalated': False,
             'metadata': {
@@ -392,6 +396,7 @@ def _handle_ephemeral_chat(message: str, assistant_mode: str, lane: str):
         return {
             'reply': _customer_service_redirect_message(),
             'state': 'chat_mode',
+            'explanation': 'Dispute intent detected; redirected to customer service.',
             'confidence': 0.95,
             'escalated': False,
             'metadata': {
@@ -419,6 +424,7 @@ def _handle_ephemeral_chat(message: str, assistant_mode: str, lane: str):
     return {
         'reply': reply,
         'state': 'chat_mode',
+        'explanation': result.get('explanation', ''),
         'confidence': result.get('confidence', 0.5),
         'escalated': False,
         'metadata': {
@@ -548,6 +554,7 @@ def chat_endpoint(request):
             'reply': reply,
             'session_id': conv_manager.session.session_id,
             'state': conv_manager.get_current_state(),
+            'explanation': 'Persistent conversation response.',
             'confidence': summary.get('satisfaction_score', 0.5),
             'escalated': is_escalated,
             'metadata': {
@@ -1077,7 +1084,7 @@ def health_check(request):
         
         components = {
             'query_processor': True,
-            'rag_retriever': query_processor.rag.is_ready(),
+            'rag_retriever': query_processor.rag_retriever.is_ready(),
             'llm': query_processor.llm.is_available() if query_processor.llm else False,
             'ai_modules': True,
             'flow_modules': True,
@@ -1181,7 +1188,7 @@ def ask_assistant(request):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 @throttle_classes([DisputeReportUserThrottle])
 def create_report(request):
     """
@@ -1189,14 +1196,14 @@ def create_report(request):
     """
     try:
         user_id = request.user.id if request.user.is_authenticated else None
-        report_type = request.data.get('report_type', 'dispute')
-        description = request.data.get('description', '').strip()
+        report_type = request.data.get('report_type') or 'complaint'
+        description = (request.data.get('description') or request.data.get('message') or '').strip()
         
                            
         report_data = {
             'message': description,
             'report_type': report_type,
-            'category': request.data.get('category', ''),
+            'category': request.data.get('category') or request.data.get('severity') or 'general',
             'meta': {
                 'seller_name': request.data.get('seller_name', ''),
                 'order_id': request.data.get('order_id', ''),
@@ -1240,6 +1247,7 @@ def create_report(request):
                         evidence=evidence,
                         attached_report_id=report.id,
                         session_id=report.meta.get('session_id', '') if isinstance(report.meta, dict) else '',
+                        evaluate_on_create=False,
                     )
                     created_ticket_id = ticket.ticket_id
                 except DisputeTicketError as ticket_error:

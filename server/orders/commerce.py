@@ -8,6 +8,12 @@ def seller_supports_managed_commerce(seller):
     if not seller:
         return False
     profile = get_seller_profile(seller)
+    if profile is None:
+        return bool(
+            getattr(seller, 'role', None) == 'seller'
+            and getattr(seller, 'seller_commerce_mode', 'direct') == 'managed'
+            and getattr(seller, 'is_verified', False)
+        )
     return bool(
         profile is not None
         and profile.status == 'approved'

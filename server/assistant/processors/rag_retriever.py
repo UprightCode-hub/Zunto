@@ -36,7 +36,13 @@ class RAGRetriever:
         """
         if index_dir is None:
             base_dir = Path(__file__).parent.parent
-            index_dir = base_dir / 'data' / 'rag_index'
+            canonical = base_dir / 'data' / 'rag_index'
+            legacy_typo = base_dir / 'data' / 'raq_index'
+            if not canonical.exists() and legacy_typo.exists():
+                logger.warning("Using legacy typo directory 'raq_index'; please rename to 'rag_index'.")
+                index_dir = legacy_typo
+            else:
+                index_dir = canonical
 
         self.index_dir = Path(index_dir)
         self.index_dir.mkdir(parents=True, exist_ok=True)
@@ -70,6 +76,15 @@ class RAGRetriever:
 
         if not metadata_file.exists():
             logger.warning("No pre-built index found. Please run build_rag_index.py first.")
+            fallback_json = Path(__file__).parent.parent / 'data' / 'updated_faq.json'
+            if fallback_json.exists():
+                try:
+                    with open(fallback_json, 'r', encoding='utf-8') as f:
+                        payload = json.load(f)
+                    self.faqs = payload.get('faqs', [])
+                    logger.info(f"Loaded {len(self.faqs)} FAQs from JSON fallback")
+                except Exception as exc:
+                    logger.error(f"Failed loading FAQ JSON fallback: {exc}")
             return
 
         try:
@@ -229,6 +244,7 @@ class RAGRetriever:
                 logger.info(f"Confidence threshold: {FAQ_MATCH_THRESHOLD}")
 
             results = []
+            unfiltered_results = []
             for distance, idx in zip(distances[0], indices[0]):
                 if idx < len(self.faqs):
                     faq = self.faqs[idx]
@@ -241,14 +257,16 @@ class RAGRetriever:
                         'score': confidence,
                         'distance': float(distance)
                     }
-                    results.append(result)
+                    unfiltered_results.append(result)
                     logger.debug(
                         f"  Match: {faq['question'][:60]}... "
                         f"(distance: {distance:.3f}, confidence: {confidence:.3f})"
                     )
 
-            results.sort(key=lambda item: item['score'], reverse=True)
-            results = [r for r in results if r['score'] >= FAQ_MATCH_THRESHOLD]
+            unfiltered_results.sort(key=lambda item: item['score'], reverse=True)
+            results = [r for r in unfiltered_results if r['score'] >= FAQ_MATCH_THRESHOLD]
+            if not results and unfiltered_results:
+                results = [unfiltered_results[0]]
 
             if results:
                 logger.info(f"Found {len(results)} relevant FAQs above threshold "
@@ -298,22 +316,40 @@ class RAGRetriever:
             results = []
             for idx in top_indices:
                 similarity = similarities[idx]
-                if similarity >= FAQ_MATCH_THRESHOLD:
-                    faq = self.faqs[idx]
-                    results.append({
-                        'id': faq.get('id', idx),
-                        'question': faq['question'],
-                        'answer': faq['answer'],
-                        'keywords': faq.get('keywords', []),
-                        'score': float(similarity)
-                    })
+                faq = self.faqs[idx]
+                results.append({
+                    'id': faq.get('id', idx),
+                    'question': faq['question'],
+                    'answer': faq['answer'],
+                    'keywords': faq.get('keywords', []),
+                    'score': float(similarity)
+                })
+
+            results = [r for r in results if r['score'] >= FAQ_MATCH_THRESHOLD] or results[:1]
 
             logger.info(f"Fallback search found {len(results)} results")
             return results
 
         except Exception as e:
             logger.error(f"Fallback search failed: {e}")
-            return []
+            query_terms = [term for term in (query or '').lower().split() if term]
+            scored = []
+            for idx, faq in enumerate(self.faqs):
+                text = f"{faq.get('question', '')} {faq.get('answer', '')}".lower()
+                score = sum(1 for term in query_terms if term in text)
+                if score > 0:
+                    scored.append((score, idx, faq))
+            scored.sort(reverse=True)
+            return [
+                {
+                    'id': faq.get('id', idx),
+                    'question': faq.get('question', ''),
+                    'answer': faq.get('answer', ''),
+                    'keywords': faq.get('keywords', []),
+                    'score': 0.7,
+                }
+                for _, idx, faq in scored[:k]
+            ]
 
     def retrieve(self, query: str, top_k: int = 3) -> List[Dict]:
         """

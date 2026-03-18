@@ -125,9 +125,12 @@ class DisputeTicketService:
 
     @staticmethod
     def _seller_type_for_user(seller: User) -> str:
+        is_verified = bool(getattr(seller, 'is_verified_seller', False))
+        is_managed = bool(getattr(seller, 'is_managed_seller', False))
+        managed_mode = getattr(seller, 'seller_commerce_mode', '') == 'managed'
         return (
             DisputeTicket.SELLER_TYPE_VERIFIED
-            if getattr(seller, 'is_managed_seller', False)
+            if (is_verified or is_managed or managed_mode)
             else DisputeTicket.SELLER_TYPE_UNVERIFIED
         )
 
@@ -216,6 +219,7 @@ class DisputeTicketService:
         evidence: Optional[Any] = None,
         attached_report_id: Optional[int] = None,
         session_id: Optional[str] = None,
+        evaluate_on_create: bool = True,
     ) -> DisputeTicket:
         order = cls._resolve_order(order_id)
         product = cls._resolve_product(product_id)
@@ -274,13 +278,14 @@ class DisputeTicketService:
         cls._send_notifications(ticket)
 
         # Advisory-only AI recommendation run; failures must never block ticket creation.
-        try:
-            from assistant.services.dispute_ai_service import DisputeAIService
-            DisputeAIService.evaluate_ticket(ticket=ticket, trigger='ticket_created')
-            ticket.refresh_from_db()
-            cls._apply_auto_escalation_rules(ticket)
-        except Exception:
-            logger.exception('Dispute AI evaluation failed after ticket creation')
+        if evaluate_on_create:
+            try:
+                from assistant.services.dispute_ai_service import DisputeAIService
+                DisputeAIService.evaluate_ticket(ticket=ticket, trigger='ticket_created')
+                ticket.refresh_from_db()
+                cls._apply_auto_escalation_rules(ticket)
+            except Exception:
+                logger.exception('Dispute AI evaluation failed after ticket creation')
 
         return ticket
 
