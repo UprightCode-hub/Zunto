@@ -624,6 +624,12 @@ CHAT_BLOCKED_LINK_DOMAINS = [
 
 
                                           
+<<<<<<< HEAD
+=======
+
+from datetime import timedelta
+
+>>>>>>> e6c89dca36d4ea3079187edea85d63d143c8a725
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
