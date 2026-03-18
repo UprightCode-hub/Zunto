@@ -17,7 +17,7 @@ from .models import (
 class ReportAdmin(admin.ModelAdmin):
     list_display = ['id', 'user', 'severity_badge', 'status_badge', 'created_at', 'resolved_at']
     list_filter = ['severity', 'status', 'created_at']
-    search_fields = ['message', 'admin_notes', 'user__username']
+    search_fields = ['message', 'admin_notes', 'user__email']
     readonly_fields = ['created_at', 'meta']
 
     def severity_badge(self, obj):
@@ -41,7 +41,7 @@ class ReportAdmin(admin.ModelAdmin):
 class ConversationLogAdmin(admin.ModelAdmin):
     list_display = ['id', 'user', 'confidence', 'created_at']
     list_filter = ['created_at', 'confidence']
-    search_fields = ['message', 'final_reply', 'user__username', 'anonymous_session_id']
+    search_fields = ['message', 'final_reply', 'user__email', 'anonymous_session_id']
     readonly_fields = ['created_at', 'rule_hit', 'faq_hit', 'llm_meta']
 
 

@@ -6,6 +6,7 @@ from django.utils.text import slugify
 from django.core.exceptions import ObjectDoesNotExist
 import uuid
 from core.models import SoftDeleteModel
+from core.storage_backends import PublicMediaStorage
 
 User = get_user_model()
 
@@ -255,7 +256,7 @@ class ProductImage(models.Model):
         on_delete=models.CASCADE, 
         related_name='images'
     )
-    image = models.ImageField(upload_to='products/%Y/%m/')
+    image = models.ImageField(upload_to='public/products/%Y/%m/', storage=PublicMediaStorage())
     caption = models.CharField(max_length=255, blank=True)
     order = models.PositiveIntegerField(default=0)
     is_primary = models.BooleanField(default=False)
@@ -301,8 +302,12 @@ class ProductVideo(models.Model):
         on_delete=models.CASCADE, 
         related_name='videos'
     )
-    video = models.FileField(upload_to='products/videos/%Y/%m/')
-    thumbnail = models.ImageField(upload_to='products/video_thumbnails/%Y/%m/', blank=True)
+    video = models.FileField(upload_to='public/products/videos/%Y/%m/', storage=PublicMediaStorage())
+    thumbnail = models.ImageField(
+        upload_to='public/thumbnails/products/%Y/%m/',
+        storage=PublicMediaStorage(),
+        blank=True,
+    )
     caption = models.CharField(max_length=255, blank=True)
     duration = models.PositiveIntegerField(help_text="Duration in seconds", null=True, blank=True)
     security_scan_status = models.CharField(

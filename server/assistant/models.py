@@ -5,6 +5,7 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.utils import timezone
 from datetime import timedelta
 from django.utils.crypto import get_random_string
+from core.storage_backends import PrivateMediaStorage
 
 User = get_user_model()
 
@@ -178,7 +179,10 @@ class ConversationSession(models.Model):
         ]
 
     def __str__(self):
-        user_str = self.user.username if self.user else self.user_name or f"session:{self.session_id[:8]}"
+        if self.user:
+            user_str = (self.user.get_full_name() or self.user.email or '').strip()
+        else:
+            user_str = self.user_name or f"session:{self.session_id[:8]}"
         return f"Session {self.session_id[:8]} - {user_str} - {self.current_state}"
 
     def is_active(self):
@@ -674,7 +678,7 @@ class DisputeMedia(models.Model):
     ]
 
     media_type = models.CharField(max_length=20, choices=MEDIA_TYPE_CHOICES)
-    file = models.FileField(upload_to='assistant/dispute_evidence/%Y/%m/%d')
+    file = models.FileField(upload_to='private/disputes/%Y/%m/%d', storage=PrivateMediaStorage())
     original_filename = models.CharField(max_length=255, blank=True)
     mime_type = models.CharField(max_length=120, blank=True)
     file_size = models.PositiveIntegerField(default=0)
@@ -819,5 +823,8 @@ class ConversationLog(models.Model):
         ]
 
     def __str__(self):
-        user_str = self.user.username if self.user else f"session:{self.anonymous_session_id[:8]}"
+        if self.user:
+            user_str = (self.user.get_full_name() or self.user.email or '').strip()
+        else:
+            user_str = f"session:{self.anonymous_session_id[:8]}"
         return f"Conversation {self.id} - {user_str} - {self.created_at.strftime('%Y-%m-%d %H:%M')}"

@@ -12,12 +12,7 @@ from .views import (
 
 app_name = 'notifications'
 
-router = DefaultRouter()
-router.register(r'', NotificationViewSet, basename='notification')
-
 urlpatterns = [
-    path('', include(router.urls)),
-    
                               
     path('preferences/', NotificationPreferenceView.as_view(), name='preferences'),
     
@@ -30,4 +25,10 @@ urlpatterns = [
            
     path('templates/', email_templates_list, name='templates_list'),
     path('statistics/', email_statistics, name='statistics'),
+]
+
+router = DefaultRouter()
+router.register(r'', NotificationViewSet, basename='notification')
+urlpatterns += [
+    path('', include(router.urls)),
 ]

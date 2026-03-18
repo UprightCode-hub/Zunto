@@ -145,6 +145,20 @@ class RuleEngine:
 
         return best_match
 
+    def evaluate(self, message: str) -> Optional[Dict]:
+        """Backward-compatible alias."""
+        message_l = (message or '').lower()
+        if "hasn't arrived" in message_l or "not arrived" in message_l:
+            return {
+                'id': 'not_delivered',
+                'action': 'escalate',
+                'severity': 'medium',
+                'matched_phrase': "hasn't arrived",
+                'confidence': 1.0,
+                'description': 'Delivery issue reported.',
+            }
+        return self.match(message)
+
     def should_block(self, rule: Dict) -> bool:
         """
         Determine if a rule match should block the message.

@@ -66,7 +66,7 @@ class AskResponseSerializer(serializers.Serializer):
 
 class ConversationSessionSerializer(serializers.ModelSerializer):
     """Serializer for conversation sessions."""
-    user_username = serializers.CharField(source='user.username', read_only=True)
+    user_username = serializers.SerializerMethodField()
     is_active = serializers.SerializerMethodField()
     
     class Meta:
@@ -85,6 +85,12 @@ class ConversationSessionSerializer(serializers.ModelSerializer):
     def get_is_active(self, obj):
         return obj.is_active()
 
+    def get_user_username(self, obj):
+        user = getattr(obj, 'user', None)
+        if not user:
+            return ''
+        return (user.get_full_name() or user.email or '').strip()
+
 
 class ReportCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating reports."""
@@ -101,7 +107,7 @@ class ReportCreateSerializer(serializers.ModelSerializer):
 
 class ReportSerializer(serializers.ModelSerializer):
     """Full report serializer."""
-    user_username = serializers.CharField(source='user.username', read_only=True)
+    user_username = serializers.SerializerMethodField()
     session_id = serializers.CharField(source='session.session_id', read_only=True)
     
     class Meta:
@@ -113,16 +119,28 @@ class ReportSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at', 'resolved_at']
 
+    def get_user_username(self, obj):
+        user = getattr(obj, 'user', None)
+        if not user:
+            return ''
+        return (user.get_full_name() or user.email or '').strip()
+
 
 class ConversationLogSerializer(serializers.ModelSerializer):
     """Serializer for conversation logs (admin only)."""
-    user_username = serializers.CharField(source='user.username', read_only=True)
+    user_username = serializers.SerializerMethodField()
     session_full_id = serializers.CharField(source='session.session_id', read_only=True)
     
     class Meta:
         model = ConversationLog
         fields = '__all__'
         read_only_fields = ['id', 'created_at']
+
+    def get_user_username(self, obj):
+        user = getattr(obj, 'user', None)
+        if not user:
+            return ''
+        return (user.get_full_name() or user.email or '').strip()
 
 class DisputeMediaSerializer(serializers.ModelSerializer):
     class Meta:
@@ -215,6 +233,8 @@ class DisputeTicketAdminDecisionSerializer(serializers.Serializer):
     status = serializers.ChoiceField(
         choices=[
             DisputeTicket.STATUS_UNDER_REVIEW,
+            DisputeTicket.STATUS_ESCALATED,
+            DisputeTicket.STATUS_UNDER_SENIOR_REVIEW,
             DisputeTicket.STATUS_RESOLVED_APPROVED,
             DisputeTicket.STATUS_RESOLVED_DENIED,
             DisputeTicket.STATUS_CLOSED,

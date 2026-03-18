@@ -28,12 +28,14 @@ urlpatterns = [
                      
     path('products/<slug:product_slug>/reviews/', ProductReviewListCreateView.as_view(), name='product_review_list_create'),
     path('products/<slug:product_slug>/reviews/stats/', ProductReviewStatsView.as_view(), name='product_review_stats'),
+    path('products/<slug:product_slug>/stats/', ProductReviewStatsView.as_view(), name='product_review_stats_legacy'),
     path('product-reviews/<uuid:pk>/', ProductReviewDetailView.as_view(), name='product_review_detail'),
     path('my-product-reviews/', MyProductReviewsView.as_view(), name='my_product_reviews'),
     
                     
     path('sellers/<uuid:seller_id>/reviews/', SellerReviewListCreateView.as_view(), name='seller_review_list_create'),
     path('sellers/<uuid:seller_id>/reviews/stats/', SellerReviewStatsView.as_view(), name='seller_review_stats'),
+    path('sellers/<uuid:seller_id>/stats/', SellerReviewStatsView.as_view(), name='seller_review_stats_legacy'),
     path('seller-reviews/<uuid:pk>/', SellerReviewDetailView.as_view(), name='seller_review_detail'),
     path('my-seller-reviews/', MySellerReviewsView.as_view(), name='my_seller_reviews'),
     path('reviews-received/', ReviewsReceivedView.as_view(), name='reviews_received'),

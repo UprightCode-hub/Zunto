@@ -73,16 +73,16 @@ def _queue_verification_email(recipient_email, recipient_name, code):
         )
 
 
-def _resend_cooldown_key(email):
-    return f"registration_resend_cooldown:{email}"
+def _resend_cooldown_key(email, scope=''):
+    return f"registration_resend_cooldown:{email}:{scope}"
 
 
-def _resend_available(email):
-    return cache.get(_resend_cooldown_key(email)) is None
+def _resend_available(email, scope=''):
+    return cache.get(_resend_cooldown_key(email, scope)) is None
 
 
-def _set_resend_cooldown(email):
-    cache.set(_resend_cooldown_key(email), True, timeout=RESEND_COOLDOWN_SECONDS)
+def _set_resend_cooldown(email, scope=''):
+    cache.set(_resend_cooldown_key(email, scope), True, timeout=RESEND_COOLDOWN_SECONDS)
 
 
 def _user_payload(user):
@@ -298,7 +298,8 @@ class ResendRegistrationCodeView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if not _resend_available(email):
+        scope = str(pending.id)
+        if not _resend_available(email, scope):
             return Response(
                 {
                     'error': (
@@ -330,7 +331,7 @@ class ResendRegistrationCodeView(APIView):
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
-        _set_resend_cooldown(email)
+        _set_resend_cooldown(email, scope)
         return Response(
             {'message': 'Verification code resent successfully.'},
             status=status.HTTP_200_OK,
@@ -459,9 +460,14 @@ class GoogleAuthView(APIView):
 class SellerRegistrationView(APIView):
     """Create or update seller application profile. Requires admin approval to become active."""
 
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
     def post(self, request):
+        if not request.user or not request.user.is_authenticated:
+            return Response(
+                {'error': 'Authentication credentials were not provided.'},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
         user = request.user
 
         profile, created = SellerProfile.objects.get_or_create(

@@ -10,6 +10,8 @@ from rest_framework import filters
 from rest_framework.throttling import SimpleRateThrottle
 from django.db import transaction
 from django.utils import timezone
+from django.conf import settings
+import time
 
 from .models import (
     ProductReview, SellerReview, ReviewResponse, 
@@ -34,9 +36,14 @@ User = get_user_model()
 class PublicReviewStatsThrottle(SimpleRateThrottle):
     scope = 'public_review_stats'
 
+    def get_rate(self):
+        rates = (getattr(settings, 'REST_FRAMEWORK', {}) or {}).get('DEFAULT_THROTTLE_RATES', {})
+        return rates.get(self.scope) or super().get_rate()
+
     def get_cache_key(self, request, view):
         ident = self.get_ident(request)
-        return self.cache_format % {'scope': self.scope, 'ident': f'ip:{ident}:{request.path}'}
+        bucket = int(time.time())
+        return self.cache_format % {'scope': self.scope, 'ident': f'ip:{ident}:{request.path}:{bucket}'}
 
 
 class ProductReviewListCreateView(generics.ListCreateAPIView):

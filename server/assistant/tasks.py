@@ -135,6 +135,7 @@ def aggregate_user_behavior_profiles_task():
     from django.contrib.auth import get_user_model
     from cart.models import CartEvent
     from market.models import ProductView
+    from orders.models import Order
 
     User = get_user_model()
     users = User.objects.filter(is_active=True)
@@ -173,7 +174,8 @@ def aggregate_user_behavior_profiles_task():
         ai_cart_actions = CartEvent.objects.filter(user=user, data__source='ai', event_type='cart_item_added').count()
         normal_cart_actions = CartEvent.objects.filter(user=user, data__source='normal_search', event_type='cart_item_added').count()
 
-        ai_conversion_rate = (ai_cart_actions / ai_search_count) if ai_search_count else 0.0
+        paid_orders = Order.objects.filter(customer=user, payment_status='paid').count()
+        ai_conversion_rate = (paid_orders / ai_search_count) if ai_search_count else 0.0
         normal_conversion_rate = (normal_cart_actions / normal_search_count) if normal_search_count else 0.0
 
         switched = ConversationSession.objects.filter(user=user, drift_flag=True).count()
@@ -189,7 +191,7 @@ def aggregate_user_behavior_profiles_task():
         profile.ai_conversion_rate = ai_conversion_rate
         profile.normal_conversion_rate = normal_conversion_rate
         profile.switch_frequency = switch_frequency
-        profile.ai_high_intent_no_conversion = ai_search_count >= 3 and ai_cart_actions >= 2 and ai_conversion_rate < 0.25
+        profile.ai_high_intent_no_conversion = ai_search_count >= 1 and ai_cart_actions >= 2 and ai_conversion_rate < 0.25
         profile.last_aggregated_at = now
         profile.save()
         updated += 1

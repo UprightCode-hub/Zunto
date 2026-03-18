@@ -12,7 +12,11 @@ def get_seller_profile(user):
 
 def is_active_seller(user):
     profile = get_seller_profile(user)
-    return bool(profile is not None and profile.status == SellerProfile.STATUS_APPROVED)
+    if profile is not None:
+        return profile.status == SellerProfile.STATUS_APPROVED
+    if getattr(user, 'role', None) == 'seller':
+        return True
+    return bool(getattr(user, 'is_seller', False))
 
 
 def is_pending_seller(user):
@@ -24,11 +28,13 @@ def is_pending_seller(user):
 
 def is_verified_seller(user):
     profile = get_seller_profile(user)
-    return bool(profile is not None and profile.is_verified_seller)
+    if profile is not None:
+        return bool(profile.is_verified_seller)
+    return bool(getattr(user, 'is_verified_seller', False))
 
 
 def get_seller_commerce_mode(user):
     profile = get_seller_profile(user)
     if profile is None:
-        return 'direct'
+        return getattr(user, 'seller_commerce_mode', 'direct')
     return profile.seller_commerce_mode
