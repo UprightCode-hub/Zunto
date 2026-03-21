@@ -1,0 +1,72 @@
+#server/market/urls.py
+from django.urls import path
+from .views import (
+    CategoryListView,
+    LocationListView,
+    ProductListCreateView,
+    ProductDetailView,
+    MyProductsView,
+    ProductImageUploadView,
+    ProductVideoUploadView,
+    FavoriteToggleView,
+    FavoriteListView,
+    ProductReportCreateView,
+    ProductReportModerationView,
+    ProductReportModerationDetailView,
+    ProductVideoModerationQueueView,
+    ProductVideoModerationDetailView,
+    ProductVideoDirectUploadTicketView,
+    ProductVideoDirectUploadCallbackView,
+    FeaturedProductsView,
+    BoostedProductsView,
+    AdsProductsView,
+    SimilarProductsView,
+    ProductStatsView,
+    mark_as_sold,
+    reactivate_product,
+    share_product,
+)
+
+
+urlpatterns = [
+                            
+    path('categories/', CategoryListView.as_view(), name='category_list'),
+    path('locations/', LocationListView.as_view(), name='location_list'),
+    
+              
+    path('products/', ProductListCreateView.as_view(), name='product_list_create'),
+                                                               
+    path('products/my-products/', MyProductsView.as_view(), name='my_products'),
+    path('products/featured/', FeaturedProductsView.as_view(), name='featured_products'),
+    path('products/boosted/', BoostedProductsView.as_view(), name='boosted_products'),
+    path('products/ads/', AdsProductsView.as_view(), name='ads_products'),
+    path('products/<slug:slug>/', ProductDetailView.as_view(), name='product_detail'),
+    path('products/<slug:product_slug>/similar/', SimilarProductsView.as_view(), name='similar_products'),
+    path('products/<slug:product_slug>/stats/', ProductStatsView.as_view(), name='product_stats'),
+    path('products/<slug:product_slug>/mark-sold/', mark_as_sold, name='mark_as_sold'),
+    path('products/<slug:product_slug>/reactivate/', reactivate_product, name='reactivate_product'),
+    path('products/<slug:product_slug>/share/', share_product, name='share_product'),
+    
+                   
+    path('products/<slug:product_slug>/images/', ProductImageUploadView.as_view(), name='product_image_upload'),
+    path('products/<slug:product_slug>/images/<uuid:image_id>/', ProductImageUploadView.as_view(), name='product_image_delete'),
+    path('products/<slug:product_slug>/videos/', ProductVideoUploadView.as_view(), name='product_video_upload'),
+    path('products/<slug:product_slug>/videos/direct-upload-ticket/', ProductVideoDirectUploadTicketView.as_view(), name='product_video_direct_upload_ticket'),
+    path('products/<slug:product_slug>/videos/direct-upload-callback/', ProductVideoDirectUploadCallbackView.as_view(), name='product_video_direct_upload_callback'),
+    
+               
+    path('products/<slug:product_slug>/favorite/', FavoriteToggleView.as_view(), name='favorite_toggle'),
+    path('favorites/', FavoriteListView.as_view(), name='favorite_list'),
+    
+             
+    path('products/<slug:product_slug>/report/', ProductReportCreateView.as_view(), name='product_report'),
+    path('reports/moderation/', ProductReportModerationView.as_view(), name='product_report_moderation_list'),
+    path('reports/moderation/<uuid:report_id>/', ProductReportModerationDetailView.as_view(), name='product_report_moderation_detail'),
+    path('videos/moderation/', ProductVideoModerationQueueView.as_view(), name='product_video_moderation_list'),
+    path('videos/moderation/<uuid:video_id>/', ProductVideoModerationDetailView.as_view(), name='product_video_moderation_detail'),
+]
+                                                                                 
+
+                    
+                    
+                   
