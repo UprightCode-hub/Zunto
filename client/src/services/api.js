@@ -8,6 +8,13 @@ const rawApiBaseUrl = import.meta.env.VITE_API_BASE
 
 const API_BASE_URL = rawApiBaseUrl.replace(/\/+$/, '');
 
+const clearStoredAuth = () => {
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+};
+
 const parseResponse = async (response) => {
   if (response.status === 204) {
     return null;
@@ -41,6 +48,7 @@ const performTokenRefresh = async () => {
   });
 
   if (!response.ok) {
+    clearStoredAuth();
     return null;
   }
 
@@ -53,6 +61,14 @@ const performTokenRefresh = async () => {
   localStorage.setItem('token', data.access);
   return data.access;
 };
+
+const isTokenInvalidResponse = (response, data) => (
+  (response.status === 401 || response.status === 403)
+  && (data?.code === 'token_not_valid'
+    || data?.detail === 'Given token not valid for any token type')
+);
+
+const isSafeAnonymousRetryMethod = (method = 'GET') => ['GET', 'HEAD', 'OPTIONS'].includes(String(method).toUpperCase());
 
 const buildHeaders = (options = {}, accessToken = null) => {
   const isForm = options.body instanceof FormData;
@@ -76,6 +92,7 @@ const buildHeaders = (options = {}, accessToken = null) => {
 
 const apiCall = async (endpoint, options = {}) => {
   let accessToken = localStorage.getItem('access_token') || localStorage.getItem('token');
+  const method = options.method || 'GET';
 
   const sendRequest = (token) => {
     const headers = buildHeaders(options, token);
@@ -85,23 +102,33 @@ const apiCall = async (endpoint, options = {}) => {
 
   try {
     let response = await sendRequest(accessToken);
+    let data = await parseResponse(response);
 
-    if (response.status === 401 && !shouldSkipRefresh(endpoint)) {
+    if (isTokenInvalidResponse(response, data) && !shouldSkipRefresh(endpoint)) {
       const refreshedAccess = await performTokenRefresh();
       if (refreshedAccess) {
         accessToken = refreshedAccess;
         response = await sendRequest(accessToken);
+        data = await parseResponse(response);
+      } else {
+        clearStoredAuth();
+        if (isSafeAnonymousRetryMethod(method)) {
+          response = await sendRequest(null);
+          data = await parseResponse(response);
+        }
+      }
+    } else if (response.status === 401 && !shouldSkipRefresh(endpoint)) {
+      const refreshedAccess = await performTokenRefresh();
+      if (refreshedAccess) {
+        accessToken = refreshedAccess;
+        response = await sendRequest(accessToken);
+        data = await parseResponse(response);
       }
     }
 
-    const data = await parseResponse(response);
-
     if (!response.ok) {
       if (response.status === 401) {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+        clearStoredAuth();
       }
 
       const error = new Error(data?.message || data?.detail || 'Something went wrong');
@@ -139,6 +166,13 @@ export const resendRegistrationCode = (email) => {
   return apiCall('/api/accounts/register/resend/', {
     method: 'POST',
     body: JSON.stringify({ email }),
+  });
+};
+
+export const registerSellerAccount = () => {
+  return apiCall('/api/seller/register/', {
+    method: 'POST',
+    body: JSON.stringify({}),
   });
 };
 

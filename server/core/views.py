@@ -23,6 +23,10 @@ def _is_admin_request(request):
     return bool(getattr(user, 'is_staff', False) or getattr(user, 'role', None) == 'admin')
 
 
+def _async_health_checks_required():
+    return not bool(getattr(settings, 'CELERY_TASK_ALWAYS_EAGER', False))
+
+
 def _check_database_health():
     try:
         with connection.cursor() as cursor:
@@ -43,6 +47,10 @@ def _check_cache_health():
 
 
 def _check_celery_health(include_details=False):
+    if not _async_health_checks_required():
+        details = {'mode': 'eager'} if include_details else None
+        return 'ok', details
+
     try:
         from ZuntoProject.celery import app
 
@@ -73,6 +81,10 @@ def _check_celery_health(include_details=False):
 
 
 def _check_queue_depth_health(include_details=False):
+    if not _async_health_checks_required():
+        details = {'mode': 'eager'} if include_details else None
+        return 'ok', details
+
     if get_redis_connection is None:
         if include_details:
             return 'error', {'error': 'redis-client-unavailable'}

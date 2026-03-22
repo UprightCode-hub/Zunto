@@ -20,6 +20,11 @@ export default function Cart() {
   } = useCart();
 
   const [busy, setBusy] = useState(false);
+  const blockedItems = cart.filter((item) => !item.is_managed_commerce_eligible);
+  const blockedSellerNames = [...new Set(blockedItems.map((item) => item.seller_name).filter(Boolean))];
+  const checkoutDisabledReason = blockedSellerNames.length > 0
+    ? `Zunto checkout works only for managed sellers. Remove items from: ${blockedSellerNames.join(', ')}.`
+    : '';
 
   const handleUpdateQuantity = async (itemId, quantity) => {
     if (quantity < 1) return;
@@ -129,6 +134,8 @@ export default function Cart() {
               busy={busy}
               onCheckout={handleCheckout}
               onClearCart={handleClearCart}
+              blockedSellerNames={blockedSellerNames}
+              checkoutDisabledReason={checkoutDisabledReason}
             />
           </div>
         </div>

@@ -14,7 +14,7 @@ export default function Navbar() {
   const [searchQuery, setSearchQuery] = useState('');
   const isSellerActive = Boolean(user?.isSellerActive);
 
-  const sellerCtaHref = isSellerActive ? '/seller' : '/signup';
+  const sellerCtaHref = isSellerActive ? '/seller' : user ? '/become-seller' : '/signup?role=seller';
   const sellerCtaLabel = isSellerActive ? 'Seller Dashboard' : 'Become a Seller';
 
   const closeMenus = () => {

@@ -377,7 +377,7 @@ export default function ProductGrid({
     };
 
     fetchData();
-  }, [location.search]);
+  }, [effectiveFilters, limit]);
 
 
   useEffect(() => {

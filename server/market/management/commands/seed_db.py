@@ -1,722 +1,607 @@
-"""
-ZUNTO MARKETPLACE - DATABASE SEED MANAGEMENT COMMAND
-
-PLACE THIS FILE AT:
-  Zunto-main/server/market/management/commands/seed_db.py
-
-RUN WITH:
-  python manage.py seed_db
-
-The scripts/ folder already exists in your project, this goes
-into market/management/commands/ instead so Django can find it.
-"""
-
+import io
 import random
 import uuid
+from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
-from django.utils.text import slugify
 
 from accounts.models import SellerProfile
+from assistant.models import ConversationSession, DemandCluster, UserBehaviorProfile
 from cart.models import Cart, CartItem
-from market.models import Category, Location, Product
+from chat.models import Conversation, Message
+from market.models import Category, Location, Product, ProductImage
 from orders.models import Order, OrderItem, ShippingAddress
 from reviews.models import ProductReview, SellerReview
 
 User = get_user_model()
 
+PASSWORD = 'ZuntoSeed@2026!'
+SELLER_DOMAIN = '@zunto-demo.com'
+BUYER_DOMAIN = '@zunto-buyer.com'
 
-# ── Data Constants ────────────────────────────────────────────────────────────
-
-NIGERIAN_STATES = [
-    ('Lagos', 'Ikeja'), ('Lagos', 'Victoria Island'), ('Lagos', 'Surulere'),
-    ('Abuja', 'Garki'), ('Abuja', 'Wuse'), ('Rivers', 'Port Harcourt'),
-    ('Oyo', 'Ibadan'), ('Kano', 'Kano City'), ('Anambra', 'Onitsha'),
-    ('Edo', 'Benin City'),
+LOCATIONS = [
+    ('Lagos', 'Ikeja', 'Allen Avenue'),
+    ('Lagos', 'Eti-Osa', 'Lekki Phase 1'),
+    ('Abuja', 'Garki', 'Area 11'),
+    ('Rivers', 'Port Harcourt', 'GRA Phase 2'),
+    ('Kano', 'Kano Municipal', 'Sabon Gari'),
+    ('Oyo', 'Ibadan', 'Bodija'),
 ]
 
-CATEGORIES_DATA = [
-    ('Electronics', '📱', ['Smartphones', 'Laptops', 'Tablets', 'Accessories']),
-    ('Fashion', '👗', ['Men Clothing', 'Women Clothing', 'Shoes', 'Bags']),
-    ('Home & Living', '🏠', ['Furniture', 'Kitchen', 'Decor']),
-    ('Vehicles', '🚗', ['Cars', 'Motorcycles', 'Spare Parts']),
-    ('Food & Groceries', '🛒', ['Fresh Produce', 'Packaged Foods', 'Beverages']),
-    ('Health & Beauty', '💄', ['Skincare', 'Hair Care', 'Supplements']),
-    ('Sports & Outdoors', '⚽', ['Gym Equipment', 'Football', 'Cycling']),
-    ('Books & Education', '📚', ['Textbooks', 'Fiction', 'Stationery']),
-    ('Agriculture', '🌾', ['Seeds & Seedlings', 'Farm Tools', 'Livestock']),
-    ('Services', '🛠', ['Repairs', 'Cleaning', 'Tutoring']),
+CATEGORIES = [
+    {
+        'name': 'Electronics',
+        'description': 'Phones, laptops, gaming gear, and devices',
+        'icon': 'phone',
+        'products': [
+            ('iPhone 15 Pro Max 256GB', Decimal('1650000.00'), 'new', 'Apple'),
+            ('Samsung Galaxy S24 Ultra', Decimal('1420000.00'), 'new', 'Samsung'),
+            ('HP Pavilion 15 Ryzen 7', Decimal('690000.00'), 'good', 'HP'),
+            ('Sony PlayStation 5 Slim', Decimal('840000.00'), 'like_new', 'Sony'),
+            ('Canon EOS M50 Kit', Decimal('520000.00'), 'good', 'Canon'),
+            ('JBL Charge 5 Speaker', Decimal('135000.00'), 'like_new', 'JBL'),
+        ],
+    },
+    {
+        'name': 'Fashion & Clothing',
+        'description': 'Apparel, shoes, bags, and accessories',
+        'icon': 'shirt',
+        'products': [
+            ('Tailored Agbada Set Royal Blue', Decimal('65000.00'), 'like_new', ''),
+            ('Ankara Two-Piece Event Set', Decimal('32000.00'), 'new', ''),
+            ('Nike Air Force 1 White', Decimal('98000.00'), 'good', 'Nike'),
+            ('Leather Office Handbag', Decimal('47000.00'), 'like_new', ''),
+            ('Corporate Suit 3-Piece Charcoal', Decimal('118000.00'), 'new', ''),
+            ('Unisex Streetwear Sneaker', Decimal('54000.00'), 'good', ''),
+        ],
+    },
+    {
+        'name': 'Home & Furniture',
+        'description': 'Furniture, appliances, and decor',
+        'icon': 'home',
+        'products': [
+            ('L-Shaped Living Room Sofa', Decimal('410000.00'), 'good', ''),
+            ('6-Seater Dining Table Set', Decimal('355000.00'), 'like_new', ''),
+            ('Standing Freezer 210L', Decimal('245000.00'), 'good', 'Hisense'),
+            ('Executive Office Desk Set', Decimal('198000.00'), 'like_new', ''),
+            ('Orthopedic Mattress 6x6', Decimal('165000.00'), 'new', ''),
+            ('Industrial Gas Cooker 5 Burner', Decimal('132000.00'), 'new', ''),
+        ],
+    },
+    {
+        'name': 'Vehicles',
+        'description': 'Cars, motorcycles, and spare parts',
+        'icon': 'car',
+        'products': [
+            ('Toyota Camry 2018 XLE', Decimal('12800000.00'), 'good', 'Toyota'),
+            ('Honda Accord 2016 Touring', Decimal('10500000.00'), 'good', 'Honda'),
+            ('Bajaj Boxer Dispatch Bike', Decimal('720000.00'), 'good', 'Bajaj'),
+            ('Lexus RX350 2015', Decimal('17500000.00'), 'fair', 'Lexus'),
+            ('Hilux Pickup 2017 Diesel', Decimal('19800000.00'), 'good', 'Toyota'),
+            ('SUV Brake Pad Set', Decimal('42000.00'), 'new', ''),
+        ],
+    },
+    {
+        'name': 'Food & Agriculture',
+        'description': 'Farm produce, wholesale groceries, and packaged food',
+        'icon': 'leaf',
+        'products': [
+            ('50kg Premium Basmati Rice', Decimal('58000.00'), 'new', ''),
+            ('25L Organic Palm Oil', Decimal('21500.00'), 'new', ''),
+            ('Fresh Roma Tomatoes Basket', Decimal('29000.00'), 'new', ''),
+            ('Brown Beans 50kg Bag', Decimal('64500.00'), 'new', ''),
+            ('Maize Grain Wholesale Sack', Decimal('38500.00'), 'new', ''),
+            ('Processed Catfish Crate', Decimal('47000.00'), 'new', ''),
+        ],
+    },
+    {
+        'name': 'Health & Beauty',
+        'description': 'Beauty products, supplements, and wellness items',
+        'icon': 'sparkles',
+        'products': [
+            ('Vitamin C Brightening Serum', Decimal('14500.00'), 'new', ''),
+            ('Raw Shea Butter 1kg', Decimal('9800.00'), 'new', ''),
+            ('Hair Growth Oil 250ml', Decimal('12000.00'), 'new', ''),
+            ('Daily Multivitamin 90 Tablets', Decimal('17500.00'), 'new', ''),
+            ('SPF 50 Sunscreen Bundle', Decimal('22000.00'), 'new', ''),
+            ('Premium Barbing Kit Set', Decimal('88000.00'), 'like_new', ''),
+        ],
+    },
 ]
 
-PRODUCT_TEMPLATES = {
-    'Smartphones': [
-        ('iPhone 15 Pro Max 256GB', 950000, 1800000),
-        ('Samsung Galaxy S24 Ultra', 850000, 1600000),
-        ('Tecno Camon 20 Pro', 120000, 220000),
-        ('Infinix Hot 40 Pro', 85000, 150000),
-        ('Xiaomi Redmi Note 13', 110000, 200000),
-    ],
-    'Laptops': [
-        ('MacBook Air M2 8GB RAM', 900000, 1500000),
-        ('HP Pavilion 15 Core i5', 350000, 550000),
-        ('Dell Inspiron 15 3000', 280000, 450000),
-        ('Lenovo ThinkPad E14', 420000, 650000),
-        ('ASUS VivoBook 15', 300000, 480000),
-    ],
-    'Tablets': [
-        ('iPad Pro 12.9 M2', 650000, 1100000),
-        ('Samsung Galaxy Tab S9', 400000, 700000),
-        ('Tecno T40 Pro Tablet', 80000, 140000),
-    ],
-    'Accessories': [
-        ('Wireless Earbuds Pro', 15000, 45000),
-        ('USB-C Hub 7-in-1', 8000, 22000),
-        ('Phone Case Premium', 3000, 12000),
-        ('Screen Protector Pack', 2000, 7000),
-    ],
-    'Men Clothing': [
-        ('Native Ankara Senator Wear', 18000, 45000),
-        ('Corporate Suit 3-Piece', 55000, 120000),
-        ('Polo Shirt Premium', 6500, 18000),
-        ('Agbada Traditional Set', 35000, 80000),
-        ('Chinos Trouser Slim Fit', 8000, 20000),
-    ],
-    'Women Clothing': [
-        ('Ankara Gown A-Line', 22000, 55000),
-        ('Iro and Buba Set', 28000, 65000),
-        ('Lace Blouse Premium', 15000, 38000),
-        ('Jumpsuit Casual', 12000, 30000),
-        ('George Wrapper Set', 45000, 95000),
-    ],
-    'Shoes': [
-        ('Leather Oxford Men Shoes', 18000, 50000),
-        ('Heels Strappy Women', 12000, 35000),
-        ('Sneakers Air Max', 25000, 65000),
-        ('Sandals Summer', 5000, 18000),
-    ],
-    'Bags': [
-        ('Leather Handbag Women', 22000, 75000),
-        ('Backpack Laptop 15 inch', 14000, 40000),
-        ('Travel Duffel Bag', 18000, 55000),
-    ],
-    'Furniture': [
-        ('L-Shaped Sofa Set', 280000, 550000),
-        ('Queen Bed Frame Wooden', 120000, 280000),
-        ('Dining Table 6-Seater', 180000, 380000),
-        ('Office Chair Ergonomic', 55000, 130000),
-        ('Wardrobe 4-Door', 145000, 320000),
-    ],
-    'Kitchen': [
-        ('Blender Industrial', 18000, 45000),
-        ('Gas Cooker 4-Burner', 65000, 140000),
-        ('Microwave Oven 20L', 45000, 95000),
-        ('Pots and Pans Set', 22000, 60000),
-    ],
-    'Decor': [
-        ('Wall Art Canvas Print', 8000, 25000),
-        ('Throw Pillows Set of 4', 5500, 18000),
-        ('Indoor Plant Pot Ceramic', 4500, 15000),
-    ],
-    'Cars': [
-        ('Toyota Camry 2019 Clean', 8500000, 16000000),
-        ('Honda Civic 2020', 9200000, 18000000),
-        ('Hyundai Elantra 2018', 7000000, 14000000),
-    ],
-    'Motorcycles': [
-        ('Bajaj Boxer 150cc', 320000, 580000),
-        ('Honda Wave 110cc', 280000, 500000),
-    ],
-    'Spare Parts': [
-        ('Car Battery 15 Plates', 28000, 65000),
-        ('Engine Oil 5L Full Synthetic', 12000, 30000),
-        ('Brake Pads Set Toyota', 8500, 22000),
-    ],
-    'Fresh Produce': [
-        ('Tomatoes Basket 50kg', 18000, 35000),
-        ('Yam Tubers Grade A', 2500, 8000),
-        ('Plantain Bunch Fresh', 1500, 4500),
-        ('Spinach Bunch', 500, 1800),
-    ],
-    'Packaged Foods': [
-        ('Indomie Noodles Carton 40', 7500, 15000),
-        ('Rice 50kg Bag Ofada', 55000, 95000),
-        ('Beans 50kg Brown', 48000, 85000),
-    ],
-    'Beverages': [
-        ('Zobo Drink 1 Litre', 1200, 3500),
-        ('Tigernut Drink Homemade', 1500, 4000),
-    ],
-    'Skincare': [
-        ('Shea Butter Raw 500g', 3500, 10000),
-        ('Vitamin C Serum 30ml', 8000, 22000),
-        ('Sunscreen SPF 50 100ml', 5500, 16000),
-        ('Face Wash Charcoal', 4500, 14000),
-    ],
-    'Hair Care': [
-        ('Creme of Nature Shampoo', 3500, 9000),
-        ('Cantu Leave-in Conditioner', 4500, 12000),
-        ('Hair Growth Oil 100ml', 5000, 15000),
-    ],
-    'Supplements': [
-        ('Multivitamin 60 Tablets', 6500, 18000),
-        ('Omega-3 Fish Oil 60 Caps', 8000, 22000),
-    ],
-    'Gym Equipment': [
-        ('Dumbbell Set 20kg Adjustable', 35000, 75000),
-        ('Resistance Bands Set 5pc', 8000, 22000),
-        ('Yoga Mat Non-Slip', 6500, 18000),
-        ('Jump Rope Speed', 3000, 8000),
-    ],
-    'Football': [
-        ('Football Size 5 Official', 8000, 22000),
-        ('Football Boots Nike', 18000, 50000),
-    ],
-    'Textbooks': [
-        ('JAMB Past Questions 2024', 2500, 7000),
-        ('WAEC Biology Textbook', 3500, 9000),
-        ('Principles of Economics', 4500, 12000),
-    ],
-    'Fiction': [
-        ('Things Fall Apart Achebe', 2000, 5500),
-        ('Purple Hibiscus Adichie', 2500, 7000),
-        ('Half of a Yellow Sun', 2800, 7500),
-    ],
-    'Seeds & Seedlings': [
-        ('Tomato Seeds Improved 50g', 1500, 4500),
-        ('Pepper Seedlings Tray 50', 3500, 9000),
-        ('Maize Seeds Hybrid 2kg', 4500, 12000),
-    ],
-    'Farm Tools': [
-        ('Hoe and Cutlass Set', 8500, 22000),
-        ('Watering Can 10L', 4000, 10000),
-        ('Wheelbarrow Heavy Duty', 28000, 65000),
-    ],
-    'Repairs': [
-        ('Phone Screen Repair Service', 8000, 25000),
-        ('AC Servicing Home Visit', 15000, 35000),
-        ('Generator Repair Service', 12000, 30000),
-    ],
-    'Cleaning': [
-        ('Deep House Cleaning Service', 25000, 60000),
-        ('Carpet Cleaning Per Room', 8000, 20000),
-    ],
-    'Tutoring': [
-        ('Mathematics Tutoring 1 Month', 25000, 60000),
-        ('English Language Tutoring', 20000, 50000),
-        ('IELTS Preparation Course', 45000, 95000),
-    ],
-}
-
-NIGERIAN_FIRST_NAMES = [
-    'Chukwuemeka', 'Oluwaseun', 'Abubakar', 'Chidinma', 'Yusuf',
-    'Adaeze', 'Emeka', 'Fatimah', 'Babatunde', 'Ngozi',
-    'Usman', 'Amaka', 'Tunde', 'Blessing', 'Ibrahim',
-    'Chiamaka', 'Segun', 'Hafsat', 'Chidi', 'Olusegun',
+SELLER_IDENTITIES = [
+    ('Chukwuemeka', 'Obi'),
+    ('Adaeze', 'Nwosu'),
+    ('Babatunde', 'Adeyemi'),
+    ('Ngozi', 'Eze'),
+    ('Oluwaseun', 'Afolabi'),
+    ('Amina', 'Musa'),
+    ('Emeka', 'Okafor'),
+    ('Funmilayo', 'Okonkwo'),
+    ('Ibrahim', 'Salisu'),
+    ('Chioma', 'Igwe'),
+    ('Mariam', 'Yusuf'),
+    ('Tobi', 'Adesanya'),
 ]
 
-NIGERIAN_LAST_NAMES = [
-    'Okonkwo', 'Adeyemi', 'Musa', 'Okafor', 'Danjuma',
-    'Nwosu', 'Bakare', 'Abdullahi', 'Eze', 'Olawale',
-    'Suleiman', 'Chukwu', 'Lawal', 'Obiora', 'Yakubu',
-    'Obi', 'Adesanya', 'Uche', 'Garba', 'Adeleke',
+BUYER_IDENTITIES = [
+    ('Adaora', 'Okafor'),
+    ('Kunle', 'Balogun'),
+    ('Zainab', 'Suleiman'),
+    ('David', 'Eze'),
+    ('Sola', 'Adewale'),
+    ('Nkechi', 'Obiora'),
+    ('Grace', 'Omotosho'),
+    ('Femi', 'Ajibola'),
+    ('Aisha', 'Garba'),
+    ('Tolu', 'Ogundipe'),
+    ('Chidera', 'Nnaji'),
+    ('Musa', 'Lawal'),
+    ('Kemi', 'Ojo'),
+    ('Bello', 'Usman'),
+    ('Joy', 'Akanbi'),
+    ('Uche', 'Nwankwo'),
 ]
 
-REVIEW_COMMENTS = [
-    "Excellent product, exactly as described. Very fast delivery!",
-    "Good quality for the price. Seller was responsive and professional.",
-    "I am very impressed with this purchase. Highly recommend.",
-    "Product arrived in perfect condition. Will buy again.",
-    "Great value for money. The seller packaged it very well.",
-    "Decent product but took a bit longer than expected to arrive.",
-    "Quality is good, seller communicated well throughout.",
-    "Amazing! This is exactly what I needed. Five stars.",
-    "The product is as advertised. Seller is trustworthy.",
-    "Good experience overall. The item works perfectly.",
-    "Very satisfied with my purchase. Quality exceeded expectations.",
-    "Fast delivery and well-packaged. Product is top quality.",
-    "Not bad for the price. Would consider buying again.",
-    "Excellent service and great product quality. Highly recommended!",
-    "Item looks even better in person. Seller was super helpful.",
+PRODUCT_DESCRIPTORS = [
+    'clean, verified, and ready for immediate pickup or delivery',
+    'sourced from a trusted Lagos supplier and quality checked',
+    'popular with repeat buyers and suitable for personal or business use',
+    'priced competitively for quick sale with room for serious negotiations',
 ]
 
-FAKE_PARAGRAPHS = [
-    "This is a high quality product sourced directly from trusted suppliers. It has been tested and verified to meet all standard requirements. Suitable for everyday use and built to last.",
-    "Premium grade item available at a competitive market price. Comes with full manufacturer guarantee. Perfect for personal use or as a gift for loved ones.",
-    "Authentic product in excellent condition. We pride ourselves on delivering only the best to our valued customers across Nigeria and beyond.",
-    "Top quality item that speaks for itself. Thousands of satisfied customers have already purchased this product. Do not miss out on this great deal.",
-    "Carefully selected and quality-checked before listing. We offer fast delivery across all Nigerian states. Contact us for bulk orders and discounts.",
+CHAT_LINES = [
+    'Hi, is this item still available?',
+    'Yes, it is available and ready for pickup.',
+    'Can you share your best last price?',
+    'I can reduce it a little for a serious buyer.',
+    'Do you offer delivery within my area?',
+    'Yes, delivery can be arranged after confirmation.',
 ]
 
-FAKE_STREETS = [
-    "12 Broad Street", "45 Adeola Odeku", "7 Ahmadu Bello Way",
-    "23 Allen Avenue", "91 Otigba Street", "15 Awolowo Road",
-    "3 Isaac John Street", "88 Bode Thomas Street", "56 Toyin Street",
-    "19 Obafemi Awolowo Way", "67 Agege Motor Road", "4 Ladoke Akintola Blvd",
-]
+
+def make_phone(prefix='080'):
+    return f'{prefix}{random.randint(10000000, 99999999)}'
+
+
+def generate_image_bytes(seed):
+    try:
+        from PIL import Image, ImageDraw
+
+        width, height = 1280, 960
+        palette = [
+            (30, 58, 138),
+            (124, 45, 18),
+            (20, 83, 45),
+            (88, 28, 135),
+            (22, 78, 99),
+            (120, 53, 15),
+        ]
+        background = palette[seed % len(palette)]
+        image = Image.new('RGB', (width, height), background)
+        draw = ImageDraw.Draw(image)
+        draw.rectangle((60, 60, width - 60, height - 60), outline=(255, 255, 255), width=8)
+        draw.rectangle((120, 180, width - 120, height - 180), outline=(255, 255, 255), width=4)
+        buffer = io.BytesIO()
+        image.save(buffer, format='JPEG', quality=82)
+        return buffer.getvalue()
+    except ImportError:
+        return (
+            b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"
+            b"\xff\xdb\x00C\x00\x08\x06\x06\x07\x06\x05\x08\x07\x07\x07\t\t"
+            b"\x08\n\x0c\x14\r\x0c\x0b\x0b\x0c\x19\x12\x13\x0f\x14\x1d\x1a"
+            b"\x1f\x1e\x1d\x1a\x1c\x1c $.' \",#\x1c\x1c(7),01444\x1f'9=82<.342\x1eP"
+            b"\xff\xc0\x00\x0b\x08\x00\x01\x00\x01\x01\x01\x11\x00\xff\xc4\x00"
+            b"\x1f\x00\x00\x01\x05\x01\x01\x01\x01\x01\x01\x00\x00\x00\x00\x00"
+            b"\x00\x00\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\xff\xc4\x00"
+            b"\xb5\x10\x00\x02\x01\x03\x03\x02\x04\x03\x05\x05\x04\x04\x00\x00"
+            b"\x01}\x01\x02\x03\x00\x04\x11\x05\x12!1A\x06\x13Qa\x07\"q\x142\x81"
+            b"\x91\xa1\x08#B\xb1\xc1\x15R\xd1\xf0$3br\x82\t\n\x16\x17\x18\x19"
+            b"\x1a%&'()*456789:CDEFGHIJSTUVWXYZcdefghijstuvwxyz\x83\x84\x85\x86"
+            b"\x87\x88\x89\x8a\x92\x93\x94\x95\x96\x97\x98\x99\x9a\xa2\xa3\xa4"
+            b"\xa5\xa6\xa7\xa8\xa9\xaa\xb2\xb3\xb4\xb5\xb6\xb7\xb8\xb9\xba\xc2"
+            b"\xc3\xc4\xc5\xc6\xc7\xc8\xc9\xca\xd2\xd3\xd4\xd5\xd6\xd7\xd8\xd9"
+            b"\xda\xe1\xe2\xe3\xe4\xe5\xe6\xe7\xe8\xe9\xea\xf1\xf2\xf3\xf4\xf5"
+            b"\xf6\xf7\xf8\xf9\xfa\xff\xda\x00\x08\x01\x01\x00\x00?\x00\xfb\xd7\xff\xd9"
+        )
 
 
 class Command(BaseCommand):
-    help = 'Seed the Zunto database with realistic Nigerian marketplace test data'
+    help = 'Seed a rich deterministic demo marketplace dataset with media, orders, chat, and recommendation signals.'
 
     def add_arguments(self, parser):
-        parser.add_argument(
-            '--clear',
-            action='store_true',
-            help='Clear all existing seed data before seeding (emails ending in @zuntotest.com)',
-        )
+        parser.add_argument('--clear', action='store_true', help='Delete existing demo buyers and sellers first.')
 
-    def log(self, msg):
-        self.stdout.write(self.style.SUCCESS(f'  checkmark  {msg}'))
+    def log(self, message):
+        self.stdout.write(self.style.SUCCESS(message))
 
-    def warn(self, msg):
-        self.stdout.write(self.style.WARNING(f'  warning  {msg}'))
+    def warn(self, message):
+        self.stdout.write(self.style.WARNING(message))
 
     @transaction.atomic
     def handle(self, *args, **options):
-        random.seed(42)
-
-        self.stdout.write('\n' + '=' * 60)
-        self.stdout.write('  ZUNTO MARKETPLACE SEED SCRIPT')
-        self.stdout.write('  Generating large dataset...')
-        self.stdout.write('=' * 60 + '\n')
+        random.seed(20260322)
 
         if options['clear']:
-            self.clear_seed_data()
+            self.clear_demo_users()
 
-        locations = self.create_locations()
-        all_subcategories = self.create_categories()
-        sellers = self.create_sellers(locations)
-        buyers = self.create_buyers()
-        products = self.create_products(sellers, all_subcategories, locations)
-        shipping_map = self.create_shipping_addresses(buyers)
-        all_orders = self.create_orders(buyers, products, shipping_map)
-        self.create_product_reviews(all_orders)
-        self.create_seller_reviews(all_orders)
-        self.create_carts(buyers, products)
-        self.print_summary()
+        locations = self.seed_locations()
+        categories = self.seed_categories()
+        sellers = self.seed_sellers(locations)
+        buyers = self.seed_buyers(locations)
+        products = self.seed_products(sellers, categories)
+        self.seed_shipping_addresses(buyers, locations)
+        orders = self.seed_orders(buyers, products)
+        self.seed_reviews(orders)
+        self.seed_carts(buyers, products)
+        self.seed_conversations(buyers, products)
+        self.seed_recommendation_profiles(buyers, categories, locations)
+        self.print_summary(sellers, buyers, products)
 
-    def clear_seed_data(self):
-        self.stdout.write('Clearing existing seed data...')
-        test_users = User.objects.filter(email__endswith='@zuntotest.com')
-        count = test_users.count()
-        test_users.delete()
-        self.log(f'Cleared {count} test users and all related data')
+    def clear_demo_users(self):
+        demo_users = User.objects.filter(email__endswith=SELLER_DOMAIN) | User.objects.filter(email__endswith=BUYER_DOMAIN)
+        count = demo_users.count()
+        demo_users.delete()
+        self.log(f'Cleared {count} existing demo users and related seeded records.')
 
-    def create_locations(self):
-        self.stdout.write('Creating locations...')
+    def seed_locations(self):
         locations = []
-        for state, city in NIGERIAN_STATES:
-            loc, _ = Location.objects.get_or_create(
+        for state, city, area in LOCATIONS:
+            location, _ = Location.objects.get_or_create(
                 state=state,
                 city=city,
-                area='',
+                area=area,
                 defaults={'is_active': True},
             )
-            locations.append(loc)
-        self.log(f'{len(locations)} locations ready')
+            locations.append(location)
+        self.log(f'Locations ready: {len(locations)}')
         return locations
 
-    def create_categories(self):
-        self.stdout.write('Creating categories...')
-        all_subcategories = []
-        for idx, (cat_name, icon, subcats) in enumerate(CATEGORIES_DATA):
-            parent, _ = Category.objects.get_or_create(
-                name=cat_name,
+    def seed_categories(self):
+        categories = {}
+        for index, category_data in enumerate(CATEGORIES, start=1):
+            category, _ = Category.objects.get_or_create(
+                name=category_data['name'],
                 defaults={
-                    'slug': slugify(cat_name),
-                    'icon': icon,
+                    'description': category_data['description'],
+                    'icon': category_data['icon'],
+                    'order': index,
                     'is_active': True,
-                    'order': idx,
                 },
             )
-            for sub_name in subcats:
-                sub, _ = Category.objects.get_or_create(
-                    name=sub_name,
-                    defaults={
-                        'slug': slugify(sub_name),
-                        'parent': parent,
-                        'is_active': True,
-                    },
-                )
-                all_subcategories.append(sub)
-        self.log(f'{len(all_subcategories)} subcategories ready')
-        return all_subcategories
+            categories[category.name] = category
+        self.log(f'Categories ready: {len(categories)}')
+        return categories
 
-    def create_sellers(self, locations):
-        self.stdout.write('Creating 20 seller accounts...')
+    def seed_sellers(self, locations):
         sellers = []
-        seller_locations = {}
+        for index, (first_name, last_name) in enumerate(SELLER_IDENTITIES, start=1):
+            email = f'{first_name.lower()}.{last_name.lower()}{SELLER_DOMAIN}'
+            location = locations[(index - 1) % len(locations)]
+            commerce_mode = 'managed' if index % 3 == 0 else 'direct'
 
-        for i in range(20):
-            first = NIGERIAN_FIRST_NAMES[i]
-            last = NIGERIAN_LAST_NAMES[i]
-            email = f'seller{i + 1}@zuntotest.com'
+            user, created = User.objects.get_or_create(
+                email=email,
+                defaults={
+                    'first_name': first_name,
+                    'last_name': last_name,
+                    'phone': make_phone('081'),
+                    'role': 'seller',
+                    'is_seller': True,
+                    'is_verified': True,
+                    'is_verified_seller': True,
+                    'seller_commerce_mode': commerce_mode,
+                    'address': f'{20 + index} Demo Plaza',
+                    'city': location.city,
+                    'state': location.state,
+                    'country': 'Nigeria',
+                    'bio': f'{first_name} focuses on verified marketplace sales with responsive buyer communication.',
+                },
+            )
+            if created:
+                user.set_password(PASSWORD)
+                user.save(update_fields=['password'])
 
-            if User.objects.filter(email=email).exists():
-                user = User.objects.get(email=email)
-                self.warn(f'{email} already exists, skipping')
-            else:
-                phone = f'+2347{random.randint(10000000, 99999999)}'
-                while User.objects.filter(phone=phone).exists():
-                    phone = f'+2347{random.randint(10000000, 99999999)}'
-
-                user = User.objects.create_user(
-                    email=email,
-                    password='TestPass123!',
-                    first_name=first,
-                    last_name=last,
-                    phone=phone,
-                    role='seller',
-                    is_seller=True,
-                    is_verified=True,
-                    is_verified_seller=True,
-                    city=random.choice(NIGERIAN_STATES)[1],
-                    state=random.choice(NIGERIAN_STATES)[0],
-                    country='Nigeria',
-                    seller_commerce_mode='managed',
-                )
-
-            loc = random.choice(locations)
-            seller_locations[user.id] = loc
-
-            profile, created = SellerProfile.objects.get_or_create(
+            SellerProfile.objects.update_or_create(
                 user=user,
                 defaults={
                     'status': SellerProfile.STATUS_APPROVED,
                     'is_verified_seller': True,
                     'verified': True,
-                    'seller_commerce_mode': 'managed',
-                    'active_location': loc,
-                    'rating': round(random.uniform(3.5, 5.0), 1),
-                    'total_reviews': random.randint(5, 80),
+                    'seller_commerce_mode': commerce_mode,
+                    'active_location': location,
+                    'rating': round(random.uniform(4.0, 4.9), 1),
+                    'total_reviews': random.randint(6, 40),
                 },
             )
-            if not created and profile.active_location != loc:
-                profile.active_location = loc
-                profile.save(update_fields=['active_location'])
-
             sellers.append(user)
-
-        self.log(f'{len(sellers)} sellers ready')
+        self.log(f'Sellers ready: {len(sellers)}')
         return sellers
 
-    def create_buyers(self):
-        self.stdout.write('Creating 20 buyer accounts...')
+    def seed_buyers(self, locations):
         buyers = []
-        buyer_first = [
-            'Adaora', 'Kunle', 'Zainab', 'Emeka', 'Sola',
-            'Funke', 'Dayo', 'Nkechi', 'Bello', 'Grace',
-            'Sunday', 'Chinwe', 'Musa', 'Lola', 'Ade',
-            'Kemi', 'Femi', 'Amina', 'Chidi', 'Tobi',
-        ]
-        buyer_last = [
-            'Okafor', 'Balogun', 'Suleiman', 'Eze', 'Adeyemi',
-            'Nwosu', 'Afolabi', 'Obiora', 'Garba', 'Omotosho',
-            'Ikenna', 'Oluwole', 'Ibrahim', 'Adeleke', 'Salami',
-            'Odunsi', 'Fadahunsi', 'Yakubu', 'Obi', 'Adesanya',
-        ]
-
-        for i in range(20):
-            email = f'buyer{i + 1}@zuntotest.com'
-            if User.objects.filter(email=email).exists():
-                user = User.objects.get(email=email)
-                self.warn(f'{email} already exists, skipping')
-            else:
-                phone = f'+2348{random.randint(10000000, 99999999)}'
-                while User.objects.filter(phone=phone).exists():
-                    phone = f'+2348{random.randint(10000000, 99999999)}'
-
-                user = User.objects.create_user(
-                    email=email,
-                    password='TestPass123!',
-                    first_name=buyer_first[i],
-                    last_name=buyer_last[i],
-                    phone=phone,
-                    role='buyer',
-                    is_verified=True,
-                    city=random.choice(NIGERIAN_STATES)[1],
-                    state=random.choice(NIGERIAN_STATES)[0],
-                    country='Nigeria',
-                )
+        for index, (first_name, last_name) in enumerate(BUYER_IDENTITIES, start=1):
+            email = f'{first_name.lower()}.{last_name.lower()}{BUYER_DOMAIN}'
+            location = locations[(index * 2 - 1) % len(locations)]
+            user, created = User.objects.get_or_create(
+                email=email,
+                defaults={
+                    'first_name': first_name,
+                    'last_name': last_name,
+                    'phone': make_phone('090'),
+                    'role': 'buyer',
+                    'is_verified': True,
+                    'address': f'{100 + index} Buyer Close',
+                    'city': location.city,
+                    'state': location.state,
+                    'country': 'Nigeria',
+                    'bio': f'{first_name} frequently buys electronics, fashion, and household items.',
+                },
+            )
+            if created:
+                user.set_password(PASSWORD)
+                user.save(update_fields=['password'])
             buyers.append(user)
-
-        self.log(f'{len(buyers)} buyers ready')
+        self.log(f'Buyers ready: {len(buyers)}')
         return buyers
 
-    def create_products(self, sellers, all_subcategories, locations):
-        self.stdout.write('Creating 100+ products...')
+    def seed_products(self, sellers, categories):
         products = []
-        sub_category_map = {sub.name: sub for sub in all_subcategories}
+        image_seed = 0
+        for seller_index, seller in enumerate(sellers):
+            seller_category = CATEGORIES[seller_index % len(CATEGORIES)]
+            category = categories[seller_category['name']]
 
-        for sub_name, templates in PRODUCT_TEMPLATES.items():
-            sub_cat = sub_category_map.get(sub_name)
-            if not sub_cat:
-                continue
-
-            is_service = (
-                sub_cat.parent and sub_cat.parent.name == 'Services'
-            )
-            listing_type = 'service' if is_service else 'product'
-
-            for title, min_price, max_price in templates:
-                seller = random.choice(sellers)
-                price = Decimal(str(random.randint(min_price, max_price)))
-                qty = random.randint(1, 50)
-                condition = random.choice(['new', 'like_new', 'good', 'fair'])
-
-                base_slug = slugify(title)
-                slug = base_slug
-                counter = 1
-                while Product.objects.filter(slug=slug).exists():
-                    slug = f'{base_slug}-{counter}'
-                    counter += 1
-
-                try:
-                    seller_loc = seller.seller_profile.active_location
-                except Exception:
-                    seller_loc = random.choice(locations)
-
-                product = Product(
+            for template_index, (title, base_price, condition, brand) in enumerate(seller_category['products'], start=1):
+                unique_title = f'{title} #{seller_index + 1}'
+                product, created = Product.objects.get_or_create(
                     seller=seller,
-                    title=title,
-                    slug=slug,
-                    description=random.choice(FAKE_PARAGRAPHS),
-                    listing_type=listing_type,
-                    category=sub_cat,
-                    location=seller_loc,
-                    price=price,
-                    negotiable=random.choice([True, False]),
-                    condition=condition,
-                    quantity=qty,
-                    status='active',
-                    is_featured=random.random() > 0.8,
-                    is_verified=True,
-                    is_verified_product=True,
-                    views_count=random.randint(0, 2000),
-                    favorites_count=random.randint(0, 200),
+                    title=unique_title,
+                    defaults={
+                        'description': f'{unique_title} is {random.choice(PRODUCT_DESCRIPTORS)}.',
+                        'listing_type': 'product',
+                        'category': category,
+                        'price': base_price + Decimal(str((seller_index % 4) * 2500)),
+                        'negotiable': template_index % 2 == 0,
+                        'condition': condition,
+                        'brand': brand,
+                        'quantity': random.randint(1, 18) if base_price < Decimal('1000000.00') else 1,
+                        'status': 'active',
+                        'is_featured': template_index == 1,
+                        'is_boosted': template_index == 2,
+                        'is_verified': True,
+                        'is_verified_product': True,
+                        'views_count': random.randint(20, 1800),
+                        'favorites_count': random.randint(0, 120),
+                        'shares_count': random.randint(0, 35),
+                    },
                 )
-                product.save()
+                if created:
+                    for image_order in range(3):
+                        image_bytes = generate_image_bytes(image_seed)
+                        image_seed += 1
+                        ProductImage.objects.create(
+                            product=product,
+                            image=ContentFile(image_bytes, name=f'demo_product_{image_seed:04d}.jpg'),
+                            caption=f'{unique_title} image {image_order + 1}',
+                            order=image_order,
+                            is_primary=image_order == 0,
+                        )
                 products.append(product)
-
-        self.log(f'{len(products)} products created')
+        self.log(f'Products ready: {len(products)}')
         return products
 
-    def create_shipping_addresses(self, buyers):
-        self.stdout.write('Creating shipping addresses...')
-        shipping_map = {}
-        for buyer in buyers:
-            state, city = random.choice(NIGERIAN_STATES)
-            addr, _ = ShippingAddress.objects.get_or_create(
+    def seed_shipping_addresses(self, buyers, locations):
+        for index, buyer in enumerate(buyers, start=1):
+            location = locations[index % len(locations)]
+            ShippingAddress.objects.get_or_create(
                 user=buyer,
                 label='Home',
                 defaults={
                     'full_name': buyer.get_full_name(),
-                    'phone': buyer.phone or f'+2347{random.randint(10000000, 99999999)}',
-                    'address': random.choice(FAKE_STREETS),
-                    'city': city,
-                    'state': state,
+                    'phone': buyer.phone or make_phone('070'),
+                    'address': f'{index + 10} Demo Estate Road',
+                    'city': location.city,
+                    'state': location.state,
                     'country': 'Nigeria',
-                    'postal_code': str(random.randint(100000, 999999)),
+                    'postal_code': f'{100000 + index}',
                     'is_default': True,
                 },
             )
-            shipping_map[buyer.id] = addr
-        self.log(f'{len(shipping_map)} shipping addresses ready')
-        return shipping_map
+        self.log(f'Shipping addresses ready: {len(buyers)}')
 
-    def create_orders(self, buyers, products, shipping_map):
-        self.stdout.write('Creating orders...')
-        all_orders = []
-        order_statuses = [
-            'pending', 'paid', 'processing',
-            'shipped', 'delivered', 'delivered', 'delivered',
-        ]
+    def seed_orders(self, buyers, products):
+        orders = []
+        for buyer_index, buyer in enumerate(buyers):
+            address = buyer.shipping_addresses.filter(is_default=True).first()
+            if not address:
+                continue
 
-        for buyer in buyers:
-            addr = shipping_map[buyer.id]
-            num_orders = random.randint(2, 5)
-
-            for _ in range(num_orders):
-                status = random.choice(order_statuses)
-                payment_status = (
-                    'paid'
-                    if status in ['paid', 'processing', 'shipped', 'delivered']
-                    else 'unpaid'
-                )
-
-                date_str = timezone.now().strftime('%Y%m%d')
-                order_number = f'ORD-{date_str}-{str(uuid.uuid4())[:4].upper()}'
-                while Order.objects.filter(order_number=order_number).exists():
-                    order_number = f'ORD-{date_str}-{str(uuid.uuid4())[:4].upper()}'
-
+            for order_index in range(2):
+                sample_size = min(2 + (order_index % 2), len(products))
+                selected_products = random.sample(products, sample_size)
                 order = Order.objects.create(
-                    order_number=order_number,
                     customer=buyer,
-                    status=status,
+                    status=random.choice(['paid', 'processing', 'shipped', 'delivered']),
                     payment_method=random.choice(['paystack', 'cash_on_delivery']),
-                    payment_status=payment_status,
-                    tax_amount=Decimal('0'),
-                    shipping_fee=Decimal('0'),
-                    discount_amount=Decimal('0'),
-                    subtotal=Decimal('0'),
-                    total_amount=Decimal('0'),
-                    shipping_address=addr.address,
-                    shipping_city=addr.city,
-                    shipping_state=addr.state,
-                    shipping_country=addr.country,
-                    shipping_phone=addr.phone,
+                    payment_status='paid',
+                    shipping_address_ref=address,
+                    shipping_address=address.address,
+                    shipping_city=address.city,
+                    shipping_state=address.state,
+                    shipping_country=address.country,
+                    shipping_phone=address.phone,
                     shipping_email=buyer.email,
                     shipping_full_name=buyer.get_full_name(),
-                    paid_at=timezone.now() if payment_status == 'paid' else None,
+                    shipping_postal_code=address.postal_code,
+                    paid_at=timezone.now() - timedelta(days=random.randint(1, 60)),
                 )
-
-                num_items = random.randint(1, 4)
-                chosen_products = random.sample(products, min(num_items, len(products)))
-
-                for product in chosen_products:
-                    unit_price = product.price
-                    qty = random.randint(1, 3)
-                    item_status = 'pending' if status == 'pending' else 'shipped'
+                for product in selected_products:
+                    quantity = 1 if product.price > Decimal('1000000.00') else random.randint(1, 2)
                     OrderItem.objects.create(
                         order=order,
                         product=product,
                         seller=product.seller,
                         product_name=product.title,
-                        product_image='',
-                        quantity=qty,
-                        unit_price=unit_price,
-                        total_price=unit_price * qty,
-                        status=item_status,
+                        product_image=product.images.order_by('order').first().image.url if product.images.exists() else '',
+                        quantity=quantity,
+                        unit_price=product.price,
+                        total_price=product.price * quantity,
+                        status='shipped',
                     )
+                order.tax_amount = (order.subtotal * Decimal('0.075')).quantize(Decimal('0.01'))
+                order.total_amount = order.subtotal + order.tax_amount
+                if order.status == 'delivered':
+                    order.delivered_at = timezone.now() - timedelta(days=random.randint(1, 30))
+                elif order.status == 'shipped':
+                    order.shipped_at = timezone.now() - timedelta(days=random.randint(1, 10))
+                order.save()
+                orders.append(order)
+        self.log(f'Orders ready: {len(orders)}')
+        return orders
 
-                order.update_totals()
-                tax = (order.subtotal * Decimal('0.075')).quantize(Decimal('0.01'))
-                order.tax_amount = tax
-                order.total_amount = order.subtotal + tax
-                order.save(update_fields=['tax_amount', 'total_amount'])
-                all_orders.append(order)
+    def seed_reviews(self, orders):
+        product_review_count = 0
+        seller_review_count = 0
+        for order in orders:
+            if order.status != 'delivered':
+                continue
 
-        self.log(f'{len(all_orders)} orders created')
-        return all_orders
-
-    def create_product_reviews(self, all_orders):
-        self.stdout.write('Creating product reviews...')
-        review_count = 0
-        reviewed_pairs = set()
-        delivered_orders = [o for o in all_orders if o.status == 'delivered']
-
-        for order in delivered_orders:
-            buyer = order.customer
-            for item in order.items.select_related('product').all():
-                product = item.product
-                if not product:
-                    continue
-                pair = (product.id, buyer.id)
-                if pair in reviewed_pairs:
-                    continue
-                reviewed_pairs.add(pair)
-
-                rating = random.choices([3, 4, 4, 5, 5, 5], k=1)[0]
-                title = 'Great product!' if rating >= 4 else 'Decent product'
-                ProductReview.objects.get_or_create(
-                    product=product,
-                    reviewer=buyer,
+            for item in order.items.select_related('product', 'seller'):
+                rating = random.choice([4, 4, 5, 5, 5])
+                _, product_created = ProductReview.objects.get_or_create(
+                    product=item.product,
+                    reviewer=order.customer,
                     defaults={
                         'rating': rating,
-                        'title': title,
-                        'comment': random.choice(REVIEW_COMMENTS),
-                        'quality_rating': random.randint(3, 5),
-                        'value_rating': random.randint(3, 5),
-                        'accuracy_rating': random.randint(3, 5),
+                        'title': 'Excellent experience',
+                        'comment': 'Arrived as described, seller responded quickly, and the quality matched the listing.',
+                        'quality_rating': rating,
+                        'value_rating': max(3, rating - 1),
+                        'accuracy_rating': rating,
                         'is_verified_purchase': True,
                         'is_approved': True,
-                        'helpful_count': random.randint(0, 30),
                     },
                 )
-                review_count += 1
+                product_review_count += int(product_created)
 
-        self.log(f'{review_count} product reviews created')
-
-    def create_seller_reviews(self, all_orders):
-        self.stdout.write('Creating seller reviews...')
-        seller_review_count = 0
-        seller_reviewed_pairs = set()
-        delivered_orders = [o for o in all_orders if o.status == 'delivered']
-
-        for order in delivered_orders:
-            buyer = order.customer
-            for item in order.items.select_related('product', 'seller').all():
-                seller = item.seller
-                product = item.product
-                if not seller or not product:
-                    continue
-                if seller.id == buyer.id:
-                    continue
-                pair = (seller.id, buyer.id, product.id)
-                if pair in seller_reviewed_pairs:
-                    continue
-                seller_reviewed_pairs.add(pair)
-
-                rating = random.choices([3, 4, 4, 5, 5], k=1)[0]
-                title = 'Excellent seller' if rating >= 4 else 'Good seller'
-                SellerReview.objects.get_or_create(
-                    seller=seller,
-                    reviewer=buyer,
-                    product=product,
+                _, seller_created = SellerReview.objects.get_or_create(
+                    seller=item.seller,
+                    reviewer=order.customer,
+                    product=item.product,
                     defaults={
                         'rating': rating,
-                        'title': title,
-                        'comment': random.choice(REVIEW_COMMENTS),
-                        'communication_rating': random.randint(3, 5),
-                        'reliability_rating': random.randint(3, 5),
-                        'professionalism_rating': random.randint(3, 5),
+                        'title': 'Responsive seller',
+                        'comment': 'Seller communicated clearly and completed the transaction smoothly.',
+                        'communication_rating': rating,
+                        'reliability_rating': rating,
+                        'professionalism_rating': rating,
                         'is_verified_transaction': True,
                         'is_approved': True,
-                        'helpful_count': random.randint(0, 20),
                     },
                 )
-                seller_review_count += 1
+                seller_review_count += int(seller_created)
+        self.log(f'Product reviews ready: {product_review_count}')
+        self.log(f'Seller reviews ready: {seller_review_count}')
 
-        self.log(f'{seller_review_count} seller reviews created')
-
-    def create_carts(self, buyers, products):
-        self.stdout.write('Creating carts for buyers...')
-        cart_count = 0
+    def seed_carts(self, buyers, products):
         for buyer in buyers:
             cart, _ = Cart.objects.get_or_create(user=buyer)
-            chosen = random.sample(products, random.randint(1, 3))
-            for product in chosen:
-                if product.status == 'active' and product.quantity > 0:
-                    CartItem.objects.get_or_create(
-                        cart=cart,
-                        product=product,
-                        defaults={
-                            'quantity': random.randint(1, 2),
-                            'price_at_addition': product.price,
-                        },
-                    )
-            cart_count += 1
-        self.log(f'{cart_count} carts with items created')
+            for product in random.sample(products, min(3, len(products))):
+                CartItem.objects.get_or_create(
+                    cart=cart,
+                    product=product,
+                    defaults={
+                        'quantity': 1 if product.price > Decimal('1000000.00') else random.randint(1, 2),
+                        'price_at_addition': product.price,
+                    },
+                )
+        self.log(f'Carts ready: {len(buyers)}')
 
-    def print_summary(self):
-        self.stdout.write('\n' + '=' * 60)
-        self.stdout.write(self.style.SUCCESS('  SEED COMPLETE!'))
-        self.stdout.write('=' * 60)
-        self.stdout.write(f'  Locations        : {Location.objects.count()}')
-        self.stdout.write(f'  Categories       : {Category.objects.count()}')
-        self.stdout.write(f'  Total Users      : {User.objects.count()}')
-        self.stdout.write(f'  Sellers          : {User.objects.filter(role="seller").count()}')
-        self.stdout.write(f'  Buyers           : {User.objects.filter(role="buyer").count()}')
-        self.stdout.write(f'  Products         : {Product.objects.count()}')
-        self.stdout.write(f'  Orders           : {Order.objects.count()}')
-        self.stdout.write(f'  Product Reviews  : {ProductReview.objects.count()}')
-        self.stdout.write(f'  Seller Reviews   : {SellerReview.objects.count()}')
-        self.stdout.write(f'  Carts            : {Cart.objects.count()}')
-        self.stdout.write('\n  TEST CREDENTIALS (password: TestPass123!)')
-        self.stdout.write('  Sellers : seller1@zuntotest.com -> seller20@zuntotest.com')
-        self.stdout.write('  Buyers  : buyer1@zuntotest.com  -> buyer20@zuntotest.com')
-        self.stdout.write('=' * 60 + '\n')
+    def seed_conversations(self, buyers, products):
+        conversation_count = 0
+        for buyer in buyers[:8]:
+            for product in random.sample(products, 2):
+                if product.seller_id == buyer.id:
+                    continue
+                conversation, created = Conversation.objects.get_or_create(
+                    buyer=buyer,
+                    seller=product.seller,
+                    product=product,
+                )
+                if created:
+                    for idx, line in enumerate(CHAT_LINES[:4], start=1):
+                        sender = buyer if idx % 2 else product.seller
+                        Message.objects.create(
+                            conversation=conversation,
+                            sender=sender,
+                            content=line,
+                        )
+                    conversation_count += 1
+        self.log(f'Buyer-seller conversations ready: {conversation_count}')
+
+    def seed_recommendation_profiles(self, buyers, categories, locations):
+        category_list = list(categories.values())
+        for index, buyer in enumerate(buyers, start=1):
+            preferred = random.sample(category_list, k=min(2, len(category_list)))
+            UserBehaviorProfile.objects.update_or_create(
+                user=buyer,
+                defaults={
+                    'ai_search_count': random.randint(5, 18),
+                    'normal_search_count': random.randint(1, 8),
+                    'dominant_categories': [category.name for category in preferred],
+                    'avg_budget_min': Decimal(str(random.randint(15000, 120000))),
+                    'avg_budget_max': Decimal(str(random.randint(150000, 900000))),
+                    'ai_conversion_rate': round(random.uniform(0.25, 0.72), 2),
+                    'normal_conversion_rate': round(random.uniform(0.05, 0.28), 2),
+                    'switch_frequency': round(random.uniform(0.1, 0.5), 2),
+                    'ai_high_intent_no_conversion': index % 5 == 0,
+                    'last_aggregated_at': timezone.now(),
+                },
+            )
+            ConversationSession.objects.get_or_create(
+                session_id=f'demo-reco-{buyer.id.hex[:12]}',
+                defaults={
+                    'user': buyer,
+                    'assistant_mode': 'homepage_reco',
+                    'assistant_lane': 'inbox',
+                    'context_type': ConversationSession.CONTEXT_TYPE_RECOMMENDATION,
+                    'conversation_title': 'Homepage recommendation thread',
+                    'current_state': 'chat_mode',
+                    'message_count': 4,
+                    'context': {'seeded': True},
+                    'constraint_state': {'budget': 'seeded'},
+                    'intent_state': {'type': 'recommendation'},
+                },
+            )
+
+        for index, category in enumerate(category_list):
+            DemandCluster.objects.update_or_create(
+                category=category,
+                location=locations[index % len(locations)],
+                defaults={
+                    'demand_count': random.randint(8, 24),
+                    'last_gap_at': timezone.now() - timedelta(hours=index + 1),
+                    'hot_score': round(random.uniform(1.2, 3.9), 2),
+                    'is_hot': True,
+                },
+            )
+        self.log(f'Recommendation profiles ready: {len(buyers)}')
+
+    def print_summary(self, sellers, buyers, products):
+        self.stdout.write('')
+        self.log('Seed complete.')
+        self.stdout.write(f'Sellers: {len(sellers)}')
+        self.stdout.write(f'Buyers: {len(buyers)}')
+        self.stdout.write(f'Products: {len(products)}')
+        self.stdout.write(f'Images: {ProductImage.objects.filter(product__seller__email__endswith=SELLER_DOMAIN).count()}')
+        self.stdout.write(f'Orders: {Order.objects.filter(customer__email__endswith=BUYER_DOMAIN).count()}')
+        self.stdout.write(f'Conversations: {Conversation.objects.filter(buyer__email__endswith=BUYER_DOMAIN).count()}')
+        self.stdout.write('')
+        self.stdout.write(f'Seller login example: {sellers[0].email} / {PASSWORD}')
+        self.stdout.write(f'Buyer login example: {buyers[0].email} / {PASSWORD}')

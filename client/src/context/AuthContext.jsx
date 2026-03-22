@@ -206,6 +206,7 @@ export const AuthProvider = ({ children }) => {
     resendRegistrationCode,
     googleAuth,
     logout,
+    refreshUserProfile: fetchUserProfile,
     isAuthenticated: !!token,
   };
 

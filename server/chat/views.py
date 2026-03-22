@@ -1,4 +1,5 @@
-#server/chat/views.py
+# server/chat/views.py
+import json
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -39,8 +40,8 @@ class ConversationViewSet(viewsets.ModelViewSet):
         return Conversation.objects.filter(
             Q(buyer=user) | Q(seller=user)
         ).select_related(
-            'buyer', 
-            'seller', 
+            'buyer',
+            'seller',
             'product',
             'transaction_confirmation'
         ).prefetch_related(
@@ -139,7 +140,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
         )
 
         serializer = ConversationDetailSerializer(
-            conversation, 
+            conversation,
             context={'request': request}
         )
 
@@ -309,8 +310,8 @@ class ConversationViewSet(viewsets.ModelViewSet):
             )
 
         serializer = MessageSerializer(
-            messages, 
-            many=True, 
+            messages,
+            many=True,
             context={'request': request}
         )
 
@@ -414,19 +415,19 @@ class MessageViewSet(viewsets.ModelViewSet):
     def _check_rate_limit(self, user_id, conversation_id):
         user_key = f"chat_msg_rate:{user_id}"
         conv_key = f"chat_msg_rate:{user_id}:{conversation_id}"
-        
+
         user_count = cache.get(user_key, 0)
         conv_count = cache.get(conv_key, 0)
-        
+
         if user_count >= self.MESSAGE_RATE_LIMIT:
             return False, 'global'
-        
+
         if conv_count >= self.CONVERSATION_RATE_LIMIT:
             return False, 'conversation'
-        
+
         cache.set(user_key, user_count + 1, self.MESSAGE_RATE_WINDOW)
         cache.set(conv_key, conv_count + 1, self.CONVERSATION_RATE_WINDOW)
-        
+
         return True, None
 
     def _generate_idempotency_key(self, user_id, conversation_id, content, message_type):
@@ -436,14 +437,14 @@ class MessageViewSet(viewsets.ModelViewSet):
     def _check_duplicate(self, idempotency_key):
         cache_key = f"chat_msg_idem:{idempotency_key}"
         cached_message_id = cache.get(cache_key)
-        
+
         if cached_message_id:
             try:
                 message = Message.objects.get(id=cached_message_id)
                 return True, message
             except Message.DoesNotExist:
                 pass
-        
+
         return False, None
 
     def _store_idempotency(self, idempotency_key, message_id):
@@ -567,17 +568,17 @@ class MessageViewSet(viewsets.ModelViewSet):
                 f"limit_type={limit_type}"
             )
             return Response(
-                {'error': f'Rate limit exceeded. Please slow down.', 'delivered': False},
+                {'error': 'Rate limit exceeded. Please slow down.', 'delivered': False},
                 status=status.HTTP_429_TOO_MANY_REQUESTS
             )
 
         idempotency_key = self._generate_idempotency_key(
-            str(request.user.id), 
-            str(conversation_id), 
+            str(request.user.id),
+            str(conversation_id),
             content or attachment_url,
             message_type
         )
-        
+
         is_duplicate, existing_message = self._check_duplicate(idempotency_key)
         if is_duplicate:
             logger.info(
@@ -669,15 +670,18 @@ class MessageViewSet(viewsets.ModelViewSet):
     def _broadcast_message(self, message, conversation):
         try:
             channel_layer = get_channel_layer()
-
             serializer = MessageSerializer(message)
+
+            # Serialize to JSON and back to convert UUID, Decimal, datetime
+            # to plain Python types that the channel layer can serialize.
+            message_data = json.loads(json.dumps(serializer.data, default=str))
 
             async_to_sync(channel_layer.group_send)(
                 f"conversation_{conversation.id}",
                 {
                     'type': 'chat_message',
                     'conversation_id': str(conversation.id),
-                    'message': serializer.data,
+                    'message': message_data,
                     'event_id': str(uuid4()),
                     'occurred_at': timezone.now().isoformat(),
                     'seq': None,

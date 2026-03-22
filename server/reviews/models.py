@@ -312,7 +312,7 @@ class ReviewImage(models.Model):
         related_name='images'
     )
     
-    image = models.ImageField(upload_to='public/marketplace/reviews/%Y/%m/', storage=PublicMediaStorage())
+    image = models.ImageField(upload_to='marketplace/reviews/%Y/%m/', storage=PublicMediaStorage())
     caption = models.CharField(max_length=200, blank=True)
     
     uploaded_at = models.DateTimeField(auto_now_add=True)

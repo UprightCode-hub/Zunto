@@ -64,6 +64,8 @@ export default function MarketplaceInbox({
   const messagesEndRef = useRef(null);
   const wsRef = useRef(null);
   const processedEventIdsRef = useRef(new Set());
+  const lastSeenSeqRef = useRef(new Map());
+  const reorderBufferRef = useRef(new Map());
   const typingStopTimerRef = useRef(null);
   const isTypingActiveRef = useRef(false);
   const [typingMap, setTypingMap] = useState(new Map());
@@ -306,7 +308,8 @@ export default function MarketplaceInbox({
         if (!active) {
           return;
         }
-        const wsUrl = getChatWebSocketUrl(selectedConversation.id, wsTokenResponse.ws_token);
+        const accessToken = localStorage.getItem('access_token') || '';
+        const wsUrl = `${getChatWebSocketUrl(selectedConversation.id, wsTokenResponse.ws_token)}&auth=${encodeURIComponent(accessToken)}`;
         const socket = new WebSocket(wsUrl);
         wsRef.current = socket;
 

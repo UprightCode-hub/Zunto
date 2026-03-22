@@ -32,6 +32,9 @@ export default function Checkout() {
     // Order Notes
     notes: '',
   });
+  const blockedItems = cart.filter((item) => !item.is_managed_commerce_eligible);
+  const blockedSellerNames = [...new Set(blockedItems.map((item) => item.seller_name).filter(Boolean))];
+  const isCheckoutBlocked = blockedSellerNames.length > 0;
 
   const handleChange = (e) => {
     setFormData({
@@ -42,6 +45,11 @@ export default function Checkout() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (isCheckoutBlocked) {
+      alert(`Zunto checkout works only for managed sellers. Remove items from: ${blockedSellerNames.join(', ')}.`);
+      return;
+    }
 
     const selectedPaymentMethod = formData.paymentMethod || 'paystack';
 
@@ -109,6 +117,12 @@ export default function Checkout() {
     <div className="min-h-screen pb-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <h1 className="text-4xl font-bold mb-8">Checkout</h1>
+
+        {isCheckoutBlocked && (
+          <div className="mb-6 rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-red-200">
+            Zunto checkout is unavailable for items from: {blockedSellerNames.join(', ')}. Remove those items from your cart and contact the seller directly in chat.
+          </div>
+        )}
 
         <form onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -388,10 +402,10 @@ export default function Checkout() {
 
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || isCheckoutBlocked}
                   className="w-full bg-gradient-to-r from-[#2c77d1] to-[#9426f4] py-4 rounded-full font-semibold text-lg mt-6 hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {loading ? (formData.paymentMethod === 'paystack' ? 'Redirecting to Paystack...' : 'Processing...') : 'Place Order'}
+                  {isCheckoutBlocked ? 'Checkout Unavailable' : loading ? (formData.paymentMethod === 'paystack' ? 'Redirecting to Paystack...' : 'Processing...') : 'Place Order'}
                 </button>
               </div>
             </div>

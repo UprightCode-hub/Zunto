@@ -1,4 +1,4 @@
-#server/chat/consumers.py
+# server/chat/consumers.py
 import json
 from uuid import uuid4
 from channels.generic.websocket import AsyncWebsocketConsumer
@@ -16,7 +16,7 @@ logger = logging.getLogger('chat')
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
-    
+
     TYPING_RATE_LIMIT = 5
     TYPING_RATE_WINDOW = 10
     ABUSE_THRESHOLD = 3
@@ -26,7 +26,27 @@ class ChatConsumer(AsyncWebsocketConsumer):
     IDLE_TIMEOUT = 300
     EVENT_DEDUPE_TTL_SECONDS = 300
 
+    def _user_display(self):
+        """Safe user display name — works for both authenticated and anonymous users."""
+        user = getattr(self, 'user', None)
+        if user is None or not getattr(user, 'is_authenticated', False):
+            return 'anonymous'
+        return getattr(user, 'get_full_name', lambda: '')() or getattr(user, 'email', 'unknown')
+
     async def connect(self):
+        # --- Initialize ALL instance state here, before any early return ---
+        # This guarantees disconnect() and unregister_connection() never crash
+        # even when connect() exits early due to auth/validation failure.
+        self.conversations = set()
+        self.conversation_cache = {}
+        self.abuse_count = 0
+        self.last_activity = time.time()
+        self.last_heartbeat = time.time()
+        self.connection_id = None
+        self.delivered_messages = set()
+        self.seen_inbound_event_ids = set()
+        # --- End initialization ---
+
         self.user = self.scope['user']
         self.conversation_id = self.scope['url_route']['kwargs'].get('conversation_id')
 
@@ -60,14 +80,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             await self.close(code=4403)
             return
 
-        self.conversations = set()
-        self.conversation_cache = {}
-        self.abuse_count = 0
-        self.last_activity = time.time()
-        self.last_heartbeat = time.time()
         self.connection_id = f"{self.user.id}_{self.channel_name}"
-        self.delivered_messages = set()
-        self.seen_inbound_event_ids = set()
 
         await self.close_previous_connection()
         await self.register_connection()
@@ -87,12 +100,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         await self.log_event('ws_connected', str(self.conversation_id), None)
         await self.send_ack('connected', str(self.conversation_id), True)
-        
+
         asyncio.create_task(self.heartbeat_monitor())
-        
-        print(f"✅ User {self.user.get_full_name()} ({self.user.id}) connected to WebSocket")
+
+        print(f"✅ User {self._user_display()} ({self.user.id}) connected to WebSocket")
 
     async def disconnect(self, close_code):
+        # self.conversations is always initialized (set in connect before any return)
+        # so this loop is always safe.
         for conv_id in list(self.conversations):
             await self.broadcast_presence_event(str(conv_id), 'offline')
             await self.mark_user_offline(str(conv_id))
@@ -103,9 +118,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         await self.unregister_connection()
 
-        if hasattr(self, 'user'):
-            await self.log_event('ws_disconnected', None, None, close_code=close_code)
-            print(f"❌ User {self.user.get_full_name()} disconnected (code: {close_code})")
+        await self.log_event('ws_disconnected', None, None, close_code=close_code)
+        print(f"❌ User {self._user_display()} disconnected (code: {close_code})")
 
     async def receive(self, text_data):
         self.last_activity = time.time()
@@ -176,14 +190,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
         try:
             while True:
                 await asyncio.sleep(self.HEARTBEAT_INTERVAL)
-                
+
                 current_time = time.time()
-                
+
                 if current_time - self.last_heartbeat > self.HEARTBEAT_TIMEOUT:
                     await self.log_event('ws_heartbeat_timeout', None, 'no_heartbeat')
                     await self.close(code=4408)
                     break
-                
+
                 if current_time - self.last_activity > self.IDLE_TIMEOUT:
                     await self.log_event('ws_idle_timeout', None, 'inactive')
                     await self.close(code=4409)
@@ -192,20 +206,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 for conv_id in list(self.conversations):
                     if not await self.check_product_available(conv_id):
                         break
-                
+
                 await self.send_event(
                     event_type='chat.ping',
                     conversation_id=str(self.conversation_id),
                     payload={'timestamp': current_time},
                 )
-                
+
         except asyncio.CancelledError:
             pass
         except Exception as e:
             logger.error(f"heartbeat_monitor_error user_id={self.user.id} error={str(e)}")
 
     async def handle_join(self, conv_id):
-
         if not conv_id:
             await self.send_error("conversation_id is required")
             return
@@ -247,13 +260,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
         await self.send_read_snapshot(conv_id)
 
         await self.log_event('ws_joined', conv_id, None)
-
         await self.send_ack('join', conv_id, True)
 
-        print(f"✅ User {self.user.get_full_name()} joined conversation {conv_id}")
+        print(f"✅ User {self._user_display()} joined conversation {conv_id}")
 
     async def handle_leave(self, conv_id):
-
         if not conv_id:
             return
 
@@ -269,10 +280,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
             await self.broadcast_presence_event(conv_id, 'offline')
 
             await self.log_event('ws_left', conv_id, None)
-
             await self.send_ack('leave', conv_id, True)
 
-            print(f"✅ User {self.user.get_full_name()} left conversation {conv_id}")
+            print(f"✅ User {self._user_display()} left conversation {conv_id}")
 
     async def handle_typing_event(self, event, is_typing):
         conv_id = event.get('conversation_id')
@@ -317,12 +327,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
             await self.log_event('ws_typing_rate_limited', conv_id, 'rate_limit_exceeded')
             await self.send_ack('typing', conv_id, False, 'rate_limited')
             self.abuse_count += 1
-            
+
             if self.abuse_count >= self.ABUSE_THRESHOLD:
                 await self.log_event('ws_abuse_detected', conv_id, f'abuse_count={self.abuse_count}')
                 await self.close(code=4429)
                 return
-            
+
             return
 
         await self.channel_layer.group_send(
@@ -331,7 +341,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'type': 'typing_indicator',
                 'conversation_id': conv_id,
                 'user_id': str(self.user.id),
-                'username': self.user.get_full_name(),
+                'username': self._user_display(),
                 'is_typing': is_typing,
                 'event_id': event.get('event_id') or str(uuid4()),
                 'occurred_at': event.get('occurred_at'),
@@ -343,11 +353,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
         conv_id = event.get('conversation_id')
         message_data = event.get('message', {})
         message_id = message_data.get('id')
-        
+
         if not message_id:
             await self.log_event('ws_message_no_id', conv_id, 'missing_message_id')
             return
-        
+
         if conv_id not in self.conversations:
             return
 
@@ -491,7 +501,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 conv_id=conv_id,
                 reason='product_unavailable',
             )
-            
             await self.channel_layer.group_discard(
                 f"conversation_{conv_id}",
                 self.channel_name
@@ -499,22 +508,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
             self.conversations.discard(conv_id)
             self.conversation_cache.pop(conv_id, None)
             await self.mark_user_offline(conv_id)
-            
             await self.close(code=4410)
             return False
         return True
 
-
     async def broadcast_presence_event(self, conv_id, status):
         if not conv_id:
             return
-
         await self.channel_layer.group_send(
             f"conversation_{conv_id}",
             {
                 'type': 'user_status',
                 'conversation_id': str(conv_id),
-                'user_id': str(self.user.id),
+                'user_id': str(self.user.id) if getattr(self.user, 'is_authenticated', False) else 'anonymous',
                 'status': status,
                 'event_id': str(uuid4()),
                 'occurred_at': time.time(),
@@ -584,21 +590,16 @@ class ChatConsumer(AsyncWebsocketConsumer):
             event_id=str(uuid4()),
         )
 
-
-
     @database_sync_to_async
     def is_duplicate_inbound_event(self, event_id, conv_id):
         if not event_id:
             return False
-
         if event_id in self.seen_inbound_event_ids:
             return True
-
         self.seen_inbound_event_ids.add(event_id)
         dedupe_key = f"chat_ws_evt:{self.user.id}:{conv_id}:{event_id}"
         if cache.get(dedupe_key):
             return True
-
         cache.set(dedupe_key, True, self.EVENT_DEDUPE_TTL_SECONDS)
         return False
 
@@ -609,32 +610,33 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def unregister_connection(self):
+        if not getattr(self, 'user', None) or not getattr(self.user, 'is_authenticated', False):
+            return
+
         key = f"chat_active_conn:{self.user.id}"
         current_channel = cache.get(key)
-        
+
         if current_channel == self.channel_name:
             cache.delete(key)
-        
-        for conv_id in list(self.conversations):
+
+        for conv_id in list(getattr(self, 'conversations', set())):
             self.mark_user_offline_sync(conv_id)
 
     @database_sync_to_async
     def close_previous_connection(self):
         key = f"chat_active_conn:{self.user.id}"
         previous_channel = cache.get(key)
-        
+
         if previous_channel and previous_channel != self.channel_name:
             try:
                 from asgiref.sync import async_to_sync
                 channel_layer = self.channel_layer
-                
+
                 async_to_sync(channel_layer.send)(
                     previous_channel,
-                    {
-                        'type': 'force_disconnect'
-                    }
+                    {'type': 'force_disconnect'}
                 )
-                
+
                 logger.info(
                     f"ws_previous_closed user_id={self.user.id} "
                     f"old_channel={previous_channel} new_channel={self.channel_name}"
@@ -646,7 +648,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
     def verify_connection_valid(self):
         key = f"chat_active_conn:{self.user.id}"
         current_channel = cache.get(key)
-        
         return current_channel == self.channel_name
 
     @database_sync_to_async
@@ -660,6 +661,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
         cache.delete(key)
 
     def mark_user_offline_sync(self, conv_id):
+        if not getattr(self, 'user', None) or not getattr(self.user, 'is_authenticated', False):
+            return
         key = f"chat_online:{conv_id}:{self.user.id}"
         cache.delete(key)
 
@@ -667,19 +670,16 @@ class ChatConsumer(AsyncWebsocketConsumer):
     def validate_conversation_access(self, conv_id):
         try:
             conv = Conversation.objects.select_related('buyer', 'seller', 'product').get(id=conv_id)
-            
+
             if not conv.user_is_participant(self.user):
                 return None
-            
             if not conv.product:
                 return None
-            
             if conv.product.deleted_at is not None:
                 return None
-            
             if conv.product.status != 'active':
                 return None
-            
+
             return {
                 'id': str(conv.id),
                 'buyer_id': str(conv.buyer.id),
@@ -690,7 +690,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return None
         except Exception:
             return None
-
 
     @database_sync_to_async
     def build_presence_snapshot(self, conv_id):
@@ -707,8 +706,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'status': 'online' if cache.get(online_key) else 'offline',
             })
         return snapshot
-
-
 
     @database_sync_to_async
     def build_read_snapshot(self, conv_id):
@@ -749,27 +746,27 @@ class ChatConsumer(AsyncWebsocketConsumer):
     def check_typing_rate_limit(self, user_id, conv_id):
         key = f"chat_typing_rate:{user_id}:{conv_id}"
         count = cache.get(key, 0)
-        
+
         if count >= self.TYPING_RATE_LIMIT:
             return False
-        
+
         cache.set(key, count + 1, self.TYPING_RATE_WINDOW)
         return True
 
     @database_sync_to_async
     def log_event(self, action, conversation_id, error_reason, close_code=None):
-        log_msg = f"{action} user_id={self.user.id if hasattr(self, 'user') else 'unknown'}"
-        
+        user_id = getattr(self.user, 'id', None) if hasattr(self, 'user') else None
+        log_msg = f"{action} user_id={user_id or 'unknown'}"
+
         if conversation_id:
             log_msg += f" conversation_id={conversation_id}"
-        
         if error_reason:
             log_msg += f" reason={error_reason}"
-        
         if close_code:
             log_msg += f" close_code={close_code}"
-        
-        if error_reason or action.endswith('_denied') or 'rate_limited' in action or 'abuse' in action or 'timeout' in action or 'unavailable' in action:
+
+        if (error_reason or action.endswith('_denied') or 'rate_limited' in action
+                or 'abuse' in action or 'timeout' in action or 'unavailable' in action):
             logger.warning(log_msg)
         else:
             logger.info(log_msg)

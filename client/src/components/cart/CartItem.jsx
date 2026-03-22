@@ -40,6 +40,12 @@ export default function CartItem({ item, busy, onUpdateQuantity, onRemove }) {
           {item.product_description || 'No description available.'}
         </p>
 
+        {!item.is_managed_commerce_eligible && (
+          <div className="mb-4 rounded-lg border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+            Zunto checkout is unavailable for this seller. Contact {item.seller_name || 'the seller'} directly in chat.
+          </div>
+        )}
+
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center border border-[#2c77d1]/30 rounded-lg w-max">
             <button

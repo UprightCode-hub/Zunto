@@ -2,7 +2,7 @@
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 
 
@@ -23,6 +23,12 @@ class HealthCheckEndpointTests(TestCase):
         response = self.client.get('/health/')
         self.assertIn(response.status_code, [200, 503])
         self.assertEqual(set(response.data.keys()), {'status'})
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    def test_public_health_response_is_healthy_in_eager_mode_without_workers(self):
+        response = self.client.get('/health/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, {'status': 'healthy'})
 
     @patch('core.views._check_database_health', return_value=('ok', None))
     @patch('core.views._check_cache_health', return_value=('ok', None))

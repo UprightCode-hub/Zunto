@@ -50,6 +50,13 @@ class BaseR2Storage(S3Boto3Storage if USE_R2 else FileSystemStorage):
             base_url = f"{base_url}{location.strip('/')}/"
         super().__init__(location=base_location, base_url=base_url, *args, **kwargs)
 
+    def url(self, name):
+        normalized_name = str(name or '').lstrip('/')
+        location_prefix = str(getattr(self, 'location', '') or '').strip('/')
+        if location_prefix and normalized_name.startswith(f'{location_prefix}/'):
+            normalized_name = normalized_name[len(location_prefix) + 1:]
+        return super().url(normalized_name)
+
 
 @deconstructible
 class PublicMediaStorage(BaseR2Storage):

@@ -1,5 +1,6 @@
 #server/core/authentication.py
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 
 
 class CookieJWTAuthentication(JWTAuthentication):
@@ -22,5 +23,10 @@ class CookieJWTAuthentication(JWTAuthentication):
         if not raw_token:
             return None
 
-        validated_token = self.get_validated_token(raw_token)
+        try:
+            validated_token = self.get_validated_token(raw_token)
+        except (InvalidToken, TokenError):
+            # Ignore stale fallback cookies so public endpoints can still behave anonymously.
+            return None
+
         return self.get_user(validated_token), validated_token

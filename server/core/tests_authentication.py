@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIRequestFactory
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import InvalidToken
 
 from core.authentication import CookieJWTAuthentication
 
@@ -39,3 +40,17 @@ class CookieJWTAuthenticationTests(TestCase):
         result = self.auth.authenticate(request)
 
         self.assertIsNone(result)
+
+    def test_ignores_invalid_cookie_token(self):
+        request = self.factory.get('/health/')
+        request.COOKIES['access_token'] = 'invalid-token'
+
+        result = self.auth.authenticate(request)
+
+        self.assertIsNone(result)
+
+    def test_invalid_authorization_header_still_raises(self):
+        request = self.factory.get('/health/', HTTP_AUTHORIZATION='Bearer invalid-token')
+
+        with self.assertRaises(InvalidToken):
+            self.auth.authenticate(request)

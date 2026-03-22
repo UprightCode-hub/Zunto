@@ -114,13 +114,16 @@ class SellerInfoSerializer(serializers.ModelSerializer):
     isSellerPending = serializers.SerializerMethodField()
     isVerifiedSeller = serializers.SerializerMethodField()
     sellerProfileStatus = serializers.SerializerMethodField()
+    sellerCommerceMode = serializers.SerializerMethodField()
+    isManagedCommerceEligible = serializers.SerializerMethodField()
     
     class Meta:
         model = User
         fields = [
             'id', 'email', 'full_name', 'profile_picture', 
             'is_verified', 'is_verified_seller', 'created_at',
-            'isSellerActive', 'isSellerPending', 'isVerifiedSeller', 'sellerProfileStatus'
+            'isSellerActive', 'isSellerPending', 'isVerifiedSeller', 'sellerProfileStatus',
+            'sellerCommerceMode', 'isManagedCommerceEligible'
         ]
         read_only_fields = fields
 
@@ -137,6 +140,26 @@ class SellerInfoSerializer(serializers.ModelSerializer):
         seller_profile = get_seller_profile(obj)
         return getattr(seller_profile, 'status', None)
 
+    def get_sellerCommerceMode(self, obj):
+        seller_profile = get_seller_profile(obj)
+        if seller_profile is not None:
+            return seller_profile.seller_commerce_mode
+        return getattr(obj, 'seller_commerce_mode', 'direct')
+
+    def get_isManagedCommerceEligible(self, obj):
+        seller_profile = get_seller_profile(obj)
+        if seller_profile is None:
+            return bool(
+                getattr(obj, 'role', None) == 'seller'
+                and getattr(obj, 'seller_commerce_mode', 'direct') == 'managed'
+                and getattr(obj, 'is_verified', False)
+            )
+        return bool(
+            seller_profile.status == 'approved'
+            and seller_profile.is_verified_seller
+            and seller_profile.seller_commerce_mode == 'managed'
+        )
+
 
 class ProductListSerializer(serializers.ModelSerializer):
     """Serializer for product listing (summary view)"""
@@ -148,6 +171,9 @@ class ProductListSerializer(serializers.ModelSerializer):
     is_favorited = serializers.SerializerMethodField()
     average_rating = serializers.SerializerMethodField()
     review_count = serializers.SerializerMethodField()
+    seller_commerce_mode = serializers.SerializerMethodField()
+    seller_profile_status = serializers.SerializerMethodField()
+    is_managed_commerce_eligible = serializers.SerializerMethodField()
     
     class Meta:
         model = Product
@@ -157,6 +183,7 @@ class ProductListSerializer(serializers.ModelSerializer):
             'location_display', 'seller_name', 'primary_image',
             'is_featured', 'is_boosted', 'is_verified', 'is_verified_product', 'is_favorited',
             'views_count', 'favorites_count', 'average_rating', 'review_count',
+            'seller_commerce_mode', 'seller_profile_status', 'is_managed_commerce_eligible',
              'created_at'
         ]
         read_only_fields = fields
@@ -187,6 +214,43 @@ class ProductListSerializer(serializers.ModelSerializer):
 
     def get_is_favorited(self, obj):
         return bool(getattr(obj, 'is_favorited', False))
+
+    def get_seller_commerce_mode(self, obj):
+        seller = getattr(obj, 'seller', None)
+        if not seller:
+            return 'direct'
+        seller_profile = get_seller_profile(seller)
+        if seller_profile is not None:
+            return seller_profile.seller_commerce_mode
+        return getattr(seller, 'seller_commerce_mode', 'direct')
+
+    def get_seller_profile_status(self, obj):
+        seller = getattr(obj, 'seller', None)
+        if not seller:
+            return None
+        seller_profile = get_seller_profile(seller)
+        if seller_profile is not None:
+            return seller_profile.status
+        return 'missing_profile'
+
+    def get_is_managed_commerce_eligible(self, obj):
+        seller = getattr(obj, 'seller', None)
+        if not seller:
+            return False
+
+        seller_profile = get_seller_profile(seller)
+        if seller_profile is None:
+            return bool(
+                getattr(seller, 'role', None) == 'seller'
+                and getattr(seller, 'seller_commerce_mode', 'direct') == 'managed'
+                and getattr(seller, 'is_verified', False)
+            )
+
+        return bool(
+            seller_profile.status == 'approved'
+            and seller_profile.is_verified_seller
+            and seller_profile.seller_commerce_mode == 'managed'
+        )
 
 
 class ProductDetailSerializer(serializers.ModelSerializer):

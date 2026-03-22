@@ -678,7 +678,7 @@ class DisputeMedia(models.Model):
     ]
 
     media_type = models.CharField(max_length=20, choices=MEDIA_TYPE_CHOICES)
-    file = models.FileField(upload_to='private/disputes/%Y/%m/%d', storage=PrivateMediaStorage())
+    file = models.FileField(upload_to='disputes/%Y/%m/%d', storage=PrivateMediaStorage())
     original_filename = models.CharField(max_length=255, blank=True)
     mime_type = models.CharField(max_length=120, blank=True)
     file_size = models.PositiveIntegerField(default=0)

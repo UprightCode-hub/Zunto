@@ -470,6 +470,16 @@ class SellerRegistrationView(APIView):
             )
         user = request.user
 
+        user_updates = []
+        if user.role != 'seller':
+            user.role = 'seller'
+            user_updates.append('role')
+        if not user.is_seller:
+            user.is_seller = True
+            user_updates.append('is_seller')
+        if user_updates:
+            user.save(update_fields=user_updates)
+
         profile, created = SellerProfile.objects.get_or_create(
             user=user,
             defaults={

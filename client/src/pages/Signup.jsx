@@ -1,6 +1,6 @@
 // client/src/pages/Signup.jsx
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Mail, Lock, User, Eye, EyeOff, Phone, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import GoogleAuthButton from '../components/auth/GoogleAuthButton';
@@ -8,7 +8,10 @@ import AuthMarketplaceShowcase from '../components/auth/AuthMarketplaceShowcase'
 
 export default function Signup() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { register, googleAuth } = useAuth();
+  const requestedRole = searchParams.get('role') === 'seller' ? 'seller' : 'buyer';
+  const requestedCommerceMode = searchParams.get('mode') === 'managed' ? 'managed' : 'direct';
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -20,6 +23,8 @@ export default function Signup() {
     lastName: '',
     email: '',
     phone: '',
+    role: requestedRole,
+    sellerCommerceMode: requestedCommerceMode,
     password: '',
     passwordConfirm: '',
   });
@@ -64,6 +69,8 @@ export default function Signup() {
         last_name: formData.lastName,
         email: formData.email,
         phone: formData.phone || '',
+        role: formData.role,
+        seller_commerce_mode: formData.role === 'seller' ? formData.sellerCommerceMode : 'direct',
         password: formData.password,
         password_confirm: formData.passwordConfirm,
       });
@@ -158,6 +165,37 @@ export default function Signup() {
                 </div>
               </div>
             </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300 ml-1">Account Type</label>
+              <select
+                name="role"
+                value={formData.role}
+                onChange={handleChange}
+                className="w-full bg-[#0f172a] border border-gray-800 rounded-xl px-4 py-3.5 text-white focus:outline-none focus:border-[#2c77d1] focus:ring-1 focus:ring-[#2c77d1] transition-all duration-200"
+              >
+                <option value="buyer">Buyer</option>
+                <option value="seller">Seller</option>
+              </select>
+            </div>
+
+            {formData.role === 'seller' && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-300 ml-1">Seller Commerce Mode</label>
+                <select
+                  name="sellerCommerceMode"
+                  value={formData.sellerCommerceMode}
+                  onChange={handleChange}
+                  className="w-full bg-[#0f172a] border border-gray-800 rounded-xl px-4 py-3.5 text-white focus:outline-none focus:border-[#2c77d1] focus:ring-1 focus:ring-[#2c77d1] transition-all duration-200"
+                >
+                  <option value="direct">Direct seller</option>
+                  <option value="managed">Managed by Zunto</option>
+                </select>
+                <p className="text-xs text-gray-500">
+                  Seller accounts require admin approval after email verification.
+                </p>
+              </div>
+            )}
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-300 ml-1">Email Address</label>

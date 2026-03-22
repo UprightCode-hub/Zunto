@@ -35,11 +35,6 @@ export default function ProductDetail() {
   const [reviewRating, setReviewRating] = useState(5);
   const [submittingReview, setSubmittingReview] = useState(false);
 
-  useEffect(() => {
-    fetchProduct();
-    fetchReviews();
-  }, [fetchProduct, fetchReviews]);
-
   const fetchProduct = useCallback(async () => {
     try {
       setLoading(true);
@@ -64,6 +59,11 @@ export default function ProductDetail() {
       setLoadingReviews(false);
     }
   }, [slug]);
+
+  useEffect(() => {
+    fetchProduct();
+    fetchReviews();
+  }, [fetchProduct, fetchReviews]);
 
   const handleAddToCart = async () => {
     try {
@@ -136,6 +136,11 @@ export default function ProductDetail() {
       return;
     }
 
+    if (String(user?.id) === String(product?.seller?.id)) {
+      alert('You cannot start a buyer-seller conversation on your own product.');
+      return;
+    }
+
     try {
       const result = await getOrCreateConversation(product.id);
       const conversationId = result?.conversation?.id;
@@ -180,7 +185,8 @@ export default function ProductDetail() {
   };
 
   const incrementQuantity = () => {
-    if (product.stock > quantity) {
+    const availableStock = Number(product?.quantity ?? 0);
+    if (availableStock > quantity) {
       setQuantity(prev => prev + 1);
     }
   };
@@ -213,6 +219,8 @@ export default function ProductDetail() {
   }
 
   const productTitle = getProductTitle(product);
+  const availableStock = Number(product?.quantity ?? 0);
+  const categoryName = product?.category?.name || product?.category_name || 'Uncategorized';
   const images = Array.isArray(product.images) && product.images.length > 0
     ? product.images.map((image) => (typeof image === 'string' ? image : image.image)).filter(Boolean)
     : [getProductImage(product)];
@@ -222,7 +230,10 @@ export default function ProductDetail() {
       .map((video) => (typeof video === 'string' ? video : video.video))
       .filter(Boolean)
     : [];
-  const sellerIsVerified = Boolean(product?.seller?.isVerifiedSeller ?? product?.seller?.is_verified_seller);
+  const canCheckoutOnZunto = Boolean(
+    product?.seller?.isManagedCommerceEligible
+    ?? product?.seller?.is_managed_commerce_eligible
+  );
 
   return (
     <div className="min-h-screen pb-12">
@@ -337,14 +348,14 @@ export default function ProductDetail() {
 
             {/* Stock Status */}
             <div className="mb-6">
-              {product.stock > 0 ? (
-                <span className="text-green-400">✓ In Stock ({product.stock} available)</span>
+              {availableStock > 0 ? (
+                <span className="text-green-400">In Stock ({availableStock} available)</span>
               ) : (
-                <span className="text-red-400">✗ Out of Stock</span>
+                <span className="text-red-400">Out of Stock</span>
               )}
             </div>
 
-            {sellerIsVerified ? (
+            {canCheckoutOnZunto ? (
               <>
                 {/* Quantity Selector */}
                 <div className="mb-8">
@@ -361,7 +372,7 @@ export default function ProductDetail() {
                       <span className="px-6 font-semibold">{quantity}</span>
                       <button
                         onClick={incrementQuantity}
-                        disabled={quantity >= product.stock}
+                        disabled={quantity >= availableStock}
                         className="p-3 hover:bg-[#2c77d1]/10 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Plus className="w-5 h-5" />
@@ -375,7 +386,7 @@ export default function ProductDetail() {
                   <div className="flex gap-4">
                     <button
                       onClick={handleBuyNow}
-                      disabled={product.stock === 0 || addingToCart}
+                      disabled={availableStock === 0 || addingToCart}
                       className="btn-primary btn-primary-lg flex-1"
                     >
                       <ShoppingCart className="w-5 h-5" />
@@ -383,7 +394,7 @@ export default function ProductDetail() {
                     </button>
                     <button
                       onClick={handleAddToCart}
-                      disabled={product.stock === 0 || addingToCart}
+                      disabled={availableStock === 0 || addingToCart}
                       className="btn-secondary flex-1"
                     >
                       <ShoppingCart className="w-5 h-5" />
@@ -418,7 +429,7 @@ export default function ProductDetail() {
             ) : (
               <div className="space-y-3 mb-8">
                 <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
-                  This seller uses direct commerce mode. Contact seller to complete purchase.
+                  This seller uses direct commerce mode. Contact the seller directly to complete purchase.
                 </div>
                 <div className="flex gap-4">
                   <button
@@ -482,7 +493,7 @@ export default function ProductDetail() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Category:</span>
-                  <span>{product.category_name || 'Uncategorized'}</span>
+                  <span>{categoryName}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Brand:</span>

@@ -1,5 +1,6 @@
 #server/core/health_monitor.py
 from core.views import (
+    _async_health_checks_required,
     _check_cache_health,
     _check_celery_health,
     _check_database_health,
@@ -18,7 +19,7 @@ def evaluate_health_snapshot():
     if celery_details:
         alerts.extend(_celery_alerts_from_details(celery_details))
 
-    if queue_details and isinstance(queue_details, dict):
+    if _async_health_checks_required() and queue_details and isinstance(queue_details, dict):
         threshold = int(queue_details.get('threshold') or 0)
         for queue_name, depth in (queue_details.get('queues') or {}).items():
             if int(depth) >= threshold:

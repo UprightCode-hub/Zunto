@@ -256,7 +256,7 @@ class ProductImage(models.Model):
         on_delete=models.CASCADE, 
         related_name='images'
     )
-    image = models.ImageField(upload_to='public/products/%Y/%m/', storage=PublicMediaStorage())
+    image = models.ImageField(upload_to='products/%Y/%m/', storage=PublicMediaStorage())
     caption = models.CharField(max_length=255, blank=True)
     order = models.PositiveIntegerField(default=0)
     is_primary = models.BooleanField(default=False)
@@ -302,9 +302,9 @@ class ProductVideo(models.Model):
         on_delete=models.CASCADE, 
         related_name='videos'
     )
-    video = models.FileField(upload_to='public/products/videos/%Y/%m/', storage=PublicMediaStorage())
+    video = models.FileField(upload_to='products/videos/%Y/%m/', storage=PublicMediaStorage())
     thumbnail = models.ImageField(
-        upload_to='public/thumbnails/products/%Y/%m/',
+        upload_to='thumbnails/products/%Y/%m/',
         storage=PublicMediaStorage(),
         blank=True,
     )

@@ -5,6 +5,7 @@ Assistant App Configuration
 Preloads RAG retriever and rule engine on Django startup for faster response times.
 """
 from django.apps import AppConfig
+import sys
 
 
 class AssistantConfig(AppConfig):
@@ -18,6 +19,18 @@ class AssistantConfig(AppConfig):
         import logging
         
         logger = logging.getLogger(__name__)
+
+        management_command = sys.argv[1] if len(sys.argv) > 1 else ''
+        skip_preload_commands = {
+            'seed_db',
+            'migrate',
+            'makemigrations',
+            'collectstatic',
+            'shell',
+        }
+        if management_command in skip_preload_commands:
+            import assistant.signals  # noqa: F401
+            return
         
                                                        
         if getattr(settings, 'ASSISTANT_PRELOAD_DATA', True):

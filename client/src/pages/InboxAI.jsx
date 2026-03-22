@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Bot, MessageSquare, RotateCcw, Send } from 'lucide-react';
 import { getAssistantSessions, sendAssistantMessage } from '../services/api';
 
@@ -106,7 +106,7 @@ export default function InboxAI() {
     selectedRef.current = updatedSession;
   };
 
-  const abortActiveSend = (markAs = 'aborted') => {
+  const abortActiveSend = useCallback((markAs = 'aborted') => {
     if (sendAbortRef.current) {
       sendAbortRef.current.abort();
       sendAbortRef.current = null;
@@ -123,7 +123,7 @@ export default function InboxAI() {
 
     inFlightRef.current = null;
     setSending(false);
-  };
+  }, []);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -132,7 +132,7 @@ export default function InboxAI() {
       loadAbortRef.current?.abort();
       abortActiveSend('aborted');
     };
-  }, []);
+  }, [abortActiveSend]);
 
   useEffect(() => {
     selectedRef.current = selected;

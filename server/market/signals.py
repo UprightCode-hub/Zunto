@@ -1,3 +1,5 @@
+import sys
+
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 
@@ -6,6 +8,13 @@ from assistant.services.demand_matching_service import match_product_to_demand
 from market.demand_signals import track_demand_event
 from market.models import DemandEvent, Favorite, Product
 from market.tasks import schedule_product_embedding_generation
+
+SKIP_MARKET_BACKGROUND_COMMANDS = {'seed_db'}
+
+
+def _skip_market_background_hooks():
+    command = sys.argv[1] if len(sys.argv) > 1 else ''
+    return command in SKIP_MARKET_BACKGROUND_COMMANDS
 
 
 
@@ -31,6 +40,9 @@ def track_previous_product_embedding_source(sender, instance, **kwargs):
 @receiver(post_save, sender=Product)
 def match_new_product_to_existing_demand(sender, instance, created, **kwargs):
     """Run buyer-demand matching only for newly created products."""
+    if _skip_market_background_hooks():
+        return
+
     if created:
         match_product_to_demand(instance)
 
@@ -62,6 +74,9 @@ def sync_seller_products_location(sender, instance, **kwargs):
 
 @receiver(post_save, sender=Favorite)
 def track_favorite_demand_event(sender, instance, created, **kwargs):
+    if _skip_market_background_hooks():
+        return
+
     if not created:
         return
 

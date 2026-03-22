@@ -69,7 +69,7 @@ class User(AbstractUser):
     first_name = models.CharField(max_length=150)
     last_name = models.CharField(max_length=150)
     profile_picture = models.ImageField(
-        upload_to='public/marketplace/profile_pictures/',
+        upload_to='marketplace/profile_pictures/',
         storage=PublicMediaStorage(),
         null=True,
         blank=True,
