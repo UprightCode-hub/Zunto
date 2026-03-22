@@ -1,4 +1,3 @@
-#server/assistant/flows/faq_flow.py
 """FAQ flow for question handling with retrieval support."""
 import logging
 from typing import Dict, Optional, Tuple, List
@@ -52,6 +51,19 @@ Just type your question or choose an option!"""
         self.query_processor = query_processor
         self.context_manager = context_manager
         self.name = self._resolve_user_name(session)
+
+    def _resolve_user_name(self, session) -> str:
+        """Extract a display name from the session's user or fall back to 'there'."""
+        try:
+            user = getattr(session, 'user', None)
+            if user and not user.is_anonymous:
+                name = user.get_full_name()
+                if name:
+                    return name.split()[0]
+                return user.email.split('@')[0]
+        except Exception:
+            pass
+        return 'there'
 
     def enter_faq_mode(self) -> str:
         """

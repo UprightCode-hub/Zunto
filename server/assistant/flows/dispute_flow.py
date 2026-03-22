@@ -1,4 +1,3 @@
-#server/assistant/flows/dispute_flow.py
 """Dispute flow handling multi-step dispute reporting."""
 import logging
 from typing import Dict, Optional, Tuple
@@ -82,7 +81,7 @@ Type "menu" to see options or ask another question."""
     def __init__(self, session, local_model_adapter=None, context_manager=None):
         """
         Initialize dispute flow.
-        
+
         Args:
             session: ConversationSession instance
             local_model_adapter: LocalModelAdapter (Groq) for draft generation
@@ -93,7 +92,6 @@ Type "menu" to see options or ask another question."""
         self.context_manager = context_manager
         self.name = self._resolve_user_name(session)
 
-                                   
         self.context = session.context or {}
         if 'dispute' not in self.context:
             self.context['dispute'] = {
@@ -105,10 +103,23 @@ Type "menu" to see options or ask another question."""
                 'report_id': None
             }
 
+    def _resolve_user_name(self, session) -> str:
+        """Extract a display name from the session's user or fall back to 'there'."""
+        try:
+            user = getattr(session, 'user', None)
+            if user and not user.is_anonymous:
+                name = user.get_full_name()
+                if name:
+                    return name.split()[0]
+                return user.email.split('@')[0]
+        except Exception:
+            pass
+        return 'there'
+
     def enter_dispute_mode(self) -> str:
         """
         Enter dispute mode and show intro.
-        
+
         Returns:
             Intro message
         """
@@ -127,10 +138,10 @@ Type "menu" to see options or ask another question."""
     def handle_dispute_message(self, message: str) -> Tuple[str, Dict]:
         """
         Handle message in dispute flow based on current step.
-        
+
         Args:
             message: User's input
-        
+
         Returns:
             (reply_text, metadata)
             metadata: {
@@ -142,7 +153,6 @@ Type "menu" to see options or ask another question."""
         current_step = self.context['dispute']['step']
         msg_lower = message.lower().strip()
 
-                                
         if msg_lower in ['menu', 'cancel', 'exit', 'back']:
             return self._exit_dispute_flow(), {'step': 'exit', 'complete': False}
 
@@ -206,7 +216,6 @@ Type "menu" to see options or ask another question."""
             return self._generate_draft(platform)
 
         else:
-                                           
             return (
                 "I didn't catch that. Would you like a draft for:\n"
                 "- **email**\n"
@@ -222,7 +231,6 @@ Type "menu" to see options or ask another question."""
         description = self.context['dispute']['description']
         category = self.context['dispute']['category']
 
-                                   
         if not self.llm or not self.llm.is_available():
             logger.warning("LLM unavailable for draft generation")
             return self._save_dispute_without_draft()
@@ -281,7 +289,7 @@ Write a clear, friendly message (3-4 sentences) that:
 Format:
 [Message]"""
 
-            else:            
+            else:
                 prompt = f"""Write a professional WhatsApp message to Zunto support.
 
 Issue Category: {category}
@@ -359,7 +367,6 @@ Format:
             return self._save_dispute_with_draft()
 
         else:
-                                                    
             return self._regenerate_with_edits(message)
 
     def _regenerate_with_edits(self, edit_instruction: str) -> Tuple[str, Dict]:
@@ -428,7 +435,6 @@ How's this? Type:
             if score > 0:
                 category_scores[category] = score
 
-                                                                
         if category_scores:
             return max(category_scores, key=category_scores.get)
         return 'other'
@@ -454,7 +460,6 @@ How's this? Type:
 
         logger.info(f"Dispute report saved: Report #{report.id} with draft")
 
-                               
         self.context['dispute'] = {'step': self.STEP_COMPLETE}
         self.session.current_state = 'menu'
         self._save_context()
@@ -486,7 +491,6 @@ How's this? Type:
 
         logger.info(f"Dispute report saved: Report #{report.id} (no draft)")
 
-                       
         self.context['dispute'] = {'step': self.STEP_COMPLETE}
         self.session.current_state = 'menu'
         self._save_context()

@@ -1,4 +1,3 @@
-#server/assistant/flows/feedback_flow.py
 """Feedback flow for collecting and categorizing user feedback."""
 import logging
 from typing import Dict, Optional, Tuple
@@ -9,22 +8,19 @@ logger = logging.getLogger(__name__)
 
 class FeedbackFlow:
     """Feedback collection flow with sentiment analysis."""
-    
-                    
+
     TYPE_PRAISE = 'praise'
     TYPE_COMPLAINT = 'complaint'
     TYPE_SUGGESTION = 'suggestion'
     TYPE_BUG_REPORT = 'bug'
     TYPE_GENERAL = 'general'
-    
-                    
+
     STEP_COLLECT_FEEDBACK = 'collecting_feedback'
     STEP_FOLLOW_UP = 'follow_up'
     STEP_COMPLETE = 'complete'
-    
-                       
+
     CATEGORY_KEYWORDS = {
-        TYPE_PRAISE: ['great', 'good', 'excellent', 'love', 'amazing', 'perfect', 
+        TYPE_PRAISE: ['great', 'good', 'excellent', 'love', 'amazing', 'perfect',
                       'wonderful', 'helpful', 'thank', 'appreciate', 'awesome'],
         TYPE_COMPLAINT: ['bad', 'terrible', 'worst', 'awful', 'hate', 'disappointed',
                         'frustrated', 'angry', 'annoying', 'useless', 'poor'],
@@ -33,8 +29,7 @@ class FeedbackFlow:
         TYPE_BUG_REPORT: ['bug', 'error', 'broken', 'crash', 'not working', 'issue',
                          'problem', 'glitch', 'fail', 'doesnt work', "doesn't work"]
     }
-    
-                       
+
     FEEDBACK_INTRO = """Thank you {name}! 💭 Your feedback helps us improve Zunto.
 
 Please share your thoughts:
@@ -44,7 +39,7 @@ Please share your thoughts:
 - Any issues you've encountered?
 
 Tell me anything - I'm here to listen! 😊"""
-    
+
     POSITIVE_RESPONSE = """Thank you so much for the kind words, {name}! 🙏✨
 
 {custom_message}
@@ -52,7 +47,7 @@ Tell me anything - I'm here to listen! 😊"""
 We're thrilled to hear you're enjoying Zunto! Your support motivates our team to keep improving.
 
 Is there anything else you'd like to share or any questions I can help with?"""
-    
+
     NEGATIVE_RESPONSE = """Thank you for sharing this, {name}. I'm sorry to hear about your experience. 😔
 
 {custom_message}
@@ -65,7 +60,7 @@ Would you like to:
 3️⃣ Return to main menu
 
 Type 1, 2, 3, or continue sharing your thoughts."""
-    
+
     SUGGESTION_RESPONSE = """Great suggestion, {name}! 💡
 
 {custom_message}
@@ -73,7 +68,7 @@ Type 1, 2, 3, or continue sharing your thoughts."""
 We love hearing ideas from our users. Your suggestion will be reviewed by our product team.
 
 Do you have any other suggestions or feedback to share?"""
-    
+
     BUG_RESPONSE = """Thank you for reporting this, {name}! 🐛
 
 {custom_message}
@@ -86,7 +81,7 @@ Can you provide any additional details?
 - Does it happen every time?
 
 Or type "done" if you've shared everything."""
-    
+
     COMPLETION_MESSAGE = """Your feedback has been recorded! ✅
 
 **Feedback ID:** #{feedback_id}
@@ -100,11 +95,11 @@ What would you like to do next?
 3️⃣ **Share More Feedback** - Have more to say?
 
 Type 1, 2, 3, or describe what you need!"""
-    
+
     def __init__(self, session, context_manager=None, intent_classifier=None):
         """
         Initialize feedback flow.
-        
+
         Args:
             session: ConversationSession instance
             context_manager: Optional ContextManager for sentiment tracking
@@ -114,8 +109,7 @@ Type 1, 2, 3, or describe what you need!"""
         self.context_manager = context_manager
         self.intent_classifier = intent_classifier
         self.name = self._resolve_user_name(session)
-        
-                                   
+
         self.context = session.context or {}
         if 'feedback' not in self.context:
             self.context['feedback'] = {
@@ -125,35 +119,47 @@ Type 1, 2, 3, or describe what you need!"""
                 'sentiment': 'neutral',
                 'follow_up_count': 0
             }
-    
+
+    def _resolve_user_name(self, session) -> str:
+        """Extract a display name from the session's user or fall back to 'there'."""
+        try:
+            user = getattr(session, 'user', None)
+            if user and not user.is_anonymous:
+                name = user.get_full_name()
+                if name:
+                    return name.split()[0]
+                return user.email.split('@')[0]
+        except Exception:
+            pass
+        return 'there'
+
     def enter_feedback_mode(self) -> str:
         """
         Enter feedback mode and show intro.
-        
+
         Returns:
             Intro message
         """
-                              
         self.session.current_state = 'feedback_mode'
         self.context['feedback']['step'] = self.STEP_COLLECT_FEEDBACK
         self._save_context()
-        
-                          
+
         if self.context_manager:
             self.context_manager.mark_mode_used('feedback_mode')
             self.context_manager.mark_topic_discussed('feedback')
-        
+
         logger.info(f"User {self.name} entered feedback mode")
-        
+
         return self.FEEDBACK_INTRO.format(name=self.name)
-    
+
     def handle_feedback_message(self, message: str, emotion: Optional[str] = None) -> Tuple[str, Dict]:
         """
         Handle feedback message with sentiment analysis.
-        
+
         Args:
             message: User's feedback
-        
+            emotion: Optional detected emotion string
+
         Returns:
             (reply_text, metadata)
             metadata: {
@@ -161,70 +167,58 @@ Type 1, 2, 3, or describe what you need!"""
                 'complete': bool,
                 'feedback_type': str,
                 'sentiment': str,
-                'feedback_id': int (if complete)
+                'feedback_id': int (if complete),
+                'action': str (if escalating)
             }
         """
         current_step = self.context['feedback']['step']
         msg_lower = message.lower().strip()
-        
-                                            
+
         if msg_lower in ['menu', 'exit', 'back', 'done', 'finish']:
             return self._save_and_complete()
-        
-                             
+
         if current_step == self.STEP_COLLECT_FEEDBACK:
             return self._handle_initial_feedback(message, emotion)
-        
+
         elif current_step == self.STEP_FOLLOW_UP:
             return self._handle_follow_up(message)
-        
+
         else:
-                      
             return self._save_and_complete()
-    
+
     def _handle_initial_feedback(self, message: str, emotion: Optional[str] = None) -> Tuple[str, Dict]:
-        """
-        Handle initial feedback collection with sentiment analysis.
-        """
-                                
+        """Handle initial feedback collection with sentiment analysis."""
         self.context['feedback']['messages'].append(message)
-        
-                                            
+
         feedback_type = self._detect_feedback_type(message)
         sentiment = self._detect_sentiment(message, emotion=emotion)
-        
+
         self.context['feedback']['type'] = feedback_type
         self.context['feedback']['sentiment'] = sentiment
         self.context['feedback']['step'] = self.STEP_FOLLOW_UP
         self._save_context()
-        
+
         logger.info(
             f"Feedback collected: type={feedback_type}, sentiment={sentiment}, "
             f"length={len(message)} chars"
         )
-        
-                                                                   
+
         reply, metadata = self._generate_typed_response(message, feedback_type, sentiment)
-        
+
         return reply, metadata
-    
+
     def _handle_follow_up(self, message: str) -> Tuple[str, Dict]:
-        """
-        Handle follow-up feedback or additional details.
-        """
+        """Handle follow-up feedback or additional details."""
         msg_lower = message.lower().strip()
-        
-                                                                  
+
         if msg_lower in ['1', 'report', 'formal', 'issue']:
-                                     
             return self._escalate_to_dispute()
-        
+
         elif msg_lower in ['2', 'more', 'details', 'share more']:
-                                   
             self.context['feedback']['messages'].append(message)
             self.context['feedback']['follow_up_count'] += 1
             self._save_context()
-            
+
             return (
                 f"Thank you for the additional details, {self.name}. "
                 "Is there anything else you'd like to add? "
@@ -235,12 +229,10 @@ Type 1, 2, 3, or describe what you need!"""
                     'action': 'collecting_more'
                 }
             )
-        
+
         elif msg_lower in ['3', 'menu', 'done', 'finish', 'no', 'nope', "that's all"]:
-                               
             return self._save_and_complete()
-        
-                                                      
+
         elif any(kw in msg_lower for kw in ['yes', 'yeah', 'yep', 'sure', 'more']):
             return (
                 "Go ahead, I'm listening! What else would you like to share?",
@@ -250,13 +242,12 @@ Type 1, 2, 3, or describe what you need!"""
                     'action': 'prompt_more'
                 }
             )
-        
+
         else:
-                                       
             self.context['feedback']['messages'].append(message)
             self.context['feedback']['follow_up_count'] += 1
             self._save_context()
-            
+
             return (
                 f"Thank you for sharing that, {self.name}! "
                 "Anything else you'd like to add? (Type 'done' when finished)",
@@ -266,30 +257,27 @@ Type 1, 2, 3, or describe what you need!"""
                     'action': 'collected_more'
                 }
             )
-    
+
     def _detect_feedback_type(self, message: str) -> str:
         """Detect feedback type from keywords."""
         msg_lower = message.lower()
-        
-                                     
+
         type_scores = {}
         for fb_type, keywords in self.CATEGORY_KEYWORDS.items():
             score = sum(1 for kw in keywords if kw in msg_lower)
             if score > 0:
                 type_scores[fb_type] = score
-        
-                                        
+
         if type_scores:
             return max(type_scores, key=type_scores.get)
-        
+
         return self.TYPE_GENERAL
-    
+
     def _detect_sentiment(self, message: str, emotion: Optional[str] = None) -> str:
         """
         Detect sentiment using intent_classifier if available,
         otherwise use keyword-based detection.
         """
-                                                                     
         if emotion:
             if emotion in ['happy', 'excited']:
                 return 'positive'
@@ -297,7 +285,6 @@ Type 1, 2, 3, or describe what you need!"""
                 return 'negative'
             return 'neutral'
 
-                                                                                      
         if self.intent_classifier:
             try:
                 from assistant.ai.intent_classifier import classify_intent
@@ -312,71 +299,68 @@ Type 1, 2, 3, or describe what you need!"""
                     return 'neutral'
             except Exception as e:
                 logger.warning(f"Intent classifier failed: {e}")
-        
-                                           
+
         msg_lower = message.lower()
         positive_count = sum(1 for kw in self.CATEGORY_KEYWORDS[self.TYPE_PRAISE] if kw in msg_lower)
         negative_count = sum(1 for kw in self.CATEGORY_KEYWORDS[self.TYPE_COMPLAINT] if kw in msg_lower)
-        
+
         if positive_count > negative_count:
             return 'positive'
         elif negative_count > positive_count:
             return 'negative'
         else:
             return 'neutral'
-    
+
     def _generate_typed_response(
-        self, 
-        message: str, 
-        feedback_type: str, 
+        self,
+        message: str,
+        feedback_type: str,
         sentiment: str
     ) -> Tuple[str, Dict]:
-        """
-        Generate response based on feedback type and sentiment.
-        """
-                                            
+        """Generate response based on feedback type and sentiment."""
         if feedback_type == self.TYPE_PRAISE:
             custom_msg = "It means a lot to us that you took the time to share positive feedback!"
             template = self.POSITIVE_RESPONSE
-        
+
         elif feedback_type == self.TYPE_COMPLAINT:
             custom_msg = "We appreciate you bringing this to our attention. We're committed to making things right."
             template = self.NEGATIVE_RESPONSE
-        
+
         elif feedback_type == self.TYPE_SUGGESTION:
             custom_msg = "We're always looking for ways to make Zunto better, and user ideas like yours are invaluable!"
             template = self.SUGGESTION_RESPONSE
-        
+
         elif feedback_type == self.TYPE_BUG_REPORT:
             custom_msg = "Bug reports help us maintain a smooth experience for everyone. We'll investigate this promptly."
             template = self.BUG_RESPONSE
-        
-        else:           
+
+        else:
             custom_msg = "We appreciate you taking the time to share your thoughts with us!"
-            template = self.POSITIVE_RESPONSE                                
-        
-                         
+            template = self.POSITIVE_RESPONSE
+
         reply = template.format(
             name=self.name,
             custom_message=custom_msg
         )
-        
+
         metadata = {
             'step': self.STEP_FOLLOW_UP,
             'complete': False,
             'feedback_type': feedback_type,
             'sentiment': sentiment
         }
-        
+
         return reply, metadata
-    
+
     def _escalate_to_dispute(self) -> Tuple[str, Dict]:
         """
-        Escalate negative feedback to dispute flow.
+        Signal that this feedback should be escalated to dispute handling.
+
+        Does NOT write session state directly — returns a metadata signal so
+        ConversationManager can route through the proper dispute flow.
         """
-                                         
         feedback_text = " ".join(self.context['feedback']['messages'])
-        
+
         report = Report.objects.create(
             user=self.session.user,
             message=feedback_text,
@@ -390,64 +374,44 @@ Type 1, 2, 3, or describe what you need!"""
                 'escalated_from': 'feedback_mode'
             }
         )
-        
-        logger.info(f"Feedback escalated to report #{report.id}")
-        
-                                
-        self.session.current_state = 'dispute_mode'
-        self.context['dispute'] = {
-            'step': 'show_contact',
-            'description': feedback_text,
-            'category': 'complaint',
-            'escalated_from_feedback': True,
-            'original_report_id': report.id
-        }
-        self._save_context()
-        
-        reply = f"""I've logged this as a priority issue (Report #{report.id}). 📋
 
-Let me help you contact our support team for faster resolution.
+        logger.info(f"Feedback escalated to report #{report.id} — signalling ConversationManager")
 
-📞 **Our Support Channels:**
+        reply = (
+            f"Got it, {self.name} — this sounds like something that needs proper attention. "
+            f"I've logged it as a priority issue (Report #{report.id}) and I'm switching you to "
+            f"dispute mode so we can handle this properly. 🛡️\n\n"
+            f"Please describe what happened in detail — what went wrong, when it happened, "
+            f"and who was involved."
+        )
 
-🐦 **Twitter/X:** @ZuntoSupport
-📧 **Email:** support@zunto.com
-💬 **WhatsApp:** +234-XXX-XXX-XXXX
-
-Would you like me to help you draft a professional message?
-Type: **email**, **twitter**, **whatsapp**, or **no**"""
-        
         return reply, {
             'step': 'escalated',
             'complete': True,
             'report_id': report.id,
-            'action': 'escalated_to_dispute'
+            'action': 'escalate_to_dispute',
+            'escalation_description': feedback_text,
         }
-    
+
     def _save_and_complete(self) -> Tuple[str, Dict]:
-        """
-        Save feedback to database and complete flow.
-        """
+        """Save feedback to database and complete flow."""
         feedback_data = self.context['feedback']
         feedback_text = " ".join(feedback_data['messages'])
-        
-                                               
+
         severity_map = {
             'positive': 'low',
             'neutral': 'low',
             'negative': 'medium'
         }
         severity = severity_map.get(feedback_data['sentiment'], 'low')
-        
-                               
+
         if feedback_data['type'] == self.TYPE_COMPLAINT:
             report_type = 'complaint'
         elif feedback_data['type'] == self.TYPE_SUGGESTION:
             report_type = 'suggestion'
         else:
             report_type = 'feedback'
-        
-                          
+
         report = Report.objects.create(
             user=self.session.user,
             message=feedback_text,
@@ -461,43 +425,39 @@ Type: **email**, **twitter**, **whatsapp**, or **no**"""
                 'follow_up_count': feedback_data['follow_up_count']
             }
         )
-        
+
         logger.info(
             f"Feedback saved: Report #{report.id} "
             f"(type={report_type}, sentiment={feedback_data['sentiment']})"
         )
-        
-                                            
+
         if self.context_manager:
             self.context_manager.mark_resolution(success=True)
-        
-                                                 
+
         if feedback_data['sentiment'] == 'positive':
             custom_closing = "We're grateful for your support! 🙏"
         elif feedback_data['sentiment'] == 'negative':
             custom_closing = "We're committed to making your experience better. Thank you for your patience."
         else:
             custom_closing = "Your input helps us grow. Thank you!"
-        
-                       
+
         self.session.current_state = 'menu'
         self.context['feedback'] = {'step': self.STEP_COMPLETE}
         self._save_context()
-        
+
         reply = self.COMPLETION_MESSAGE.format(
             feedback_id=report.id,
             custom_closing=custom_closing
         )
-        
+
         return reply, {
             'step': 'complete',
             'complete': True,
             'feedback_id': report.id,
             'sentiment': feedback_data['sentiment']
         }
-    
+
     def _save_context(self):
         """Persist context to session."""
         self.session.context = self.context
         self.session.save(update_fields=['context', 'current_state', 'updated_at'])
-

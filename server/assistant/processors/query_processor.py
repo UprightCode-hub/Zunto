@@ -1,4 +1,3 @@
-#server/assistant/processors/query_processor.py
 import logging
 import time
 from typing import Dict, Tuple, Optional, List, Any
@@ -43,7 +42,7 @@ class QueryProcessor:
             metrics.incr('errors.total')
             processing_time = int((time.time() - start_time) * 1000)
             metrics.observe_ms('request_latency', processing_time)
-            
+
             return {
                 'reply': (
                     "I apologize, but I encountered an error processing your request. "
@@ -115,10 +114,7 @@ class QueryProcessor:
             result['metadata']['processing_time_ms'] = processing_time
             return result
 
-        use_context = getattr(settings, 'PHASE1_CONTEXT_INTEGRATION', True)
-        rag_context = context if use_context else {}
-        
-        rag_results = self._search_faqs_multiple(message, user_name, rag_context)
+        rag_results = self._search_faqs_multiple(message, user_name, context)
         top_result = rag_results[0] if rag_results else {
             'question': '',
             'answer': '',
@@ -126,14 +122,9 @@ class QueryProcessor:
             'method': 'none',
             'context_boost': 0.0
         }
-        
-        use_unified_confidence = getattr(settings, 'PHASE1_UNIFIED_CONFIDENCE', True)
-        
-        if use_unified_confidence:
-            should_use_rag = self._should_use_rag(top_result, rag_results)
-        else:
-            should_use_rag = top_result['confidence'] >= ConfidenceConfig.RAG['high']
-        
+
+        should_use_rag = self._should_use_rag(top_result, rag_results)
+
         if should_use_rag or (rag_results and not self.llm.is_available()):
             result['reply'] = top_result['answer']
             result['confidence'] = top_result['confidence']
@@ -160,16 +151,14 @@ class QueryProcessor:
             result['metadata']['processing_time_ms'] = processing_time
             return result
 
-        use_llm_context = getattr(settings, 'PHASE1_LLM_CONTEXT_ENRICHMENT', True)
-        
         llm_result = self._query_llm(
             message=message,
-            context=context if use_llm_context else {},
+            context=context,
             user_name=user_name,
-            rag_results=rag_results if use_llm_context else None,
-            rule_result=rule_result if use_llm_context else None
+            rag_results=rag_results,
+            rule_result=rule_result
         )
-        
+
         result['reply'] = llm_result['response']
         result['confidence'] = llm_result['confidence']
         result['source'] = 'llm'
@@ -243,8 +232,8 @@ class QueryProcessor:
             return {'matched': False}
 
     def _search_faqs_multiple(
-        self, 
-        query: str, 
+        self,
+        query: str,
         user_name: Optional[str] = None,
         context: Optional[Dict] = None
     ) -> List[Dict]:
@@ -266,7 +255,7 @@ class QueryProcessor:
             processed_results = []
             for match in results:
                 base_score = match['score']
-                
+
                 if context:
                     boosted_score, boost_amount = self._apply_context_boost(base_score, context)
                 else:
@@ -301,31 +290,62 @@ class QueryProcessor:
     def _apply_context_boost(self, base_score: float, context: Dict) -> Tuple[float, float]:
         try:
             boost = 0.0
-            
+
             sentiment_data = context.get('sentiment', {})
             current_sentiment = sentiment_data.get('current', 'neutral')
-            
+
             escalation_data = context.get('escalation', {})
             escalation_level = escalation_data.get('level', 0)
-            
+
             if current_sentiment in ['frustrated', 'angry'] or escalation_level >= 2:
                 boost += 0.10
                 logger.debug(f"Context boost: frustrated/escalated user (+0.10)")
-            
+
             history = context.get('history', [])
             if len(history) > 5:
                 boost += 0.05
                 logger.debug(f"Context boost: long conversation (+0.05)")
-            
+
             boosted_score = min(base_score + boost, 1.0)
-            
+
             if boost > 0:
                 logger.info(f"Context boost applied: {base_score:.3f} -> {boosted_score:.3f} (+{boost:.3f})")
-            
+
             return boosted_score, boost
         except Exception as e:
             logger.warning(f"Context boost calculation failed: {e}")
             return base_score, 0.0
+
+    def _build_llm_error_fallback(self, *, message: str, rag_results: Optional[List[Dict]] = None) -> Dict:
+        """
+        Build a graceful degradation response when the LLM fails.
+
+        If a usable RAG result exists at medium confidence or above, use it.
+        Otherwise return a polite fallback string with zero confidence so the
+        caller can log the error without crashing.
+        """
+        if rag_results:
+            top = rag_results[0]
+            if top.get('confidence', 0.0) >= ConfidenceConfig.RAG['medium']:
+                logger.info(
+                    f"LLM error fallback: serving RAG result at confidence {top['confidence']:.3f}"
+                )
+                return {
+                    'response': top['answer'],
+                    'confidence': top['confidence'],
+                    'rag_references_used': [r.get('id', '') for r in rag_results if r.get('id')]
+                }
+
+        logger.warning("LLM error fallback: no usable RAG result, returning polite degradation message")
+        return {
+            'response': (
+                "I'm having a bit of trouble right now — please try again in a moment. "
+                "If this keeps happening, you can reach our support team directly at "
+                "zuntoproject@gmail.com or WhatsApp +234-708-359-4102."
+            ),
+            'confidence': 0.0,
+            'rag_references_used': []
+        }
 
     def _query_llm(
         self,
@@ -536,7 +556,6 @@ class QueryProcessor:
         return final_prompt, context_info
 
     def _build_product_context_packets(self, context: Dict) -> List[Dict[str, Any]]:
-        # Build deterministic product packets from DB-backed product IDs only.
         candidate_ids: List[Any] = []
         metadata = context.get('metadata', {}) if isinstance(context, dict) else {}
 
@@ -690,8 +709,3 @@ class QueryProcessor:
         except Exception as e:
             logger.error(f"Error getting stats: {e}", exc_info=True)
             return {'error': str(e)}
-
-
-def process_query(message: str, session_id: Optional[str] = None, **kwargs) -> Dict:
-    processor = QueryProcessor()
-    return processor.process(message, session_id=session_id, **kwargs)
