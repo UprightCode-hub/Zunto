@@ -156,9 +156,7 @@ class SlotExtractor:
             if probe in category_map:
                 return category_map[probe]
             for key, value in category_map.items():
-                if key in probe:
-                    return value
-                if len(probe) >= 4 and probe in key:
+                if key in probe or probe in key:
                     return value
         return None
 
@@ -319,13 +317,11 @@ class SlotStateMachine:
 
     @classmethod
     def is_confirmation(cls, message: str) -> bool:
-        normalized = (message or '').lower().strip()
-        return normalized in cls.CONFIRM_TOKENS or normalized.startswith('yes ')
+        return (message or '').lower().strip() in cls.CONFIRM_TOKENS
 
     @classmethod
     def is_decline(cls, message: str) -> bool:
-        normalized = (message or '').lower().strip()
-        return normalized in cls.DECLINE_TOKENS or normalized.startswith('no ')
+        return (message or '').lower().strip() in cls.DECLINE_TOKENS
 
     @classmethod
     def get_next_clarification(cls, slots: Dict, intent_state: Dict) -> Optional[str]:

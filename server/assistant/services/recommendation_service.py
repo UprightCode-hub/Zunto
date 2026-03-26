@@ -1,5 +1,4 @@
 import logging
-import re
 import uuid
 from typing import Dict
 
@@ -195,7 +194,6 @@ class RecommendationService:
         prior_slots = session.constraint_state if isinstance(session.constraint_state, dict) else {}
         intent_state = session.intent_state if isinstance(session.intent_state, dict) else {}
         msg_lower = (message or '').lower().strip()
-        raw_slots = SlotExtractor.extract(message, {})
 
         pending = intent_state.get('pending_category_switch')
         if pending and msg_lower in cls.SWITCH_CONFIRM_TOKENS:
@@ -203,16 +201,7 @@ class RecommendationService:
 
         slots = SlotExtractor.extract(message, prior_slots)
 
-        raw_has_intent = SlotExtractor.has_product_intent(message, raw_slots)
-        prior_has_product_context = bool(prior_slots.get('product_type') or prior_slots.get('category'))
-        is_constraint_follow_up = (
-            SlotStateMachine.is_confirmation(message)
-            or SlotStateMachine.is_decline(message)
-            or bool(re.search(r'\\d', msg_lower))
-            or any(token in msg_lower for token in ['new', 'used', 'tokunbo', 'budget', 'under', 'over', 'below', 'above', 'lagos', 'abuja'])
-        )
-
-        if not raw_has_intent and not (prior_has_product_context and is_constraint_follow_up):
+        if not SlotExtractor.has_product_intent(message, slots):
             return {'reply': cls._stray_reply(message), 'drift_detected': False, 'new_session_id': None}
 
         old_category = (prior_slots.get('category') or '').lower().strip()
@@ -232,25 +221,19 @@ class RecommendationService:
             }
 
         if intent_state.get('confirmation_pending'):
-            has_updated_constraints = any(
-                raw_slots.get(key) is not None
-                for key in ['product_type', 'category', 'price_min', 'price_max', 'location', 'condition', 'brand', 'color', 'use_case']
-            )
             if SlotStateMachine.is_decline(message):
                 intent_state['confirmation_pending'] = False
-                intent_state['confirmed'] = False
                 session.intent_state = intent_state
                 session.save(update_fields=['intent_state', 'updated_at'])
-            elif SlotStateMachine.is_confirmation(message):
+                return {
+                    'reply': "No problem 👍 Tell me what to change (budget, brand, condition, or location).",
+                    'drift_detected': False,
+                    'new_session_id': None,
+                }
+            if SlotStateMachine.is_confirmation(message):
                 intent_state['confirmation_pending'] = False
                 intent_state['confirmed'] = True
-            elif has_updated_constraints:
-                # User updated constraints instead of explicit yes/no.
-                intent_state['confirmation_pending'] = False
-                intent_state['confirmed'] = False
-            if SlotStateMachine.is_confirmation(message):
-                pass
-            elif not SlotStateMachine.is_decline(message) and not has_updated_constraints:
+            else:
                 return {
                     'reply': "Should I proceed and show options now? Reply 'yes' to continue.",
                     'drift_detected': False,
