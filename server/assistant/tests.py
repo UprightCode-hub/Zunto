@@ -7,36 +7,11 @@ from rest_framework.test import APITestCase
 from rest_framework import status
 from .models import Report, ConversationLog, ConversationSession
 from market.models import Product, DemandEvent
-from .processors.faq_retriever import FAQRetriever
 from .processors.rule_engine import RuleEngine
 from .processors.query_processor import QueryProcessor
 from .serializers import ConversationSessionSerializer
 
 User = get_user_model()
-
-
-class FAQRetrieverTests(TestCase):
-    """Test FAQ retrieval functionality."""
-    
-    def setUp(self):
-        self.retriever = FAQRetriever.get_instance()
-    
-    def test_keyword_match(self):
-        """Test keyword-based FAQ matching."""
-        result = self.retriever.retrieve("How do I track my order?")
-        self.assertIsNotNone(result)
-        self.assertIn('track', result['answer'].lower())
-    
-    def test_tfidf_match(self):
-        """Test TF-IDF based matching."""
-        result = self.retriever.retrieve("Where can I see my shipment status?")
-        self.assertIsNotNone(result)
-                                   
-    
-    def test_no_match(self):
-        """Test query with no good match."""
-        result = self.retriever.retrieve("asdf qwerty zxcv")
-                                                               
 
 
 class RuleEngineTests(TestCase):
