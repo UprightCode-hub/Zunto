@@ -3,6 +3,7 @@ from django.test import TestCase
 
 from assistant.models import ConversationSession, RecommendationDemandGap, UserBehaviorProfile
 from assistant.services.recommendation_service import RecommendationService
+from assistant.services.slot_extractor import SlotExtractor
 from assistant.tasks import aggregate_user_behavior_profiles_task
 from cart.models import Cart, CartEvent
 from market.models import Category, Location, Product
@@ -32,12 +33,13 @@ class RecommendationArchitectureTests(TestCase):
         self.location = Location.objects.create(state='Lagos', city='Ikeja')
         self.product = Product.objects.create(
             seller=self.seller,
-            title='iPhone 12',
-            description='Good phone',
+            title='Samsung Galaxy A54',
+            description='Good smartphone in black color',
             category=self.cat_phone,
             location=self.location,
             price=500000,
             quantity=3,
+            condition='good',
             status='active',
         )
 
@@ -51,17 +53,21 @@ class RecommendationArchitectureTests(TestCase):
             context={},
         )
 
-    def test_constraint_extraction_is_structured(self):
-        extracted = RecommendationService.extract_constraints('I need phones under 600000 in lagos size: 6inch color: black')
-        self.assertIn('category', extracted)
-        self.assertIn('budget_range', extracted)
-        self.assertEqual(extracted['category'], 'Phones')
+    def test_slot_extractor_is_structured(self):
+        extracted = SlotExtractor.extract('I need samsung phone under 600k in lagos fairly used black')
         self.assertEqual(extracted['location'], 'Lagos')
-        self.assertEqual(extracted['attributes'].get('color'), 'black')
+        self.assertEqual(extracted['brand'], 'Samsung')
+        self.assertEqual(extracted['price_max'], 600000.0)
+        self.assertIn(extracted['condition'], ['fair', 'used'])
 
     def test_context_drift_requires_confirmation_and_creates_new_session(self):
         session = self._new_session()
-        RecommendationService.evaluate_recommendation_message(session, 'Show me phones under 600000')
+
+        RecommendationService.evaluate_recommendation_message(session, 'Show me phones')
+        RecommendationService.evaluate_recommendation_message(session, 'under 600k')
+        RecommendationService.evaluate_recommendation_message(session, 'used')
+        RecommendationService.evaluate_recommendation_message(session, 'yes')
+
         session.refresh_from_db()
         self.assertEqual(session.constraint_state.get('category'), 'Phones')
 
@@ -76,7 +82,7 @@ class RecommendationArchitectureTests(TestCase):
 
     def test_demand_gap_logging_increments_frequency(self):
         session = self._new_session()
-        constraints = {'category': 'Tractors', 'attributes': {'brand': 'X'}, 'location': 'Abuja'}
+        constraints = {'category': 'Tractors', 'brand': 'X', 'location': 'Abuja'}
         RecommendationService.log_demand_gap(session, constraints)
         RecommendationService.log_demand_gap(session, constraints)
 
@@ -103,3 +109,23 @@ class RecommendationArchitectureTests(TestCase):
         profile = UserBehaviorProfile.objects.get(user=self.user)
         self.assertGreaterEqual(profile.ai_search_count, 1)
         self.assertTrue(profile.ai_high_intent_no_conversion)
+
+    def test_confirmation_then_search_flow(self):
+        session = self._new_session()
+
+        first = RecommendationService.evaluate_recommendation_message(session, 'I need phone in lagos')
+        self.assertIn('budget', first['reply'].lower())
+
+        second = RecommendationService.evaluate_recommendation_message(session, 'under 600k')
+        self.assertIn('new or fairly used', second['reply'].lower())
+
+        third = RecommendationService.evaluate_recommendation_message(session, 'used')
+        self.assertIn('shall i show you', third['reply'].lower())
+
+        fourth = RecommendationService.evaluate_recommendation_message(session, 'yes')
+        self.assertIn('top', fourth['reply'].lower())
+
+    def test_friendly_redirect_for_non_product_message(self):
+        session = self._new_session()
+        result = RecommendationService.evaluate_recommendation_message(session, 'How do I get a refund?')
+        self.assertIn('product recommendations only', result['reply'])

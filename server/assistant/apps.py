@@ -38,6 +38,7 @@ class AssistantConfig(AppConfig):
                 from assistant.processors.rag_retriever import RAGRetriever
                 from assistant.processors.rule_engine import RuleEngine
                 from assistant.processors.local_model import LocalModelAdapter
+                from assistant.ai.intent_classifier import IntentClassifier
                 
                 logger.info("Preloading assistant components...")
                 
@@ -63,6 +64,12 @@ class AssistantConfig(AppConfig):
                         logger.info("○ LocalModelAdapter: No LLM available (FAQ-only mode)")
                 except Exception as e:
                     logger.info(f"○ LocalModelAdapter: {e} (FAQ-only mode)")
+
+                try:
+                    IntentClassifier.warm_up()
+                    logger.info("✓ IntentClassifier warm-up attempted")
+                except Exception as e:
+                    logger.info(f"○ IntentClassifier warm-up skipped: {e}")
                 
                 logger.info("✅ Assistant components preloaded successfully")
                 
