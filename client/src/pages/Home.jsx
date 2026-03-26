@@ -39,6 +39,7 @@ export default function Home() {
 
     if (aiSearchMode === 'products') {
       navigate(`/products?search=${encodeURIComponent(value)}`);
+      setHeroSearchTerm('');
       return;
     }
 
@@ -52,6 +53,7 @@ export default function Home() {
         localStorage.setItem('homepage_assistant_session_id', response.session_id);
       }
       setAssistantReply(response?.reply || 'No recommendation returned.');
+      setHeroSearchTerm('');
     } catch (error) {
       const backendError = error?.data;
       const message = backendError?.error || backendError?.detail || error?.message || 'Unable to fetch AI recommendations right now.';
