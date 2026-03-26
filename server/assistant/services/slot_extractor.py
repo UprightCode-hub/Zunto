@@ -156,7 +156,9 @@ class SlotExtractor:
             if probe in category_map:
                 return category_map[probe]
             for key, value in category_map.items():
-                if key in probe or probe in key:
+                if key in probe:
+                    return value
+                if len(probe) >= 4 and probe in key:
                     return value
         return None
 

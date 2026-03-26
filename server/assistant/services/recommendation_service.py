@@ -1,4 +1,5 @@
 import logging
+import re
 import uuid
 from typing import Dict
 
@@ -19,6 +20,7 @@ class RecommendationService:
     """Conversational FAISS-backed product recommender for homepage_reco."""
 
     SWITCH_CONFIRM_TOKENS = {'yes', 'y', 'confirm', 'switch', 'go ahead', 'sure', 'okay', 'ok'}
+    UPDATE_SLOT_KEYS = ('price_min', 'price_max', 'condition', 'location', 'brand', 'color', 'use_case')
 
     @classmethod
     def initialize_context(cls, session: ConversationSession) -> None:
@@ -51,6 +53,44 @@ class RecommendationService:
             return "😄 Haha! Now let’s find something great for you — what are you shopping for?"
 
         return "🛍️ I can help you find products fast. Tell me what you want, e.g. 'Samsung phone under ₦200k in Lagos'."
+
+    @classmethod
+    def _has_prior_product_context(cls, slots: Dict) -> bool:
+        return bool(slots.get('product_type') or slots.get('category'))
+
+    @classmethod
+    def _has_constraint_updates(cls, raw_slots: Dict, prior_slots: Dict) -> bool:
+        for key in cls.UPDATE_SLOT_KEYS:
+            current = raw_slots.get(key)
+            if current is None:
+                continue
+            if current != prior_slots.get(key):
+                return True
+        return False
+
+    @classmethod
+    def _is_short_follow_up_constraint_turn(cls, message: str, raw_slots: Dict, prior_slots: Dict) -> bool:
+        if not cls._has_prior_product_context(prior_slots):
+            return False
+
+        raw = (message or '').strip().lower()
+        if not raw:
+            return False
+
+        if cls._has_constraint_updates(raw_slots, prior_slots):
+            return True
+
+        if SlotStateMachine.is_confirmation(raw) or SlotStateMachine.is_decline(raw):
+            return True
+
+        return raw in {'yes', 'no', 'y', 'n', 'ok', 'okay', 'wait'}
+
+    @staticmethod
+    def _is_decline_phrase(message: str) -> bool:
+        raw = (message or '').lower().strip()
+        if SlotStateMachine.is_decline(raw):
+            return True
+        return bool(re.match(r'^(no|nope|nah|wait|hold on)\b', raw))
 
     @classmethod
     def _build_semantic_queryset(cls, slots: Dict):
@@ -199,9 +239,42 @@ class RecommendationService:
         if pending and msg_lower in cls.SWITCH_CONFIRM_TOKENS:
             return cls._switch_conversation(session, pending)
 
+        raw_slots = SlotExtractor.extract(message, {})
         slots = SlotExtractor.extract(message, prior_slots)
 
-        if not SlotExtractor.has_product_intent(message, slots):
+        raw_has_product_intent = SlotExtractor.has_product_intent(message, raw_slots)
+        allow_short_follow_up = cls._is_short_follow_up_constraint_turn(message, raw_slots, prior_slots)
+        if not raw_has_product_intent and not allow_short_follow_up:
+            return {'reply': cls._stray_reply(message), 'drift_detected': False, 'new_session_id': None}
+
+        if intent_state.get('confirmation_pending'):
+            has_constraint_updates = cls._has_constraint_updates(raw_slots, prior_slots)
+            if cls._is_decline_phrase(message):
+                intent_state['confirmation_pending'] = False
+                if has_constraint_updates:
+                    intent_state['confirmed'] = False
+                else:
+                    session.intent_state = intent_state
+                    session.save(update_fields=['intent_state', 'updated_at'])
+                    return {
+                        'reply': "No problem 👍 Tell me what to change (budget, brand, condition, or location).",
+                        'drift_detected': False,
+                        'new_session_id': None,
+                    }
+            elif SlotStateMachine.is_confirmation(message):
+                intent_state['confirmation_pending'] = False
+                intent_state['confirmed'] = True
+            elif has_constraint_updates:
+                intent_state['confirmation_pending'] = False
+                intent_state['confirmed'] = False
+            else:
+                return {
+                    'reply': "Should I proceed and show options now? Reply 'yes' to continue.",
+                    'drift_detected': False,
+                    'new_session_id': None,
+                }
+
+        if not raw_has_product_intent and not allow_short_follow_up:
             return {'reply': cls._stray_reply(message), 'drift_detected': False, 'new_session_id': None}
 
         old_category = (prior_slots.get('category') or '').lower().strip()
@@ -219,26 +292,6 @@ class RecommendationService:
                 'drift_detected': True,
                 'new_session_id': None,
             }
-
-        if intent_state.get('confirmation_pending'):
-            if SlotStateMachine.is_decline(message):
-                intent_state['confirmation_pending'] = False
-                session.intent_state = intent_state
-                session.save(update_fields=['intent_state', 'updated_at'])
-                return {
-                    'reply': "No problem 👍 Tell me what to change (budget, brand, condition, or location).",
-                    'drift_detected': False,
-                    'new_session_id': None,
-                }
-            if SlotStateMachine.is_confirmation(message):
-                intent_state['confirmation_pending'] = False
-                intent_state['confirmed'] = True
-            else:
-                return {
-                    'reply': "Should I proceed and show options now? Reply 'yes' to continue.",
-                    'drift_detected': False,
-                    'new_session_id': None,
-                }
 
         clarification = SlotStateMachine.get_next_clarification(slots, intent_state)
         if clarification:
