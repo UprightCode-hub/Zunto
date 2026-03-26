@@ -55,7 +55,18 @@ class BaseR2Storage(S3Boto3Storage if USE_R2 else FileSystemStorage):
         location_prefix = str(getattr(self, 'location', '') or '').strip('/')
         if location_prefix and normalized_name.startswith(f'{location_prefix}/'):
             normalized_name = normalized_name[len(location_prefix) + 1:]
+        if USE_R2 and not getattr(self, 'custom_domain', None):
+            proxy_key = '/'.join(part for part in (location_prefix, normalized_name) if part)
+            media_url = str(getattr(settings, 'MEDIA_URL', '/media/') or '/media/')
+            return f"{media_url.rstrip('/')}/{proxy_key}"
         return super().url(normalized_name)
+
+    def path(self, name):
+        if USE_R2:
+            return super().path(name)
+
+        normalized_name = str(name or '').lstrip('/').replace('/', os.sep)
+        return os.path.join(str(getattr(self, 'base_location', '') or ''), normalized_name)
 
 
 @deconstructible

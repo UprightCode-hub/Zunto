@@ -5,7 +5,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.http import JsonResponse
 from django.views.generic import RedirectView
-from core.views import health_check, marketplace_view
+from core.views import health_check, marketplace_view, public_media_proxy
 from accounts.views import SellerRegistrationView
 from assistant import views as assistant_views
 from market.views_trending import TrendingProductsView
@@ -63,3 +63,7 @@ if settings.DEBUG:
     urlpatterns = urlpatterns + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
     if not getattr(settings, 'USE_OBJECT_STORAGE', False):
         urlpatterns = urlpatterns + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    elif not getattr(settings, 'OBJECT_STORAGE_CUSTOM_DOMAIN', ''):
+        urlpatterns += [
+            path('media/<path:key>', public_media_proxy, name='public_media_proxy'),
+        ]

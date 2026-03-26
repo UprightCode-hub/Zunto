@@ -1,20 +1,22 @@
 #server/core/views.py
+import mimetypes
+import os
+
+from django.conf import settings
+from django.core.cache import cache
+from django.db import connection
+from django.http import FileResponse, HttpResponse, Http404
+from django.template import Template, RequestContext
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
-from django.db import connection
-from django.core.cache import cache
-from django.http import HttpResponse
-from django.conf import settings
-from django.template import Template, RequestContext
+
+from core.storage_backends import PublicMediaStorage, USE_R2
 
 try:
     from django_redis import get_redis_connection
 except Exception:  # pragma: no cover - optional dependency in non-prod envs
     get_redis_connection = None
-
-import os
-
 
 def _is_admin_request(request):
     user = getattr(request, 'user', None)
@@ -265,3 +267,34 @@ class MarketplaceView:
 
 assistant_view = AssistantView()
 marketplace_view = MarketplaceView()
+
+
+def public_media_proxy(request, key):
+    normalized_key = str(key or '').lstrip('/')
+    if not normalized_key.startswith('public/'):
+        raise Http404('Media file not found')
+
+    if not USE_R2 or getattr(settings, 'OBJECT_STORAGE_CUSTOM_DOMAIN', ''):
+        raise Http404('Media proxy not available')
+
+    storage_key = normalized_key[len('public/'):]
+    if not storage_key:
+        raise Http404('Media file not found')
+
+    storage = PublicMediaStorage()
+    media_file = None
+    last_error = None
+    for candidate_key in (storage_key, normalized_key):
+        try:
+            media_file = storage.open(candidate_key, mode='rb')
+            break
+        except Exception as exc:
+            last_error = exc
+
+    if media_file is None:
+        raise Http404('Media file not found') from last_error
+
+    content_type, _ = mimetypes.guess_type(normalized_key)
+    response = FileResponse(media_file, content_type=content_type or 'application/octet-stream')
+    response['Cache-Control'] = 'public, max-age=3600'
+    return response

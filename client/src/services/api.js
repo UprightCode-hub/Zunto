@@ -7,6 +7,48 @@ const rawApiBaseUrl = import.meta.env.VITE_API_BASE
   || '';
 
 const API_BASE_URL = rawApiBaseUrl.replace(/\/+$/, '');
+const BROWSER_ORIGIN = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173';
+const API_ORIGIN = API_BASE_URL ? new URL(API_BASE_URL, BROWSER_ORIGIN).origin : '';
+
+const normalizeMediaUrl = (value) => {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return value;
+  }
+
+  if (/^https?:\/\//i.test(trimmed) || /^data:/i.test(trimmed) || /^blob:/i.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (trimmed.startsWith('/media/') || trimmed.startsWith('media/')) {
+    if (!API_ORIGIN) {
+      return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+    }
+
+    const normalizedPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+    return `${API_ORIGIN}${normalizedPath}`;
+  }
+
+  return value;
+};
+
+const normalizeResponseMediaUrls = (value) => {
+  if (Array.isArray(value)) {
+    return value.map(normalizeResponseMediaUrls);
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entryValue]) => [key, normalizeResponseMediaUrls(entryValue)]),
+    );
+  }
+
+  return normalizeMediaUrl(value);
+};
 
 const clearStoredAuth = () => {
   localStorage.removeItem('access_token');
@@ -137,7 +179,7 @@ const apiCall = async (endpoint, options = {}) => {
       throw error;
     }
 
-    return data;
+    return normalizeResponseMediaUrls(data);
   } catch (error) {
     console.error('API Error:', error);
     throw error;

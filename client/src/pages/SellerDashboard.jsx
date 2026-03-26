@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import {
   Plus,
   Trash2,
+  Pencil,
   TrendingUp,
   Package,
   DollarSign,
@@ -25,6 +26,7 @@ import {
   getSellerStatistics,
   markProductAsSold,
   reactivateProduct,
+  updateProduct,
   updateOrderItemStatus,
   updateUserProfile,
   uploadProductImage,
@@ -52,10 +54,13 @@ const INITIAL_FORM = {
 const MAX_IMAGES = 5;
 const MAX_VIDEOS = 2;
 const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const SellerDashboard = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('products');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [showMediaModal, setShowMediaModal] = useState(false);
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -80,6 +85,8 @@ const SellerDashboard = () => {
   const [formError, setFormError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [formData, setFormData] = useState(INITIAL_FORM);
+  const [pendingImages, setPendingImages] = useState([]);
+  const [editingProduct, setEditingProduct] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [mediaLoading, setMediaLoading] = useState(false);
   const [mediaError, setMediaError] = useState('');
@@ -221,10 +228,114 @@ const SellerDashboard = () => {
     }
   };
 
-  const closeModal = () => {
+  const resetPendingImages = () => {
+    pendingImages.forEach((image) => {
+      if (image.previewUrl) {
+        URL.revokeObjectURL(image.previewUrl);
+      }
+    });
+    setPendingImages([]);
+  };
+
+  const closeCreateModal = () => {
+    resetPendingImages();
     setShowCreateModal(false);
     setFormError('');
     setFormData(INITIAL_FORM);
+  };
+
+  const closeEditModal = () => {
+    resetPendingImages();
+    setShowEditModal(false);
+    setEditingProduct(null);
+    setFormError('');
+    setFormData(INITIAL_FORM);
+  };
+
+  const handlePendingImageSelection = (event) => {
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+    if (!files.length) {
+      return;
+    }
+
+    setFormError('');
+    setPendingImages((current) => {
+      const availableSlots = MAX_IMAGES - current.length;
+      const nextImages = [...current];
+
+      if (availableSlots <= 0) {
+        setFormError(`Maximum ${MAX_IMAGES} images allowed.`);
+        return current;
+      }
+
+      let nextError = '';
+      files.slice(0, availableSlots).forEach((file) => {
+        if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+          nextError = 'Only JPG, PNG, and WebP images are allowed.';
+          return;
+        }
+
+        if (file.size > MAX_IMAGE_BYTES) {
+          nextError = 'Each image must be 5MB or smaller.';
+          return;
+        }
+
+        nextImages.push({
+          id: `${file.name}-${file.size}-${file.lastModified}`,
+          file,
+          previewUrl: URL.createObjectURL(file),
+        });
+      });
+
+      if (!nextError && files.length > availableSlots) {
+        nextError = `Only ${availableSlots} more image${availableSlots === 1 ? '' : 's'} can be added.`;
+      }
+
+      if (nextError) {
+        setFormError(nextError);
+      }
+
+      return nextImages;
+    });
+  };
+
+  const handlePendingImageRemove = (imageId) => {
+    setPendingImages((current) => {
+      const target = current.find((image) => image.id === imageId);
+      if (target?.previewUrl) {
+        URL.revokeObjectURL(target.previewUrl);
+      }
+      return current.filter((image) => image.id !== imageId);
+    });
+  };
+
+  const openEditModal = async (slug) => {
+    try {
+      setSubmitting(true);
+      setFormError('');
+      resetPendingImages();
+      const detail = await getProductDetail(slug);
+      setEditingProduct(detail);
+      setFormData({
+        title: detail.title || '',
+        description: detail.description || '',
+        category: detail.category || '',
+        location: detail.location || '',
+        price: detail.price || '',
+        quantity: detail.quantity || '1',
+        listing_type: detail.listing_type || 'product',
+        condition: detail.condition || 'new',
+        brand: detail.brand || '',
+        negotiable: Boolean(detail.negotiable),
+        status: detail.status || 'active',
+      });
+      setShowEditModal(true);
+    } catch (detailError) {
+      setError(detailError?.message || 'Unable to load product for editing.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleAddProduct = async (event) => {
@@ -234,18 +345,90 @@ const SellerDashboard = () => {
 
     try {
       setSubmitting(true);
-      await createProduct({
+      const createdProduct = await createProduct({
         ...formData,
         category: Number(formData.category),
         location: Number(formData.location),
         price: Number(formData.price),
         quantity: Number(formData.quantity),
       });
-      closeModal();
+
+      if (pendingImages.length && createdProduct?.slug) {
+        try {
+          await Promise.all(
+            pendingImages.map((image) => uploadProductImage(createdProduct.slug, image.file)),
+          );
+        } catch (uploadError) {
+          closeCreateModal();
+          await fetchDashboardData(false);
+          setSuccessMessage('Product created, but one or more images failed to upload. Open Media Manager to retry.');
+          return;
+        }
+      }
+
+      closeCreateModal();
       await fetchDashboardData(false);
-      setSuccessMessage('Product created successfully.');
+      setSuccessMessage(
+        pendingImages.length
+          ? 'Product created and images uploaded successfully.'
+          : 'Product created successfully.',
+      );
     } catch (createError) {
       setFormError(createError?.message || 'Unable to create product.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleEditProduct = async (event) => {
+    event.preventDefault();
+    if (!editingProduct?.slug) {
+      return;
+    }
+
+    setFormError('');
+    setSuccessMessage('');
+
+    try {
+      setSubmitting(true);
+      await updateProduct(editingProduct.slug, {
+        ...formData,
+        category: Number(formData.category),
+        location: Number(formData.location),
+        price: Number(formData.price),
+        quantity: Number(formData.quantity),
+      });
+
+      if (pendingImages.length) {
+        const existingImages = editingProduct.images?.length || 0;
+        if (existingImages + pendingImages.length > MAX_IMAGES) {
+          setFormError(`This product can only have ${MAX_IMAGES} images in total.`);
+          return;
+        }
+
+        try {
+          await Promise.all(
+            pendingImages.map((image) => uploadProductImage(editingProduct.slug, image.file)),
+          );
+        } catch (uploadError) {
+          await fetchDashboardData(false);
+          const refreshedProduct = await getProductDetail(editingProduct.slug);
+          setEditingProduct(refreshedProduct);
+          resetPendingImages();
+          setSuccessMessage('Product updated, but one or more new images failed to upload.');
+          return;
+        }
+      }
+
+      closeEditModal();
+      await fetchDashboardData(false);
+      setSuccessMessage(
+        pendingImages.length
+          ? 'Product and images updated successfully.'
+          : 'Product updated successfully.',
+      );
+    } catch (updateError) {
+      setFormError(updateError?.message || 'Unable to update product.');
     } finally {
       setSubmitting(false);
     }
@@ -365,6 +548,25 @@ const SellerDashboard = () => {
     }
   };
 
+  const handleDeleteEditImage = async (imageId) => {
+    if (!editingProduct?.slug) {
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      setFormError('');
+      await deleteProductImage(editingProduct.slug, imageId);
+      const refreshedProduct = await getProductDetail(editingProduct.slug);
+      setEditingProduct(refreshedProduct);
+      setSuccessMessage('Image removed successfully.');
+    } catch (deleteError) {
+      setFormError(deleteError?.message || 'Unable to remove image.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleStoreSettingsSave = async (event) => {
     event.preventDefault();
 
@@ -468,12 +670,40 @@ const SellerDashboard = () => {
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {products.map((product) => (
                     <tr key={product.slug} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-white font-medium">{product.title || product.name}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="h-14 w-14 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
+                            {product.primary_image ? (
+                              <img
+                                src={product.primary_image}
+                                alt={product.title || product.name}
+                                className="h-full w-full object-cover"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <ImagePlus className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{product.title || product.name}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                              {product.primary_image ? 'Image ready' : 'No image yet'}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
                       <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">{product.category_name || 'N/A'}</td>
                       <td className="px-6 py-4 text-sm font-semibold text-gray-900 dark:text-white">${product.price}</td>
                       <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">{product.views_count || 0}</td>
                       <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">{product.favorites_count || 0}</td>
                       <td className="px-6 py-4 text-sm flex gap-2">
+                        <button
+                          onClick={() => openEditModal(product.slug)}
+                          className="text-emerald-600 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300 p-1"
+                          aria-label={`Edit ${product.title || product.name}`}
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
                         <button
                           onClick={() => openMediaManager(product.slug)}
                           className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 p-1"
@@ -626,11 +856,49 @@ const SellerDashboard = () => {
                     className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   />
                 </div>
+                <div>
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <label className="block text-sm font-semibold text-gray-900 dark:text-white">Product Images</label>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">{pendingImages.length}/{MAX_IMAGES} selected</span>
+                  </div>
+                  <label className="flex items-center justify-center gap-2 w-full px-4 py-3 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-200 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                    <ImagePlus className="w-4 h-4" />
+                    <span>Add up to {MAX_IMAGES} images</span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      multiple
+                      className="hidden"
+                      onChange={handlePendingImageSelection}
+                    />
+                  </label>
+                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Accepted formats: JPG, PNG, WebP. Maximum 5MB each.</p>
+                  {pendingImages.length > 0 && (
+                    <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {pendingImages.map((image) => (
+                        <div key={image.id} className="relative overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                          <img src={image.previewUrl} alt={image.file.name} className="h-24 w-full object-cover" />
+                          <div className="px-2 py-2">
+                            <p className="text-xs text-gray-700 dark:text-gray-200 truncate">{image.file.name}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handlePendingImageRemove(image.id)}
+                            className="absolute top-2 right-2 rounded-full bg-black/70 p-1 text-white hover:bg-black/85"
+                            aria-label={`Remove ${image.file.name}`}
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 {formError && <p className="text-sm text-red-600 dark:text-red-300">{formError}</p>}
                 <div className="flex gap-4 pt-2">
                   <button
                     type="button"
-                    onClick={closeModal}
+                    onClick={closeCreateModal}
                     className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700"
                   >
                     Cancel
@@ -641,6 +909,200 @@ const SellerDashboard = () => {
                     className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-70 text-white rounded-lg font-semibold"
                   >
                     {submitting ? 'Saving...' : 'Create Product'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {showEditModal && editingProduct && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full p-6 max-h-[90vh] overflow-auto">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-5">Edit Product</h2>
+              <form onSubmit={handleEditProduct} className="space-y-5">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">Title</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.title}
+                    onChange={(event) => setFormData((current) => ({ ...current, title: event.target.value }))}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">Description</label>
+                  <textarea
+                    rows="3"
+                    required
+                    value={formData.description}
+                    onChange={(event) => setFormData((current) => ({ ...current, description: event.target.value }))}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">Category</label>
+                    <select
+                      required
+                      value={formData.category}
+                      onChange={(event) => setFormData((current) => ({ ...current, category: event.target.value }))}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                      <option value="">Select Category</option>
+                      {categories.map((category) => (
+                        <option key={category.id} value={category.id}>{category.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">Location</label>
+                    <select
+                      required
+                      value={formData.location}
+                      onChange={(event) => setFormData((current) => ({ ...current, location: event.target.value }))}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                      <option value="">Select Location</option>
+                      {locations.map((location) => (
+                        <option key={location.id} value={location.id}>{location.full_address || `${location.city}, ${location.state}`}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">Price</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      required
+                      value={formData.price}
+                      onChange={(event) => setFormData((current) => ({ ...current, price: event.target.value }))}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">Quantity</label>
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      value={formData.quantity}
+                      onChange={(event) => setFormData((current) => ({ ...current, quantity: event.target.value }))}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">Brand (optional)</label>
+                    <input
+                      type="text"
+                      value={formData.brand}
+                      onChange={(event) => setFormData((current) => ({ ...current, brand: event.target.value }))}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">Status</label>
+                    <select
+                      value={formData.status}
+                      onChange={(event) => setFormData((current) => ({ ...current, status: event.target.value }))}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    >
+                      <option value="draft">Draft</option>
+                      <option value="active">Active</option>
+                      <option value="sold">Sold</option>
+                      <option value="reserved">Reserved</option>
+                      <option value="suspended">Suspended</option>
+                      <option value="expired">Expired</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-4 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Existing Images</h3>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">{editingProduct.images?.length || 0}/{MAX_IMAGES} uploaded</span>
+                  </div>
+                  {editingProduct.images?.length ? (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {editingProduct.images.map((image) => (
+                        <div key={image.id} className="relative overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+                          <img src={image.image} alt={image.caption || 'Product image'} className="h-28 w-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteEditImage(image.id)}
+                            className="absolute top-2 right-2 rounded-full bg-black/70 p-1 text-white hover:bg-black/85"
+                            aria-label="Remove image"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">No images uploaded yet.</p>
+                  )}
+
+                  <div>
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <label className="block text-sm font-semibold text-gray-900 dark:text-white">Add More Images</label>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">{pendingImages.length} queued</span>
+                    </div>
+                    <label className="flex items-center justify-center gap-2 w-full px-4 py-3 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-200 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                      <ImagePlus className="w-4 h-4" />
+                      <span>Queue new images</span>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        multiple
+                        className="hidden"
+                        onChange={handlePendingImageSelection}
+                      />
+                    </label>
+                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Total existing and queued images cannot exceed {MAX_IMAGES}.</p>
+                    {pendingImages.length > 0 && (
+                      <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {pendingImages.map((image) => (
+                          <div key={image.id} className="relative overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                            <img src={image.previewUrl} alt={image.file.name} className="h-24 w-full object-cover" />
+                            <div className="px-2 py-2">
+                              <p className="text-xs text-gray-700 dark:text-gray-200 truncate">{image.file.name}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handlePendingImageRemove(image.id)}
+                              className="absolute top-2 right-2 rounded-full bg-black/70 p-1 text-white hover:bg-black/85"
+                              aria-label={`Remove ${image.file.name}`}
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {formError && <p className="text-sm text-red-600 dark:text-red-300">{formError}</p>}
+                <div className="flex gap-4 pt-2">
+                  <button
+                    type="button"
+                    onClick={closeEditModal}
+                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-70 text-white rounded-lg font-semibold"
+                  >
+                    {submitting ? 'Saving...' : 'Save Changes'}
                   </button>
                 </div>
               </form>

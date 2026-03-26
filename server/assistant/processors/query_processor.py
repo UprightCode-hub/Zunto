@@ -13,6 +13,30 @@ from assistant.utils import metrics
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Mode-aware system role strings
+# Each lane gets a scoped identity so the LLM knows exactly what it is and
+# what it is allowed to talk about.
+# ---------------------------------------------------------------------------
+_MODE_SYSTEM_ROLE: Dict[str, str] = {
+    'homepage_reco': (
+        'assistant=zunto_product_assistant; style=helpful_concise_enthusiastic; '
+        'scope=product_discovery,recommendations,catalog,pricing,availability'
+    ),
+    'inbox_general': (
+        'assistant=zunto_inbox_support; style=clear_friendly_concise; '
+        'scope=orders,payments,shipping,refunds,account,general_marketplace_support'
+    ),
+    'customer_service': (
+        'assistant=zunto_dispute_resolver; style=formal_empathetic_thorough; '
+        'scope=disputes,fraud,refunds,escalation,evidence_review,resolution'
+    ),
+}
+_DEFAULT_SYSTEM_ROLE = (
+    'assistant=zunto_marketplace_support; style=clear_friendly_concise; '
+    'scope=orders,payments,shipping,refunds,disputes'
+)
+
 
 class QueryProcessor:
 
@@ -28,14 +52,17 @@ class QueryProcessor:
         message: str,
         session_id: Optional[str] = None,
         user_name: Optional[str] = None,
-        context: Optional[Dict] = None
+        context: Optional[Dict] = None,
+        assistant_mode: Optional[str] = None,
     ) -> Dict:
         start_time = time.time()
         metrics.incr('requests.total')
 
         try:
             return self._with_legacy_keys(
-                self._process_internal(message, session_id, user_name, context, start_time)
+                self._process_internal(
+                    message, session_id, user_name, context, start_time, assistant_mode
+                )
             )
         except Exception as e:
             logger.error(f"QueryProcessor critical error: {e}", exc_info=True)
@@ -79,11 +106,12 @@ class QueryProcessor:
         session_id: Optional[str],
         user_name: Optional[str],
         context: Optional[Dict],
-        start_time: float
+        start_time: float,
+        assistant_mode: Optional[str] = None,
     ) -> Dict:
         context = context or {}
 
-        logger.info(f"Processing query: {message[:50]}...")
+        logger.info(f"Processing query [{assistant_mode or 'unknown'}]: {message[:50]}...")
 
         result = {
             'reply': '',
@@ -95,6 +123,8 @@ class QueryProcessor:
             'llm_response': None
         }
 
+        # ── Tier 1: Rule engine ────────────────────────────────────────────
+        # Safety and routing only — not an answer source.
         rule_result = self._check_rules(message, context)
         if rule_result['matched']:
             result['reply'] = rule_result['response']
@@ -114,49 +144,51 @@ class QueryProcessor:
             result['metadata']['processing_time_ms'] = processing_time
             return result
 
+        # ── Tier 2: RAG — evidence gathering, never answer source ──────────
+        # Results are always forwarded to the LLM as context.
+        # The LLM generates the response; RAG provides the evidence layer.
         rag_results = self._search_faqs_multiple(message, user_name, context)
-        top_result = rag_results[0] if rag_results else {
-            'question': '',
-            'answer': '',
-            'confidence': 0.0,
-            'method': 'none',
-            'context_boost': 0.0
-        }
 
-        should_use_rag = self._should_use_rag(top_result, rag_results)
+        # ── LLM unavailable guard ──────────────────────────────────────────
+        # If Groq is down or rate-limited, gracefully degrade to best RAG
+        # result via the existing fallback builder rather than returning empty.
+        if not self.llm.is_available():
+            fallback = self._build_llm_error_fallback(message=message, rag_results=rag_results)
+            top = rag_results[0] if rag_results else {}
 
-        if should_use_rag or (rag_results and not self.llm.is_available()):
-            result['reply'] = top_result['answer']
-            result['confidence'] = top_result['confidence']
-            result['source'] = 'rag_retriever'
+            result['reply'] = fallback['response']
+            result['confidence'] = fallback['confidence']
+            result['source'] = 'rag_fallback'
             result['faq_hit'] = {
-                'question': top_result['question'],
-                'answer': top_result['answer'],
-                'score': top_result['confidence'],
-                'method': top_result['method']
-            }
+                'question': top.get('question', ''),
+                'answer': top.get('answer', ''),
+                'score': top.get('confidence', 0.0),
+                'method': top.get('method', '')
+            } if rag_results else None
             result['metadata'] = {
-                'matched_question': top_result['question'],
-                'search_method': top_result['method'],
-                'context_boost': top_result.get('context_boost', 0.0),
-                'routing_decision': 'rag_direct'
+                'routing_decision': 'llm_unavailable_rag_fallback',
+                'rag_results_count': len(rag_results),
             }
 
-            logger.info(f"✅ FAQ matched with {top_result['confidence']:.2f} confidence")
+            logger.warning("LLM unavailable — serving RAG fallback response")
             self._log_conversation(session_id, message, result)
-            metrics.incr('routing.rag_direct')
-            metrics.incr('faq.hit')
+            metrics.incr('routing.llm_unavailable')
             processing_time = int((time.time() - start_time) * 1000)
             metrics.observe_ms('request_latency', processing_time)
             result['metadata']['processing_time_ms'] = processing_time
             return result
 
+        # ── Tier 3: LLM — primary reasoner ────────────────────────────────
+        # LLM always generates the response. RAG results are injected into the
+        # system prompt as RETRIEVAL_EVIDENCE context (see _build_enriched_system_prompt).
+        # The LLM reasons over the evidence rather than the evidence being returned raw.
         llm_result = self._query_llm(
             message=message,
             context=context,
             user_name=user_name,
             rag_results=rag_results,
-            rule_result=rule_result
+            rule_result=rule_result,
+            assistant_mode=assistant_mode,
         )
 
         result['reply'] = llm_result['response']
@@ -169,20 +201,22 @@ class QueryProcessor:
             'model': llm_result.get('model', 'unknown'),
             'context_provided': llm_result.get('context_provided', {}),
             'rag_references_used': llm_result.get('rag_references_used', []),
-            'routing_decision': 'llm_fallback',
+            'rag_results_count': len(rag_results),
+            'routing_decision': 'llm_reasoner',
+            'assistant_mode': assistant_mode,
             'llm_error': llm_result.get('llm_error'),
             'fallback_used': llm_result.get('fallback_used', False),
             'prompt_estimated_tokens': llm_result.get('context_provided', {}).get('prompt_estimated_tokens', 0),
             'dropped_context_sections': llm_result.get('context_provided', {}).get('dropped_sections', []),
         }
 
-        logger.info(f"✅ LLM response with {llm_result['confidence']:.2f} confidence")
+        logger.info(f"✅ LLM reasoner response [{assistant_mode}] confidence={llm_result['confidence']:.2f}")
         self._log_conversation(session_id, message, result)
 
         if llm_result.get('fallback_used'):
             metrics.incr('routing.llm_fallback')
         else:
-            metrics.incr('routing.llm_direct')
+            metrics.incr('routing.llm_reasoner')
         if llm_result.get('llm_error'):
             metrics.incr('llm.errors')
 
@@ -192,7 +226,11 @@ class QueryProcessor:
         return result
 
     def _should_use_rag(self, top_result: Dict, rag_results: List[Dict]) -> bool:
-        """Adaptive routing: direct RAG for high confidence or stable medium-confidence lead."""
+        """
+        Adaptive confidence check — retained for use in LLM-unavailable fallback
+        path and any future hybrid routing logic.
+        No longer used as a primary routing gate.
+        """
         top_conf = top_result.get('confidence', 0.0)
         if top_conf >= ConfidenceConfig.RAG['high']:
             return True
@@ -318,7 +356,7 @@ class QueryProcessor:
 
     def _build_llm_error_fallback(self, *, message: str, rag_results: Optional[List[Dict]] = None) -> Dict:
         """
-        Build a graceful degradation response when the LLM fails.
+        Build a graceful degradation response when the LLM fails or is unavailable.
 
         If a usable RAG result exists at medium confidence or above, use it.
         Otherwise return a polite fallback string with zero confidence so the
@@ -353,7 +391,8 @@ class QueryProcessor:
         context: Dict,
         user_name: Optional[str] = None,
         rag_results: Optional[List[Dict]] = None,
-        rule_result: Optional[Dict] = None
+        rule_result: Optional[Dict] = None,
+        assistant_mode: Optional[str] = None,
     ) -> Dict:
         try:
             system_prompt, context_info = self._build_enriched_system_prompt(
@@ -361,7 +400,8 @@ class QueryProcessor:
                 context=context,
                 user_name=user_name,
                 rag_results=rag_results,
-                rule_result=rule_result
+                rule_result=rule_result,
+                assistant_mode=assistant_mode,
             )
 
             start_time = time.time()
@@ -431,7 +471,8 @@ class QueryProcessor:
         context: Dict,
         user_name: Optional[str] = None,
         rag_results: Optional[List[Dict]] = None,
-        rule_result: Optional[Dict] = None
+        rule_result: Optional[Dict] = None,
+        assistant_mode: Optional[str] = None,
     ) -> Tuple[str, Dict]:
         context_info = {
             'conversation_history': False,
@@ -452,10 +493,26 @@ class QueryProcessor:
         context_info['escalation_level'] = escalation_level
 
         sections: Dict[str, List[str]] = {}
+
+        # ── Mode-aware system role ─────────────────────────────────────────
+        # Each lane gets a scoped identity. Falls back to default if mode is
+        # unknown or not passed (e.g. ephemeral/unauthenticated chat).
+        system_role_str = _MODE_SYSTEM_ROLE.get(assistant_mode, _DEFAULT_SYSTEM_ROLE)
         sections['system_role'] = [
             'SYSTEM_ROLE:',
-            'assistant=zunto_marketplace_support; style=clear_friendly_concise; '
-            'scope=orders,payments,shipping,refunds,disputes',
+            system_role_str,
+        ]
+
+        # ── Reasoning directive ────────────────────────────────────────────
+        # Explicitly instruct the LLM that it is the primary reasoner and that
+        # RETRIEVAL_EVIDENCE below is evidence to reason over, not text to copy.
+        sections['reasoning_directive'] = [
+            'REASONING_DIRECTIVE:',
+            (
+                'You are the primary responder. Use RETRIEVAL_EVIDENCE as supporting context '
+                'to inform your answer — do not copy it verbatim. Reason over the evidence, '
+                'synthesise a clear helpful response, and stay within your defined scope.'
+            ),
         ]
 
         if user_name:
@@ -491,6 +548,9 @@ class QueryProcessor:
                 recent_lines.append(f'{role}={content}')
             sections['recent_turns'] = recent_lines
 
+        # ── RAG evidence — always included when results exist ──────────────
+        # Results are now always passed here because the LLM always fires.
+        # The LLM reasons over this evidence rather than it being returned raw.
         if rag_results and len(rag_results) > 0:
             context_info['rag_attempts'] = True
             rag_lines = ['RETRIEVAL_EVIDENCE:']
@@ -519,6 +579,7 @@ class QueryProcessor:
 
         section_priority = [
             'system_role',
+            'reasoning_directive',
             'product_context',
             'retrieval_evidence',
             'conversation_state',
@@ -534,13 +595,16 @@ class QueryProcessor:
         prompt_parts: List[str] = []
         dropped_sections: List[str] = []
 
+        # system_role and reasoning_directive are never dropped
+        PROTECTED_SECTIONS = {'system_role', 'reasoning_directive', 'product_context'}
+
         for section_name in section_priority:
             lines = sections.get(section_name)
             if not lines:
                 continue
             section_text = '\n'.join(lines)
             projected_tokens = (used_chars + len(section_text)) // 4
-            if projected_tokens > max_prompt_tokens and section_name not in {'system_role', 'product_context'}:
+            if projected_tokens > max_prompt_tokens and section_name not in PROTECTED_SECTIONS:
                 dropped_sections.append(section_name)
                 continue
 
@@ -551,6 +615,7 @@ class QueryProcessor:
         context_info['prompt_estimated_tokens'] = max(1, used_chars // 4)
         context_info['prompt_max_tokens'] = max_prompt_tokens
         context_info['dropped_sections'] = dropped_sections
+        context_info['assistant_mode'] = assistant_mode
 
         final_prompt = '\n'.join(prompt_parts)
         return final_prompt, context_info

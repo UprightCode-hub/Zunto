@@ -11,6 +11,15 @@ from accounts.seller_utils import get_seller_profile, is_active_seller, is_pendi
 User = get_user_model()
 
 def _build_media_url(request, image_field):
+    if not image_field:
+        return None
+
+    try:
+        if not image_field.storage.exists(image_field.name):
+            return None
+    except Exception:
+        return None
+
     image_url = image_field.url
     if request:
         return request.build_absolute_uri(image_url)
@@ -69,6 +78,12 @@ class ProductImageSerializer(serializers.ModelSerializer):
             max_bytes=5 * 1024 * 1024,
             field_name='image',
         )
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        data['image'] = _build_media_url(request, instance.image)
+        return data
 
     class Meta:
         model = ProductImage

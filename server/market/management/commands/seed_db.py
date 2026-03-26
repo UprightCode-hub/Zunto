@@ -169,9 +169,9 @@ def make_phone(prefix='080'):
     return f'{prefix}{random.randint(10000000, 99999999)}'
 
 
-def generate_image_bytes(seed):
+def generate_image_bytes(seed, label='Demo Product', variant=1):
     try:
-        from PIL import Image, ImageDraw
+        from PIL import Image, ImageDraw, ImageFont
 
         width, height = 1280, 960
         palette = [
@@ -185,8 +185,29 @@ def generate_image_bytes(seed):
         background = palette[seed % len(palette)]
         image = Image.new('RGB', (width, height), background)
         draw = ImageDraw.Draw(image)
-        draw.rectangle((60, 60, width - 60, height - 60), outline=(255, 255, 255), width=8)
-        draw.rectangle((120, 180, width - 120, height - 180), outline=(255, 255, 255), width=4)
+        font_title = ImageFont.load_default()
+        font_meta = ImageFont.load_default()
+
+        # Framed hero card.
+        draw.rounded_rectangle((60, 60, width - 60, height - 60), radius=36, outline=(255, 255, 255), width=8)
+        draw.rounded_rectangle((120, 120, width - 120, height - 120), radius=30, fill=(255, 255, 255, 32), outline=(255, 255, 255), width=4)
+
+        # Stylized product block so images are visibly different.
+        accent = palette[(seed + 2) % len(palette)]
+        draw.rounded_rectangle((220, 240, width - 220, height - 300), radius=28, fill=accent)
+        draw.ellipse((280, 300, 520, 540), fill=(255, 255, 255))
+        draw.rectangle((560, 320, 980, 400), fill=(255, 255, 255))
+        draw.rectangle((560, 440, 900, 500), fill=(240, 240, 240))
+        draw.rectangle((560, 540, 840, 590), fill=(230, 230, 230))
+
+        # Product title and image variant label.
+        display_label = (label or 'Demo Product')[:48]
+        draw.text((180, 150), display_label, fill=(255, 255, 255), font=font_title)
+        draw.text((180, 190), f'Zunto mock image {variant}', fill=(230, 230, 230), font=font_meta)
+
+        # Bottom information strip.
+        draw.rounded_rectangle((180, height - 240, width - 180, height - 160), radius=18, fill=(18, 18, 18))
+        draw.text((220, height - 215), 'Locally generated media for UI testing', fill=(255, 255, 255), font=font_meta)
         buffer = io.BytesIO()
         image.save(buffer, format='JPEG', quality=82)
         return buffer.getvalue()
@@ -383,7 +404,11 @@ class Command(BaseCommand):
                 )
                 if created:
                     for image_order in range(3):
-                        image_bytes = generate_image_bytes(image_seed)
+                        image_bytes = generate_image_bytes(
+                            image_seed,
+                            label=unique_title,
+                            variant=image_order + 1,
+                        )
                         image_seed += 1
                         ProductImage.objects.create(
                             product=product,
