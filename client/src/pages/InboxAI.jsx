@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Bot, MessageSquare, RotateCcw, Send } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { getAssistantSessions, sendAssistantMessage } from '../services/api';
 
 const modeLabel = (mode) => (mode === 'homepage_reco' ? 'Homepage AI' : 'Inbox AI');
@@ -170,11 +171,36 @@ const MessageRow = memo(function MessageRow({ message, onRetry }) {
   );
 });
 
+const LoginGateBubble = memo(function LoginGateBubble({ onGoogleSuccess, onManualSignup }) {
+  return (
+    <div className="mx-4 mb-3 rounded-2xl border border-blue-100 bg-white p-4 shadow-md">
+      <p className="text-sm font-semibold text-gray-900">
+        Create your free account to unlock personalized product results.
+      </p>
+      <button
+        type="button"
+        onClick={onGoogleSuccess}
+        className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50"
+      >
+        Continue with Google
+      </button>
+      <button
+        type="button"
+        onClick={onManualSignup}
+        className="mt-2 inline-flex w-full items-center justify-center rounded-xl bg-[#2c77d1] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2566b4]"
+      >
+        Sign up manually
+      </button>
+    </div>
+  );
+});
+
 // ---------------------------------------------------------------------------
 // InboxAI
 // ---------------------------------------------------------------------------
 
 export default function InboxAI() {
+  const navigate = useNavigate();
   const [sessions, setSessions] = useState([]);
   const [selected, setSelected] = useState(null);
   const [input, setInput] = useState('');
@@ -182,6 +208,7 @@ export default function InboxAI() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const [loginGate, setLoginGate] = useState(null);
 
   const loadAbortRef = useRef(null);
   const sendAbortRef = useRef(null);
@@ -289,6 +316,39 @@ export default function InboxAI() {
 
   const orderedMessages = useMemo(() => messages.slice(-MESSAGE_WINDOW_SIZE), [messages]);
 
+  const handlePostLoginSearch = useCallback(async () => {
+    if (!loginGate?.collected_slots || !loginGate?.message) return;
+    const targetSession = selectedRef.current;
+    if (!targetSession) return;
+
+    try {
+      setSending(true);
+      const response = await sendAssistantMessage(
+        loginGate.message,
+        loginGate.session_id || targetSession.session_id,
+        null,
+        'homepage_reco',
+        undefined,
+        { pre_collected_slots: loginGate.collected_slots },
+      );
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: createMessageId(),
+          sender: 'assistant',
+          text: response?.reply || 'No response.',
+          status: 'completed',
+        },
+      ]);
+    } catch (err) {
+      setError(err?.message || 'Unable to continue recommendation search after login.');
+    } finally {
+      setLoginGate(null);
+      setSending(false);
+    }
+  }, [loginGate]);
+
   const dispatchSend = async ({ text, targetSession }) => {
     const seq = ++requestSeqRef.current;
     const userMsgId = createMessageId();
@@ -333,6 +393,16 @@ export default function InboxAI() {
             : item
         )
       );
+
+      if (response?.login_required === true) {
+        setLoginGate({
+          collected_slots: response.collected_slots,
+          session_id: response.session_id || targetSession.session_id,
+          message: text,
+        });
+      } else {
+        setLoginGate(null);
+      }
     } catch (err) {
       if (!mountedRef.current || seq !== requestSeqRef.current) return;
       if (err?.name === 'AbortError') {
@@ -431,6 +501,12 @@ export default function InboxAI() {
                     <MessageRow key={msg.id} message={msg} onRetry={onRetry} />
                   ))}
                 </div>
+                {loginGate && (
+                  <LoginGateBubble
+                    onGoogleSuccess={handlePostLoginSearch}
+                    onManualSignup={() => navigate('/register')}
+                  />
+                )}
 
                 <form
                   onSubmit={onSend}

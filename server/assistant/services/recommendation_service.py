@@ -24,6 +24,33 @@ class RecommendationService:
     SWITCH_CONFIRM_TOKENS = {'yes', 'y', 'confirm', 'switch', 'go ahead', 'sure', 'okay', 'ok'}
     UPDATE_SLOT_KEYS = ('price_min', 'price_max', 'condition', 'location', 'brand', 'color', 'use_case')
 
+    @staticmethod
+    def _build_response(
+        *,
+        reply: str,
+        source: str,
+        session: ConversationSession,
+        confidence: float = 0.8,
+        drift_detected: bool = False,
+        new_session_id: str = None,
+        metadata: Dict = None,
+    ) -> Dict:
+        base_metadata = {
+            'assistant_mode': session.assistant_mode,
+            'assistant_lane': session.assistant_lane,
+            'intent': 'product_search',
+        }
+        if isinstance(metadata, dict):
+            base_metadata.update(metadata)
+        return {
+            'reply': reply,
+            'confidence': float(confidence),
+            'source': source,
+            'metadata': base_metadata,
+            'drift_detected': drift_detected,
+            'new_session_id': new_session_id,
+        }
+
     @classmethod
     def initialize_context(cls, session: ConversationSession) -> None:
         updates = []
@@ -66,7 +93,7 @@ class RecommendationService:
 
         support_keywords = {'refund', 'dispute', 'complaint', 'return', 'track', 'order', 'delivery', 'payment', 'scam', 'fraud'}
         if any(k in lower for k in support_keywords):
-            return "I can only handle product recommendations here. Please use the AI inbox for support issues."
+            return "I can handle product recommendations only here. Please use the AI inbox for support issues."
 
         nonsense_tokens = {'asdf', 'qwerty', 'zxczxc', '123123', '???'}
         if lower in nonsense_tokens:
@@ -74,6 +101,7 @@ class RecommendationService:
 
         adapter = LocalModelAdapter.get_instance()
         if not adapter.is_available():
+            logger.info("Recommendation stray detector: local adapter unavailable, using keyword fallback")
             return cls._stray_reply_keywords(message)
 
         llm_output = adapter.generate(
@@ -89,6 +117,7 @@ class RecommendationService:
             label = label.strip('`').strip()
 
         if label == 'PRODUCT_SEARCH':
+            logger.debug("Recommendation stray detector allowed product search path")
             return None
         if label == 'SUPPORT_ISSUE':
             return "I can only handle product recommendations here. Please use the AI inbox for support issues."
@@ -266,11 +295,15 @@ class RecommendationService:
                 },
                 conversation_history=[],
             )
-        return {
-            'reply': "Got it — I started a new recommendation thread for this product category.",
-            'drift_detected': False,
-            'new_session_id': new_session.session_id,
-        }
+        return cls._build_response(
+            reply="Got it — I started a new recommendation thread for this product category.",
+            source='recommendation_switch',
+            confidence=0.9,
+            drift_detected=False,
+            new_session_id=new_session.session_id,
+            session=session,
+            metadata={'pending_category_switch': False},
+        )
 
     @classmethod
     def evaluate_recommendation_message(cls, session: ConversationSession, message: str) -> Dict:
@@ -284,7 +317,14 @@ class RecommendationService:
         if pending and msg_lower in cls.SWITCH_CONFIRM_TOKENS:
             return cls._switch_conversation(session, pending)
 
-        llm_enriched = enrich_slots(message, prior_slots)
+        if not isinstance(session.context_data, dict):
+            session.context_data = {}
+        try:
+            llm_enriched = enrich_slots(message, prior_slots)
+            logger.info("LLM slot enrichment completed for recommendation flow")
+        except Exception as exc:
+            logger.warning("LLM slot enrichment failed, using empty enrichment: %s", exc)
+            llm_enriched = {}
 
         hint_parts = []
 
@@ -304,21 +344,65 @@ class RecommendationService:
 
         raw_slots = SlotExtractor.extract(hint_context, {})
         slots = SlotExtractor.extract(hint_context, prior_slots)
+        # ARCHITECTURE GUARD (Phase 9): slot flow depends on dict-shaped slots.
+        if not isinstance(raw_slots, dict):
+            logger.warning("raw_slots was not a dict; coercing to empty dict")
+            raw_slots = {}
+        if not isinstance(slots, dict):
+            logger.warning("slots was not a dict; coercing to empty dict")
+            slots = {}
 
         for key in llm_enriched:
             if key not in slots or slots.get(key) is None:
                 slots[key] = llm_enriched[key]
 
         slots['raw_query'] = message
-        if isinstance(session.context_data, dict):
-            session.context_data['last_llm_enrichment'] = llm_enriched
+        mandatory_missing = [
+            slot_name for slot_name in ('product_type', 'price_max', 'condition')
+            if slots.get(slot_name) is None
+        ]
+        force_signals = [
+            'just show me',
+            'show me anything',
+            'just search',
+            'i dont care',
+            'whatever',
+            'abeg just find',
+            'any one',
+        ]
+        has_force_signal = any(signal in msg_lower for signal in force_signals)
+        forced_search = has_force_signal and bool(mandatory_missing)
+        forced_prefix = (
+            "⚠️ Fair warning — I'm searching without all the details, "
+            "so I'm basically throwing darts in the dark 🎯 "
+            "Results may not be exactly what you need, "
+            "but here goes!\n\n"
+        ) if forced_search else ""
+        location_warning = (
+            "\n\n📍 *Tip: You didn't mention a location — "
+            "some of these might be so far away it'd take a full moon "
+            "spin around the earth to get delivered! 🌍 "
+            "Reply with your city to narrow it down.*"
+        ) if slots.get('location') is None else ""
+        if forced_search:
+            logger.info("Forced search activated with missing slots: %s", mandatory_missing)
+        session.context_data['last_llm_enrichment'] = llm_enriched
+        session.save(update_fields=['context_data', 'updated_at'])
 
         raw_has_product_intent = SlotExtractor.has_product_intent(message, raw_slots)
         allow_short_follow_up = cls._is_short_follow_up_constraint_turn(message, raw_slots, prior_slots)
         if not raw_has_product_intent and not allow_short_follow_up:
             stray_reply = cls._stray_reply(message)
             if stray_reply is not None:
-                return {'reply': stray_reply, 'drift_detected': False, 'new_session_id': None}
+                return cls._build_response(
+                    reply=stray_reply,
+                    source='recommendation_stray',
+                    confidence=0.7,
+                    drift_detected=False,
+                    new_session_id=None,
+                    session=session,
+                    metadata={'intent': 'stray'},
+                )
 
         if intent_state.get('confirmation_pending'):
             has_constraint_updates = cls._has_constraint_updates(raw_slots, prior_slots)
@@ -329,11 +413,14 @@ class RecommendationService:
                 else:
                     session.intent_state = intent_state
                     session.save(update_fields=['intent_state', 'updated_at'])
-                    return {
-                        'reply': "No problem 👍 Tell me what to change (budget, brand, condition, or location).",
-                        'drift_detected': False,
-                        'new_session_id': None,
-                    }
+                    return cls._build_response(
+                        reply="No problem 👍 Tell me what to change (budget, brand, condition, or location).",
+                        source='recommendation_confirmation',
+                        confidence=0.8,
+                        drift_detected=False,
+                        new_session_id=None,
+                        session=session,
+                    )
             elif SlotStateMachine.is_confirmation(message):
                 intent_state['confirmation_pending'] = False
                 intent_state['confirmed'] = True
@@ -341,16 +428,27 @@ class RecommendationService:
                 intent_state['confirmation_pending'] = False
                 intent_state['confirmed'] = False
             else:
-                return {
-                    'reply': "Should I proceed and show options now? Reply 'yes' to continue.",
-                    'drift_detected': False,
-                    'new_session_id': None,
-                }
+                return cls._build_response(
+                    reply="Should I proceed and show options now? Reply 'yes' to continue.",
+                    source='recommendation_confirmation',
+                    confidence=0.8,
+                    drift_detected=False,
+                    new_session_id=None,
+                    session=session,
+                )
 
         if not raw_has_product_intent and not allow_short_follow_up:
             stray_reply = cls._stray_reply(message)
             if stray_reply is not None:
-                return {'reply': stray_reply, 'drift_detected': False, 'new_session_id': None}
+                return cls._build_response(
+                    reply=stray_reply,
+                    source='recommendation_stray',
+                    confidence=0.7,
+                    drift_detected=False,
+                    new_session_id=None,
+                    session=session,
+                    metadata={'intent': 'stray'},
+                )
 
         old_category = (prior_slots.get('category') or '').lower().strip()
         new_category = (slots.get('category') or '').lower().strip()
@@ -359,31 +457,48 @@ class RecommendationService:
             intent_state['pending_category_switch'] = slots
             session.intent_state = intent_state
             session.save(update_fields=['drift_flag', 'intent_state', 'updated_at'])
-            return {
-                'reply': (
+            return cls._build_response(
+                reply=(
                     f"I noticed your request changed from **{old_category}** to **{new_category}**. "
                     "Reply 'yes' to start a new recommendation thread for this product."
                 ),
-                'drift_detected': True,
-                'new_session_id': None,
-            }
+                source='recommendation_drift_detected',
+                confidence=0.9,
+                drift_detected=True,
+                new_session_id=None,
+                session=session,
+            )
 
-        clarification = SlotStateMachine.get_next_clarification(slots, intent_state)
+        clarification = None if forced_search else SlotStateMachine.get_next_clarification(slots, intent_state)
         if clarification:
             intent_state['clarification_count'] = int(intent_state.get('clarification_count', 0) or 0) + 1
             session.constraint_state = slots
             session.intent_state = {**intent_state, 'last_intent': 'product_search', 'pending_category_switch': None}
             session.drift_flag = False
             session.save(update_fields=['constraint_state', 'intent_state', 'drift_flag', 'updated_at'])
-            return {'reply': clarification, 'drift_detected': False, 'new_session_id': None}
+            return cls._build_response(
+                reply=clarification,
+                source='recommendation_clarification',
+                confidence=0.85,
+                drift_detected=False,
+                new_session_id=None,
+                session=session,
+            )
 
-        if not intent_state.get('confirmed'):
+        if not intent_state.get('confirmed') and not forced_search:
             intent_state['confirmation_pending'] = True
             session.constraint_state = slots
             session.intent_state = {**intent_state, 'last_intent': 'product_search', 'pending_category_switch': None}
             session.drift_flag = False
             session.save(update_fields=['constraint_state', 'intent_state', 'drift_flag', 'updated_at'])
-            return {'reply': SlotStateMachine.build_confirmation_prompt(slots), 'drift_detected': False, 'new_session_id': None}
+            return cls._build_response(
+                reply=SlotStateMachine.build_confirmation_prompt(slots),
+                source='recommendation_confirmation',
+                confidence=0.85,
+                drift_detected=False,
+                new_session_id=None,
+                session=session,
+            )
 
         session.constraint_state = slots
         session.intent_state = {**intent_state, 'last_intent': 'product_search', 'pending_category_switch': None}
@@ -396,22 +511,37 @@ class RecommendationService:
             alternatives = cls._find_alternatives(slots)
             if alternatives:
                 alt_lines = [f"- **{item.title}** — ₦{item.price:,.0f}" for item in alternatives]
-                reply = (
+                results_reply = (
                     "We don’t currently have that exact product 😅. Here are similar options:\n"
                     + "\n".join(alt_lines)
                     + "\nI’ve logged your request so sellers can respond, and we’ll notify you when a closer match appears."
                 )
             else:
-                reply = (
+                results_reply = (
                     "I couldn’t find an exact match right now 😅. "
                     "I’ve logged your request so sellers are notified and we can alert you when stock appears."
                 )
-            return {'reply': reply, 'drift_detected': False, 'new_session_id': None}
+            final_reply = forced_prefix + results_reply + location_warning
+            return cls._build_response(
+                reply=final_reply,
+                source='recommendation_results_alternatives',
+                confidence=0.75,
+                drift_detected=False,
+                new_session_id=None,
+                session=session,
+                metadata={'forced_search': forced_search, 'location_missing': slots.get('location') is None},
+            )
 
         session.active_product = products[0]
         session.save(update_fields=['active_product', 'updated_at'])
-        return {
-            'reply': cls._format_results_reply(products, slots),
-            'drift_detected': False,
-            'new_session_id': None,
-        }
+        results_reply = cls._format_results_reply(products, slots)
+        final_reply = forced_prefix + results_reply + location_warning
+        return cls._build_response(
+            reply=final_reply,
+            source='recommendation_results',
+            confidence=0.9,
+            drift_detected=False,
+            new_session_id=None,
+            session=session,
+            metadata={'forced_search': forced_search, 'location_missing': slots.get('location') is None},
+        )

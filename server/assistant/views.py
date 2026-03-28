@@ -409,6 +409,36 @@ def _handle_ephemeral_chat(message: str, assistant_mode: str, lane: str):
             }
         }
 
+    if assistant_mode == 'homepage_reco':
+        from assistant.services.slot_extractor import SlotExtractor
+
+        current_slots = SlotExtractor.extract(message, {})
+        ready_to_search = bool(
+            current_slots.get('product_type') or
+            current_slots.get('category') or
+            current_slots.get('price_max')
+        )
+        if ready_to_search:
+            logger.info("Login gate triggered for homepage_reco ephemeral session")
+            return {
+                'reply': "🔍 I've got what I need to find that for you! Just one thing — create a free Zunto account to see your personalised results. It takes 10 seconds 👇",
+                'state': 'login_required',
+                'source': 'login_gate',
+                'gate_type': 'recommender',
+                'collected_slots': current_slots,
+                'login_required': True,
+                'session_id': None,
+                'confidence': 1.0,
+                'escalated': False,
+                'metadata': {
+                    'assistant_mode': assistant_mode,
+                    'assistant_lane': lane,
+                    'intent': 'product_search',
+                    'persistence': 'temporary',
+                    'gate_reason': 'recommendation_requires_account',
+                }
+            }
+
     from assistant.processors.query_processor import QueryProcessor
 
     processor = QueryProcessor()
@@ -416,20 +446,29 @@ def _handle_ephemeral_chat(message: str, assistant_mode: str, lane: str):
         message=message,
         session_id=None,
         user_name=None,
-        context={}
+        context={},
+        assistant_mode=assistant_mode,
     )
 
+    # ARCHITECTURE GUARD (Phase 9): response contract must always include reply + numeric confidence.
     reply = result.get('reply') or ERROR_MSG_PROCESSING_FAILED
+    try:
+        confidence = float(result.get('confidence', 0.5))
+    except (TypeError, ValueError):
+        logger.warning("Ephemeral QueryProcessor confidence was non-numeric; defaulting to 0.5")
+        confidence = 0.5
 
     return {
         'reply': reply,
         'state': 'chat_mode',
+        'source': result.get('source', 'query_processor'),
         'explanation': result.get('explanation', ''),
-        'confidence': result.get('confidence', 0.5),
+        'confidence': confidence,
         'escalated': False,
         'metadata': {
             'assistant_mode': assistant_mode,
             'assistant_lane': lane,
+            'intent': result.get('metadata', {}).get('intent'),
             'persistence': 'temporary',
             'expires_after_minutes': 15,
             'conversation_title': _build_title_from_first_message(message),
@@ -526,6 +565,16 @@ def chat_endpoint(request):
         user_id = request.user.id
 
         conv_manager = ConversationManager(session_id, user_id, assistant_mode=assistant_mode)
+        pre_collected_slots = request.data.get('pre_collected_slots')
+        if request.user.is_authenticated and isinstance(pre_collected_slots, dict):
+            existing_slots = conv_manager.session.constraint_state if isinstance(conv_manager.session.constraint_state, dict) else {}
+            merged_slots = dict(existing_slots)
+            for key, value in pre_collected_slots.items():
+                if value in (None, '', {}, []):
+                    continue
+                merged_slots[key] = value
+            conv_manager.session.constraint_state = merged_slots
+            conv_manager.session.save(update_fields=['constraint_state', 'updated_at'])
         
         logger.info(
             f"Processing message [session={session_id[:8]}, "
@@ -534,6 +583,15 @@ def chat_endpoint(request):
         
                                                 
         reply = conv_manager.process_message(message)
+        try:
+            from assistant.services.seller_memory_service import SellerMemoryService
+            SellerMemoryService.update_from_conversation_async(
+                user=request.user,
+                user_message=message,
+                assistant_reply=reply,
+            )
+        except Exception:
+            logger.exception('Seller memory update hook failed silently.')
         
                                                
         summary = conv_manager.get_conversation_summary()
@@ -554,6 +612,7 @@ def chat_endpoint(request):
             'reply': reply,
             'session_id': conv_manager.session.session_id,
             'state': conv_manager.get_current_state(),
+            'source': 'conversation_manager',
             'explanation': 'Persistent conversation response.',
             'confidence': summary.get('satisfaction_score', 0.5),
             'escalated': is_escalated,
@@ -566,6 +625,7 @@ def chat_endpoint(request):
                 'escalation_level': summary.get('escalation_level', 0),
                 'assistant_mode': assistant_mode,
                 'assistant_lane': assistant_lane,
+                'intent': (conv_manager.session.intent_state or {}).get('last_intent') if isinstance(conv_manager.session.intent_state, dict) else None,
                 'persistence': 'persistent',
                 'conversation_title': conv_manager.session.conversation_title
             }

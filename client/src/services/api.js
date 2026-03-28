@@ -772,10 +772,18 @@ const normalizeAssistantMode = (modeOrLane = 'inbox_general') => {
   return modeOrLane || 'inbox_general';
 };
 
-export const sendAssistantMessage = (message, sessionId = null, userId = null, assistantMode = 'inbox_general', signal = undefined) => {
+export const sendAssistantMessage = (
+  message,
+  sessionId = null,
+  userId = null,
+  assistantMode = 'inbox_general',
+  signal = undefined,
+  extraPayload = {},
+) => {
   const payload = {
     message,
     assistant_mode: normalizeAssistantMode(assistantMode),
+    ...extraPayload,
   };
   if (sessionId) {
     payload.session_id = sessionId;
