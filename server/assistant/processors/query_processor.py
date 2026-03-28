@@ -10,13 +10,17 @@ from assistant.processors.rag_retriever import RAGRetriever
 from assistant.processors.local_model import LocalModelAdapter
 from assistant.utils.constants import ConfidenceConfig
 from assistant.utils import metrics
+from assistant.utils.response_cache import (
+    get_llm_cache,
+    set_llm_cache,
+    get_rag_cache,
+    set_rag_cache,
+)
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Mode-aware system role strings
-# Each lane gets a scoped identity so the LLM knows exactly what it is and
-# what it is allowed to talk about.
 # ---------------------------------------------------------------------------
 _MODE_SYSTEM_ROLE: Dict[str, str] = {
     'homepage_reco': (
@@ -124,7 +128,6 @@ class QueryProcessor:
         }
 
         # ── Tier 1: Rule engine ────────────────────────────────────────────
-        # Safety and routing only — not an answer source.
         rule_result = self._check_rules(message, context)
         if rule_result['matched']:
             result['reply'] = rule_result['response']
@@ -144,14 +147,27 @@ class QueryProcessor:
             result['metadata']['processing_time_ms'] = processing_time
             return result
 
+        # ── LLM cache check ────────────────────────────────────────────────
+        # Runs after rule engine (always instant), before RAG+LLM (expensive).
+        # Keyed on normalized message + assistant_mode. customer_service and
+        # low-confidence results are never cached — enforced inside
+        # response_cache.py, no guard needed here.
+        cached_result = get_llm_cache(message, assistant_mode)
+        if cached_result is not None:
+            processing_time = int((time.time() - start_time) * 1000)
+            cached_result = dict(cached_result)
+            cached_result.setdefault('metadata', {})
+            cached_result['metadata']['processing_time_ms'] = processing_time
+            cached_result['metadata']['cache_hit'] = True
+            self._log_conversation(session_id, message, cached_result)
+            metrics.incr('routing.cache_hit')
+            metrics.observe_ms('request_latency', processing_time)
+            return cached_result
+
         # ── Tier 2: RAG — evidence gathering, never answer source ──────────
-        # Results are always forwarded to the LLM as context.
-        # The LLM generates the response; RAG provides the evidence layer.
         rag_results = self._search_faqs_multiple(message, user_name, context)
 
         # ── LLM unavailable guard ──────────────────────────────────────────
-        # If Groq is down or rate-limited, gracefully degrade to best RAG
-        # result via the existing fallback builder rather than returning empty.
         if not self.llm.is_available():
             fallback = self._build_llm_error_fallback(message=message, rag_results=rag_results)
             top = rag_results[0] if rag_results else {}
@@ -179,9 +195,6 @@ class QueryProcessor:
             return result
 
         # ── Tier 3: LLM — primary reasoner ────────────────────────────────
-        # LLM always generates the response. RAG results are injected into the
-        # system prompt as RETRIEVAL_EVIDENCE context (see _build_enriched_system_prompt).
-        # The LLM reasons over the evidence rather than the evidence being returned raw.
         llm_result = self._query_llm(
             message=message,
             context=context,
@@ -213,6 +226,11 @@ class QueryProcessor:
         logger.info(f"✅ LLM reasoner response [{assistant_mode}] confidence={llm_result['confidence']:.2f}")
         self._log_conversation(session_id, message, result)
 
+        # ── Cache the LLM result ───────────────────────────────────────────
+        # set_llm_cache skips: customer_service, confidence < 0.50, fallback
+        # responses, error results. Safe to call unconditionally.
+        set_llm_cache(message, result, assistant_mode=assistant_mode)
+
         if llm_result.get('fallback_used'):
             metrics.incr('routing.llm_fallback')
         else:
@@ -226,21 +244,14 @@ class QueryProcessor:
         return result
 
     def _should_use_rag(self, top_result: Dict, rag_results: List[Dict]) -> bool:
-        """
-        Adaptive confidence check — retained for use in LLM-unavailable fallback
-        path and any future hybrid routing logic.
-        No longer used as a primary routing gate.
-        """
+        """Retained for LLM-unavailable fallback path and future hybrid routing."""
         top_conf = top_result.get('confidence', 0.0)
         if top_conf >= ConfidenceConfig.RAG['high']:
             return True
-
         if top_conf < ConfidenceConfig.RAG['medium']:
             return False
-
         second_conf = rag_results[1].get('confidence', 0.0) if len(rag_results) > 1 else 0.0
-        separation = top_conf - second_conf
-        return separation >= 0.08
+        return (top_conf - second_conf) >= 0.08
 
     def _check_rules(self, message: str, context: Dict) -> Dict:
         try:
@@ -276,7 +287,16 @@ class QueryProcessor:
         context: Optional[Dict] = None
     ) -> List[Dict]:
         try:
-            results = self.rag_retriever.search(query, k=3)
+            # ── RAG cache check ────────────────────────────────────────────
+            # Cache raw FAISS results before user_name personalization and
+            # context boosts — those are per-user and applied below, so
+            # raw results are safe to share across users.
+            raw_results = get_rag_cache(query)
+            if raw_results is None:
+                raw_results = self.rag_retriever.search(query, k=3)
+                set_rag_cache(query, raw_results)
+
+            results = list(raw_results)  # copy — ordering may be mutated below
 
             if not results:
                 return []
@@ -355,19 +375,10 @@ class QueryProcessor:
             return base_score, 0.0
 
     def _build_llm_error_fallback(self, *, message: str, rag_results: Optional[List[Dict]] = None) -> Dict:
-        """
-        Build a graceful degradation response when the LLM fails or is unavailable.
-
-        If a usable RAG result exists at medium confidence or above, use it.
-        Otherwise return a polite fallback string with zero confidence so the
-        caller can log the error without crashing.
-        """
         if rag_results:
             top = rag_results[0]
             if top.get('confidence', 0.0) >= ConfidenceConfig.RAG['medium']:
-                logger.info(
-                    f"LLM error fallback: serving RAG result at confidence {top['confidence']:.3f}"
-                )
+                logger.info(f"LLM error fallback: serving RAG result at confidence {top['confidence']:.3f}")
                 return {
                     'response': top['answer'],
                     'confidence': top['confidence'],
@@ -494,18 +505,9 @@ class QueryProcessor:
 
         sections: Dict[str, List[str]] = {}
 
-        # ── Mode-aware system role ─────────────────────────────────────────
-        # Each lane gets a scoped identity. Falls back to default if mode is
-        # unknown or not passed (e.g. ephemeral/unauthenticated chat).
         system_role_str = _MODE_SYSTEM_ROLE.get(assistant_mode, _DEFAULT_SYSTEM_ROLE)
-        sections['system_role'] = [
-            'SYSTEM_ROLE:',
-            system_role_str,
-        ]
+        sections['system_role'] = ['SYSTEM_ROLE:', system_role_str]
 
-        # ── Reasoning directive ────────────────────────────────────────────
-        # Explicitly instruct the LLM that it is the primary reasoner and that
-        # RETRIEVAL_EVIDENCE below is evidence to reason over, not text to copy.
         sections['reasoning_directive'] = [
             'REASONING_DIRECTIVE:',
             (
@@ -548,9 +550,6 @@ class QueryProcessor:
                 recent_lines.append(f'{role}={content}')
             sections['recent_turns'] = recent_lines
 
-        # ── RAG evidence — always included when results exist ──────────────
-        # Results are now always passed here because the LLM always fires.
-        # The LLM reasons over this evidence rather than it being returned raw.
         if rag_results and len(rag_results) > 0:
             context_info['rag_attempts'] = True
             rag_lines = ['RETRIEVAL_EVIDENCE:']
@@ -595,7 +594,6 @@ class QueryProcessor:
         prompt_parts: List[str] = []
         dropped_sections: List[str] = []
 
-        # system_role and reasoning_directive are never dropped
         PROTECTED_SECTIONS = {'system_role', 'reasoning_directive', 'product_context'}
 
         for section_name in section_priority:
