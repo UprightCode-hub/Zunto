@@ -114,6 +114,7 @@ class QueryProcessor:
         assistant_mode: Optional[str] = None,
     ) -> Dict:
         context = context or {}
+        from assistant.ai.intent_classifier import IntentClassifier, Intent
 
         logger.info(f"Processing query [{assistant_mode or 'unknown'}]: {message[:50]}...")
 
@@ -164,8 +165,55 @@ class QueryProcessor:
             metrics.observe_ms('request_latency', processing_time)
             return cached_result
 
+        SMALLTALK_INTENTS = {
+            Intent.GREETING,
+            Intent.FAREWELL,
+            Intent.AFFIRMATION,
+            Intent.NEGATION,
+            Intent.GRATITUDE,
+        }
+        intent, intent_confidence, intent_meta = IntentClassifier.classify(message)
+
+        if intent in SMALLTALK_INTENTS and intent_confidence >= 0.45:
+            llm_output = self.llm.generate(
+                prompt=message,
+                system_prompt=(
+                    "You are Gigi, a warm and slightly humorous shopping assistant "
+                    "for Zunto, a Nigerian marketplace. Respond naturally and briefly "
+                    "to casual conversation. Keep it under 2 sentences. Stay friendly. "
+                    "Do not recommend products unless asked."
+                ),
+                max_tokens=int(getattr(settings, 'LLM_MAX_OUTPUT_TOKENS', 500)),
+                temperature=0.7
+            )
+            response_text = llm_output.get('response', '') if isinstance(llm_output, dict) else str(llm_output)
+
+            result['reply'] = response_text
+            result['source'] = 'intent_smalltalk'
+            result['confidence'] = intent_confidence
+            result['llm_response'] = response_text
+            result['metadata'] = {
+                'intent': intent.value,
+                'intent_confidence': intent_confidence,
+                'intent_meta': intent_meta,
+            }
+
+            self._log_conversation(session_id, message, result)
+            metrics.incr('routing.intent_smalltalk')
+            processing_time = int((time.time() - start_time) * 1000)
+            metrics.observe_ms('request_latency', processing_time)
+            result['metadata']['processing_time_ms'] = processing_time
+            return result
+
         # ── Tier 2: RAG — evidence gathering, never answer source ──────────
         rag_results = self._search_faqs_multiple(message, user_name, context)
+        if rag_results and rag_results[0].get('confidence', 0.0) >= ConfidenceConfig.RAG['medium']:
+            result['faq_hit'] = {
+                'question': rag_results[0].get('question', ''),
+                'answer': rag_results[0].get('answer', ''),
+                'score': rag_results[0].get('confidence', 0.0),
+                'method': rag_results[0].get('method', 'faiss_semantic_search'),
+            }
 
         # ── LLM unavailable guard ──────────────────────────────────────────
         if not self.llm.is_available():
@@ -671,7 +719,7 @@ class QueryProcessor:
 
     def _estimate_llm_confidence(self, response: str, query: str) -> float:
         try:
-            confidence = 0.7
+            confidence = 0.68
 
             word_count = len(response.split())
             if word_count < 10:
