@@ -9,7 +9,9 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from assistant.models import ConversationSession
+from assistant.processors.local_model import LocalModelAdapter
 from assistant.services.demand_gap_service import log_demand_gap
+from assistant.services.llm_slot_enricher import enrich_slots
 from assistant.services.slot_extractor import SlotExtractor, SlotStateMachine
 from market.search.embeddings import search_similar_products
 
@@ -39,7 +41,7 @@ class RecommendationService:
             session.save(update_fields=updates)
 
     @staticmethod
-    def _stray_reply(message: str) -> str:
+    def _stray_reply_keywords(message: str) -> str:
         lower = (message or '').lower()
         support_keywords = {'refund', 'dispute', 'complaint', 'return', 'track', 'order', 'delivery', 'payment', 'scam', 'fraud'}
         if any(k in lower for k in support_keywords):
@@ -53,6 +55,49 @@ class RecommendationService:
             return "😄 Haha! Now let’s find something great for you — what are you shopping for?"
 
         return "🛍️ I can help you find products fast. Tell me what you want, e.g. 'Samsung phone under ₦200k in Lagos'."
+
+    @classmethod
+    def _stray_reply(cls, message: str) -> str:
+        lower = (message or '').lower().strip()
+
+        greetings = {'hi', 'hey', 'hello', 'yo', 'sup', 'howdy', 'hiya', 'hola'}
+        if lower in greetings:
+            return "👋 Hey! I’m Gigi, your shopping assistant. Tell me what product you’re hunting for."
+
+        support_keywords = {'refund', 'dispute', 'complaint', 'return', 'track', 'order', 'delivery', 'payment', 'scam', 'fraud'}
+        if any(k in lower for k in support_keywords):
+            return "I can only handle product recommendations here. Please use the AI inbox for support issues."
+
+        nonsense_tokens = {'asdf', 'qwerty', 'zxczxc', '123123', '???'}
+        if lower in nonsense_tokens:
+            return "😅 I didn’t catch that one. Tell me the product you want and I’ll jump in."
+
+        adapter = LocalModelAdapter.get_instance()
+        if not adapter.is_available():
+            return cls._stray_reply_keywords(message)
+
+        llm_output = adapter.generate(
+            prompt=message,
+            system_prompt=(
+                "You are a drift detector for a product recommendation AI..."
+            ),
+            max_tokens=20,
+            temperature=0.1,
+        )
+        label = (llm_output.get('response', '') if isinstance(llm_output, dict) else str(llm_output)).strip().upper()
+        if label in {'```PRODUCT_SEARCH```', '```SUPPORT_ISSUE```', '```CASUAL_CHAT```', '```NONSENSE```'}:
+            label = label.strip('`').strip()
+
+        if label == 'PRODUCT_SEARCH':
+            return None
+        if label == 'SUPPORT_ISSUE':
+            return "I can only handle product recommendations here. Please use the AI inbox for support issues."
+        if label == 'CASUAL_CHAT':
+            return "😄 I’m in shopping mode — tell me what product you want and I’ll find options."
+        if label == 'NONSENSE':
+            return "🤖 My Naija brain buffer just overflowed 😅 — tell me what item you want to buy."
+
+        return cls._stray_reply_keywords(message)
 
     @classmethod
     def _has_prior_product_context(cls, slots: Dict) -> bool:
@@ -239,13 +284,41 @@ class RecommendationService:
         if pending and msg_lower in cls.SWITCH_CONFIRM_TOKENS:
             return cls._switch_conversation(session, pending)
 
-        raw_slots = SlotExtractor.extract(message, {})
-        slots = SlotExtractor.extract(message, prior_slots)
+        llm_enriched = enrich_slots(message, prior_slots)
+
+        hint_parts = []
+
+        if llm_enriched.get('product_type'):
+            hint_parts.append(llm_enriched['product_type'])
+
+        if llm_enriched.get('occasion'):
+            hint_parts.append(llm_enriched['occasion'])
+
+        if llm_enriched.get('recipient'):
+            hint_parts.append(f"for {llm_enriched['recipient']}")
+
+        if hint_parts:
+            hint_context = message + " " + " ".join(hint_parts)
+        else:
+            hint_context = message
+
+        raw_slots = SlotExtractor.extract(hint_context, {})
+        slots = SlotExtractor.extract(hint_context, prior_slots)
+
+        for key in llm_enriched:
+            if key not in slots or slots.get(key) is None:
+                slots[key] = llm_enriched[key]
+
+        slots['raw_query'] = message
+        if isinstance(session.context_data, dict):
+            session.context_data['last_llm_enrichment'] = llm_enriched
 
         raw_has_product_intent = SlotExtractor.has_product_intent(message, raw_slots)
         allow_short_follow_up = cls._is_short_follow_up_constraint_turn(message, raw_slots, prior_slots)
         if not raw_has_product_intent and not allow_short_follow_up:
-            return {'reply': cls._stray_reply(message), 'drift_detected': False, 'new_session_id': None}
+            stray_reply = cls._stray_reply(message)
+            if stray_reply is not None:
+                return {'reply': stray_reply, 'drift_detected': False, 'new_session_id': None}
 
         if intent_state.get('confirmation_pending'):
             has_constraint_updates = cls._has_constraint_updates(raw_slots, prior_slots)
@@ -275,7 +348,9 @@ class RecommendationService:
                 }
 
         if not raw_has_product_intent and not allow_short_follow_up:
-            return {'reply': cls._stray_reply(message), 'drift_detected': False, 'new_session_id': None}
+            stray_reply = cls._stray_reply(message)
+            if stray_reply is not None:
+                return {'reply': stray_reply, 'drift_detected': False, 'new_session_id': None}
 
         old_category = (prior_slots.get('category') or '').lower().strip()
         new_category = (slots.get('category') or '').lower().strip()
