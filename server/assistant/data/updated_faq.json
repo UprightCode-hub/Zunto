@@ -2677,6 +2677,54 @@
         "payment report",
         "account statement"
       ]
+    },
+    {
+      "id": 221,
+      "question": "How do I get started as a new seller on Zunto?",
+      "answer": "Start by completing your seller profile, adding clear product photos, writing honest descriptions, setting realistic prices, and publishing at least 3 listings. Respond quickly to buyer messages and keep your stock status updated to build trust fast.",
+      "keywords": [
+        "new seller",
+        "seller onboarding",
+        "how to sell on zunto",
+        "start selling",
+        "seller setup guide"
+      ]
+    },
+    {
+      "id": 222,
+      "question": "What makes Zunto different from other marketplaces?",
+      "answer": "Zunto combines trusted seller discovery, AI-assisted buyer guidance, flexible direct or managed seller commerce modes, and demand-driven insights that help quality listings get discovered faster.",
+      "keywords": [
+        "why zunto",
+        "platform value",
+        "zunto advantage",
+        "marketplace differentiator",
+        "why choose zunto"
+      ]
+    },
+    {
+      "id": 223,
+      "question": "How can new sellers improve visibility and trust on Zunto?",
+      "answer": "Use detailed titles, include accurate specs, upload multiple real photos, keep response times low, and encourage reviews after successful orders. Verified and consistently responsive sellers are easier for buyers to trust.",
+      "keywords": [
+        "seller visibility",
+        "seller trust",
+        "improve seller profile",
+        "get more buyers",
+        "seller growth tips"
+      ]
+    },
+    {
+      "id": 224,
+      "question": "Why should buyers and sellers use Zunto instead of social media-only selling?",
+      "answer": "Zunto gives buyers structured discovery and safer transaction context, while sellers get searchable listings, category visibility, and tools that reduce repetitive negotiation friction compared with unmanaged social media threads.",
+      "keywords": [
+        "zunto vs social media",
+        "marketplace benefits",
+        "buyer seller value",
+        "zunto benefits",
+        "platform differentiator"
+      ]
     }
   ]
 }

@@ -63,11 +63,11 @@ class QueryProcessor:
         metrics.incr('requests.total')
 
         try:
-            return self._with_legacy_keys(
-                self._process_internal(
-                    message, session_id, user_name, context, start_time, assistant_mode
-                )
+            raw_result = self._process_internal(
+                message, session_id, user_name, context, start_time, assistant_mode
             )
+            normalized = self._normalize_result(raw_result, assistant_mode=assistant_mode)
+            return self._with_legacy_keys(normalized)
         except Exception as e:
             logger.error(f"QueryProcessor critical error: {e}", exc_info=True)
             metrics.incr('errors.total')
@@ -89,6 +89,44 @@ class QueryProcessor:
                 'faq_hit': None,
                 'llm_response': None
             }
+
+    @staticmethod
+    def _infer_lane(assistant_mode: Optional[str]) -> str:
+        mapping = {
+            'homepage_reco': 'inbox',
+            'inbox_general': 'inbox',
+            'customer_service': 'customer_service',
+        }
+        return mapping.get(assistant_mode or '', 'inbox')
+
+    @classmethod
+    def _normalize_result(cls, result: Dict, assistant_mode: Optional[str]) -> Dict:
+        normalized = dict(result or {})
+        # ARCHITECTURE GUARD (Phase 9): downstream flows require a reply string.
+        if 'reply' not in normalized:
+            logger.warning("QueryProcessor result missing 'reply'; injecting empty fallback")
+        normalized['reply'] = str(normalized.get('reply') or '')
+        try:
+            normalized['confidence'] = float(normalized.get('confidence', 0.0))
+        except (TypeError, ValueError):
+            # ARCHITECTURE GUARD (Phase 9): confidence must remain numeric.
+            logger.warning("QueryProcessor result confidence was non-numeric; defaulting to 0.0")
+            normalized['confidence'] = 0.0
+        normalized['source'] = str(normalized.get('source') or 'unknown')
+
+        metadata = normalized.get('metadata')
+        if not isinstance(metadata, dict):
+            metadata = {}
+        metadata.setdefault('assistant_mode', assistant_mode)
+        metadata.setdefault('assistant_lane', cls._infer_lane(assistant_mode))
+        if normalized['source'] == 'intent_smalltalk':
+            metadata.setdefault('intent', 'smalltalk')
+        elif normalized.get('rule_hit'):
+            metadata.setdefault('intent', 'rule')
+        elif normalized.get('faq_hit'):
+            metadata.setdefault('intent', 'faq')
+        normalized['metadata'] = metadata
+        return normalized
 
     @staticmethod
     def _with_legacy_keys(result: Dict) -> Dict:
@@ -173,8 +211,17 @@ class QueryProcessor:
             Intent.GRATITUDE,
         }
         intent, intent_confidence, intent_meta = IntentClassifier.classify(message)
+        if intent == Intent.UNKNOWN and self._is_smalltalk_fallback(message):
+            intent = Intent.GREETING
+            intent_confidence = max(intent_confidence, 0.6)
+            intent_meta = {**(intent_meta or {}), 'fallback_smalltalk': True}
 
         if intent in SMALLTALK_INTENTS and intent_confidence >= 0.45:
+            logger.info(
+                "Intent interception: smalltalk intent=%s confidence=%.2f",
+                intent.value,
+                intent_confidence,
+            )
             llm_output = self.llm.generate(
                 prompt=message,
                 system_prompt=(
@@ -290,6 +337,25 @@ class QueryProcessor:
         metrics.observe_ms('request_latency', processing_time)
         result['metadata']['processing_time_ms'] = processing_time
         return result
+
+    @staticmethod
+    def _is_smalltalk_fallback(message: str) -> bool:
+        lower = (message or '').strip().lower()
+        if not lower:
+            return False
+        smalltalk_phrases = {
+            'how are you',
+            'how are you doing',
+            'hi',
+            'hello',
+            'hey',
+            'good morning',
+            'good afternoon',
+            'good evening',
+            'thanks',
+            'thank you',
+        }
+        return any(phrase in lower for phrase in smalltalk_phrases)
 
     def _should_use_rag(self, top_result: Dict, rag_results: List[Dict]) -> bool:
         """Retained for LLM-unavailable fallback path and future hybrid routing."""

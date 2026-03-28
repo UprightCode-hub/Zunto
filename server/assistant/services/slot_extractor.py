@@ -310,7 +310,7 @@ class SlotExtractor:
 
 
 class SlotStateMachine:
-    MAX_CLARIFICATIONS = 2
+    MAX_CLARIFICATIONS = 3
     CONFIRM_TOKENS = frozenset({
         'yes', 'y', 'yep', 'yeah', 'sure', 'ok', 'okay', 'go ahead',
         'show me', 'show', 'proceed', 'search', 'find', 'go', 'alright',
@@ -331,14 +331,14 @@ class SlotStateMachine:
         if count >= cls.MAX_CLARIFICATIONS:
             return None
 
-        if not (slots.get('product_type') or slots.get('category')):
+        if not slots.get('product_type'):
             return "What are you looking for? 🛍️ (e.g. Nike sneakers, Samsung phone, fairly used laptop)"
 
-        if slots.get('price_max') is None and slots.get('price_min') is None and count == 0:
-            product = slots.get('product_type') or slots.get('category') or 'it'
+        if slots.get('price_max') is None:
+            product = slots.get('product_type') or 'it'
             return f"What's your budget for {product}? 💰 (e.g. under ₦50,000 or around 200k)"
 
-        if slots.get('condition') is None and count <= 1:
+        if slots.get('condition') is None:
             return "New or fairly used (tokunbo)? 🔍"
 
         return None

@@ -205,6 +205,10 @@ class SellerProfile(models.Model):
         related_name='seller_profiles',
         help_text='Canonical active location for seller listings.',
     )
+    ai_memory = models.JSONField(
+        default=dict,
+        blank=True,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
