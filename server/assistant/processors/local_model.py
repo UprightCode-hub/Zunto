@@ -1,24 +1,27 @@
-#server/assistant/processors/local_model.py
 """
 Local Model Adapter - Groq API integration for fast LLM responses.
 """
 import logging
 import os
 import time
-from typing import Dict, Optional
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from threading import BoundedSemaphore
+from typing import Dict, Optional
 
 from django.conf import settings
+try:
+    from groq import Groq, RateLimitError
+except ImportError:
+    Groq = None
 
-from groq import Groq, RateLimitError
+    class RateLimitError(Exception):
+        pass
 
 logger = logging.getLogger(__name__)
 
 
 class NoModelAvailable(Exception):
     """Raised when no local model is available or LLM fails to initialize."""
-    pass
 
 
 class LocalModelAdapter:
@@ -57,6 +60,10 @@ class LocalModelAdapter:
     def _initialize_groq(self):
         """Initialize Groq API client."""
         try:
+            if Groq is None:
+                logger.warning("groq package not installed; LLM will be unavailable.")
+                return
+
             api_key = getattr(settings, 'GROQ_API_KEY', None) or os.environ.get('GROQ_API_KEY')
 
             if not api_key:
@@ -67,12 +74,12 @@ class LocalModelAdapter:
             self.client = Groq(api_key=api_key)
             self.is_initialized = True
 
-            logger.info("✅ Groq LLM initialized successfully")
-            logger.info(f"   Model: {self.model_name}")
+            logger.info("Groq LLM initialized successfully")
+            logger.info("   Model: %s", self.model_name)
             logger.info("   Free tier: 30 req/min, 14,400 req/day")
 
-        except Exception as e:
-            logger.error(f"Failed to initialize Groq: {e}")
+        except Exception as exc:
+            logger.error("Failed to initialize Groq: %s", exc)
             self.client = None
             self.is_initialized = False
 
@@ -111,7 +118,7 @@ class LocalModelAdapter:
         prompt: str,
         max_tokens: int = 150,
         temperature: float = 0.3,
-        system_prompt: Optional[str] = None
+        system_prompt: Optional[str] = None,
     ) -> Dict:
         """Generate response using Groq API with scalability guards."""
         if not self.is_initialized or self.client is None:
@@ -125,7 +132,11 @@ class LocalModelAdapter:
         acquired = self._bulkhead.acquire(blocking=False)
         if not acquired:
             self.error_count += 1
-            return self._error_result(code='overloaded', generation_time=time.time() - start_time, message='LLM concurrency limit reached')
+            return self._error_result(
+                code='overloaded',
+                generation_time=time.time() - start_time,
+                message='LLM concurrency limit reached',
+            )
 
         try:
             future = self._executor.submit(
@@ -140,7 +151,11 @@ class LocalModelAdapter:
                 response = future.result(timeout=self.timeout_seconds)
             except FutureTimeoutError:
                 self.error_count += 1
-                return self._error_result(code='timeout', generation_time=time.time() - start_time, message='LLM request timed out')
+                return self._error_result(
+                    code='timeout',
+                    generation_time=time.time() - start_time,
+                    message='LLM request timed out',
+                )
 
             generated_text = response.choices[0].message.content if response.choices else ''
             tokens_used = response.usage.total_tokens if response.usage else 0
@@ -148,18 +163,18 @@ class LocalModelAdapter:
             generation_time = time.time() - start_time
             self.request_count += 1
 
-            logger.info(f"✅ Groq generation successful ({generation_time:.2f}s, {tokens_used} tokens)")
+            logger.info("Groq generation successful (%.2fs, %s tokens)", generation_time, tokens_used)
 
             return {
                 'response': generated_text,
                 'tokens_generated': tokens_used,
                 'generation_time': generation_time,
                 'model': self.model_name,
-                'error': None
+                'error': None,
             }
 
-        except RateLimitError as e:
-            logger.warning(f"⚠️ Groq rate limit exceeded: {e}")
+        except RateLimitError as exc:
+            logger.warning("Groq rate limit exceeded: %s", exc)
             self.error_count += 1
             self.rate_limited_until = time.time() + self.cooldown_seconds
             return self._error_result(
@@ -168,13 +183,13 @@ class LocalModelAdapter:
                 message='Rate limit exceeded',
             )
 
-        except Exception as e:
-            logger.error(f"❌ Groq generation failed: {e}")
+        except Exception as exc:
+            logger.error("Groq generation failed: %s", exc)
             self.error_count += 1
             return self._error_result(
                 code='provider_error',
                 generation_time=time.time() - start_time,
-                message=str(e),
+                message=str(exc),
             )
         finally:
             self._bulkhead.release()

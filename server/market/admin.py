@@ -2,7 +2,8 @@
 from django.contrib import admin
 from .models import (
     Category, Location, Product, ProductImage, 
-    ProductVideo, Favorite, ProductView, ProductReport
+    ProductVideo, Favorite, ProductView, ProductReport,
+    ProductFamily, ProductAttributeSchema
 )
                                         
 
@@ -24,6 +25,28 @@ class LocationAdmin(admin.ModelAdmin):
     ordering = ['state', 'city']
 
 
+class ProductAttributeSchemaInline(admin.TabularInline):
+    model = ProductAttributeSchema
+    extra = 0
+    fields = ['key', 'label', 'value_type', 'required', 'unit', 'search_weight', 'order', 'is_active']
+
+
+@admin.register(ProductFamily)
+class ProductFamilyAdmin(admin.ModelAdmin):
+    list_display = ['name', 'top_category', 'subcategory', 'is_active', 'order']
+    list_filter = ['is_active', 'top_category', 'subcategory']
+    search_fields = ['name', 'slug', 'aliases', 'keywords']
+    prepopulated_fields = {'slug': ('name',)}
+    inlines = [ProductAttributeSchemaInline]
+
+
+@admin.register(ProductAttributeSchema)
+class ProductAttributeSchemaAdmin(admin.ModelAdmin):
+    list_display = ['product_family', 'key', 'label', 'value_type', 'required', 'search_weight', 'order', 'is_active']
+    list_filter = ['value_type', 'required', 'is_active', 'product_family__top_category']
+    search_fields = ['product_family__name', 'key', 'label', 'seller_prompt']
+
+
 class ProductImageInline(admin.TabularInline):
     model = ProductImage
     extra = 1
@@ -39,13 +62,13 @@ class ProductVideoInline(admin.TabularInline):
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     list_display = [
-        'title', 'seller', 'listing_type', 'price', 'category', 
+        'title', 'seller', 'listing_type', 'price', 'category', 'product_family',
         'status', 'is_featured', 'is_boosted', 'is_verified_product', 'views_count', 
         'favorites_count', 'created_at'
     ]
     list_filter = [
         'listing_type', 'status', 'is_featured', 'is_boosted', 
-        'is_verified', 'is_verified_product', 'category', 'condition', 'created_at'
+        'is_verified', 'is_verified_product', 'category', 'product_family', 'condition', 'created_at'
     ]
     search_fields = ['title', 'description', 'seller__email', 'brand']
     prepopulated_fields = {'slug': ('title',)}
@@ -57,7 +80,7 @@ class ProductAdmin(admin.ModelAdmin):
             'fields': ('seller', 'title', 'slug', 'description', 'listing_type')
         }),
         ('Categorization', {
-            'fields': ('category', 'location')
+            'fields': ('category', 'product_family', 'location')
         }),
         ('Pricing & Details', {
             'fields': ('price', 'negotiable', 'condition', 'brand', 'quantity')

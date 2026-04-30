@@ -1,8 +1,25 @@
 #server/manage.py
                      
 """Django's command-line utility for administrative tasks."""
+import io
 import os
 import sys
+
+# Force UTF-8 encoding on Windows to handle emoji and currency in logs.
+if getattr(sys.stdout, 'buffer', None) is not None and (sys.stdout.encoding or '').lower() != 'utf-8':
+    sys.stdout = io.TextIOWrapper(
+        sys.stdout.buffer,
+        encoding='utf-8',
+        errors='replace',
+        line_buffering=True,
+    )
+if getattr(sys.stderr, 'buffer', None) is not None and (sys.stderr.encoding or '').lower() != 'utf-8':
+    sys.stderr = io.TextIOWrapper(
+        sys.stderr.buffer,
+        encoding='utf-8',
+        errors='replace',
+        line_buffering=True,
+    )
 
 
 def main():

@@ -8,10 +8,21 @@ Fixes applied:
      maintaining a second separate all-MiniLM-L6-v2 instance in memory
   3. Products with pre-stored embedding_vector skip encoding entirely
 """
-import hashlib
-import math
 import logging
+import hashlib
+import json
+import math
 from functools import lru_cache
+
+from django.conf import settings
+
+from market.search.vector_backend import (
+    PRODUCT_VECTOR_MODEL,
+    product_vector_backend_status,
+    search_products_pgvector,
+    sync_product_vector,
+)
+from market.search.hybrid_ranker import product_search_text
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +47,9 @@ def _load_sentence_transformer_model():
 
     try:
         # Same model as lazy_loader — avoids a second heavyweight model in RAM.
-        model = SentenceTransformer('paraphrase-MiniLM-L3-v2', device='cpu')
-        logger.info("Sentence transformer loaded for product search (paraphrase-MiniLM-L3-v2)")
+        model_name = getattr(settings, 'PRODUCT_VECTOR_MODEL', PRODUCT_VECTOR_MODEL)
+        model = SentenceTransformer(model_name, device='cpu')
+        logger.info("Sentence transformer loaded for product search (%s)", model_name)
         return model
     except Exception as exc:
         logger.error(f"Failed to load sentence transformer: {exc}")
@@ -66,18 +78,23 @@ def _fallback_embedding(text, dims=64):
     return vector
 
 
-def _build_product_embedding_text(product):
-    category_name = ''
-    category = getattr(product, 'category', None)
-    if category is not None:
-        category_name = getattr(category, 'name', '') or ''
+def _flatten_attribute_value(value):
+    if isinstance(value, dict):
+        parts = []
+        for key in sorted(value):
+            flattened = _flatten_attribute_value(value[key])
+            if flattened:
+                parts.append(f"{key} {flattened}")
+        return ' '.join(parts)
+    if isinstance(value, (list, tuple, set)):
+        return ' '.join(str(item).strip() for item in value if str(item).strip())
+    if value in (None, ''):
+        return ''
+    return str(value).strip()
 
-    parts = [
-        getattr(product, 'title', '') or '',
-        getattr(product, 'description', '') or '',
-        category_name,
-    ]
-    return ' '.join(part.strip() for part in parts if part and part.strip())
+
+def _build_product_embedding_text(product):
+    return product_search_text(product)
 
 
 def _encode_single(text):
@@ -139,7 +156,9 @@ def generate_product_embedding(product):
     text = _build_product_embedding_text(product)
     if not text:
         return []
-    return _encode_single(text)
+    vector = _encode_single(text)
+    sync_product_vector(product, vector, embedding_text=text)
+    return vector
 
 
 def search_similar_products(query, base_queryset, candidate_limit=200, top_k=60):
@@ -158,13 +177,30 @@ def search_similar_products(query, base_queryset, candidate_limit=200, top_k=60)
         return []
 
     candidates = list(
-        base_queryset.select_related('category').only(
-            'id', 'title', 'description', 'embedding_vector', 'category__name', 'created_at'
+        base_queryset.select_related('category', 'location', 'product_family').only(
+            'id', 'title', 'description', 'brand', 'condition',
+            'attributes', 'search_tags', 'embedding_vector', 'category__name',
+            'product_family__name', 'product_family__aliases', 'product_family__keywords',
+            'location__state', 'location__city', 'location__area', 'created_at'
         ).order_by('-created_at')[:candidate_limit]
     )
 
     if not candidates:
         return []
+
+    pgvector_results = search_products_pgvector(
+        query_vector,
+        [product.id for product in candidates],
+        top_k=top_k,
+    )
+    if pgvector_results:
+        logger.debug(
+            "search_similar_products: pgvector returned %s results",
+            len(pgvector_results),
+        )
+        return pgvector_results
+    if product_vector_backend_status().backend == 'pgvector':
+        logger.warning("Configured pgvector search returned no results; using JSON cosine fallback")
 
     # Separate products that already have stored vectors from those that don't
     stored = []       # (product, vector)

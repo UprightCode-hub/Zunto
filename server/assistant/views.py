@@ -20,7 +20,7 @@ from django.utils.text import slugify
 from django.db.models import Count
 
 from assistant.utils.tts_utils import get_tts_service
-from assistant.models import ConversationSession, ConversationLog, Report, DisputeMedia, DisputeTicket, DisputeTicketCommunication, DemandCluster
+from assistant.models import ConversationSession, ConversationLog, Report, DisputeMedia, DisputeTicket, DisputeTicketCommunication, DemandCluster, AIRecommendationFeedback
 from assistant.processors.conversation_manager import ConversationManager
 from assistant.utils.assistant_modes import (
     normalize_assistant_mode,
@@ -43,11 +43,14 @@ from assistant.serializers import (
     HotDemandClusterSerializer,
     SuggestionQuerySerializer,
     SuggestionResponseSerializer,
+    RecommendationFeedbackRequestSerializer,
+    RecommendationFeedbackResponseSerializer,
 )
 from assistant.services.dispute_ticket_service import DisputeTicketService, DisputeTicketError
 from assistant.services.dispute_ai_service import DisputeAIService
 from assistant.services.dispute_oversight_metrics import DisputeOversightMetricsService
 from assistant.services.demand_gap_service import log_demand_gap
+from assistant.services.recommendation_service import RecommendationService
 
                    
 from assistant.utils.constants import (
@@ -91,12 +94,12 @@ FAQ_FILE_PATH = Path(__file__).resolve().parent / 'data' / 'updated_faq.json'
 
 
 FAQ_SECTION_RULES = [
-    ('account', 'Account & Access', ('account', 'sign up', 'login', 'password', 'verify', 'verification', 'profile')),
-    ('buying', 'Buying & Orders', ('buy', 'order', 'checkout', 'payment', 'cancel', 'purchase', 'invoice')),
-    ('shipping', 'Shipping & Delivery', ('ship', 'delivery', 'delivered', 'tracking', 'location', 'address')),
-    ('returns', 'Returns, Refunds & Disputes', ('refund', 'return', 'dispute', 'complaint', 'damaged', 'wrong item', 'not delivered')),
-    ('selling', 'Selling on Zunto', ('sell', 'seller', 'listing', 'promote', 'boost', 'commission', 'withdraw')),
-    ('safety', 'Security & Trust', ('scam', 'fraud', 'safe', 'security', 'report', 'suspicious', 'ban')),
+    ('homepage_reco_catalog', 'Shopping Discovery', ()),
+    ('buyer_support', 'Buyer Support', ()),
+    ('seller_support', 'Seller Support', ()),
+    ('dispute_resolution', 'Dispute Resolution', ()),
+    ('platform_help', 'Platform Help', ()),
+    ('trust_safety_account', 'Trust, Safety & Account', ()),
 ]
 
 
@@ -106,12 +109,10 @@ def _load_faq_records():
     return payload.get('faqs', [])
 
 
-def _find_faq_section(question_text):
-    text = (question_text or '').lower()
-    for section_id, _section_title, triggers in FAQ_SECTION_RULES:
-        if any(trigger in text for trigger in triggers):
-            return section_id
-    return 'general'
+def _find_faq_section(faq):
+    lane = (faq.get('primary_lane') or '').strip().lower()
+    known_sections = {section_id for section_id, _section_title, _triggers in FAQ_SECTION_RULES}
+    return lane if lane in known_sections else 'platform_help'
 
 
 def _build_faq_sections(records):
@@ -122,7 +123,7 @@ def _build_faq_sections(records):
     sections['general'] = {'id': 'general', 'title': 'General Marketplace Questions', 'faqs': []}
 
     for faq in records:
-        section_id = _find_faq_section(faq.get('question', ''))
+        section_id = _find_faq_section(faq)
         sections[section_id]['faqs'].append({
             'id': faq.get('id'),
             'question': faq.get('question', ''),
@@ -351,8 +352,64 @@ def log_demand_gap_endpoint(request):
     return Response(response_serializer.validated_data, status=status.HTTP_200_OK)
 
 
-def _handle_ephemeral_chat(message: str, assistant_mode: str, lane: str):
-    """Logged-out assistant flow: temporary session, no DB writes."""
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def recommendation_feedback_endpoint(request):
+    """Collect buyer labels for homepage recommendation quality improvement."""
+    serializer = RecommendationFeedbackRequestSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    payload = serializer.validated_data
+
+    session = None
+    session_id = (payload.get('session_id') or '').strip()
+    if session_id:
+        session = ConversationSession.objects.filter(session_id=session_id).first()
+
+    selected_product = None
+    product_id = payload.get('product_id')
+    if product_id:
+        selected_product = Product.objects.filter(id=product_id).first()
+
+    feedback = AIRecommendationFeedback.objects.create(
+        user=request.user if getattr(request.user, 'is_authenticated', False) else None,
+        session=session,
+        selected_product=selected_product,
+        feedback_type=payload['feedback_type'],
+        prompt=payload.get('prompt', ''),
+        message=payload.get('message', ''),
+        source=payload.get('source') or AIRecommendationFeedback.SOURCE_HOMEPAGE_RECO,
+        recommended_products=payload.get('recommended_products', []),
+        recommendation_metadata=payload.get('recommendation_metadata', {}),
+    )
+
+    audit_event(
+        request,
+        action='assistant.recommendation.feedback',
+        session_id=session_id or None,
+        extra={
+            'feedback_type': feedback.feedback_type,
+            'product_id': str(selected_product.id) if selected_product else '',
+            'source': feedback.source,
+        },
+    )
+
+    response_serializer = RecommendationFeedbackResponseSerializer(
+        data={
+            'stored': True,
+            'id': feedback.id,
+            'feedback_type': feedback.feedback_type,
+        }
+    )
+    response_serializer.is_valid(raise_exception=True)
+    return Response(response_serializer.validated_data, status=status.HTTP_201_CREATED)
+
+
+def _handle_ephemeral_chat(message: str, assistant_mode: str, lane: str, session_id: str = None):
+    """Logged-out assistant flow with temporary session behavior."""
+    session_id = session_id or str(uuid.uuid4())
+    if assistant_mode == 'homepage_reco':
+        return _handle_homepage_reco_ephemeral_chat(message, assistant_mode, lane, session_id)
+
     gate_reply = mode_gate_response(assistant_mode, message)
     if gate_reply:
         return {
@@ -409,36 +466,6 @@ def _handle_ephemeral_chat(message: str, assistant_mode: str, lane: str):
             }
         }
 
-    if assistant_mode == 'homepage_reco':
-        from assistant.services.slot_extractor import SlotExtractor
-
-        current_slots = SlotExtractor.extract(message, {})
-        ready_to_search = bool(
-            current_slots.get('product_type') or
-            current_slots.get('category') or
-            current_slots.get('price_max')
-        )
-        if ready_to_search:
-            logger.info("Login gate triggered for homepage_reco ephemeral session")
-            return {
-                'reply': "🔍 I've got what I need to find that for you! Just one thing — create a free Zunto account to see your personalised results. It takes 10 seconds 👇",
-                'state': 'login_required',
-                'source': 'login_gate',
-                'gate_type': 'recommender',
-                'collected_slots': current_slots,
-                'login_required': True,
-                'session_id': None,
-                'confidence': 1.0,
-                'escalated': False,
-                'metadata': {
-                    'assistant_mode': assistant_mode,
-                    'assistant_lane': lane,
-                    'intent': 'product_search',
-                    'persistence': 'temporary',
-                    'gate_reason': 'recommendation_requires_account',
-                }
-            }
-
     from assistant.processors.query_processor import QueryProcessor
 
     processor = QueryProcessor()
@@ -458,6 +485,17 @@ def _handle_ephemeral_chat(message: str, assistant_mode: str, lane: str):
         logger.warning("Ephemeral QueryProcessor confidence was non-numeric; defaulting to 0.5")
         confidence = 0.5
 
+    metadata = dict(result.get('metadata') or {})
+    metadata.update({
+        'assistant_mode': assistant_mode,
+        'assistant_lane': lane,
+        'intent': metadata.get('intent'),
+        'persistence': 'temporary',
+        'expires_after_minutes': 15,
+        'conversation_title': _build_title_from_first_message(message),
+        'processing_time_ms': metadata.get('processing_time_ms', 0),
+    })
+
     return {
         'reply': reply,
         'state': 'chat_mode',
@@ -465,17 +503,143 @@ def _handle_ephemeral_chat(message: str, assistant_mode: str, lane: str):
         'explanation': result.get('explanation', ''),
         'confidence': confidence,
         'escalated': False,
-        'metadata': {
-            'assistant_mode': assistant_mode,
-            'assistant_lane': lane,
-            'intent': result.get('metadata', {}).get('intent'),
-            'persistence': 'temporary',
-            'expires_after_minutes': 15,
-            'conversation_title': _build_title_from_first_message(message),
-            'processing_time_ms': result.get('metadata', {}).get('processing_time_ms', 0)
-        }
+        'metadata': metadata
     }
 
+
+
+def _get_or_create_homepage_reco_ephemeral_session(session_id: str, assistant_mode: str, lane: str):
+    """Create or reuse a temporary anonymous recommendation session."""
+    session = ConversationSession.objects.filter(session_id=session_id).first()
+    effective_session_id = session_id
+
+    if session and (session.user_id or session.is_persistent):
+        logger.info(
+            "Rotating anonymous homepage_reco session away from persistent/authenticated session %s",
+            session.session_id[:8],
+        )
+        session = None
+        effective_session_id = str(uuid.uuid4())
+
+    if session is None:
+        session = ConversationSession.objects.create(
+            session_id=effective_session_id,
+            user=None,
+            user_name='Guest',
+            assistant_lane=lane,
+            assistant_mode=assistant_mode,
+            is_persistent=False,
+            current_state='chat_mode',
+            context={},
+            context_data={},
+            conversation_history=[],
+            context_type=ConversationSession.CONTEXT_TYPE_RECOMMENDATION,
+            constraint_state={},
+            intent_state={},
+        )
+        return session, effective_session_id
+
+    updates = []
+    if session.assistant_mode != assistant_mode:
+        session.assistant_mode = assistant_mode
+        updates.append('assistant_mode')
+    if session.assistant_lane != lane:
+        session.assistant_lane = lane
+        updates.append('assistant_lane')
+    if session.current_state != 'chat_mode':
+        session.current_state = 'chat_mode'
+        updates.append('current_state')
+    if session.context_type != ConversationSession.CONTEXT_TYPE_RECOMMENDATION:
+        session.context_type = ConversationSession.CONTEXT_TYPE_RECOMMENDATION
+        updates.append('context_type')
+    if session.is_persistent:
+        session.is_persistent = False
+        updates.append('is_persistent')
+    if updates:
+        updates.append('updated_at')
+        session.save(update_fields=updates)
+
+    return session, effective_session_id
+
+
+def _handle_homepage_reco_ephemeral_chat(message: str, assistant_mode: str, lane: str, session_id: str):
+    """Dedicated logged-out homepage recommendation flow with guest previews."""
+    if _looks_like_dispute_request(message):
+        return {
+            'reply': (
+                "For disputes, please use the Customer Service assistant. "
+                "Homepage assistant is for product recommendations only."
+            ),
+            'state': 'chat_mode',
+            'explanation': 'Dispute intent detected; redirected to customer service.',
+            'confidence': 0.95,
+            'escalated': False,
+            'metadata': {
+                'assistant_mode': assistant_mode,
+                'assistant_lane': lane,
+                'persistence': 'temporary',
+                'expires_after_minutes': 15,
+                'conversation_title': _build_title_from_first_message(message),
+                'mode': 'redirect_to_customer_service'
+            }
+        }
+
+    session, effective_session_id = _get_or_create_homepage_reco_ephemeral_session(
+        session_id=session_id,
+        assistant_mode=assistant_mode,
+        lane=lane,
+    )
+
+    try:
+        result = RecommendationService.evaluate_recommendation_message(session, message)
+    except Exception as exc:
+        logger.error("Guest homepage_reco preview failed: %s", exc, exc_info=True)
+        return {
+            'reply': ERROR_MSG_PROCESSING_FAILED,
+            'state': 'chat_mode',
+            'source': 'recommendation_service_error',
+            'explanation': 'Temporary homepage recommendation preview failed.',
+            'confidence': 0.5,
+            'escalated': False,
+            'session_id': effective_session_id,
+            'metadata': {
+                'assistant_mode': assistant_mode,
+                'assistant_lane': lane,
+                'intent': 'product_search',
+                'persistence': 'temporary',
+                'expires_after_minutes': 15,
+                'conversation_title': _build_title_from_first_message(message),
+            }
+        }
+
+    reply = result.get('reply') or ERROR_MSG_PROCESSING_FAILED
+    try:
+        confidence = float(result.get('confidence', 0.8))
+    except (TypeError, ValueError):
+        logger.warning("Ephemeral recommendation confidence was non-numeric; defaulting to 0.8")
+        confidence = 0.8
+
+    metadata = dict(result.get('metadata') or {})
+    metadata.update({
+        'assistant_mode': assistant_mode,
+        'assistant_lane': lane,
+        'intent': metadata.get('intent', 'product_search'),
+        'persistence': 'temporary',
+        'expires_after_minutes': 15,
+        'conversation_title': session.conversation_title or _build_title_from_first_message(message),
+        'guest_preview': True,
+    })
+
+    return {
+        'reply': reply,
+        'state': 'chat_mode',
+        'source': result.get('source', 'recommendation_service'),
+        'explanation': 'Temporary homepage recommendation preview response.',
+        'confidence': confidence,
+        'escalated': False,
+        'session_id': result.get('new_session_id') or effective_session_id,
+        'metadata': metadata,
+    }
 
 
 @api_view(['GET'])
@@ -556,10 +720,12 @@ def chat_endpoint(request):
                 message=message,
                 assistant_mode=assistant_mode,
                 lane=assistant_lane,
+                session_id=session_id,
             )
-            ephemeral_payload['session_id'] = session_id
+            response_session_id = ephemeral_payload.get('session_id') or session_id
+            ephemeral_payload['session_id'] = response_session_id
             response = Response(ephemeral_payload, status=status.HTTP_200_OK)
-            response.set_cookie('assistant_temp_session', session_id, max_age=15 * 60, httponly=True, samesite='Lax')
+            response.set_cookie('assistant_temp_session', response_session_id, max_age=15 * 60, httponly=True, samesite='Lax')
             return response
 
         user_id = request.user.id
@@ -630,6 +796,27 @@ def chat_endpoint(request):
                 'conversation_title': conv_manager.session.conversation_title
             }
         }
+
+        ai_result = conv_manager.last_ai_result if isinstance(conv_manager.last_ai_result, dict) else {}
+        ai_metadata = ai_result.get('metadata') if isinstance(ai_result.get('metadata'), dict) else {}
+        if ai_metadata:
+            response_data['metadata'].update(ai_metadata)
+            response_data['metadata'].update({
+                'processing_time_ms': processing_time,
+                'processing_time_display': format_processing_time(processing_time),
+                'user_name': conv_manager.get_user_name(),
+                'message_count': summary.get('message_count', 0),
+                'sentiment': summary.get('sentiment', 'neutral'),
+                'escalation_level': summary.get('escalation_level', 0),
+                'assistant_mode': assistant_mode,
+                'assistant_lane': assistant_lane,
+                'persistence': 'persistent',
+                'conversation_title': conv_manager.session.conversation_title,
+            })
+        if ai_result.get('source'):
+            response_data['source'] = ai_result.get('source')
+        if ai_result.get('confidence') is not None:
+            response_data['confidence'] = ai_result.get('confidence')
         
                                                                  
         _log_conversation(

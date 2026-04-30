@@ -1,0 +1,21 @@
+INFO AI module v2.1.0 loaded successfully - 7 components ready
+INFO Preloading assistant components...
+INFO Loaded 81 rules from C:\Users\user\Desktop\Cloned_zunto\Zunto-main\server\assistant\data\rules.yaml
+INFO RuleEngine loaded: 81 rules
+INFO Loaded embeddings for 208 FAQs
+INFO Loaded metadata with 208 FAQs
+INFO RAGRetriever loaded: 208 FAQs indexed
+INFO Groq LLM initialized successfully
+INFO    Model: llama-3.3-70b-versatile
+INFO    Free tier: 30 req/min, 14,400 req/day
+INFO LocalModelAdapter loaded: groq
+INFO Loading sentence transformer model...
+INFO Load pretrained SentenceTransformer: paraphrase-MiniLM-L3-v2
+INFO Sentence transformer model loaded successfully
+INFO Encoding 118 intent prototypes across 14 intents...
+INFO Intent prototype embeddings ready (14 intents, 118 prototypes)
+INFO IntentClassifier warm-up complete
+INFO IntentClassifier warm-up attempted
+INFO Assistant components preloaded successfully
+Found 28 test(s).
+System check identified no issues (0 silenced).

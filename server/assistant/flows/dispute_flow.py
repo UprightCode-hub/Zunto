@@ -78,7 +78,7 @@ Our support team will review your case and reach out within 24 hours. You can al
 Is there anything else I can help you with today?
 Type "menu" to see options or ask another question."""
 
-    def __init__(self, session, local_model_adapter=None, context_manager=None):
+    def __init__(self, session, local_model_adapter=None, context_manager=None, query_processor=None):
         """
         Initialize dispute flow.
 
@@ -86,10 +86,12 @@ Type "menu" to see options or ask another question."""
             session: ConversationSession instance
             local_model_adapter: LocalModelAdapter (Groq) for draft generation
             context_manager: Optional ContextManager for tracking
+            query_processor: Optional QueryProcessor for dispute-lane policy evidence
         """
         self.session = session
         self.llm = local_model_adapter
         self.context_manager = context_manager
+        self.query_processor = query_processor
         self.name = self._resolve_user_name(session)
 
         self.context = session.context or {}
@@ -100,7 +102,8 @@ Type "menu" to see options or ask another question."""
                 'category': '',
                 'platform': '',
                 'draft_message': '',
-                'report_id': None
+                'report_id': None,
+                'knowledge_refs': [],
             }
 
     def _resolve_user_name(self, session) -> str:
@@ -177,6 +180,8 @@ Type "menu" to see options or ask another question."""
 
         category = self._detect_category(message)
         self.context['dispute']['category'] = category
+        knowledge_refs = self._get_dispute_knowledge_refs(message)
+        self.context['dispute']['knowledge_refs'] = knowledge_refs
 
         self.context['dispute']['step'] = self.STEP_SHOW_CONTACT
         self._save_context()
@@ -188,8 +193,36 @@ Type "menu" to see options or ask another question."""
         return reply, {
             'step': self.STEP_SHOW_CONTACT,
             'complete': False,
-            'category': category
+            'category': category,
+            'knowledge_refs': knowledge_refs,
+            'rag_lane': 'dispute_resolution',
         }
+
+    def _get_dispute_knowledge_refs(self, message: str):
+        """Retrieve dispute-lane policy references without mixing FAQ lanes."""
+        if not self.query_processor:
+            return []
+
+        try:
+            results = self.query_processor._search_faqs_multiple(
+                message,
+                context=self.context,
+                assistant_mode='customer_service',
+                lane='dispute_resolution',
+            )
+            refs = []
+            for result in results[:3]:
+                refs.append({
+                    'id': result.get('id'),
+                    'question': result.get('question', ''),
+                    'confidence': result.get('confidence', 0.0),
+                    'lane': result.get('lane', 'dispute_resolution'),
+                    'priority': result.get('priority', 'useful'),
+                })
+            return refs
+        except Exception as exc:
+            logger.warning("Dispute knowledge lookup failed: %s", exc)
+            return []
 
     def _handle_contact_choice(self, message: str) -> Tuple[str, Dict]:
         """Step 2: Handle user's contact platform choice."""
@@ -454,7 +487,9 @@ How's this? Type:
             meta={
                 'session_id': self.session.session_id,
                 'user_name': self.name,
-                'platform': dispute_data['platform']
+                'platform': dispute_data['platform'],
+                'knowledge_refs': dispute_data.get('knowledge_refs', []),
+                'knowledge_lane': 'dispute_resolution',
             }
         )
 
@@ -485,7 +520,9 @@ How's this? Type:
             contact_preference='none',
             meta={
                 'session_id': self.session.session_id,
-                'user_name': self.name
+                'user_name': self.name,
+                'knowledge_refs': dispute_data.get('knowledge_refs', []),
+                'knowledge_lane': 'dispute_resolution',
             }
         )
 

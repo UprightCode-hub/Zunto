@@ -6,7 +6,7 @@ from django.conf import settings
 
 from assistant.models import ConversationSession, ConversationLog
 from assistant.processors.rule_engine import RuleEngine
-from assistant.processors.rag_retriever import RAGRetriever
+from assistant.processors.rag_retriever import RAGRetriever, normalize_lane
 from assistant.processors.local_model import LocalModelAdapter
 from assistant.utils.constants import ConfidenceConfig
 from assistant.utils import metrics
@@ -98,6 +98,75 @@ class QueryProcessor:
             'customer_service': 'customer_service',
         }
         return mapping.get(assistant_mode or '', 'inbox')
+
+    @staticmethod
+    def _infer_rag_lane(
+        message: str,
+        assistant_mode: Optional[str] = None,
+        context: Optional[Dict] = None,
+    ) -> str:
+        """Choose exactly one support knowledge lane for a query."""
+        if assistant_mode == 'homepage_reco':
+            return 'homepage_reco_catalog'
+        if assistant_mode == 'customer_service':
+            return 'dispute_resolution'
+
+        text = (message or '').lower()
+        context = context or {}
+        user_role = str(context.get('user_role') or context.get('role') or '').lower()
+        if user_role == 'seller':
+            seller_bias = 2
+        else:
+            seller_bias = 0
+
+        lane_terms = {
+            'dispute_resolution': {
+                'dispute', 'evidence', 'proof', 'chargeback', 'counterfeit',
+                'damaged', 'wrong item', 'not delivered', 'mediation',
+                'appeal decision', 'fake tracking', 'lost item',
+            },
+            'seller_support': {
+                'seller', 'selling', 'listing', 'list item', 'post a listing',
+                'payout', 'seller paid', 'buyer confirmation', 'mark sold',
+                'boost listing', 'stock photos', 'new seller', 'visibility',
+                'ship before', 'dispatch proof',
+            },
+            'trust_safety_account': {
+                'account', 'login', 'password', 'verify', 'verification',
+                'restricted', 'suspended', 'flagged', 'privacy', 'secure',
+                'scam', 'fraud', 'safe meetup', 'threat', 'abusive', 'ban',
+                'community guidelines', 'report user', 'hacked',
+            },
+            'platform_help': {
+                'support', 'contact', 'notification', 'app', 'crashing',
+                'upload photos', 'ios', 'android', 'browser', 'feature',
+                'review', 'rating', 'customer service phone', 'live chat',
+                'zunto different', 'social media',
+            },
+            'buyer_support': {
+                'buy', 'buyer', 'purchase', 'order', 'payment', 'paystack',
+                'track', 'delivery', 'refund', 'cancel', 'checkout',
+                'receipt', 'address', 'out of stock', 'available',
+                'pay', 'card', 'bank transfer',
+            },
+            'homepage_reco_catalog': {
+                'category', 'categories', 'search', 'filter', 'find items',
+                'product condition', 'wishlist', 'save items',
+            },
+        }
+
+        scores = {}
+        for lane, terms in lane_terms.items():
+            scores[lane] = sum(1 for term in terms if term in text)
+        scores['seller_support'] += seller_bias
+
+        if scores['dispute_resolution'] > 0 and any(term in text for term in {'evidence', 'proof', 'chargeback', 'mediation', 'appeal', 'counterfeit', 'damaged', 'wrong item'}):
+            return 'dispute_resolution'
+
+        selected = max(scores.items(), key=lambda item: item[1])
+        if selected[1] <= 0:
+            return 'platform_help'
+        return normalize_lane(selected[0])
 
     @classmethod
     def _normalize_result(cls, result: Dict, assistant_mode: Optional[str]) -> Dict:
@@ -253,7 +322,12 @@ class QueryProcessor:
             return result
 
         # ── Tier 2: RAG — evidence gathering, never answer source ──────────
-        rag_results = self._search_faqs_multiple(message, user_name, context)
+        rag_results = self._search_faqs_multiple(
+            message,
+            user_name,
+            context,
+            assistant_mode=assistant_mode,
+        )
         if rag_results and rag_results[0].get('confidence', 0.0) >= ConfidenceConfig.RAG['medium']:
             result['faq_hit'] = {
                 'question': rag_results[0].get('question', ''),
@@ -279,6 +353,7 @@ class QueryProcessor:
             result['metadata'] = {
                 'routing_decision': 'llm_unavailable_rag_fallback',
                 'rag_results_count': len(rag_results),
+                'rag_lane': rag_results[0].get('lane') if rag_results else None,
             }
 
             logger.warning("LLM unavailable — serving RAG fallback response")
@@ -310,6 +385,7 @@ class QueryProcessor:
             'context_provided': llm_result.get('context_provided', {}),
             'rag_references_used': llm_result.get('rag_references_used', []),
             'rag_results_count': len(rag_results),
+            'rag_lane': rag_results[0].get('lane') if rag_results else None,
             'routing_decision': 'llm_reasoner',
             'assistant_mode': assistant_mode,
             'llm_error': llm_result.get('llm_error'),
@@ -398,17 +474,28 @@ class QueryProcessor:
         self,
         query: str,
         user_name: Optional[str] = None,
-        context: Optional[Dict] = None
+        context: Optional[Dict] = None,
+        assistant_mode: Optional[str] = None,
+        lane: Optional[str] = None,
     ) -> List[Dict]:
         try:
+            rag_lane = normalize_lane(
+                lane or self._infer_rag_lane(
+                    query,
+                    assistant_mode=assistant_mode,
+                    context=context,
+                )
+            )
+
             # ── RAG cache check ────────────────────────────────────────────
             # Cache raw FAISS results before user_name personalization and
             # context boosts — those are per-user and applied below, so
             # raw results are safe to share across users.
-            raw_results = get_rag_cache(query)
+            raw_results = get_rag_cache(query, lane=rag_lane)
             if raw_results is None:
-                raw_results = self.rag_retriever.search(query, k=3)
-                set_rag_cache(query, raw_results)
+                retriever = RAGRetriever.get_instance(lane=rag_lane)
+                raw_results = retriever.search(query, k=3)
+                set_rag_cache(query, raw_results, lane=rag_lane)
 
             results = list(raw_results)  # copy — ordering may be mutated below
 
@@ -442,15 +529,22 @@ class QueryProcessor:
                     answer = answer.replace('{user_name}', user_name)
 
                 keywords = match.get('keywords', []) or []
+                match_lane = normalize_lane(match.get('lane') or match.get('primary_lane') or rag_lane)
                 processed_results.append({
                     'id': match.get('id', ''),
                     'question': match['question'],
                     'answer': answer,
                     'confidence': boosted_score,
-                    'method': 'faiss_semantic_search',
+                    'method': match.get('vector_backend', 'lane_vector_search'),
                     'context_boost': boost_amount,
-                    'category': keywords[0] if keywords else 'general',
-                    'policy_type': 'faq'
+                    'category': keywords[0] if keywords else match_lane,
+                    'policy_type': 'faq',
+                    'lane': match_lane,
+                    'knowledge_lane': match_lane,
+                    'primary_lane': match.get('primary_lane', match_lane),
+                    'secondary_tags': match.get('secondary_tags', []),
+                    'priority': match.get('priority', 'useful'),
+                    'status': match.get('status', 'active'),
                 })
 
             return processed_results
@@ -670,13 +764,17 @@ class QueryProcessor:
             for i, result in enumerate(rag_results[:3], 1):
                 packet = {
                     'id': result.get('id', ''),
+                    'lane': result.get('lane') or result.get('primary_lane') or 'platform_help',
+                    'primary_lane': result.get('primary_lane') or result.get('lane') or 'platform_help',
+                    'secondary_tags': result.get('secondary_tags', []),
+                    'priority': result.get('priority', 'useful'),
                     'category': result.get('category', 'general'),
                     'policy_type': result.get('policy_type', 'faq'),
                     'similarity_score': round(result.get('confidence', 0.0), 4),
                     'question': result.get('question', ''),
                     'answer': result.get('answer', '')[:220],
                 }
-                rag_lines.append(f'FAQ_PACKET_{i}: {packet}')
+                rag_lines.append(f'KNOWLEDGE_PACKET_{i}: {packet}')
             sections['retrieval_evidence'] = rag_lines
 
         if rule_result and rule_result.get('matched'):

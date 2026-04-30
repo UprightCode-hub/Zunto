@@ -139,7 +139,12 @@ else:
         }
     }
 
-                     
+PRODUCT_VECTOR_BACKEND = config('PRODUCT_VECTOR_BACKEND', default='auto')
+PRODUCT_VECTOR_MODEL = config('PRODUCT_VECTOR_MODEL', default='paraphrase-MiniLM-L3-v2')
+PRODUCT_VECTOR_DIMENSIONS = config('PRODUCT_VECTOR_DIMENSIONS', default=384, cast=int)
+PRODUCT_VECTOR_TABLE = config('PRODUCT_VECTOR_TABLE', default='market_product_vector')
+
+                       
 
 REDIS_HOST = config('REDIS_HOST', default='localhost')
 REDIS_PORT = config('REDIS_PORT', default=6379, cast=int)
@@ -526,7 +531,8 @@ LOGGING = {
             'level': 'INFO',
             'filters': ['require_debug_true'],
             'class': 'logging.StreamHandler',
-            'formatter': 'simple'
+            'formatter': 'simple',
+            'stream': 'ext://sys.stdout',
         },
         'file': {
             'level': 'ERROR',
@@ -535,6 +541,8 @@ LOGGING = {
             'maxBytes': 1024 * 1024 * 5,
             'backupCount': 5,
             'formatter': 'verbose',
+            'encoding': 'utf-8',
+            'errors': 'replace',
         },
         'audit_file': {
             'level': 'INFO',
@@ -543,6 +551,8 @@ LOGGING = {
             'maxBytes': 1024 * 1024 * 20,
             'backupCount': 10,
             'formatter': 'simple',
+            'encoding': 'utf-8',
+            'errors': 'replace',
         },
     },
     'root': {

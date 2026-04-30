@@ -341,7 +341,7 @@ class IntentClassifier:
                 cls._initialized = True
 
                 logger.info(
-                    f"✅ Intent prototype embeddings ready "
+                    f"Intent prototype embeddings ready "
                     f"({len(intents)} intents, {len(all_texts)} prototypes)"
                 )
 
@@ -625,7 +625,7 @@ class IntentClassifier:
 
         is_switch = current_value != last_intent_value
         if is_switch:
-            logger.info(f"🔄 Topic switch: {last_intent_value} → {current_value}")
+            logger.info(f"Topic switch: {last_intent_value} -> {current_value}")
         return is_switch
 
     @classmethod

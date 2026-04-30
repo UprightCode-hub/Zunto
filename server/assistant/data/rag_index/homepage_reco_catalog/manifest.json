@@ -1,0 +1,7 @@
+{
+  "lane": "homepage_reco_catalog",
+  "num_faqs": 6,
+  "dimension": 384,
+  "vector_backend": "faiss_hnsw_ip",
+  "source": "updated_faq.json"
+}

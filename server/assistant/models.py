@@ -607,6 +607,71 @@ class RecommendationDemandGap(models.Model):
         return f"DemandGap<{self.requested_category or 'unknown'} x{self.frequency}>"
 
 
+class AIRecommendationFeedback(models.Model):
+    FEEDBACK_HELPFUL = 'helpful'
+    FEEDBACK_NOT_RELEVANT = 'not_relevant'
+    FEEDBACK_TOO_EXPENSIVE = 'too_expensive'
+    FEEDBACK_WRONG_LOCATION = 'wrong_location'
+    FEEDBACK_WRONG_CONDITION = 'wrong_condition'
+    FEEDBACK_WRONG_PRODUCT_TYPE = 'wrong_product_type'
+    FEEDBACK_CHOICES = [
+        (FEEDBACK_HELPFUL, 'Helpful'),
+        (FEEDBACK_NOT_RELEVANT, 'Not relevant'),
+        (FEEDBACK_TOO_EXPENSIVE, 'Too expensive'),
+        (FEEDBACK_WRONG_LOCATION, 'Wrong location'),
+        (FEEDBACK_WRONG_CONDITION, 'Wrong condition'),
+        (FEEDBACK_WRONG_PRODUCT_TYPE, 'Wrong product type'),
+    ]
+
+    SOURCE_HOMEPAGE_RECO = 'homepage_reco'
+    SOURCE_CHOICES = [
+        (SOURCE_HOMEPAGE_RECO, 'Homepage recommendation'),
+    ]
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='ai_recommendation_feedback',
+    )
+    session = models.ForeignKey(
+        ConversationSession,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='recommendation_feedback',
+    )
+    selected_product = models.ForeignKey(
+        'market.Product',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='ai_recommendation_feedback',
+    )
+    feedback_type = models.CharField(max_length=40, choices=FEEDBACK_CHOICES, db_index=True)
+    prompt = models.TextField(blank=True)
+    message = models.TextField(blank=True)
+    source = models.CharField(max_length=40, choices=SOURCE_CHOICES, default=SOURCE_HOMEPAGE_RECO)
+    recommended_products = models.JSONField(default=list, encoder=DjangoJSONEncoder, blank=True)
+    recommendation_metadata = models.JSONField(default=dict, encoder=DjangoJSONEncoder, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['feedback_type', '-created_at']),
+            models.Index(fields=['source', '-created_at']),
+            models.Index(fields=['user', '-created_at']),
+            models.Index(fields=['session', '-created_at']),
+            models.Index(fields=['selected_product', '-created_at']),
+        ]
+
+    def __str__(self):
+        product = self.selected_product_id or 'no-product'
+        return f"AIRecoFeedback<{self.feedback_type}:{product}>"
+
+
 
 
 class DemandCluster(models.Model):

@@ -1,0 +1,7 @@
+{
+  "lane": "dispute_resolution",
+  "num_faqs": 30,
+  "dimension": 384,
+  "vector_backend": "faiss_hnsw_ip",
+  "source": "updated_faq.json"
+}

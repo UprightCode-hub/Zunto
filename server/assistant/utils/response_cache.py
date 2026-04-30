@@ -13,13 +13,13 @@ Cache layers:
      TTL: 1 hour. Only caches high-confidence, non-dispute responses.
      Saves 600-2000ms + one Groq token budget per cache hit.
 
-  2. RAG search cache — keyed by normalized_query
+    2. RAG search cache — keyed by lane + normalized_query
      TTL: 30 minutes. Caches FAISS + FAQ results.
      Saves ~80-150ms per hit, reduces model encode calls.
 
 Cache key format:
     zunto:llm_v1:{assistant_mode}:{md5(normalized_message)}
-    zunto:rag_v1:{md5(normalized_query)}
+    zunto:rag_v2:{lane}:{md5(normalized_query)}
 
 The version suffix (v1) allows instant cache invalidation across all
 keys if the response format or model changes — just bump the version.
@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 # Version — bump this to invalidate all cached responses instantly
 # ---------------------------------------------------------------------------
 _LLM_CACHE_VERSION = 'v1'
-_RAG_CACHE_VERSION = 'v1'
+_RAG_CACHE_VERSION = 'v2'
 
 # ---------------------------------------------------------------------------
 # TTLs
@@ -167,18 +167,19 @@ def invalidate_llm_cache(
 # RAG search cache
 # ---------------------------------------------------------------------------
 
-def _rag_cache_key(query: str) -> str:
+def _rag_cache_key(query: str, lane: Optional[str] = None) -> str:
+    normalized_lane = (lane or 'unknown').lower().strip() or 'unknown'
     normalized = _normalize(query)
     digest = _md5(normalized)
-    return f'rag_{_RAG_CACHE_VERSION}:{digest}'
+    return f'rag_{_RAG_CACHE_VERSION}:{normalized_lane}:{digest}'
 
 
-def get_rag_cache(query: str) -> Optional[List[Dict]]:
+def get_rag_cache(query: str, lane: Optional[str] = None) -> Optional[List[Dict]]:
     """
     Retrieve cached RAG search results.
     Returns list of result dicts or None on miss.
     """
-    key = _rag_cache_key(query)
+    key = _rag_cache_key(query, lane)
     try:
         cached = cache.get(key)
         if cached is not None:
@@ -192,6 +193,7 @@ def get_rag_cache(query: str) -> Optional[List[Dict]]:
 def set_rag_cache(
     query: str,
     results: List[Dict],
+    lane: Optional[str] = None,
     ttl: int = RAG_CACHE_TTL,
 ) -> None:
     """
@@ -200,7 +202,7 @@ def set_rag_cache(
     if not results:
         return
 
-    key = _rag_cache_key(query)
+    key = _rag_cache_key(query, lane)
     try:
         cache.set(key, results, timeout=ttl)
         logger.debug(f"RAG cache SET ({len(results)} results): {query[:50]!r}")

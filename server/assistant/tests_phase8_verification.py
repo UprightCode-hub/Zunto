@@ -106,11 +106,13 @@ class Phase8VerificationTests(TestCase):
         self.assertIn("throwing darts in the dark", result['reply'])
         self.assertIn(result['source'], {'recommendation_results', 'recommendation_results_alternatives'})
 
-    def test_scenario_5_login_gate_logged_out(self):
+    def test_scenario_5_logged_out_homepage_reco_returns_guest_preview(self):
         payload = _handle_ephemeral_chat('i need a phone under 200k', 'homepage_reco', 'inbox')
-        self.assertEqual(payload.get('state'), 'login_required')
-        self.assertTrue(payload.get('login_required'))
-        self.assertNotIn('Here are top', payload.get('reply', ''))
+        self.assertEqual(payload.get('state'), 'chat_mode')
+        self.assertFalse(payload.get('login_required', False))
+        self.assertTrue(payload.get('session_id'))
+        self.assertTrue(payload.get('metadata', {}).get('guest_preview'))
+        self.assertEqual(payload.get('metadata', {}).get('persistence'), 'temporary')
 
     def test_scenario_7_seller_memory(self):
         ok = SellerMemoryService.update_from_conversation(

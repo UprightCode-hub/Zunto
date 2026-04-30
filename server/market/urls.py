@@ -2,6 +2,7 @@
 from django.urls import path
 from .views import (
     CategoryListView,
+    ProductFamilyListView,
     LocationListView,
     ProductListCreateView,
     ProductDetailView,
@@ -25,12 +26,16 @@ from .views import (
     mark_as_sold,
     reactivate_product,
     share_product,
+    verify_product_attributes,
+    suggest_product_metadata,
 )
 
 
 urlpatterns = [
                             
     path('categories/', CategoryListView.as_view(), name='category_list'),
+    path('product-families/', ProductFamilyListView.as_view(), name='product_family_list'),
+    path('products/suggest-metadata/', suggest_product_metadata, name='product_metadata_suggestion'),
     path('locations/', LocationListView.as_view(), name='location_list'),
     
               
@@ -45,6 +50,7 @@ urlpatterns = [
     path('products/<slug:product_slug>/stats/', ProductStatsView.as_view(), name='product_stats'),
     path('products/<slug:product_slug>/mark-sold/', mark_as_sold, name='mark_as_sold'),
     path('products/<slug:product_slug>/reactivate/', reactivate_product, name='reactivate_product'),
+    path('products/<slug:product_slug>/verify-attributes/', verify_product_attributes, name='verify-product-attributes'),
     path('products/<slug:product_slug>/share/', share_product, name='share_product'),
     
                    

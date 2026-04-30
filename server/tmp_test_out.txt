@@ -1,0 +1,116 @@
+INFO AI module v2.1.0 loaded successfully - 7 components ready
+INFO Preloading assistant components...
+INFO Loaded 81 rules from C:\Users\user\Desktop\Cloned_zunto\Zunto-main\server\assistant\data\rules.yaml
+INFO RuleEngine loaded: 81 rules
+INFO Loaded embeddings for 208 FAQs
+INFO Loaded metadata with 208 FAQs
+INFO RAGRetriever loaded: 208 FAQs indexed
+INFO Groq LLM initialized successfully
+INFO    Model: llama-3.3-70b-versatile
+INFO    Free tier: 30 req/min, 14,400 req/day
+INFO LocalModelAdapter loaded: groq
+INFO Loading sentence transformer model...
+INFO Load pretrained SentenceTransformer: paraphrase-MiniLM-L3-v2
+INFO Sentence transformer model loaded successfully
+INFO Encoding 118 intent prototypes across 14 intents...
+INFO Intent prototype embeddings ready (14 intents, 118 prototypes)
+INFO IntentClassifier warm-up complete
+INFO IntentClassifier warm-up attempted
+INFO Assistant components preloaded successfully
+Found 1 test(s).
+Operations to perform:
+  Synchronize unmigrated apps: channels, corsheaders, crispy_bootstrap5, crispy_forms, daphne, django_extensions, import_export, messages, rangefilter, rest_framework, staticfiles
+  Apply all migrations: accounts, admin, assistant, auth, cart, chat, contenttypes, market, notifications, orders, reviews, sessions, token_blacklist
+Synchronizing apps without migrations:
+  Creating tables...
+    Running deferred SQL...
+Running migrations:
+  Applying contenttypes.0001_initial... OK
+  Applying contenttypes.0002_remove_content_type_name... OK
+  Applying auth.0001_initial... OK
+  Applying auth.0002_alter_permission_name_max_length... OK
+  Applying auth.0003_alter_user_email_max_length... OK
+  Applying auth.0004_alter_user_username_opts... OK
+  Applying auth.0005_alter_user_last_login_null... OK
+  Applying auth.0006_require_contenttypes_0002... OK
+  Applying auth.0007_alter_validators_add_error_messages... OK
+  Applying auth.0008_alter_user_username_max_length... OK
+  Applying auth.0009_alter_user_last_name_max_length... OK
+  Applying auth.0010_alter_group_name_max_length... OK
+  Applying auth.0011_update_proxy_permissions... OK
+  Applying auth.0012_alter_user_first_name_max_length... OK
+  Applying accounts.0001_initial... OK
+  Applying market.0001_initial... OK
+  Applying market.0002_alter_product_deleted_at... OK
+  Applying market.0003_productshareevent... OK
+  Applying market.0004_productview_product_user_index... OK
+  Applying market.0005_productreport_moderated_by... OK
+  Applying market.0006_productvideo_security_scan_fields... OK
+  Applying market.0004_rename_product_sha_product_6f70d7_idx_product_sha_product_c89b9b_idx_and_more... OK
+  Applying market.0007_merge_20260222_1421... OK
+  Applying market.0008_rename_mkt_vid_scan_idx_product_vid_product_6b28b2_idx_and_more... OK
+  Applying market.0009_productview_source... OK
+  Applying market.0010_product_is_verified_product... OK
+  Applying market.0011_rename_market_prod_source_3fc319_idx_product_vie_source_d956a2_idx... OK
+  Applying market.0012_product_embedding_vector... OK
+  Applying market.0013_demandevent... OK
+  Applying accounts.0002_user_google_id... OK
+  Applying accounts.0003_pendingregistration... OK
+  Applying accounts.0004_user_seller_commerce_mode_and_pending... OK
+  Applying accounts.0005_user_seller_flags... OK
+  Applying accounts.0006_sellerprofile... OK
+  Applying accounts.0007_rename_seller_prof_status_5c6689_idx_seller_prof_status_518810_idx_and_more... OK
+  Applying accounts.0008_sellerprofile_rating_sellerprofile_total_reviews_and_more... OK
+  Applying accounts.0009_alter_user_profile_picture... OK
+  Applying accounts.0010_sellerprofile_ai_memory... OK
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying orders.0001_initial... OK
+  Applying assistant.0001_initial... OK
+  Applying assistant.0002_conversationsession_lane_and_title_fields... OK
+  Applying assistant.0003_disputemedia... OK
+  Applying assistant.0004_disputemedia_validation_fields... OK
+  Applying assistant.0005_conversationsession_assistant_mode... OK
+  Applying assistant.0006_rename_assistant_di_report__be8e93_idx_assistant_d_report__6a6b48_idx_and_more... OK
+  Applying assistant.0007_disputeticket_and_communication... OK
+  Applying assistant.0008_disputeticket_admin_decision_fields... OK
+  Applying assistant.0009_disputeticket_escrow_fields... OK
+  Applying assistant.0010_disputeticket_ai_recommendation_fields... OK
+  Applying assistant.0011_disputeticket_escrow_execution_lock_fields... OK
+  Applying assistant.0012_disputeticket_escalation_and_ai_admin_fields... OK
+  Applying assistant.0013_disputeauditlog... OK
+  Applying assistant.0014_recommendation_context_and_profiles... OK
+  Applying assistant.0015_demand_match_idx... OK
+  Applying assistant.0016_demandcluster... OK
+  Applying assistant.0017_rename_assistant_co_context_96b742_idx_assistant_c_context_0aca1a_idx_and_more... OK
+  Applying assistant.0018_alter_disputemedia_file... OK
+  Applying cart.0001_initial... OK
+  Applying cart.0002_userscore_cartevent... OK
+  Applying chat.0001_initial... OK
+  Applying chat.0002_remove_message_message_has_content_or_attachment_and_more... OK
+  Applying chat.0003_conversation_lock_and_transaction_confirmation... OK
+  Applying chat.0004_transactionconfirmation_pair_constraint... OK
+  Applying chat.0005_rename_chat_conver_is_lock_534ef9_idx_chat_conver_is_lock_88cc81_idx_and_more... OK
+  Applying market.0014_alter_productimage_image_and_more... OK
+  Applying market.0015_add_product_attributes... OK
+  Applying notifications.0001_initial... OK
+  Applying notifications.0002_notification... OK
+  Applying orders.0002_order_subtotal... OK
+  Applying orders.0003_order_refunded_status... OK
+  Applying orders.0004_orderitem_order_items_seller__0dab98_idx_and_more... OK
+  Applying reviews.0001_initial... OK
+  Applying reviews.0002_alter_reviewimage_image... OK
+  Applying sessions.0001_initial... OK
+  Applying token_blacklist.0001_initial... OK
+  Applying token_blacklist.0002_outstandingtoken_jti_hex... OK
+  Applying token_blacklist.0003_auto_20171017_2007... OK
+  Applying token_blacklist.0004_auto_20171017_2013... OK
+  Applying token_blacklist.0005_remove_outstandingtoken_jti... OK
+  Applying token_blacklist.0006_auto_20171017_2113... OK
+  Applying token_blacklist.0007_auto_20171017_2214... OK
+  Applying token_blacklist.0008_migrate_to_bigautofield... OK
+  Applying token_blacklist.0010_fix_migrate_to_bigautofield... OK
+  Applying token_blacklist.0011_linearizes_history... OK
+  Applying token_blacklist.0012_alter_outstandingtoken_user... OK
+System check identified no issues (0 silenced).

@@ -7,6 +7,7 @@ from .models import (
     DisputeMedia,
     DisputeTicket,
     DisputeTicketCommunication,
+    AIRecommendationFeedback,
 )
 
 
@@ -300,3 +301,38 @@ class SuggestionResponseSerializer(serializers.Serializer):
         child=serializers.CharField(),
         required=True,
     )
+
+
+class RecommendationFeedbackRequestSerializer(serializers.Serializer):
+    feedback_type = serializers.ChoiceField(choices=[choice[0] for choice in AIRecommendationFeedback.FEEDBACK_CHOICES])
+    session_id = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    product_id = serializers.UUIDField(required=False, allow_null=True)
+    prompt = serializers.CharField(max_length=2000, required=False, allow_blank=True)
+    message = serializers.CharField(max_length=2000, required=False, allow_blank=True)
+    source = serializers.ChoiceField(
+        choices=[choice[0] for choice in AIRecommendationFeedback.SOURCE_CHOICES],
+        required=False,
+        default=AIRecommendationFeedback.SOURCE_HOMEPAGE_RECO,
+    )
+    recommended_products = serializers.JSONField(required=False)
+    recommendation_metadata = serializers.JSONField(required=False)
+
+    def validate_recommended_products(self, value):
+        if value in (None, ''):
+            return []
+        if not isinstance(value, list):
+            raise serializers.ValidationError('recommended_products must be a list.')
+        return value[:20]
+
+    def validate_recommendation_metadata(self, value):
+        if value in (None, ''):
+            return {}
+        if not isinstance(value, dict):
+            raise serializers.ValidationError('recommendation_metadata must be an object.')
+        return value
+
+
+class RecommendationFeedbackResponseSerializer(serializers.Serializer):
+    stored = serializers.BooleanField(required=True)
+    id = serializers.IntegerField(required=True)
+    feedback_type = serializers.CharField(required=True)

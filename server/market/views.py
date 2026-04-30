@@ -21,14 +21,17 @@ from django.core.cache import cache
 
 from .models import (
     Category, Location, Product, ProductImage, 
-    ProductVideo, Favorite, ProductView, ProductReport, ProductShareEvent
+    ProductVideo, Favorite, ProductView, ProductReport, ProductShareEvent,
+    ProductFamily
 )
 from .serializers import (
     CategorySerializer, LocationSerializer, 
     ProductListSerializer, ProductDetailSerializer,
     ProductCreateUpdateSerializer, ProductImageSerializer,
     ProductVideoSerializer, FavoriteSerializer, ProductReportSerializer,
-    ProductVideoModerationSerializer
+    ProductVideoModerationSerializer, ProductFamilySerializer,
+    ProductMetadataSuggestionRequestSerializer,
+    ProductMetadataSuggestionResponseSerializer
 )
 from .permissions import IsSellerOrReadOnly
 from .heuristics import should_count_view
@@ -151,6 +154,36 @@ class CategoryListView(generics.ListAPIView):
         return Category.objects.filter(is_active=True, parent=None)
 
 
+class ProductFamilyListView(generics.ListAPIView):
+    """List active product families and their seller attribute schemas."""
+
+    serializer_class = ProductFamilySerializer
+    permission_classes = [permissions.AllowAny]
+
+    def get_queryset(self):
+        queryset = ProductFamily.objects.filter(is_active=True).select_related(
+            'top_category', 'subcategory', 'subcategory__parent'
+        ).prefetch_related('attribute_schemas')
+        category = self.request.query_params.get('category')
+        if category:
+            queryset = queryset.filter(
+                Q(top_category_id=category)
+                | Q(subcategory_id=category)
+                | Q(top_category__slug=category)
+                | Q(subcategory__slug=category)
+                | Q(top_category__name__iexact=category)
+                | Q(subcategory__name__iexact=category)
+            )
+        search = self.request.query_params.get('q')
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search)
+                | Q(aliases__icontains=search)
+                | Q(keywords__icontains=search)
+            )
+        return queryset.order_by('top_category__order', 'subcategory__order', 'order', 'name')[:500]
+
+
 class LocationListView(generics.ListAPIView):
     """List all active locations"""
     
@@ -159,6 +192,28 @@ class LocationListView(generics.ListAPIView):
     queryset = Location.objects.filter(is_active=True)
     filter_backends = [filters.SearchFilter]
     search_fields = ['state', 'city', 'area']
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticatedOrReadOnly])
+def suggest_product_metadata(request):
+    """Suggest attributes and search tags from a seller's title/description."""
+
+    serializer = ProductMetadataSuggestionRequestSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+
+    from market.services.attribute_extractor import suggest_product_metadata as suggest_metadata
+
+    payload = serializer.validated_data
+    suggestion = suggest_metadata(
+        title=payload['title'],
+        description=payload.get('description', ''),
+        category=payload.get('category') or None,
+        product_family=payload.get('product_family') or None,
+        brand=payload.get('brand', ''),
+    )
+    response = ProductMetadataSuggestionResponseSerializer(suggestion)
+    return Response(response.data, status=status.HTTP_200_OK)
 
 
 class ProductListCreateView(generics.ListCreateAPIView):
@@ -207,7 +262,7 @@ class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
     
     def get_queryset(self):
         return Product.objects.select_related(
-            'category', 'location', 'seller'
+            'category', 'product_family', 'location', 'seller'
         ).prefetch_related('images', 'videos')
     
     def retrieve(self, request, *args, **kwargs):
@@ -661,6 +716,55 @@ def reactivate_product(request, product_slug):
     return Response({
         'message': 'Product reactivated successfully.'
     }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAdminOrStaff])
+def verify_product_attributes(request, product_slug):
+    """
+    Admin endpoint to verify that a product's attributes are accurate.
+    Once verified, attributes become available to the AI recommender.
+    """
+    from django.utils import timezone
+
+    product = get_object_or_404(Product, slug=product_slug)
+
+    verified = bool(request.data.get('verified', False))
+    corrections = request.data.get('corrections') or {}
+
+    if corrections and isinstance(corrections, dict):
+        current_attrs = product.attributes or {}
+        current_attrs.update(corrections)
+        product.attributes = current_attrs
+
+    product.attributes_verified = verified
+    product.attributes_verified_at = timezone.now() if verified else None
+    product.attributes_verified_by = request.user if verified else None
+    product.save(update_fields=[
+        'attributes',
+        'attributes_verified',
+        'attributes_verified_at',
+        'attributes_verified_by',
+        'updated_at',
+    ])
+
+    audit_event(
+        request,
+        action='market.product.attributes_verified',
+        extra={
+            'product_id': str(product.id),
+            'verified': verified,
+            'corrections_count': len(corrections),
+        }
+    )
+
+    return Response({
+        'product_slug': product.slug,
+        'attributes': product.attributes,
+        'attributes_verified': product.attributes_verified,
+        'attributes_verified_at': product.attributes_verified_at,
+    }, status=status.HTTP_200_OK)
+
 
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])

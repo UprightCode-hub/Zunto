@@ -1,0 +1,7 @@
+{
+  "lane": "seller_support",
+  "num_faqs": 37,
+  "dimension": 384,
+  "vector_backend": "faiss_hnsw_ip",
+  "source": "updated_faq.json"
+}

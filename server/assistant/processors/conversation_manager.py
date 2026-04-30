@@ -82,10 +82,11 @@ class ConversationManager:
 
         self.context_mgr = ContextManager(self.session)
         self.personalizer = ResponsePersonalizer(self.session)
+        self.last_ai_result = None
 
         self.greeting_flow = GreetingFlow(self.session, self.context_mgr)
         self.faq_flow = FAQFlow(self.session, self.query_processor, self.context_mgr)
-        self.dispute_flow = DisputeFlow(self.session, self.llm, self.context_mgr)
+        self.dispute_flow = DisputeFlow(self.session, self.llm, self.context_mgr, query_processor=self.query_processor)
         self.feedback_flow = FeedbackFlow(self.session, self.context_mgr, intent_classifier=True)
 
         self._message_intent_cache = {}
@@ -99,6 +100,12 @@ class ConversationManager:
 
     def _get_or_create_session(self) -> ConversationSession:
         try:
+            initial_state = STATE_GREETING
+            if self.assistant_mode == ASSISTANT_MODE_HOMEPAGE_RECO:
+                initial_state = STATE_CHAT_MODE
+            elif self.assistant_lane == 'customer_service':
+                initial_state = STATE_DISPUTE_MODE
+
             session, created = ConversationSession.objects.get_or_create(
                 session_id=self.session_id,
                 defaults={
@@ -106,11 +113,7 @@ class ConversationManager:
                     'assistant_lane': self.assistant_lane,
                     'assistant_mode': self.assistant_mode,
                     'is_persistent': True,
-                    'current_state': (
-                        STATE_DISPUTE_MODE
-                        if self.assistant_lane == 'customer_service'
-                        else STATE_GREETING
-                    ),
+                    'current_state': initial_state,
                     'context': {}
                 }
             )
@@ -126,6 +129,9 @@ class ConversationManager:
                 if self.user_id and session.user_id is None:
                     session.user_id = self.user_id
                     updates.append('user')
+                    if not session.is_persistent:
+                        session.is_persistent = True
+                        updates.append('is_persistent')
 
                 persisted_mode = getattr(session, 'assistant_mode', None)
                 if persisted_mode:
@@ -138,6 +144,10 @@ class ConversationManager:
                 if session.assistant_lane != self.assistant_lane:
                     session.assistant_lane = self.assistant_lane
                     updates.append('assistant_lane')
+
+                if self.assistant_mode == ASSISTANT_MODE_HOMEPAGE_RECO and session.current_state != STATE_CHAT_MODE:
+                    session.current_state = STATE_CHAT_MODE
+                    updates.append('current_state')
 
                 if updates:
                     updates.append('updated_at')
@@ -174,6 +184,7 @@ class ConversationManager:
 
     def process_message(self, message: str) -> str:
         try:
+            self.last_ai_result = None
             is_valid, error = validate_message(message)
             if not is_valid:
                 logger.warning(f"Invalid message: {error}")
@@ -191,6 +202,7 @@ class ConversationManager:
 
             if self.assistant_mode == ASSISTANT_MODE_HOMEPAGE_RECO:
                 RecommendationService.initialize_context(self.session)
+                return self._handle_homepage_reco_mode(message)
 
             if self.assistant_mode == ASSISTANT_MODE_CUSTOMER_SERVICE and current_state != STATE_DISPUTE_MODE:
                 self.dispute_flow.enter_dispute_mode()
@@ -397,6 +409,7 @@ class ConversationManager:
             )
 
             reply, faq_metadata = self.faq_flow.handle_faq_query(message)
+            self.last_ai_result = {'metadata': faq_metadata, 'source': 'faq_flow'}
 
             use_personalization = getattr(settings, 'PHASE1_RESPONSE_PERSONALIZATION_FIX', True)
 
@@ -446,6 +459,7 @@ class ConversationManager:
             )
 
             reply, dispute_metadata = self.dispute_flow.handle_dispute_message(message)
+            self.last_ai_result = {'metadata': dispute_metadata, 'source': 'dispute_flow'}
 
             use_personalization = getattr(settings, 'PHASE1_RESPONSE_PERSONALIZATION_FIX', True)
 
@@ -529,6 +543,42 @@ class ConversationManager:
             logger.error(f"Feedback mode error: {e}", exc_info=True)
             return "Thank you for your feedback! Type 'menu' to return to main options."
 
+    def _handle_homepage_reco_mode(self, message: str) -> str:
+        try:
+            if self.session.current_state != STATE_CHAT_MODE:
+                self.session.current_state = STATE_CHAT_MODE
+                self.session.save(update_fields=['current_state', 'updated_at'])
+
+            self.context_mgr.add_message(
+                role='user',
+                content=message,
+                intent='product_search',
+                emotion='neutral',
+            )
+
+            recommendation = RecommendationService.evaluate_recommendation_message(self.session, message)
+            self.last_ai_result = recommendation
+            final_reply = recommendation['reply']
+            assistant_confidence = float(recommendation.get('confidence', 0.8) or 0.8)
+
+            self.context_mgr.add_message(
+                role='assistant',
+                content=final_reply,
+                confidence=assistant_confidence,
+                metadata={'source': recommendation.get('source', 'recommendation_service')},
+            )
+
+            new_session_id = recommendation.get('new_session_id')
+            if new_session_id:
+                self.session = ConversationSession.objects.get(session_id=new_session_id)
+                self.context_mgr = ContextManager(self.session)
+
+            return final_reply
+
+        except Exception as e:
+            logger.error(f"Homepage recommendation mode error: {e}", exc_info=True)
+            return "I hit a snag while fetching recommendations. Please try again."
+
     def _handle_chat_mode(self, message: str) -> str:
         try:
             gate_reply = self._apply_mode_gate(message)
@@ -561,20 +611,6 @@ class ConversationManager:
                 emotion=emotion
             )
 
-            if self.assistant_mode == ASSISTANT_MODE_HOMEPAGE_RECO:
-                recommendation = RecommendationService.evaluate_recommendation_message(self.session, message)
-                final_reply = recommendation['reply']
-                self.context_mgr.add_message(
-                    role='assistant',
-                    content=final_reply,
-                    confidence=0.8
-                )
-                new_session_id = recommendation.get('new_session_id')
-                if new_session_id:
-                    self.session = ConversationSession.objects.get(session_id=new_session_id)
-                    self.context_mgr = ContextManager(self.session)
-                return final_reply
-
             use_context = getattr(settings, 'PHASE1_CONTEXT_INTEGRATION', True)
 
             # ── assistant_mode forwarded so LLM gets mode-scoped system prompt ──
@@ -584,6 +620,7 @@ class ConversationManager:
                 context=self.session.context if use_context else {},
                 assistant_mode=self.assistant_mode,
             )
+            self.last_ai_result = result
 
             use_personalization = getattr(settings, 'PHASE1_RESPONSE_PERSONALIZATION_FIX', True)
 

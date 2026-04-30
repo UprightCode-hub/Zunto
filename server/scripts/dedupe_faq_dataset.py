@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deduplicate FAQ dataset and enrich metadata tags before re-embedding."""
+"""Validate or deduplicate the canonical FAQ dataset in place before re-embedding."""
 
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ from typing import Dict, List
 
 ROOT = Path(__file__).resolve().parents[1]
 INPUT_PATH = ROOT / 'assistant' / 'data' / 'updated_faq.json'
-OUTPUT_PATH = ROOT / 'assistant' / 'data' / 'updated_faq_deduped.json'
 
 
 def normalize_question(text: str) -> str:
@@ -73,27 +72,29 @@ def dedupe_faqs(faqs: List[Dict]) -> Dict:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description='Deduplicate assistant FAQ corpus.')
-    parser.add_argument('--in-place', action='store_true', help='Overwrite the input file directly.')
+    parser = argparse.ArgumentParser(description='Deduplicate canonical assistant FAQ corpus.')
+    parser.add_argument('--write', action='store_true', help='Overwrite updated_faq.json after deduping.')
     args = parser.parse_args()
 
     payload = json.loads(INPUT_PATH.read_text(encoding='utf-8'))
     faqs = payload.get('faqs', [])
 
     result = dedupe_faqs(faqs)
-    output_file = INPUT_PATH if args.in_place else OUTPUT_PATH
-
-    output_file.write_text(
-        json.dumps({'faqs': result['faqs']}, ensure_ascii=False, indent=2),
-        encoding='utf-8',
-    )
+    if args.write:
+        payload['faqs'] = result['faqs']
+        payload['source_of_truth'] = True
+        INPUT_PATH.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding='utf-8',
+        )
 
     stats = result['stats']
     print(f"input_total={stats['input_total']}")
     print(f"deduped_total={stats['deduped_total']}")
     print(f"duplicate_groups={stats['duplicate_groups']}")
     print(f"duplicates_removed={stats['duplicates_removed']}")
-    print(f"output={output_file}")
+    print(f"source_of_truth={INPUT_PATH}")
+    print(f"wrote={args.write}")
 
 
 if __name__ == '__main__':

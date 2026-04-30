@@ -31,6 +31,7 @@ django-storages==1.14.4
 # DATABASE
 # ============================================
 psycopg[binary]
+pgvector>=0.4.0
 
 # ============================================
 # CACHING & SESSIONS

@@ -55,6 +55,124 @@ class Category(models.Model):
         return self.name
 
 
+class ProductFamily(models.Model):
+    """Specific sellable product type within the category tree."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=140)
+    slug = models.SlugField(max_length=160, blank=True)
+    top_category = models.ForeignKey(
+        Category,
+        on_delete=models.CASCADE,
+        related_name='product_families',
+    )
+    subcategory = models.ForeignKey(
+        Category,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='subcategory_product_families',
+    )
+    description = models.TextField(blank=True)
+    aliases = models.JSONField(default=list, blank=True)
+    keywords = models.JSONField(default=list, blank=True)
+    is_active = models.BooleanField(default=True)
+    order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'product_families'
+        ordering = ['top_category__order', 'subcategory__order', 'order', 'name']
+        unique_together = ['top_category', 'subcategory', 'slug']
+        indexes = [
+            models.Index(fields=['top_category', 'is_active']),
+            models.Index(fields=['subcategory', 'is_active']),
+            models.Index(fields=['slug']),
+        ]
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name)
+        super().save(*args, **kwargs)
+
+    def get_full_path(self):
+        if self.subcategory_id:
+            return f"{self.subcategory.get_full_path()} > {self.name}"
+        return f"{self.top_category.name} > {self.name}"
+
+
+class ProductAttributeSchema(models.Model):
+    """Seller prompt and validation metadata for one product-family attribute."""
+
+    VALUE_TEXT = 'text'
+    VALUE_NUMBER = 'number'
+    VALUE_DECIMAL = 'decimal'
+    VALUE_BOOLEAN = 'boolean'
+    VALUE_SELECT = 'select'
+    VALUE_MULTISELECT = 'multiselect'
+    VALUE_DATE = 'date'
+    VALUE_LIST = 'list'
+
+    VALUE_TYPE_CHOICES = [
+        (VALUE_TEXT, 'Text'),
+        (VALUE_NUMBER, 'Number'),
+        (VALUE_DECIMAL, 'Decimal'),
+        (VALUE_BOOLEAN, 'Boolean'),
+        (VALUE_SELECT, 'Select'),
+        (VALUE_MULTISELECT, 'Multi-select'),
+        (VALUE_DATE, 'Date'),
+        (VALUE_LIST, 'List'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    product_family = models.ForeignKey(
+        ProductFamily,
+        on_delete=models.CASCADE,
+        related_name='attribute_schemas',
+    )
+    key = models.SlugField(max_length=80)
+    label = models.CharField(max_length=120)
+    value_type = models.CharField(
+        max_length=20,
+        choices=VALUE_TYPE_CHOICES,
+        default=VALUE_TEXT,
+    )
+    required = models.BooleanField(default=False)
+    options = models.JSONField(default=list, blank=True)
+    unit = models.CharField(max_length=40, blank=True)
+    seller_prompt = models.CharField(max_length=255, blank=True)
+    examples = models.JSONField(default=list, blank=True)
+    search_weight = models.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        default=1.00,
+        validators=[MinValueValidator(0), MaxValueValidator(5)],
+    )
+    filterable = models.BooleanField(default=True)
+    comparable = models.BooleanField(default=False)
+    order = models.IntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'product_attribute_schemas'
+        ordering = ['product_family', 'order', 'key']
+        unique_together = ['product_family', 'key']
+        indexes = [
+            models.Index(fields=['product_family', 'is_active']),
+            models.Index(fields=['key']),
+            models.Index(fields=['required']),
+        ]
+
+    def __str__(self):
+        return f"{self.product_family.name}.{self.key}"
+
+
 class Location(models.Model):
     """Location for products/services"""
     
@@ -133,6 +251,13 @@ class Product(SoftDeleteModel):
         null=True, 
         related_name='products'
     )
+    product_family = models.ForeignKey(
+        ProductFamily,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='products',
+    )
     location = models.ForeignKey(
         Location, 
         on_delete=models.SET_NULL, 
@@ -182,6 +307,36 @@ class Product(SoftDeleteModel):
     favorites_count = models.PositiveIntegerField(default=0)
     shares_count = models.PositiveIntegerField(default=0)
     embedding_vector = models.JSONField(null=True, blank=True, default=list)
+    search_tags = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=(
+            "Seller/admin supplied search tags used by hybrid product retrieval. "
+            "Examples: ['iphone', '128gb', 'tokunbo', 'gaming laptop']."
+        ),
+    )
+    attributes = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Structured product attributes captured at upload time. "
+            "Examples: {colour: 'Midnight Black', storage: '128GB', "
+            "network: 'Unlocked', accessories: ['Charger', 'Box']}. "
+            "Admin-verified before use in recommendations."
+        ),
+    )
+    attributes_verified = models.BooleanField(
+        default=False,
+        help_text="Set True by admin after verifying attribute accuracy."
+    )
+    attributes_verified_at = models.DateTimeField(null=True, blank=True)
+    attributes_verified_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='verified_products',
+    )
     
                 
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
@@ -194,6 +349,7 @@ class Product(SoftDeleteModel):
         indexes = [
             models.Index(fields=['seller', 'status']),
             models.Index(fields=['category', 'status']),
+            models.Index(fields=['product_family', 'status']),
             models.Index(fields=['status', '-created_at']),
             models.Index(fields=['is_featured', '-created_at']),
             models.Index(fields=['is_boosted', '-created_at']),
@@ -203,6 +359,10 @@ class Product(SoftDeleteModel):
         return self.title
     
     def save(self, *args, **kwargs):
+        if self.product_family_id and not self.category_id:
+            family_category = self.product_family.subcategory or self.product_family.top_category
+            self.category = family_category
+
         if self.seller_id:
             try:
                 seller_profile = self.seller.seller_profile

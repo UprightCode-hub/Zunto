@@ -86,7 +86,11 @@ Just type your question or choose an option!"""
             ), {'success': False, 'action': 'retry_prompt'}
 
         logger.info(f"Processing FAQ query: {message[:50]}...")
-        result = self.query_processor.process(message)
+        result = self.query_processor.process(
+            message,
+            context=getattr(self.session, 'context', {}) or {},
+            assistant_mode=getattr(self.session, 'assistant_mode', None),
+        )
 
         confidence = result['confidence']
         tier = self._determine_tier(confidence)
@@ -125,6 +129,7 @@ Just type your question or choose an option!"""
             'success': success,
             'explanation': result.get('explanation', ''),
             'source': result.get('source', 'unknown'),
+            'rag_lane': result.get('metadata', {}).get('rag_lane'),
         }
 
         logger.info(

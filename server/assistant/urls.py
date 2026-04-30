@@ -29,6 +29,7 @@ urlpatterns = [
     path('api/translate-search/', views.translate_search, name='translate_search'),
     path('api/suggestions/', views.query_suggestions, name='query_suggestions'),
     path('api/log-demand-gap/', views.log_demand_gap_endpoint, name='log_demand_gap'),
+    path('api/recommendations/feedback/', views.recommendation_feedback_endpoint, name='recommendation_feedback'),
     path('api/demand/hot/', views.hot_demand_clusters_endpoint, name='hot_demand_clusters'),
     path('api/report/', views.create_report, name='report'),
     path('api/dispute-tickets/', views.create_dispute_ticket, name='create_dispute_ticket'),

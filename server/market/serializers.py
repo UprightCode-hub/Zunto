@@ -3,7 +3,8 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from .models import (
     Category, Location, Product, ProductImage, 
-    ProductVideo, Favorite, ProductReport
+    ProductVideo, Favorite, ProductReport,
+    ProductFamily, ProductAttributeSchema
 )
 from core.file_validation import validate_uploaded_file
 from accounts.seller_utils import get_seller_profile, is_active_seller, is_pending_seller, is_verified_seller
@@ -48,6 +49,38 @@ class CategorySerializer(serializers.ModelSerializer):
                 many=True
             ).data
         return []
+
+
+class ProductAttributeSchemaSerializer(serializers.ModelSerializer):
+    """Serializer for category-specific seller attribute prompts."""
+
+    class Meta:
+        model = ProductAttributeSchema
+        fields = [
+            'id', 'key', 'label', 'value_type', 'required', 'options',
+            'unit', 'seller_prompt', 'examples', 'search_weight',
+            'filterable', 'comparable', 'order', 'is_active',
+        ]
+        read_only_fields = fields
+
+
+class ProductFamilySerializer(serializers.ModelSerializer):
+    """Serializer for specific product families under the category tree."""
+
+    top_category_name = serializers.CharField(source='top_category.name', read_only=True)
+    subcategory_name = serializers.CharField(source='subcategory.name', read_only=True)
+    full_path = serializers.CharField(source='get_full_path', read_only=True)
+    attribute_schemas = ProductAttributeSchemaSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ProductFamily
+        fields = [
+            'id', 'name', 'slug', 'top_category', 'top_category_name',
+            'subcategory', 'subcategory_name', 'full_path', 'description',
+            'aliases', 'keywords', 'attribute_schemas', 'is_active', 'order',
+            'created_at',
+        ]
+        read_only_fields = fields
 
 
 class LocationSerializer(serializers.ModelSerializer):
@@ -180,6 +213,7 @@ class ProductListSerializer(serializers.ModelSerializer):
     """Serializer for product listing (summary view)"""
     
     category_name = serializers.CharField(source='category.name', read_only=True)
+    product_family_name = serializers.CharField(source='product_family.name', read_only=True)
     location_display = serializers.CharField(source='location.__str__', read_only=True)
     seller_name = serializers.CharField(source='seller.get_full_name', read_only=True)
     primary_image = serializers.SerializerMethodField()
@@ -195,11 +229,12 @@ class ProductListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'slug', 'description', 'listing_type', 'price', 'negotiable',
             'condition', 'brand', 'status', 'category_name', 
+            'product_family_name',
             'location_display', 'seller_name', 'primary_image',
             'is_featured', 'is_boosted', 'is_verified', 'is_verified_product', 'is_favorited',
             'views_count', 'favorites_count', 'average_rating', 'review_count',
             'seller_commerce_mode', 'seller_profile_status', 'is_managed_commerce_eligible',
-             'created_at'
+            'search_tags', 'created_at'
         ]
         read_only_fields = fields
     
@@ -272,6 +307,7 @@ class ProductDetailSerializer(serializers.ModelSerializer):
     """Serializer for product detail view"""
     
     category = CategorySerializer(read_only=True)
+    product_family = ProductFamilySerializer(read_only=True)
     location = LocationSerializer(read_only=True)
     seller = SellerInfoSerializer(read_only=True)
     images = ProductImageSerializer(many=True, read_only=True)
@@ -282,10 +318,10 @@ class ProductDetailSerializer(serializers.ModelSerializer):
         model = Product
         fields = [
             'id', 'seller', 'title', 'slug', 'description', 'listing_type',
-            'category', 'location', 'price', 'negotiable', 'condition',
+            'category', 'product_family', 'location', 'price', 'negotiable', 'condition',
             'brand', 'quantity', 'status', 'is_featured', 'is_boosted',
             'is_verified', 'is_verified_product', 'is_favorited', 'views_count', 'favorites_count',
-            'shares_count', 'images', 'videos', 'created_at', 'updated_at'
+            'shares_count', 'search_tags', 'images', 'videos', 'created_at', 'updated_at'
         ]
         read_only_fields = fields
     
@@ -306,12 +342,17 @@ class ProductDetailSerializer(serializers.ModelSerializer):
 
 class ProductCreateUpdateSerializer(serializers.ModelSerializer):
     """Serializer for creating and updating products"""
+
+    attributes = serializers.JSONField(required=False, default=dict)
+    search_tags = serializers.JSONField(required=False, default=list)
     
     class Meta:
         model = Product
         fields = [
             'title', 'description', 'listing_type', 'category', 'location',
-            'price', 'negotiable', 'condition', 'brand', 'quantity', 'status'
+            'price', 'negotiable', 'condition', 'brand', 'quantity', 'status',
+            'product_family',
+            'attributes', 'search_tags',
         ]
     
     def validate_price(self, value):
@@ -323,8 +364,78 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
         if value < 1:
             raise serializers.ValidationError("Quantity must be at least 1.")
         return value
+
+    def validate_attributes(self, value):
+        if not isinstance(value, dict):
+            raise serializers.ValidationError(
+                "Attributes must be a key-value object."
+            )
+
+        cleaned = {}
+        for raw_key, raw_value in value.items():
+            key = str(raw_key).strip()
+            if not key or raw_value in (None, '', [], {}):
+                continue
+            if len(key) > 200:
+                raise serializers.ValidationError(
+                    "Attribute keys must be 200 characters or fewer."
+                )
+            if len(str(raw_value)) > 200:
+                raise serializers.ValidationError(
+                    "Attribute values must be 200 characters or fewer."
+                )
+            cleaned[key] = raw_value
+
+        if len(cleaned) > 20:
+            raise serializers.ValidationError(
+                "Maximum 20 attributes allowed per product."
+            )
+        return cleaned
+
+    def validate_search_tags(self, value):
+        if value in (None, ''):
+            return []
+        if not isinstance(value, list):
+            raise serializers.ValidationError(
+                "Search tags must be a list of short text labels."
+            )
+
+        cleaned = []
+        seen = set()
+        for item in value:
+            tag = str(item).strip().lower()
+            if not tag:
+                continue
+            if len(tag) > 60:
+                raise serializers.ValidationError(
+                    "Each search tag must be 60 characters or fewer."
+                )
+            if tag not in seen:
+                seen.add(tag)
+                cleaned.append(tag)
+
+        if len(cleaned) > 30:
+            raise serializers.ValidationError(
+                "Maximum 30 search tags allowed per product."
+            )
+        return cleaned
     
     def validate(self, attrs):
+        product_family = attrs.get('product_family')
+        category = attrs.get('category')
+        if product_family and category:
+            allowed_categories = {
+                product_family.top_category_id,
+                product_family.subcategory_id,
+            }
+            if category.id not in allowed_categories:
+                raise serializers.ValidationError({
+                    "product_family": "Product family must belong to the selected category."
+                })
+
+        if product_family and not category:
+            attrs['category'] = product_family.subcategory or product_family.top_category
+
                                           
         if attrs.get('listing_type') == 'service' and attrs.get('condition'):
             raise serializers.ValidationError({
@@ -343,6 +454,23 @@ class ProductCreateUpdateSerializer(serializers.ModelSerializer):
                                         
         validated_data['seller'] = self.context['request'].user
         return super().create(validated_data)
+
+
+class ProductMetadataSuggestionRequestSerializer(serializers.Serializer):
+    title = serializers.CharField(max_length=255)
+    description = serializers.CharField(required=False, allow_blank=True, default='')
+    category = serializers.CharField(required=False, allow_blank=True, default='')
+    product_family = serializers.CharField(required=False, allow_blank=True, default='')
+    brand = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class ProductMetadataSuggestionResponseSerializer(serializers.Serializer):
+    source = serializers.CharField()
+    product_family = serializers.DictField(allow_null=True)
+    attributes = serializers.DictField()
+    search_tags = serializers.ListField(child=serializers.CharField())
+    missing_required = serializers.ListField(child=serializers.CharField())
+    confidence = serializers.FloatField()
 
 
 class FavoriteSerializer(serializers.ModelSerializer):
