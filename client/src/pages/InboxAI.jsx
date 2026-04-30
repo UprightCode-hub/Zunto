@@ -2,113 +2,11 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { Bot, MessageSquare, RotateCcw, Send } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getAssistantSessions, sendAssistantMessage } from '../services/api';
+import AssistantReply from '../components/assistant/AssistantReply';
+import ProductSuggestionRail from '../components/assistant/ProductSuggestionRail';
 
 const modeLabel = (mode) => (mode === 'homepage_reco' ? 'Homepage AI' : 'Inbox AI');
 const MESSAGE_WINDOW_SIZE = 200;
-
-// ---------------------------------------------------------------------------
-// Lightweight markdown renderer — no external dependency
-// Handles: **bold**, *italic*, `code`, bullet lists, numbered lists, ---
-// ---------------------------------------------------------------------------
-
-function inlineMarkdown(text) {
-  const parts = [];
-  const regex = /(\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`)/g;
-  let last = 0;
-  let m;
-
-  while ((m = regex.exec(text)) !== null) {
-    if (m.index > last) parts.push(text.slice(last, m.index));
-
-    if (m[2] !== undefined) {
-      parts.push(
-        <strong key={m.index} className="font-semibold text-white">
-          {m[2]}
-        </strong>
-      );
-    } else if (m[3] !== undefined) {
-      parts.push(<em key={m.index} className="italic">{m[3]}</em>);
-    } else if (m[4] !== undefined) {
-      parts.push(
-        <code key={m.index} className="px-1 py-0.5 rounded bg-white/10 font-mono text-xs">
-          {m[4]}
-        </code>
-      );
-    }
-    last = m.index + m[0].length;
-  }
-
-  if (last < text.length) parts.push(text.slice(last));
-  return parts.length ? parts : text;
-}
-
-function renderMarkdown(text) {
-  if (!text) return null;
-
-  const lines = text.split('\n');
-  const output = [];
-  let listBuffer = [];
-  let listType = null;
-
-  const flushList = () => {
-    if (!listBuffer.length) return;
-    const Tag = listType === 'ol' ? 'ol' : 'ul';
-    output.push(
-      <Tag
-        key={`list-${output.length}`}
-        className={listType === 'ol' ? 'list-decimal list-inside space-y-0.5 my-1 pl-1' : 'list-disc list-inside space-y-0.5 my-1 pl-1'}
-      >
-        {listBuffer.map((item, i) => (
-          <li key={i} className="text-sm leading-relaxed">
-            {inlineMarkdown(item)}
-          </li>
-        ))}
-      </Tag>
-    );
-    listBuffer = [];
-    listType = null;
-  };
-
-  lines.forEach((line, idx) => {
-    const ulMatch = line.match(/^[-•*]\s+(.+)/);
-    const olMatch = line.match(/^\d+[.)]\s+(.+)/);
-    const hrMatch = /^---+$/.test(line.trim());
-    const blank = line.trim() === '';
-
-    if (ulMatch) {
-      if (listType === 'ol') flushList();
-      listType = 'ul';
-      listBuffer.push(ulMatch[1]);
-      return;
-    }
-    if (olMatch) {
-      if (listType === 'ul') flushList();
-      listType = 'ol';
-      listBuffer.push(olMatch[1]);
-      return;
-    }
-
-    flushList();
-
-    if (hrMatch) {
-      output.push(<hr key={idx} className="border-white/10 my-2" />);
-      return;
-    }
-    if (blank) {
-      if (output.length) output.push(<div key={`sp-${idx}`} className="h-1" />);
-      return;
-    }
-
-    output.push(
-      <p key={idx} className="text-sm leading-relaxed">
-        {inlineMarkdown(line)}
-      </p>
-    );
-  });
-
-  flushList();
-  return output;
-}
 
 // ---------------------------------------------------------------------------
 // MessageRow
@@ -117,6 +15,7 @@ function renderMarkdown(text) {
 const MessageRow = memo(function MessageRow({ message, onRetry }) {
   const isUser = message.sender === 'user';
   const isPending = message.status === 'pending';
+  const suggestedProducts = message.metadata?.suggested_products || [];
 
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
@@ -138,7 +37,10 @@ const MessageRow = memo(function MessageRow({ message, onRetry }) {
           <p>{message.text}</p>
         ) : (
           // Assistant messages — render markdown
-          <div className="space-y-0.5">{renderMarkdown(message.text)}</div>
+          <div className="space-y-0.5">
+            <AssistantReply text={message.text} tone="dark" />
+            <ProductSuggestionRail products={suggestedProducts} tone="dark" />
+          </div>
         )}
 
         {!isUser && message.status === 'failed' && (
@@ -339,6 +241,7 @@ export default function InboxAI() {
           sender: 'assistant',
           text: response?.reply || 'No response.',
           status: 'completed',
+          metadata: response?.metadata || {},
         },
       ]);
     } catch (err) {
@@ -357,7 +260,7 @@ export default function InboxAI() {
     setMessages((prev) => [
       ...prev,
       { id: userMsgId, sender: 'user', text, status: 'completed' },
-      { id: asstMsgId, sender: 'assistant', text: '', status: 'pending', requestText: text },
+      { id: asstMsgId, sender: 'assistant', text: '', status: 'pending', requestText: text, metadata: {} },
     ]);
 
     setInput('');
@@ -389,7 +292,7 @@ export default function InboxAI() {
       setMessages((prev) =>
         prev.map((item) =>
           item.id === asstMsgId
-            ? { ...item, text: response?.reply || 'No response.', status: 'completed' }
+            ? { ...item, text: response?.reply || 'No response.', status: 'completed', metadata: response?.metadata || {} }
             : item
         )
       );

@@ -8,7 +8,7 @@ from market.models import Category, Location, Product
 from notifications.models import Notification, NotificationPreference
 
 User = get_user_model()
-
+    
 
 class ProductDemandMatchingSignalTests(TestCase):
     def setUp(self):

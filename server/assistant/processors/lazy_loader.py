@@ -2,6 +2,7 @@
 import gc
 import logging
 
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -15,17 +16,29 @@ class LazyLoader:
 
     @property
     def sentence_model(self):
-        """Load sentence transformer only when first accessed."""
+        """Load sentence transformer only when first accessed.
+
+        Reads settings.EMBEDDING_MODEL — the single model setting shared across
+        the entire system (product search + FAQ/RAG lanes).  Changing the env
+        var EMBEDDING_MODEL takes effect on next process start with no code deploy.
+        """
         if self._sentence_model is None:
             logger.info("Loading sentence transformer model...")
             try:
                 from sentence_transformers import SentenceTransformer
 
+                model_name = getattr(
+                    settings,
+                    'EMBEDDING_MODEL',
+                    'all-MiniLM-L12-v2',
+                )
                 self._sentence_model = SentenceTransformer(
-                    'paraphrase-MiniLM-L3-v2',
+                    model_name,
                     device='cpu',
                 )
-                logger.info("Sentence transformer model loaded successfully")
+                logger.info(
+                    "Sentence transformer loaded successfully (%s)", model_name
+                )
             except ImportError:
                 logger.warning("sentence_transformers not installed. RAG features will be disabled.")
                 return None
@@ -53,13 +66,6 @@ class LazyLoader:
         return self._faiss_module
 
     def create_vector_index(self, embeddings):
-        """
-        Create a fresh vector index for one corpus.
-
-        Each lane owns its own index; sharing a singleton index across lanes
-        would cross-contaminate retrieval. Prefer HNSW + inner product for
-        normalized embeddings and fall back to exact inner-product search.
-        """
         if self.faiss is None:
             logger.error("FAISS not available. Cannot create index.")
             return None

@@ -15,7 +15,6 @@ from market.models import (
     ProductAttributeSchema,
     ProductFamily,
 )
-from market.search.embeddings import generate_product_embedding
 from market.services.attribute_extractor import suggest_product_metadata
 
 User = get_user_model()
@@ -518,19 +517,71 @@ def _seed_products(
         )
         created_products.append(product)
 
-    if rebuild_embeddings:
-        for product in created_products:
-            try:
-                vector = generate_product_embedding(product)
-                if vector:
-                    Product.objects.filter(pk=product.pk).update(embedding_vector=vector)
+    # -------------------------------------------------------------------------
+    # CHANGED: replace the per-product encode loop with a single batch call.
+    #
+    # Previous code called generate_product_embedding(product) once per product
+    # inside a for-loop, which triggered _encode_single() 1,000+ times and
+    # produced "Batches: 1/1" in the SentenceTransformers log for every product.
+    #
+    # New code:
+    #   1. Re-fetches all created products with select_related to avoid N+1
+    #      queries inside _build_product_embedding_text (which accesses
+    #      .category, .product_family, and .location on every product).
+    #   2. Builds all embedding texts in one Python loop (no DB hits).
+    #   3. Calls _encode_batch() once — one model.encode() call for all products.
+    #   4. Writes all vectors with bulk_update (one SQL statement) and
+    #      bulk_sync_product_vectors (one write-lock acquisition for sqlite_vec,
+    #      one cursor block for pgvector).
+    # -------------------------------------------------------------------------
+    if rebuild_embeddings and created_products:
+        from market.search.embeddings import _build_product_embedding_text, _encode_batch
+        from market.search.vector_backend import bulk_sync_product_vectors
+
+        # Re-fetch with related objects to avoid N+1 queries inside
+        # _build_product_embedding_text, which accesses .category,
+        # .product_family, and .location on each product.
+        # The objects returned from update_or_create above do not
+        # have those relations prefetched.
+        created_ids = [p.pk for p in created_products]
+        products_with_related = list(
+            Product.objects.filter(pk__in=created_ids)
+            .select_related('category', 'product_family', 'location')
+        )
+
+        try:
+            texts = [_build_product_embedding_text(p) for p in products_with_related]
+
+            # ONE model.encode() call for the entire seed run
+            vectors = _encode_batch(texts)
+
+            valid_pairs = []
+            for product, text, vector in zip(products_with_related, texts, vectors):
+                if text.strip() and vector:
+                    product.embedding_vector = vector
+                    valid_pairs.append((product, vector))
                     embedding_summary['rebuilt'] += 1
                 else:
-                    Product.objects.filter(pk=product.pk).update(embedding_vector=[])
                     embedding_summary['empty'] += 1
-            except Exception:
-                Product.objects.filter(pk=product.pk).update(embedding_vector=[])
-                embedding_summary['failed'] += 1
+
+            if valid_pairs:
+                # One SQL UPDATE for all products — bypasses Product.save()
+                # intentionally (slug and location logic must not re-run here)
+                Product.objects.bulk_update(
+                    [p for p, _ in valid_pairs],
+                    ['embedding_vector'],
+                    batch_size=500,
+                )
+                # One write-lock acquisition for the entire batch
+                bulk_sync_product_vectors(valid_pairs)
+
+        except Exception as exc:
+            # Roll up failures — individual product errors are visible in logs
+            # from _encode_batch's own fallback warnings
+            already_counted = embedding_summary['rebuilt'] + embedding_summary['empty']
+            embedding_summary['failed'] += max(len(created_products) - already_counted, 1)
+            embedding_summary['rebuilt'] = 0
+            embedding_summary['empty'] = 0
 
     return len(created_products), embedding_summary
 

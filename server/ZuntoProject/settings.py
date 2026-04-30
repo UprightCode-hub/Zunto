@@ -139,8 +139,9 @@ else:
         }
     }
 
-PRODUCT_VECTOR_BACKEND = config('PRODUCT_VECTOR_BACKEND', default='auto')
-PRODUCT_VECTOR_MODEL = config('PRODUCT_VECTOR_MODEL', default='paraphrase-MiniLM-L3-v2')
+
+PRODUCT_VECTOR_BACKEND = config('PRODUCT_VECTOR_BACKEND', default='auto')  # auto, json_cosine, sqlite_vec, pgvector
+EMBEDDING_MODEL = config('EMBEDDING_MODEL', default='all-MiniLM-L12-v2')
 PRODUCT_VECTOR_DIMENSIONS = config('PRODUCT_VECTOR_DIMENSIONS', default=384, cast=int)
 PRODUCT_VECTOR_TABLE = config('PRODUCT_VECTOR_TABLE', default='market_product_vector')
 
@@ -495,10 +496,6 @@ LLM_MAX_PROMPT_TOKENS = config('LLM_MAX_PROMPT_TOKENS', default=900, cast=int)
 LLM_MAX_OUTPUT_TOKENS = config('LLM_MAX_OUTPUT_TOKENS', default=500, cast=int)
 
 FAQ_MATCH_THRESHOLD = config('FAQ_MATCH_THRESHOLD', default=0.5, cast=float)
-SENTENCE_TRANSFORMER_MODEL = config(
-    'SENTENCE_TRANSFORMER_MODEL', 
-    default='all-MiniLM-L6-v2'
-)
 
                                      
 PHASE1_UNIFIED_CONFIDENCE = config('PHASE1_UNIFIED_CONFIDENCE', default=True, cast=bool)
@@ -620,9 +617,8 @@ ADMIN_INDEX_TITLE = "Welcome to Zunto Admin Portal"
 ASSISTANT_PORTFOLIO_MODE = True
 
 os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
-os.environ['TRANSFORMERS_CACHE'] = '/tmp'
-os.environ['HF_HOME'] = '/tmp'
-os.environ['SENTENCE_TRANSFORMERS_HOME'] = '/tmp'
+os.environ['HF_HOME'] = str(BASE_DIR / ".cache" / "huggingface")
+
 
 CHAT_HMAC_SECRET = config('CHAT_HMAC_SECRET', default='change-me-in-production')
 CHAT_BLOCKED_LINK_DOMAINS = [

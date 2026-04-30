@@ -156,7 +156,10 @@ def _product_family_score(product, slots: Mapping[str, Any]) -> float:
     text_tokens = set(_tokens(product_search_text(product)))
     if not family_tokens:
         return 0.5
-    if family in product_search_text(product).lower():
+    pattern = r"(^|[^a-z0-9])" + r"[^a-z0-9]+".join(
+        re.escape(token) for token in _tokens(family)
+    ) + r"s?([^a-z0-9]|$)"
+    if re.search(pattern, product_search_text(product).lower()):
         return 1.0
     overlap = len(family_tokens.intersection(text_tokens)) / max(len(family_tokens), 1)
     return round(max(0.0, min(1.0, overlap)), 4)

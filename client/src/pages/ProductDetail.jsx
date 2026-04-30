@@ -25,6 +25,7 @@ export default function ProductDetail() {
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [reviews, setReviews] = useState([]);
+  const [reviewCount, setReviewCount] = useState(0);
   const [loadingReviews, setLoadingReviews] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [selectedImage, setSelectedImage] = useState(0);
@@ -52,9 +53,17 @@ export default function ProductDetail() {
     try {
       setLoadingReviews(true);
       const data = await getProductReviews(slug);
-      setReviews(Array.isArray(data) ? data : data.results || []);
+      const fetchedReviews = Array.isArray(data) ? data : data.results || [];
+      const totalReviews = Array.isArray(data)
+        ? data.length
+        : Number(data?.count ?? fetchedReviews.length);
+
+      setReviews(fetchedReviews);
+      setReviewCount(Number.isFinite(totalReviews) ? totalReviews : fetchedReviews.length);
     } catch (error) {
       console.error('Error fetching reviews:', error);
+      setReviews([]);
+      setReviewCount(0);
     } finally {
       setLoadingReviews(false);
     }
@@ -322,7 +331,7 @@ export default function ProductDetail() {
                 <span className="text-lg">{product.rating || 4.5}</span>
               </div>
               <span className="text-gray-400">
-                ({product.reviews_count || 0} reviews)
+                ({reviewCount} reviews)
               </span>
             </div>
 
@@ -513,7 +522,7 @@ export default function ProductDetail() {
           <div className="flex items-center justify-between mb-8">
             <div>
               <h2 className="text-3xl font-bold mb-2">Customer Reviews</h2>
-              <p className="text-gray-400">{reviews.length} reviews</p>
+              <p className="text-gray-400">{reviewCount} reviews</p>
             </div>
             <button
               onClick={() => setShowReviewForm(!showReviewForm)}

@@ -169,3 +169,43 @@ class HybridRecommendationRetrievalTests(TestCase):
         self.assertIn('seller_trust', first['ranking']['components'])
         self.assertIn('verified_product', first['ranking']['components'])
         self.assertIn('matches requested product family', first['match_reasons'])
+
+    def test_short_product_family_does_not_match_inside_longer_word(self):
+        jewelry = Category.objects.create(name='Jewelry')
+        home = Category.objects.create(name='Home Decor')
+        ring = Product.objects.create(
+            seller=self.trusted_seller,
+            title='Gold Ring Size 8',
+            description='Simple gold ring for jewelry shoppers.',
+            category=jewelry,
+            location=self.lagos,
+            price=Decimal('25000.00'),
+            quantity=3,
+            condition='new',
+            status='active',
+            search_tags=['ring', 'jewelry'],
+            attributes={'product_family': 'ring'},
+            attributes_verified=True,
+        )
+        Product.objects.create(
+            seller=self.trusted_seller,
+            title='Towering Floor Lamp',
+            description='Tall towering lamp for living room corners.',
+            category=home,
+            location=self.lagos,
+            price=Decimal('70000.00'),
+            quantity=2,
+            condition='new',
+            status='active',
+            search_tags=['towering', 'lamp'],
+            attributes={'product_family': 'lamp'},
+            attributes_verified=True,
+        )
+
+        qs = RecommendationService._build_semantic_queryset(
+            {'product_type': 'ring'},
+            base_queryset=Product.objects.all(),
+        )
+
+        self.assertIn(ring, list(qs))
+        self.assertFalse(qs.filter(title='Towering Floor Lamp').exists())

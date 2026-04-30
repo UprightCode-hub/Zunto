@@ -244,14 +244,14 @@ class RecommendationService:
         lower = (message or '').lower()
         support_keywords = {'refund', 'dispute', 'complaint', 'return', 'track', 'order', 'delivery', 'payment', 'scam', 'fraud'}
         if any(k in lower for k in support_keywords):
-            return "😅 I’m here to help with product recommendations only. For support issues, please use the AI inbox."
+            return "😅 I'm here to help with product recommendations only. For support issues, please use the AI inbox."
 
         greetings = {'hi', 'hey', 'hello', 'yo', 'sup', 'howdy', 'hiya', 'hola'}
         if lower.strip() in greetings:
-            return "👋 Hey! I’m Gigi, your shopping assistant. What product are you looking for today?"
+            return "👋 Hey! I'm Gigi, your shopping assistant. What product are you looking for today?"
 
         if any(t in lower for t in ['😂', 'haha', 'lol', 'joke']):
-            return "😄 Haha! Now let’s find something great for you — what are you shopping for?"
+            return "😄 Haha! Now let's find something great for you — what are you shopping for?"
 
         return "🛍️ I can help you find products fast. Tell me what you want, e.g. 'Samsung phone under ₦200k in Lagos'."
 
@@ -261,7 +261,7 @@ class RecommendationService:
 
         greetings = {'hi', 'hey', 'hello', 'yo', 'sup', 'howdy', 'hiya', 'hola'}
         if lower in greetings:
-            return "👋 Hey! I’m Gigi, your shopping assistant. Tell me what product you’re hunting for."
+            return "👋 Hey! I'm Gigi, your shopping assistant. Tell me what product you're hunting for."
 
         support_keywords = {'refund', 'dispute', 'complaint', 'return', 'track', 'order', 'delivery', 'payment', 'scam', 'fraud'}
         if any(k in lower for k in support_keywords):
@@ -269,7 +269,7 @@ class RecommendationService:
 
         nonsense_tokens = {'asdf', 'qwerty', 'zxczxc', '123123', '???'}
         if lower in nonsense_tokens:
-            return "😅 I didn’t catch that one. Tell me the product you want and I’ll jump in."
+            return "😅 I didn't catch that one. Tell me the product you want and I'll jump in."
 
         adapter = LocalModelAdapter.get_instance()
         if not adapter.is_available():
@@ -294,7 +294,7 @@ class RecommendationService:
         if label == 'SUPPORT_ISSUE':
             return "I can only handle product recommendations here. Please use the AI inbox for support issues."
         if label == 'CASUAL_CHAT':
-            return "😄 I’m in shopping mode — tell me what product you want and I’ll find options."
+            return "😄 I'm in shopping mode — tell me what product you want and I'll find options."
         if label == 'NONSENSE':
             return "🤖 My Naija brain buffer just overflowed 😅 — tell me what item you want to buy."
 
@@ -1011,6 +1011,7 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
 
         if general_refresh and prior_shown_ids:
             shown_ids = set(prior_shown_ids)
+            # FIX: cast p.id to str for correct comparison against string shown_ids
             products = [product for product in products if str(product.id) not in shown_ids]
 
         if products:
@@ -1064,6 +1065,7 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
         alternatives = cls._find_alternatives(updated_slots)
         if general_refresh and prior_shown_ids:
             shown_ids = set(prior_shown_ids)
+            # FIX: cast p.id to str
             alternatives = [product for product in alternatives if str(product.id) not in shown_ids]
         if alternatives:
             updated_slots['_shown_product_ids'] = (
@@ -1204,16 +1206,19 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
         ]
         has_force_signal = any(signal in msg_lower for signal in force_signals)
         forced_search = has_force_signal and bool(mandatory_missing)
+
+        # FIX: replaced mojibake characters with correct Unicode
         forced_prefix = (
-            "âš ï¸ Fair warning â€” I'm searching without all the details, "
-            "so I'm basically throwing darts in the dark ðŸŽ¯ "
+            "⚠️ Fair warning — I'm searching without all the details, "
+            "so I'm basically throwing darts in the dark 🎯 "
             "Results may not be exactly what you need, "
             "but here goes!\n\n"
         ) if forced_search else ""
+
         location_warning = (
-            "\n\nðŸ“ *Tip: You didn't mention a location â€” "
+            "\n\n📍 *Tip: You didn't mention a location — "
             "some of these might be so far away it'd take a full moon "
-            "spin around the earth to get delivered! ðŸŒ "
+            "spin around the earth to get delivered! 🌍 "
             "Reply with your city to narrow it down.*"
         ) if slots.get('location') is None else ""
 
@@ -1424,16 +1429,17 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
                 ).strip()
 
             clarification_count = int(intent_state.get('clarification_count', 0) or 0) + 1
-            already_shown = set(prior_slots.get('_shown_product_ids') or [])
+            already_shown = set(str(pid) for pid in (prior_slots.get('_shown_product_ids') or []))
             broad_products = cls._find_products_broad(slots, top_k=3)
+            # FIX: cast p.id to str for correct comparison against string set
             broad_products = [
                 p for p in broad_products
-                if p.id not in already_shown
+                if str(p.id) not in already_shown
             ][:3]
 
             if broad_products:
                 slots['_shown_product_ids'] = list(already_shown) + [
-                    p.id for p in broad_products
+                    str(p.id) for p in broad_products  # FIX: cast to str
                 ]
                 reply_text = cls._format_interleaved_reply(
                     broad_products,
@@ -1446,12 +1452,13 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
             elif cls._has_searchable_exact_context(slots):
                 cls.log_demand_gap(session, slots)
                 alternatives = cls._find_alternatives(slots)
+                # FIX: cast p.id to str
                 alternatives = [
                     p for p in alternatives
-                    if p.id not in already_shown
+                    if str(p.id) not in already_shown
                 ][:3]
                 slots['_shown_product_ids'] = list(already_shown) + [
-                    p.id for p in alternatives
+                    str(p.id) for p in alternatives  # FIX: cast to str
                 ]
                 session.constraint_state = slots
                 session.intent_state = cls._compose_turn_intent_state(
@@ -1504,7 +1511,7 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
             )
 
         slots['_last_clarification_key'] = str(slots.get('_last_clarification_key') or '').strip()
-        already_shown = list(prior_slots.get('_shown_product_ids') or [])
+        already_shown = list(str(pid) for pid in (prior_slots.get('_shown_product_ids') or []))
         if already_shown:
             slots['_shown_product_ids'] = list(already_shown)
 
@@ -1520,18 +1527,20 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
         products = cls._find_products(slots)
         if already_shown:
             shown_ids = set(already_shown)
-            products = [p for p in products if p.id not in shown_ids]
+            # FIX: cast p.id to str
+            products = [p for p in products if str(p.id) not in shown_ids]
 
         if not products:
             cls.log_demand_gap(session, slots)
             alternatives = cls._find_alternatives(slots)
             if already_shown:
                 shown_ids = set(already_shown)
-                alternatives = [p for p in alternatives if p.id not in shown_ids]
+                # FIX: cast p.id to str
+                alternatives = [p for p in alternatives if str(p.id) not in shown_ids]
             if alternatives:
                 slots['_shown_product_ids'] = already_shown + [
-                    p.id for p in alternatives
-                    if p.id not in already_shown
+                    str(p.id) for p in alternatives  # FIX: cast to str
+                    if str(p.id) not in already_shown
                 ]
                 session.constraint_state = slots
 
@@ -1564,8 +1573,8 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
             )
 
         slots['_shown_product_ids'] = already_shown + [
-            p.id for p in products
-            if p.id not in already_shown
+            str(p.id) for p in products  # FIX: cast to str
+            if str(p.id) not in already_shown
         ]
         session.constraint_state = slots
         session.active_product = products[0]
@@ -1582,18 +1591,18 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
             reply=final_reply,
             source='recommendation_results',
             session=session,
-                turn_type=turn_type,
-                turn_outcome=RecommendationTurnClassifier.OUTCOME_RESULTS,
-                confidence=0.9,
-                metadata=cls._exact_match_metadata(
-                    products,
-                    slots,
-                    extra={
-                        'forced_search': forced_search,
-                        'location_missing': slots.get('location') is None,
-                    },
-                ),
-            )
+            turn_type=turn_type,
+            turn_outcome=RecommendationTurnClassifier.OUTCOME_RESULTS,
+            confidence=0.9,
+            metadata=cls._exact_match_metadata(
+                products,
+                slots,
+                extra={
+                    'forced_search': forced_search,
+                    'location_missing': slots.get('location') is None,
+                },
+            ),
+        )
 
     @classmethod
     def _detect_rejection(cls, message: str, prior_slots: Dict) -> Dict[str, Any]:
@@ -1610,64 +1619,26 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
         }
 
         price_too_high = any(token in lower for token in [
-            'too expensive',
-            'too costly',
-            'costly',
-            'cheaper',
-            'less expensive',
-            'lower price',
-            'lower budget',
-            'reduce price',
-            'more affordable',
-            'budget option',
-            'something cheaper',
-            'cheaper option',
-            'cut the price',
-            'too much',
-            'way too high',
-            'out of my budget',
+            'too expensive', 'too costly', 'costly', 'cheaper', 'less expensive',
+            'lower price', 'lower budget', 'reduce price', 'more affordable',
+            'budget option', 'something cheaper', 'cheaper option', 'cut the price',
+            'too much', 'way too high', 'out of my budget',
         ])
         price_too_low = any(token in lower for token in [
-            'too cheap',
-            'low quality',
-            'something better',
-            'higher quality',
-            'premium option',
-            'more expensive',
-            'upgrade',
-            'better quality',
+            'too cheap', 'low quality', 'something better', 'higher quality',
+            'premium option', 'more expensive', 'upgrade', 'better quality',
         ])
         wants_new = any(token in lower for token in [
-            'brand new',
-            'only new',
-            'new only',
-            'not used',
-            'not fairly used',
-            'fresh',
+            'brand new', 'only new', 'new only', 'not used', 'not fairly used', 'fresh',
         ])
         wants_used = any(token in lower for token in [
-            'fairly used',
-            'second hand',
-            'tokunbo',
-            'used is fine',
-            'used okay',
-            'pre-owned',
+            'fairly used', 'second hand', 'tokunbo', 'used is fine', 'used okay', 'pre-owned',
         ])
         general_rejection = any(token in lower for token in [
-            'not what i wanted',
-            'not what i need',
-            'not this one',
-            'not this',
-            'not this item',
-            'wrong',
-            "that's not it",
-            'not right',
-            'show me something else',
-            'different',
-            'other options',
-            'none of these',
-            'not interested',
-            'try again',
+            'not what i wanted', 'not what i need', 'not this one', 'not this',
+            'not this item', 'wrong', "that's not it", 'not right',
+            'show me something else', 'different', 'other options',
+            'none of these', 'not interested', 'try again',
         ])
 
         if price_too_high:
@@ -1677,19 +1648,13 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
                 try:
                     new_max = int(float(current_max) * 0.70)
                     result['constraint_update']['price_max'] = new_max
-                    result['acknowledgement'] = (
-                        f"Got it - looking for something under \u20A6{new_max:,} now."
-                    )
+                    result['acknowledgement'] = f"Got it - looking for something under \u20A6{new_max:,} now."
                 except (TypeError, ValueError):
                     result['constraint_update']['price_intent'] = 'cheap'
-                    result['acknowledgement'] = (
-                        "Understood - let me find more affordable options."
-                    )
+                    result['acknowledgement'] = "Understood - let me find more affordable options."
             else:
                 result['constraint_update']['price_intent'] = 'cheap'
-                result['acknowledgement'] = (
-                    "Got it - looking for more affordable options."
-                )
+                result['acknowledgement'] = "Got it - looking for more affordable options."
         elif price_too_low:
             result['is_rejection'] = True
             current_max = prior_slots.get('price_max')
@@ -1697,19 +1662,13 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
                 try:
                     new_max = int(float(current_max) * 1.50)
                     result['constraint_update']['price_max'] = new_max
-                    result['acknowledgement'] = (
-                        "Understood - let me show you better quality options."
-                    )
+                    result['acknowledgement'] = "Understood - let me show you better quality options."
                 except (TypeError, ValueError):
                     result['constraint_update']['price_intent'] = 'premium'
-                    result['acknowledgement'] = (
-                        "Got it - looking for premium options."
-                    )
+                    result['acknowledgement'] = "Got it - looking for premium options."
             else:
                 result['constraint_update']['price_intent'] = 'premium'
-                result['acknowledgement'] = (
-                    "Let me find higher quality options for you."
-                )
+                result['acknowledgement'] = "Let me find higher quality options for you."
         elif wants_new:
             result['is_rejection'] = True
             result['constraint_update']['condition'] = 'new'
@@ -1960,7 +1919,7 @@ If not a rejection, return:
                 verified_qs.values('attributes', 'brand', 'condition', 'price')[:150]
             )
 
-            attribute_map: Dict[str, set[str]] = {}
+            attribute_map: Dict[str, set] = {}
             brands = set()
             conditions = set()
             prices = []
@@ -1997,19 +1956,11 @@ If not a rejection, return:
             ]
 
             if brands:
-                profile_lines.append(
-                    f"Available brands: {', '.join(sorted(brands)[:8])}"
-                )
-
+                profile_lines.append(f"Available brands: {', '.join(sorted(brands)[:8])}")
             if conditions:
-                profile_lines.append(
-                    f"Available conditions: {', '.join(sorted(conditions))}"
-                )
-
+                profile_lines.append(f"Available conditions: {', '.join(sorted(conditions))}")
             if prices:
-                profile_lines.append(
-                    f"Price range in DB: N{min(prices):,.0f} - N{max(prices):,.0f}"
-                )
+                profile_lines.append(f"Price range in DB: N{min(prices):,.0f} - N{max(prices):,.0f}")
 
             if attribute_map:
                 profile_lines.append("Common attributes in verified listings:")
@@ -2224,28 +2175,38 @@ Respond ONLY with valid JSON, no other text.
 
     @classmethod
     def _product_family_term(cls, slots: Dict) -> str:
-        """
-        Return the product-family term that must survive relaxed retrieval.
-        Product type is more specific than category and should win when both exist.
-        """
         product_type = str(slots.get('product_type') or '').strip()
         if product_type:
             return product_type
         return str(slots.get('category') or '').strip()
 
     @classmethod
+    def _token_boundary_pattern(cls, value: str) -> str:
+        tokens = re.findall(r"[a-z0-9]+", str(value or "").lower())
+        if not tokens:
+            return ""
+        phrase = r"[^a-z0-9]+".join(re.escape(token) for token in tokens)
+        return rf"(^|[^a-z0-9]){phrase}s?([^a-z0-9]|$)"
+
+    @classmethod
     def _apply_product_family_constraint(cls, queryset, slots: Dict):
         family_term = cls._product_family_term(slots)
         if not family_term:
             return queryset
+        family_pattern = cls._token_boundary_pattern(family_term)
+        if not family_pattern:
+            return queryset
 
         family_filter = (
-            Q(category__name__icontains=family_term) |
-            Q(title__icontains=family_term) |
-            Q(description__icontains=family_term) |
-            Q(brand__icontains=family_term) |
-            Q(search_tags__icontains=family_term) |
-            Q(attributes__icontains=family_term)
+            Q(category__name__iregex=family_pattern) |
+            Q(product_family__name__iregex=family_pattern) |
+            Q(product_family__aliases__iregex=family_pattern) |
+            Q(product_family__keywords__iregex=family_pattern) |
+            Q(title__iregex=family_pattern) |
+            Q(description__iregex=family_pattern) |
+            Q(brand__iregex=family_pattern) |
+            Q(search_tags__iregex=family_pattern) |
+            Q(attributes__iregex=family_pattern)
         )
 
         return queryset.filter(family_filter)
@@ -2291,10 +2252,6 @@ Respond ONLY with valid JSON, no other text.
 
     @classmethod
     def _find_products_broad(cls, slots: Dict, top_k: int = 3, base_queryset=None):
-        """
-        Starter search for interleaved results alongside a clarification
-        question. It must still honor explicit user constraints.
-        """
         try:
             return cls._find_products(slots, top_k=top_k, base_queryset=base_queryset)
         except Exception as exc:
@@ -2338,10 +2295,6 @@ Respond ONLY with valid JSON, no other text.
         slots: Dict,
         clarification_question: str,
     ) -> str:
-        """
-        Combine broad starter results with a single clarifying
-        question so the user sees options immediately.
-        """
         product_label = (
             slots.get('product_type')
             or slots.get('category')

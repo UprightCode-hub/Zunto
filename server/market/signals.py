@@ -9,7 +9,7 @@ from market.demand_signals import track_demand_event
 from market.models import DemandEvent, Favorite, Product
 from market.tasks import schedule_product_embedding_generation
 
-SKIP_MARKET_BACKGROUND_COMMANDS = {'seed_db'}
+SKIP_MARKET_BACKGROUND_COMMANDS = {'seed_db', 'seed_taxonomy_scale_catalog'}
 
 
 def _skip_market_background_hooks():

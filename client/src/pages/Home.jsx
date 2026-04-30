@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, Sparkles } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Search, Sparkles } from 'lucide-react';
 import { getCategories, sendHomepageRecommendationMessage } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ProductGrid from '../components/products/ProductGrid';
 import TrendingProducts from '../components/TrendingProducts';
+import AssistantReply from '../components/assistant/AssistantReply';
+import ProductSuggestionRail from '../components/assistant/ProductSuggestionRail';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -13,6 +15,7 @@ export default function Home() {
   const [heroSearchTerm, setHeroSearchTerm] = useState('');
   const [aiSearchMode, setAiSearchMode] = useState('ai');
   const [assistantReply, setAssistantReply] = useState('');
+  const [assistantProducts, setAssistantProducts] = useState([]);
   const [assistantError, setAssistantError] = useState('');
   const [assistantLoading, setAssistantLoading] = useState(false);
   const [assistantSessionId, setAssistantSessionId] = useState(() => localStorage.getItem('homepage_assistant_session_id') || null);
@@ -53,11 +56,13 @@ export default function Home() {
         localStorage.setItem('homepage_assistant_session_id', response.session_id);
       }
       setAssistantReply(response?.reply || 'No recommendation returned.');
+      setAssistantProducts(response?.metadata?.suggested_products || []);
       setHeroSearchTerm('');
     } catch (error) {
       const backendError = error?.data;
       const message = backendError?.error || backendError?.detail || error?.message || 'Unable to fetch AI recommendations right now.';
       setAssistantError(message);
+      setAssistantProducts([]);
     } finally {
       setAssistantLoading(false);
     }
@@ -118,31 +123,30 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => setAiSearchMode('ai')}
-                className={`px-4 py-2 rounded-full text-sm font-semibold transition ${
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition ${
                   aiSearchMode === 'ai'
                     ? 'bg-gradient-to-r from-[#2c77d1] to-[#9426f4] text-white'
                     : 'bg-gray-100 dark:bg-[#121c34] text-gray-700 dark:text-gray-300'
                 }`}
               >
+                <Sparkles className="w-4 h-4" />
                 Ask AI
               </button>
               <button
                 type="button"
                 onClick={() => setAiSearchMode('products')}
-                className={`px-4 py-2 rounded-full text-sm font-semibold transition ${
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition ${
                   aiSearchMode === 'products'
                     ? 'bg-gradient-to-r from-[#2c77d1] to-[#9426f4] text-white'
                     : 'bg-gray-100 dark:bg-[#121c34] text-gray-700 dark:text-gray-300'
                 }`}
               >
+                <Search className="w-4 h-4" />
                 Search Products
               </button>
-              <span className="text-xs text-gray-500 dark:text-gray-400 sm:ml-2">
-                {aiSearchMode === 'products' ? 'Updates URL query and opens filtered product view.' : 'Get recommendation responses anchored to your assistant session.'}
-              </span>
             </div>
 
-            <form onSubmit={handleHeroSearchSubmit} className="rounded-2xl border border-[#2c77d1]/30 bg-gray-50 dark:bg-[#111827] p-4 flex flex-col sm:flex-row gap-3 sm:items-center">
+            <form onSubmit={handleHeroSearchSubmit} className="rounded-lg border border-[#2c77d1]/30 bg-gray-50 dark:bg-[#111827] p-4 flex flex-col sm:flex-row gap-3 sm:items-center">
               <input
                 type="text"
                 value={heroSearchTerm}
@@ -150,18 +154,24 @@ export default function Home() {
                 placeholder={aiSearchMode === 'products' ? 'Search products in marketplace' : 'Ask AI for product recommendations'}
                 className="flex-1 bg-transparent text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none"
               />
-              <button type="submit" disabled={aiSearchMode === 'ai' && assistantLoading} className="inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-gradient-to-r from-[#2c77d1] to-[#9426f4] text-white font-semibold hover:opacity-90 transition disabled:opacity-70">
+              <button type="submit" disabled={aiSearchMode === 'ai' && assistantLoading} className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-[#2c77d1] to-[#9426f4] text-white font-semibold hover:opacity-90 transition disabled:opacity-70">
+                {aiSearchMode === 'products' ? <Search className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
                 {aiSearchMode === 'products' ? 'Search' : assistantLoading ? 'Thinking...' : 'Ask AI'}
               </button>
             </form>
 
             {aiSearchMode === 'ai' && (
-              <div className="mt-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#0f172a] p-4 space-y-2">
+              <div className="mt-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#0f172a] p-4 space-y-2">
                 <p className="text-xs uppercase tracking-wide text-blue-600 dark:text-blue-300 font-semibold inline-flex items-center gap-1">
                   <Sparkles className="w-3 h-3" /> GIGI AI Response
                 </p>
                 {assistantError && <p className="text-sm text-red-500 dark:text-red-300">{assistantError}</p>}
-                {!assistantError && assistantReply && <p className="text-sm text-gray-800 dark:text-gray-100 whitespace-pre-line">{assistantReply}</p>}
+                {!assistantError && assistantReply && (
+                  <>
+                    <AssistantReply text={assistantReply} tone="light" />
+                    <ProductSuggestionRail products={assistantProducts} tone="light" />
+                  </>
+                )}
                 {!assistantError && !assistantReply && <p className="text-sm text-gray-500 dark:text-gray-400">Ask for recommendations to get an inline response here.</p>}
               </div>
             )}

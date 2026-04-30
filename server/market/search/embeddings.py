@@ -1,16 +1,19 @@
 """
 market/search/embeddings.py
 
-Fixes applied:
-  1. Batch-encode all products missing stored vectors in ONE model.encode() call
-     instead of one call per product (was causing 70+ individual encode calls = 82s)
-  2. Share the same model singleton from assistant lazy_loader instead of
-     maintaining a second separate all-MiniLM-L6-v2 instance in memory
-  3. Products with pre-stored embedding_vector skip encoding entirely
+Unified embedding model: all-MiniLM-L12-v2 (384-dim).
+Both the product-search lane (this file) and the FAQ/RAG lane (lazy_loader.py)
+share a single model controlled by settings.EMBEDDING_MODEL.
+
+Improvements:
+  1. Batch-encode products missing stored vectors in ONE model.encode() call —
+     eliminates per-product encode loops (was 70+ calls = ~82s).
+  2. normalize_embeddings=True on all encode paths — unit-norm vectors make
+     inner-product equivalent to cosine similarity for FAISS and pgvector.
+  3. Products with pre-stored embedding_vector skip encoding entirely.
 """
 import logging
 import hashlib
-import json
 import math
 from functools import lru_cache
 
@@ -18,8 +21,9 @@ from django.conf import settings
 
 from market.search.vector_backend import (
     PRODUCT_VECTOR_MODEL,
+    PRODUCT_VECTOR_DIMENSIONS,
     product_vector_backend_status,
-    search_products_pgvector,
+    search_product_vectors,
     sync_product_vector,
 )
 from market.search.hybrid_ranker import product_search_text
@@ -28,16 +32,19 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Model singleton — reuses the same instance as assistant/lazy_loader.py
-# to avoid loading two separate transformer models into memory.
+# Shared model singleton — single instance for the whole process.
+# Both this module and assistant/processors/lazy_loader.py resolve their model
+# name from settings.EMBEDDING_MODEL, so only one model is ever loaded.
 # ---------------------------------------------------------------------------
 
 @lru_cache(maxsize=1)
 def _load_sentence_transformer_model():
     """
-    Load sentence transformer once and cache forever for this process.
-    Uses the same model name as assistant/processors/lazy_loader.py so
-    the OS can share the loaded weights via the module cache.
+    Load the shared sentence transformer once per process and cache it.
+    Reads settings.EMBEDDING_MODEL (env var: EMBEDDING_MODEL) so the model
+    can be changed or rolled back without a code deploy.
+    Falls back to the value resolved at vector_backend import time if the
+    setting is absent (should not happen in a correctly configured env).
     """
     try:
         from sentence_transformers import SentenceTransformer
@@ -46,13 +53,12 @@ def _load_sentence_transformer_model():
         return None
 
     try:
-        # Same model as lazy_loader — avoids a second heavyweight model in RAM.
-        model_name = getattr(settings, 'PRODUCT_VECTOR_MODEL', PRODUCT_VECTOR_MODEL)
+        model_name = getattr(settings, 'EMBEDDING_MODEL', PRODUCT_VECTOR_MODEL)
         model = SentenceTransformer(model_name, device='cpu')
-        logger.info("Sentence transformer loaded for product search (%s)", model_name)
+        logger.info("Shared sentence transformer loaded (%s)", model_name)
         return model
     except Exception as exc:
-        logger.error(f"Failed to load sentence transformer: {exc}")
+        logger.error("Failed to load sentence transformer: %s", exc)
         return None
 
 
@@ -60,8 +66,9 @@ def _load_sentence_transformer_model():
 # Embedding helpers
 # ---------------------------------------------------------------------------
 
-def _fallback_embedding(text, dims=64):
+def _fallback_embedding(text, dims=None):
     """Lightweight deterministic hash-based embedding when model unavailable."""
+    dims = int(dims or PRODUCT_VECTOR_DIMENSIONS)
     vector = [0.0] * dims
     tokens = [t for t in (text or '').lower().split() if t]
     if not tokens:
@@ -98,12 +105,17 @@ def _build_product_embedding_text(product):
 
 
 def _encode_single(text):
-    """Encode one text string. Use only when batching is not possible."""
+    """Encode one text string. Use only when batching is not possible.
+
+    normalize_embeddings=True produces unit-norm vectors, so inner-product
+    and cosine similarity are equivalent — required for FAISS IndexFlatIP
+    and pgvector cosine distance to behave correctly.
+    """
     model = _load_sentence_transformer_model()
     if model is None:
         return _fallback_embedding(text)
     try:
-        vector = model.encode(text, convert_to_numpy=True)
+        vector = model.encode(text, convert_to_numpy=True, normalize_embeddings=True)
         return [float(v) for v in vector.tolist()]
     except Exception as exc:
         logger.warning(f"Encode failed, using fallback: {exc}")
@@ -113,8 +125,8 @@ def _encode_single(text):
 def _encode_batch(texts):
     """
     Encode a list of texts in ONE model call.
-    This is the key fix — replaces the per-product encode loop.
-    Returns list of vectors in the same order as input texts.
+    Returns list of unit-normalized vectors in the same order as input texts.
+    normalize_embeddings=True is required for inner-product search correctness.
     """
     if not texts:
         return []
@@ -127,8 +139,9 @@ def _encode_batch(texts):
         vectors = model.encode(
             texts,
             convert_to_numpy=True,
-            batch_size=64,          # process 64 at a time internally
+            batch_size=64,
             show_progress_bar=False,
+            normalize_embeddings=True,
         )
         return [[float(v) for v in row.tolist()] for row in vectors]
     except Exception as exc:
@@ -188,19 +201,19 @@ def search_similar_products(query, base_queryset, candidate_limit=200, top_k=60)
     if not candidates:
         return []
 
-    pgvector_results = search_products_pgvector(
+    vector_backend_results = search_product_vectors(
         query_vector,
         [product.id for product in candidates],
         top_k=top_k,
     )
-    if pgvector_results:
+    if vector_backend_results:
         logger.debug(
-            "search_similar_products: pgvector returned %s results",
-            len(pgvector_results),
+            "search_similar_products: vector backend returned %s results",
+            len(vector_backend_results),
         )
-        return pgvector_results
-    if product_vector_backend_status().backend == 'pgvector':
-        logger.warning("Configured pgvector search returned no results; using JSON cosine fallback")
+        return vector_backend_results
+    if product_vector_backend_status().backend in {'pgvector', 'sqlite_vec'}:
+        logger.warning("Configured vector backend returned no results; using JSON cosine fallback")
 
     # Separate products that already have stored vectors from those that don't
     stored = []       # (product, vector)

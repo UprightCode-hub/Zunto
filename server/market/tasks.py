@@ -150,3 +150,93 @@ def generate_product_embedding_task(product_id):
     embedding = generate_product_embedding(product)
     Product.objects.filter(id=product.id).update(embedding_vector=embedding)
     return {'status': 'updated', 'product_id': str(product.id), 'embedding_dimensions': len(embedding or [])}
+
+def schedule_batch_embedding_generation(product_ids, batch_size=128):
+    """
+    Chunk product_ids into batches and queue one task per batch.
+    Called by management commands only — never by signals.
+    Returns the number of batches queued.
+    """
+    product_ids = list(product_ids)
+    if not product_ids:
+        return 0
+    batches = [
+        product_ids[i:i + batch_size]
+        for i in range(0, len(product_ids), batch_size)
+    ]
+    for batch in batches:
+        try:
+            generate_batch_embedding_task.delay([str(pid) for pid in batch])
+        except Exception:
+            generate_batch_embedding_task([str(pid) for pid in batch])
+    return len(batches)
+
+
+@shared_task(autoretry_for=(Exception,), retry_backoff=True, retry_kwargs={'max_retries': 2})
+def generate_batch_embedding_task(product_ids):
+    """
+    Encode a batch of products in ONE model.encode() call and write all
+    vectors in a single bulk operation.
+    Idempotent — safe to re-run on the same product IDs.
+    """
+    if not product_ids:
+        return {'status': 'empty'}
+
+    from market.models import Product
+    from market.search.embeddings import _build_product_embedding_text, _encode_batch
+    from market.search.vector_backend import bulk_sync_product_vectors
+
+    # select_related avoids N+1 queries inside _build_product_embedding_text
+    products = list(
+        Product.objects.filter(id__in=product_ids)
+        .select_related('category', 'product_family', 'location')
+    )
+    if not products:
+        return {'status': 'no_products_found'}
+
+    texts = [_build_product_embedding_text(p) for p in products]
+
+    # ONE model.encode() call for the entire batch
+    vectors = _encode_batch(texts)
+
+    # Drop products whose text was empty
+    valid_pairs = [
+        (p, v)
+        for p, t, v in zip(products, texts, vectors)
+        if t.strip()
+    ]
+
+    if not valid_pairs:
+        return {'status': 'no_valid_text', 'count': 0}
+
+    # Bulk-update embedding_vector in one SQL statement (batch_size=500 avoids
+    # generating an excessively large single query for large batches)
+    for product, vector in valid_pairs:
+        product.embedding_vector = vector
+    Product.objects.bulk_update(
+        [p for p, _ in valid_pairs],
+        ['embedding_vector'],
+        batch_size=500,
+    )
+
+    # FIX: build embedding_text_map so text_hash is stored correctly per product.
+    # Without this, every vector gets sha256('') as its hash, breaking any
+    # skip-if-unchanged logic that compares hashes before re-embedding.
+    valid_products = [p for p, _ in valid_pairs]
+    valid_texts = [
+        t for p, t, v in zip(products, texts, vectors)
+        if t.strip()
+    ]
+    embedding_text_map = {
+        p.id: t
+        for p, t in zip(valid_products, valid_texts)
+    }
+
+    # Write to the configured vector backend in one operation
+    bulk_sync_product_vectors(valid_pairs, embedding_text_map=embedding_text_map)
+
+    return {
+        'status': 'updated',
+        'count': len(valid_pairs),
+        'skipped': len(products) - len(valid_pairs),
+    }
