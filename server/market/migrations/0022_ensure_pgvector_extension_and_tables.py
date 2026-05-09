@@ -39,14 +39,7 @@ def ensure_pgvector_extension(connection):
             )
 
 
-def enable_pgvector_extension(apps, schema_editor):
-    if schema_editor.connection.vendor != 'postgresql':
-        return
-
-    ensure_pgvector_extension(schema_editor.connection)
-
-
-def create_pgvector_product_index(apps, schema_editor):
+def ensure_pgvector_extension_and_tables(apps, schema_editor):
     if schema_editor.connection.vendor != 'postgresql':
         return
 
@@ -58,10 +51,17 @@ def create_pgvector_product_index(apps, schema_editor):
             CREATE TABLE IF NOT EXISTS market_product_vector (
                 product_id uuid PRIMARY KEY REFERENCES products(id) ON DELETE CASCADE,
                 embedding vector(384) NOT NULL,
+                embedding_dimensions integer NOT NULL DEFAULT 384,
                 embedding_model varchar(120) NOT NULL,
                 text_hash char(64) NOT NULL,
                 updated_at timestamptz NOT NULL DEFAULT now()
             )
+            """
+        )
+        cursor.execute(
+            """
+            ALTER TABLE IF EXISTS market_product_vector
+            ADD COLUMN IF NOT EXISTS embedding_dimensions integer NOT NULL DEFAULT 384
             """
         )
         cursor.execute(
@@ -78,24 +78,50 @@ def create_pgvector_product_index(apps, schema_editor):
             ON market_product_vector (embedding_model, updated_at DESC)
             """
         )
-
-
-def drop_pgvector_product_index(apps, schema_editor):
-    if schema_editor.connection.vendor != 'postgresql':
-        return
-
-    with schema_editor.connection.cursor() as cursor:
-        cursor.execute("DROP TABLE IF EXISTS market_product_vector")
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS market_product_vector_model_dims_updated_idx
+            ON market_product_vector (embedding_model, embedding_dimensions, updated_at DESC)
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS market_product_vector_768 (
+                product_id uuid PRIMARY KEY REFERENCES products(id) ON DELETE CASCADE,
+                embedding vector(768) NOT NULL,
+                embedding_dimensions integer NOT NULL DEFAULT 768,
+                embedding_model varchar(120) NOT NULL,
+                text_hash char(64) NOT NULL,
+                updated_at timestamptz NOT NULL DEFAULT now()
+            )
+            """
+        )
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS market_product_vector_768_embedding_hnsw_idx
+            ON market_product_vector_768
+            USING hnsw (embedding vector_cosine_ops)
+            WITH (m = 16, ef_construction = 64)
+            """
+        )
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS market_product_vector_768_model_updated_idx
+            ON market_product_vector_768 (embedding_model, embedding_dimensions, updated_at DESC)
+            """
+        )
 
 
 class Migration(migrations.Migration):
     atomic = False
 
     dependencies = [
-        ('market', '0015_add_product_attributes'),
+        ('market', '0021_pgvector_dimension_ready_indexes'),
     ]
 
     operations = [
-        migrations.RunPython(enable_pgvector_extension, migrations.RunPython.noop),
-        migrations.RunPython(create_pgvector_product_index, drop_pgvector_product_index),
+        migrations.RunPython(
+            ensure_pgvector_extension_and_tables,
+            migrations.RunPython.noop,
+        ),
     ]

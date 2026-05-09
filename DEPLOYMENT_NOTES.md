@@ -10,7 +10,7 @@ The Blueprint defines:
 - `zunto-frontend`: Vite static site built from `client` and published from `client/dist`.
 - `zunto-db`: Render PostgreSQL on the free plan.
 
-Render's PostgreSQL extension documentation lists `pgvector` for PostgreSQL 13 and later and enables it with `CREATE EXTENSION vector;`. The Zunto migrations already attempt `CREATE EXTENSION IF NOT EXISTS vector`, so the free PostgreSQL database can support the vector-search architecture as long as it is created on PostgreSQL 13 or newer. The Blueprint pins PostgreSQL 16.
+Render's PostgreSQL extension documentation lists `pgvector` for PostgreSQL 13 and later and enables it with `CREATE EXTENSION vector;`. The Zunto migrations run `CREATE EXTENSION IF NOT EXISTS vector` before creating pgvector tables and fail clearly if the database role cannot create the extension. The free PostgreSQL database can support the vector-search architecture as long as it is created on PostgreSQL 13 or newer. The Blueprint pins PostgreSQL 16.
 
 ## WebSockets and Redis
 
@@ -136,5 +136,5 @@ These are read by `settings.py` or related server code. Set them only if you nee
 2. In Render, open **Blueprints** and create/apply a Blueprint from the repo.
 3. Fill every `sync: false` value shown by the Blueprint, especially `GROQ_API_KEY`, Paystack keys, email credentials, and Google OAuth client IDs.
 4. Confirm the backend service environment has `BACKEND_URL`, `FRONTEND_URL`, `CORS_ALLOWED_ORIGINS`, and `CSRF_TRUSTED_ORIGINS` matching the actual Render service URLs.
-5. After deploy, open the PostgreSQL database shell and verify `CREATE EXTENSION vector;` is available if migrations did not already create it.
+5. Confirm the backend deploy log shows migrations completing. If pgvector cannot be enabled, the migration error will say to check the Render Postgres role/extension permissions.
 6. Redeploy the frontend if `VITE_API_BASE_URL` or `VITE_GOOGLE_CLIENT_ID` changes, because Vite reads them at build time.
