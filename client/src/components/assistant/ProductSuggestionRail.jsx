@@ -1,16 +1,21 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, BadgeCheck, MapPin, Package } from 'lucide-react';
+import { BadgeCheck, MapPin } from 'lucide-react';
+import { getProductImage } from '../../utils/product';
+import ProductImage from '../products/ProductImage';
 
 const formatPrice = (value) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
-    return value ? `₦${value}` : 'Price on listing';
+    return value ? `\u20A6${value}` : 'Price on listing';
   }
-  return `₦${numeric.toLocaleString('en-NG', { maximumFractionDigits: 0 })}`;
+  return `\u20A6${numeric.toLocaleString('en-NG', { maximumFractionDigits: 0 })}`;
 };
 
-const humanize = (value) => String(value || '').replace(/_/g, ' ').trim();
+const humanize = (value) => String(value || '')
+  .replace(/_/g, ' ')
+  .trim()
+  .replace(/\b\w/g, (char) => char.toUpperCase());
 
 export default function ProductSuggestionRail({ products = [], tone = 'light' }) {
   const items = Array.isArray(products) ? products.filter(Boolean).slice(0, 5) : [];
@@ -24,8 +29,8 @@ export default function ProductSuggestionRail({ products = [], tone = 'light' })
     : 'border-gray-200 bg-white text-gray-900 dark:border-white/10 dark:bg-white/5 dark:text-gray-100';
   const subtleText = isDark ? 'text-gray-400' : 'text-gray-500 dark:text-gray-400';
   const itemClass = isDark
-    ? 'border-white/10 bg-[#101a31] hover:border-blue-300/50'
-    : 'border-gray-200 bg-gray-50 hover:border-blue-300 dark:border-white/10 dark:bg-[#101a31] dark:hover:border-blue-300/50';
+    ? 'border-white/10 bg-[#101a31]'
+    : 'border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-[#101a31]';
   const isAlternativeRail = items.every((product) => product.match_type === 'alternative');
   const railLabel = isAlternativeRail ? 'Alternative Products' : 'Suggested Products';
   const countLabel = isAlternativeRail ? `${items.length} alternatives` : `${items.length} shown`;
@@ -39,35 +44,24 @@ export default function ProductSuggestionRail({ products = [], tone = 'light' })
         <span className={`text-xs ${subtleText}`}>{countLabel}</span>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-2">
         {items.map((product) => (
-          <Link
+          <article
             key={product.id || product.slug || product.title}
-            to={product.product_url || (product.slug ? `/product/${product.slug}` : '/products')}
-            className={`group grid grid-cols-[64px_1fr] gap-3 rounded-lg border p-2 transition ${itemClass}`}
+            className={`grid min-h-[132px] grid-cols-[92px_minmax(0,1fr)] gap-3 rounded-lg border p-3 ${itemClass}`}
           >
-            <div className="h-16 w-16 overflow-hidden rounded-md bg-gray-200 dark:bg-[#17233f]">
-              {product.primary_image ? (
-                <img
-                  src={product.primary_image}
-                  alt={product.title || 'Suggested product'}
-                  className="h-full w-full object-cover"
-                  loading="lazy"
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center">
-                  <Package className={`h-6 w-6 ${subtleText}`} />
-                </div>
-              )}
+            <div className="h-24 w-[92px] overflow-hidden rounded-md bg-gray-200 dark:bg-[#17233f]">
+              <ProductImage
+                src={getProductImage(product)}
+                alt={product.title || 'Suggested product'}
+                className="h-full w-full object-cover"
+              />
             </div>
 
-            <div className="min-w-0">
-              <div className="flex items-start justify-between gap-2">
-                <p className="min-w-0 truncate text-sm font-semibold">
-                  {product.title || 'Product'}
-                </p>
-                <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-blue-500 opacity-70 transition group-hover:translate-x-0.5 group-hover:opacity-100" />
-              </div>
+            <div className="min-w-0 self-center">
+              <p className="min-w-0 break-words text-sm font-semibold leading-snug">
+                {product.title || product.name || 'Product'}
+              </p>
 
               <p className="mt-1 text-sm font-bold text-blue-500">
                 {formatPrice(product.price)}
@@ -93,8 +87,15 @@ export default function ProductSuggestionRail({ products = [], tone = 'light' })
                   </span>
                 )}
               </div>
+
+              <Link
+                to={product.product_url || (product.slug ? `/product/${product.slug}` : '/products')}
+                className="mt-3 inline-flex min-h-9 items-center justify-center rounded-md bg-gradient-to-r from-[#2c77d1] to-[#9426f4] px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-90"
+              >
+                View Product
+              </Link>
             </div>
-          </Link>
+          </article>
         ))}
       </div>
     </div>

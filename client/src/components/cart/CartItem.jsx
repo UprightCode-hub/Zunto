@@ -1,6 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Minus, Trash2 } from 'lucide-react';
+import { formatNaira } from '../../utils/helpers';
+import ProductImage from '../products/ProductImage';
 
 export default function CartItem({ item, busy, onUpdateQuantity, onRemove }) {
   const productSlug = item?.product?.slug || item?.product_id;
@@ -11,8 +13,8 @@ export default function CartItem({ item, busy, onUpdateQuantity, onRemove }) {
         to={productSlug ? `/product/${productSlug}` : '/products'}
         className="w-full sm:w-32 h-40 sm:h-32 bg-gradient-to-br from-[#2c77d1]/20 to-[#9426f4]/20 rounded-lg overflow-hidden shrink-0"
       >
-        <img
-          src={item.product_image || '/placeholder.png'}
+        <ProductImage
+          src={item.product_image}
           alt={item.product_name}
           className="w-full h-full object-cover"
         />
@@ -49,6 +51,8 @@ export default function CartItem({ item, busy, onUpdateQuantity, onRemove }) {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center border border-[#2c77d1]/30 rounded-lg w-max">
             <button
+              type="button"
+              aria-label={`Decrease quantity for ${item.product_name}`}
               onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}
               disabled={busy || item.quantity <= 1}
               className="p-2 hover:bg-[#2c77d1]/10 disabled:opacity-50 disabled:cursor-not-allowed transition"
@@ -57,6 +61,8 @@ export default function CartItem({ item, busy, onUpdateQuantity, onRemove }) {
             </button>
             <span className="px-4 font-semibold">{item.quantity}</span>
             <button
+              type="button"
+              aria-label={`Increase quantity for ${item.product_name}`}
               onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}
               disabled={busy}
               className="p-2 hover:bg-[#2c77d1]/10 disabled:opacity-50 transition"
@@ -66,8 +72,8 @@ export default function CartItem({ item, busy, onUpdateQuantity, onRemove }) {
           </div>
 
           <div className="text-right">
-            <div className="text-2xl font-bold text-[#2c77d1]">${item.total_price.toFixed(2)}</div>
-            <div className="text-sm text-gray-400">${item.unit_price.toFixed(2)} each</div>
+            <div className="text-2xl font-bold text-[#2c77d1]">{formatNaira(item.total_price)}</div>
+            <div className="text-sm text-gray-400">{formatNaira(item.unit_price)} each</div>
           </div>
         </div>
       </div>

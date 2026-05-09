@@ -61,6 +61,24 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState(null);
 
+  const persistAuthData = useCallback((data, fallbackUser = null) => {
+    if (!data?.access || !data?.refresh) {
+      return null;
+    }
+
+    const userData = data.user || fallbackUser;
+    localStorage.setItem('access_token', data.access);
+    localStorage.setItem('refresh_token', data.refresh);
+    localStorage.setItem('token', data.access);
+    if (userData) {
+      localStorage.setItem('user', JSON.stringify(userData));
+    }
+
+    setToken(data.access);
+    setUser(userData);
+    return userData;
+  }, []);
+
   const fetchUserProfile = useCallback(async () => {
     try {
       const data = await getUserProfile();
@@ -96,16 +114,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       const data = await loginAPI(email, password);
-
-      localStorage.setItem('access_token', data.access);
-      localStorage.setItem('refresh_token', data.refresh);
-      localStorage.setItem('token', data.access);
-
-      const userData = data.user || { email };
-      localStorage.setItem('user', JSON.stringify(userData));
-
-      setToken(data.access);
-      setUser(userData);
+      persistAuthData(data, { email });
 
       return { success: true, data };
     } catch (error) {
@@ -116,6 +125,9 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       const data = await registerAPI(userData);
+      if (data?.access && data?.refresh) {
+        persistAuthData(data, { email: userData.email });
+      }
       return { success: true, data };
     } catch (error) {
       return { success: false, error: extractErrorMessage(error, 'Registration failed. Please try again.') };
@@ -130,13 +142,7 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Invalid response from server during verification');
       }
 
-      localStorage.setItem('access_token', data.access);
-      localStorage.setItem('refresh_token', data.refresh);
-      localStorage.setItem('token', data.access);
-      localStorage.setItem('user', JSON.stringify(data.user));
-
-      setToken(data.access);
-      setUser(data.user);
+      persistAuthData(data);
 
       return { success: true, data };
     } catch (error) {
@@ -161,13 +167,7 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Invalid response from Google authentication');
       }
 
-      localStorage.setItem('access_token', googleData.access);
-      localStorage.setItem('refresh_token', googleData.refresh);
-      localStorage.setItem('token', googleData.access);
-      localStorage.setItem('user', JSON.stringify(googleData.user));
-
-      setToken(googleData.access);
-      setUser(googleData.user);
+      persistAuthData(googleData);
 
       return { success: true, data: googleData };
     } catch (error) {

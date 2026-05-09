@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatNaira } from '../../utils/helpers';
 
 const ORDER_ITEM_STATUS_OPTIONS = ['shipped', 'cancelled'];
 
@@ -44,7 +45,7 @@ export default function OrdersTab({
                     <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-100">{order.customer_name || 'N/A'}</td>
                     <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-200 capitalize">{order.status}</td>
                     <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-200">{new Date(order.created_at).toLocaleDateString()}</td>
-                    <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white">{Number(order.total_amount || 0).toLocaleString()}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white">{formatNaira(order.total_amount)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -70,7 +71,7 @@ export default function OrdersTab({
               <p className="text-gray-600 dark:text-gray-400">Buyer: <span className="text-gray-900 dark:text-white">{selectedOrder.customer_name || 'N/A'}</span></p>
               <p className="text-gray-600 dark:text-gray-400">Status: <span className="text-gray-900 dark:text-white capitalize">{selectedOrder.status}</span></p>
               <p className="text-gray-600 dark:text-gray-400">Payment: <span className="text-gray-900 dark:text-white capitalize">{selectedOrder.payment_status}</span></p>
-              <p className="text-gray-600 dark:text-gray-400">Total: <span className="text-gray-900 dark:text-white">{Number(selectedOrder.total_amount || 0).toLocaleString()}</span></p>
+              <p className="text-gray-600 dark:text-gray-400">Total: <span className="text-gray-900 dark:text-white">{formatNaira(selectedOrder.total_amount)}</span></p>
             </div>
 
             <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">

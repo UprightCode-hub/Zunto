@@ -3,10 +3,13 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { BarChart3, TrendingUp, Users, ShoppingCart, DollarSign, Package } from 'lucide-react';
 import { getOrderStatistics, getSellerStatistics } from '../services/api';
+import { formatNaira } from '../utils/helpers';
+import AdminDashboard from './AdminDashboard';
 
 export default function Dashboard() {
   const { user } = useAuth();
   const isSellerActive = Boolean(user?.isSellerActive);
+  const isPlatformAdmin = Boolean(user?.role === 'admin' || user?.is_staff || user?.is_superuser);
   const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -23,12 +26,16 @@ export default function Dashboard() {
       return;
     }
 
-    if (user.role === 'buyer') {
+    if (isPlatformAdmin) {
+      setLoading(false);
+    } else if (user.role === 'buyer') {
       fetchBuyerStats();
     } else if (isSellerActive) {
       fetchSellerStats();
+    } else {
+      setLoading(false);
     }
-  }, [isSellerActive, navigate, user]);
+  }, [isPlatformAdmin, isSellerActive, navigate, user]);
 
   const fetchBuyerStats = async () => {
     try {
@@ -60,6 +67,10 @@ export default function Dashboard() {
     );
   }
 
+  if (isPlatformAdmin) {
+    return <AdminDashboard />;
+  }
+
   if (user?.role === 'buyer') {
     return (
       <div className="min-h-screen pb-12">
@@ -89,7 +100,7 @@ export default function Dashboard() {
                   <DollarSign className="w-6 h-6 text-green-400" />
                 </div>
               </div>
-              <p className="text-3xl font-bold">${(stats?.total_spent || 0).toFixed(2)}</p>
+              <p className="text-3xl font-bold">{formatNaira(stats?.total_spent || 0)}</p>
               <p className="text-sm text-gray-400 mt-2">Total expenditure</p>
             </div>
 
@@ -112,7 +123,7 @@ export default function Dashboard() {
                 </div>
               </div>
               <p className="text-3xl font-bold">
-                ${stats?.total_orders > 0 ? (stats?.total_spent / stats?.total_orders).toFixed(2) : '0.00'}
+                {formatNaira(stats?.total_orders > 0 ? (stats?.total_spent / stats?.total_orders) : 0)}
               </p>
               <p className="text-sm text-gray-400 mt-2">Per order value</p>
             </div>
@@ -166,7 +177,7 @@ export default function Dashboard() {
                   <DollarSign className="w-6 h-6 text-[#2c77d1]" />
                 </div>
               </div>
-              <p className="text-3xl font-bold">${(stats?.total_revenue || 0).toFixed(2)}</p>
+              <p className="text-3xl font-bold">{formatNaira(stats?.total_revenue || 0)}</p>
               <p className="text-sm text-gray-400 mt-2">Total revenue</p>
             </div>
 
@@ -199,7 +210,7 @@ export default function Dashboard() {
                   <TrendingUp className="w-6 h-6 text-yellow-400" />
                 </div>
               </div>
-              <p className="text-3xl font-bold">{(stats?.average_rating || 0).toFixed(1)} ⭐</p>
+              <p className="text-3xl font-bold">{(stats?.average_rating || 0).toFixed(1)} stars</p>
               <p className="text-sm text-gray-400 mt-2">Customer rating</p>
             </div>
           </div>
@@ -218,7 +229,7 @@ export default function Dashboard() {
                     <div key={month}>
                       <div className="flex justify-between mb-2">
                         <span className="text-gray-300">{month}</span>
-                        <span className="font-semibold">${revenue.toFixed(2)}</span>
+                        <span className="font-semibold">{formatNaira(revenue)}</span>
                       </div>
                       <div className="w-full bg-[#2c77d1]/10 rounded-full h-3">
                         <div
@@ -250,7 +261,7 @@ export default function Dashboard() {
                         <p className="font-semibold text-sm">{product.name}</p>
                         <p className="text-xs text-gray-400">{product.sales} sales</p>
                       </div>
-                      <span className="text-sm font-bold text-[#2c77d1]">${product.revenue.toFixed(2)}</span>
+                      <span className="text-sm font-bold text-[#2c77d1]">{formatNaira(product.revenue)}</span>
                     </div>
                   ))
                 ) : (

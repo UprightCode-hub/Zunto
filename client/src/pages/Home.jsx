@@ -1,12 +1,34 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, Search, Sparkles } from 'lucide-react';
+import { ArrowRight, CheckCircle2, RotateCcw, Search, Sparkles } from 'lucide-react';
 import { getCategories, sendHomepageRecommendationMessage } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ProductGrid from '../components/products/ProductGrid';
 import TrendingProducts from '../components/TrendingProducts';
 import AssistantReply from '../components/assistant/AssistantReply';
 import ProductSuggestionRail from '../components/assistant/ProductSuggestionRail';
+
+const HOMEPAGE_ASSISTANT_SESSION_KEY = 'homepage_assistant_session';
+
+const clearStoredAssistantSession = () => {
+  localStorage.removeItem(HOMEPAGE_ASSISTANT_SESSION_KEY);
+  localStorage.removeItem('homepage_assistant_session_id');
+};
+
+const stripReplyYesFlow = (text) => {
+  const value = String(text || '');
+  return value
+    .split(/\n+/)
+    .filter((line) => {
+      const normalized = line.toLowerCase();
+      return !(
+        /\b(?:reply|respond|type|say)\s+(?:with\s+)?["']?yes["']?\b/.test(normalized)
+        || /\bshall i\b.*\b(?:show|search|continue|resume|pick up)\b/.test(normalized)
+      );
+    })
+    .join('\n')
+    .trim();
+};
 
 export default function Home() {
   const navigate = useNavigate();
@@ -18,11 +40,12 @@ export default function Home() {
   const [assistantProducts, setAssistantProducts] = useState([]);
   const [assistantError, setAssistantError] = useState('');
   const [assistantLoading, setAssistantLoading] = useState(false);
-  const [assistantSessionId, setAssistantSessionId] = useState(() => localStorage.getItem('homepage_assistant_session_id') || null);
 
   const aiCtaHref = user ? '/inbox/ai' : '/login';
 
   useEffect(() => {
+    clearStoredAssistantSession();
+
     const fetchCategories = async () => {
       try {
         const categoriesData = await getCategories();
@@ -50,12 +73,8 @@ export default function Home() {
 
     try {
       setAssistantLoading(true);
-      const response = await sendHomepageRecommendationMessage(value, assistantSessionId);
-      if (response?.session_id) {
-        setAssistantSessionId(response.session_id);
-        localStorage.setItem('homepage_assistant_session_id', response.session_id);
-      }
-      setAssistantReply(response?.reply || 'No recommendation returned.');
+      const response = await sendHomepageRecommendationMessage(value, null);
+      setAssistantReply(stripReplyYesFlow(response?.reply) || 'No recommendation returned.');
       setAssistantProducts(response?.metadata?.suggested_products || []);
       setHeroSearchTerm('');
     } catch (error) {
@@ -68,8 +87,15 @@ export default function Home() {
     }
   };
 
+  const handleNewAssistantSearch = () => {
+    clearStoredAssistantSession();
+    setAssistantReply('');
+    setAssistantProducts([]);
+    setAssistantError('');
+  };
+
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900 transition-colors duration-300 pb-12">
+    <div className="min-h-screen bg-white dark:bg-[#050d1b] transition-colors duration-300 pb-12">
       <section className="relative overflow-hidden px-4 py-12 sm:py-16 lg:py-20 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
           <div>
@@ -162,9 +188,21 @@ export default function Home() {
 
             {aiSearchMode === 'ai' && (
               <div className="mt-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#0f172a] p-4 space-y-2">
-                <p className="text-xs uppercase tracking-wide text-blue-600 dark:text-blue-300 font-semibold inline-flex items-center gap-1">
-                  <Sparkles className="w-3 h-3" /> GIGI AI Response
-                </p>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs uppercase tracking-wide text-blue-600 dark:text-blue-300 font-semibold inline-flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" /> GIGI AI Response
+                  </p>
+                  {(assistantReply || assistantProducts.length > 0 || assistantError) && (
+                    <button
+                      type="button"
+                      onClick={handleNewAssistantSearch}
+                      className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-[#172033] dark:hover:text-white"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      New Search
+                    </button>
+                  )}
+                </div>
                 {assistantError && <p className="text-sm text-red-500 dark:text-red-300">{assistantError}</p>}
                 {!assistantError && assistantReply && (
                   <>
@@ -185,7 +223,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto">
           <ProductGrid
             title="Discovery Feed"
-            description="Homepage discovery now uses the same query-driven product renderer as the products page."
+            description="Fresh marketplace listings curated for quick comparison and confident shopping."
             showFilters={false}
             showHeader
             limit={9}

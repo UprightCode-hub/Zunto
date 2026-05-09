@@ -1,13 +1,30 @@
 // client/src/pages/Login.jsx
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import GoogleAuthButton from '../components/auth/GoogleAuthButton';
 import AuthMarketplaceShowcase from '../components/auth/AuthMarketplaceShowcase';
+import { LegalLink } from '../components/common/LegalModal';
+
+const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+const LOGIN_REDIRECT_STORAGE_KEY = 'zunto_post_login_redirect';
+
+const getSafeRedirectPath = (value, fallback = '/') => {
+  const candidate = String(value || '').trim();
+  if (!candidate || !candidate.startsWith('/') || candidate.startsWith('//') || candidate.startsWith('/login')) {
+    return fallback;
+  }
+  return candidate;
+};
+
+const isPlatformAdmin = (userData) => (
+  userData?.role === 'admin' || userData?.is_staff || userData?.is_superuser
+);
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login, googleAuth } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -26,16 +43,39 @@ export default function Login() {
     setError('');
   };
 
+  const resolvePostLoginPath = (fallbackPath) => {
+    const params = new URLSearchParams(location.search);
+    const queryNext = getSafeRedirectPath(params.get('next'), '');
+    const storedNext = getSafeRedirectPath(localStorage.getItem(LOGIN_REDIRECT_STORAGE_KEY), '');
+    return queryNext || storedNext || fallbackPath;
+  };
+
+  const completeLoginRedirect = (userData) => {
+    const isAdmin = isPlatformAdmin(userData);
+    const defaultPath = isAdmin ? '/admin' : (userData?.isSellerActive ? '/seller' : '/');
+    const nextPath = resolvePostLoginPath(defaultPath);
+    const targetPath = isAdmin && (nextPath === '/dashboard' || nextPath.startsWith('/dashboard/'))
+      ? '/admin'
+      : nextPath;
+    localStorage.removeItem(LOGIN_REDIRECT_STORAGE_KEY);
+    navigate(targetPath, { replace: true });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    if (!isValidEmail(formData.email)) {
+      setError('Enter a valid email address.');
+      return;
+    }
     
     try {
       setLoading(true);
       const result = await login(formData.email, formData.password);
       
       if (result.success) {
-        navigate('/');
+        completeLoginRedirect(result.data?.user);
       } else {
         setError(result.error || 'Login failed. Please try again.');
       }
@@ -82,7 +122,9 @@ export default function Login() {
               <label className="text-sm font-medium text-gray-300 ml-1">Email Address</label>
               <div className="relative group">
                 <input
-                  type="email"
+                  type="text"
+                  inputMode="email"
+                  autoComplete="email"
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
@@ -108,7 +150,7 @@ export default function Login() {
                   value={formData.password}
                   onChange={handleChange}
                   required
-                  placeholder="••••••••"
+                  placeholder="Password"
                   className="w-full bg-[#0f172a] border border-gray-800 rounded-xl pl-12 pr-12 py-3.5 text-white placeholder-gray-500 focus:outline-none focus:border-[#2c77d1] focus:ring-1 focus:ring-[#2c77d1] transition-all duration-200"
                 />
                 <Lock className="absolute left-4 top-3.5 w-5 h-5 text-gray-500 group-focus-within:text-[#2c77d1] transition-colors" />
@@ -152,7 +194,7 @@ export default function Login() {
               onSuccess={async (data) => {
                 const authResult = await googleAuth(data);
                 if (authResult.success) {
-                  navigate('/');
+                  completeLoginRedirect(data?.user);
                 } else {
                   setError(authResult.error || 'Google authentication failed.');
                 }
@@ -166,9 +208,9 @@ export default function Login() {
           <div className="mt-8 pt-8 border-t border-gray-800 text-center">
             <p className="text-gray-500 text-sm">
               By signing in, you agree to our{' '}
-              <Link to="/terms" className="text-gray-400 hover:text-white transition-colors">Terms of Service</Link>
+              <LegalLink type="terms" className="text-gray-400 hover:text-white transition-colors">Terms of Service</LegalLink>
               {' '}and{' '}
-              <Link to="/privacy" className="text-gray-400 hover:text-white transition-colors">Privacy Policy</Link>
+              <LegalLink type="privacy" className="text-gray-400 hover:text-white transition-colors">Privacy Policy</LegalLink>
             </p>
           </div>
         </div>

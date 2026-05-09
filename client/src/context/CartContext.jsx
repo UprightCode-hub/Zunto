@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { useAuth } from './AuthContext';
 import {
   getCart,
   addToCart as addToCartAPI,
@@ -7,8 +8,29 @@ import {
   removeFromCart,
   clearCart as clearCartAPI,
 } from '../services/api';
+import { PRODUCT_IMAGE_FALLBACK, getProductImage } from '../utils/product';
 
 const CartContext = createContext();
+const LOGIN_REDIRECT_STORAGE_KEY = 'zunto_post_login_redirect';
+
+const getCurrentReturnPath = () => {
+  if (typeof window === 'undefined') {
+    return '/';
+  }
+
+  const path = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  return path && path !== '/login' ? path : '/';
+};
+
+const redirectGuestToLogin = () => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const returnPath = getCurrentReturnPath();
+  localStorage.setItem(LOGIN_REDIRECT_STORAGE_KEY, returnPath);
+  window.location.assign(`/login?next=${encodeURIComponent(returnPath)}`);
+};
 
 const normalizeCartItem = (item) => {
   const product = item?.product || {};
@@ -22,7 +44,7 @@ const normalizeCartItem = (item) => {
     product_id: item?.product_id || product?.id,
     product_name: product?.title || item?.product_name || 'Untitled product',
     product_description: product?.description || item?.product_description || '',
-    product_image: product?.primary_image || item?.product_image || '/placeholder.png',
+    product_image: getProductImage(product, item?.product_image || PRODUCT_IMAGE_FALLBACK),
     seller_name: product?.seller_name || item?.seller_name || '',
     seller_commerce_mode: product?.seller_commerce_mode || item?.seller_commerce_mode || 'direct',
     seller_profile_status: product?.seller_profile_status || item?.seller_profile_status || null,
@@ -42,6 +64,7 @@ export const useCart = () => {
 };
 
 export const CartProvider = ({ children }) => {
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const [cart, setCart] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -62,6 +85,14 @@ export const CartProvider = ({ children }) => {
   };
 
   const addToCart = async (productId, quantity = 1) => {
+    if (!isAuthenticated) {
+      setError('Please sign in to add items to cart.');
+      redirectGuestToLogin();
+      const authError = new Error('Please sign in to add items to cart.');
+      authError.code = 'AUTH_REQUIRED';
+      throw authError;
+    }
+
     try {
       setError('');
       await addToCartAPI(productId, quantity);
@@ -120,8 +151,18 @@ export const CartProvider = ({ children }) => {
   );
 
   useEffect(() => {
-    fetchCart();
-  }, []);
+    if (authLoading) {
+      return;
+    }
+
+    if (isAuthenticated) {
+      fetchCart();
+      return;
+    }
+
+    setCart([]);
+    setError('');
+  }, [authLoading, isAuthenticated]);
 
   return (
     <CartContext.Provider

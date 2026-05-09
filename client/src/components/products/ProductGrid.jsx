@@ -15,6 +15,8 @@ const ORDERING_OPTIONS = [
   { value: '-favorites_count', label: 'Most Favorited' },
 ];
 
+const filterFieldClass = 'w-full bg-[#111827] border border-[#2c77d1]/30 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-[#2c77d1] focus:ring-1 focus:ring-[#2c77d1] [color-scheme:dark]';
+
 const AI_FILTER_KEYS = [
   'search',
   'category',
@@ -68,16 +70,16 @@ function ProductFilters({
           value={filters.search}
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder="Search products..."
-          className="w-full bg-white dark:bg-[#050d1b] border border-gray-300 dark:border-[#2c77d1]/30 rounded-lg px-4 py-2 focus:outline-none focus:border-[#2c77d1]"
+          className={filterFieldClass}
         />
         {showSuggestions && suggestions.length > 0 && (
-          <div className="absolute z-20 mt-1 w-full bg-white dark:bg-[#050d1b] border border-gray-200 dark:border-[#2c77d1]/30 rounded-lg shadow-lg overflow-hidden">
+          <div className="absolute z-20 mt-1 w-full bg-[#0b1222] border border-[#2c77d1]/30 rounded-lg shadow-lg overflow-hidden">
             {suggestions.map((suggestion) => (
               <button
                 key={suggestion}
                 type="button"
                 onClick={() => onSuggestionClick?.(suggestion)}
-                className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-[#0a1f3d]"
+                className="w-full text-left px-4 py-2 text-sm text-gray-100 hover:bg-[#111827]"
               >
                 {suggestion}
               </button>
@@ -91,7 +93,7 @@ function ProductFilters({
         <select
           value={filters.category}
           onChange={(event) => onImmediateChange('category', event.target.value)}
-          className="w-full bg-white dark:bg-[#050d1b] border border-gray-300 dark:border-[#2c77d1]/30 rounded-lg px-4 py-2 focus:outline-none focus:border-[#2c77d1]"
+          className={filterFieldClass}
         >
           <option value="">All Categories</option>
           {categories.map((category) => (
@@ -105,11 +107,14 @@ function ProductFilters({
         <select
           value={filters.condition}
           onChange={(event) => onImmediateChange('condition', event.target.value)}
-          className="w-full bg-white dark:bg-[#050d1b] border border-gray-300 dark:border-[#2c77d1]/30 rounded-lg px-4 py-2 focus:outline-none focus:border-[#2c77d1]"
+          className={filterFieldClass}
         >
           <option value="">All Conditions</option>
           <option value="new">New</option>
-          <option value="used">Used</option>
+          <option value="like_new">Like New</option>
+          <option value="good">Good</option>
+          <option value="fair">Fair</option>
+          <option value="poor">Poor</option>
         </select>
       </div>
 
@@ -122,7 +127,7 @@ function ProductFilters({
             onChange={(event) => onImmediateChange('min_price', event.target.value)}
             placeholder="0"
             min="0"
-            className="w-full bg-white dark:bg-[#050d1b] border border-gray-300 dark:border-[#2c77d1]/30 rounded-lg px-4 py-2 focus:outline-none focus:border-[#2c77d1]"
+            className={filterFieldClass}
           />
         </div>
         <div>
@@ -133,7 +138,7 @@ function ProductFilters({
             onChange={(event) => onImmediateChange('max_price', event.target.value)}
             placeholder="500000"
             min="0"
-            className="w-full bg-white dark:bg-[#050d1b] border border-gray-300 dark:border-[#2c77d1]/30 rounded-lg px-4 py-2 focus:outline-none focus:border-[#2c77d1]"
+            className={filterFieldClass}
           />
         </div>
       </div>
@@ -143,7 +148,7 @@ function ProductFilters({
         <select
           value={filters.ordering}
           onChange={(event) => onImmediateChange('ordering', event.target.value)}
-          className="w-full bg-white dark:bg-[#050d1b] border border-gray-300 dark:border-[#2c77d1]/30 rounded-lg px-4 py-2 focus:outline-none focus:border-[#2c77d1]"
+          className={filterFieldClass}
         >
           {ORDERING_OPTIONS.map((option) => (
             <option key={option.value || 'default'} value={option.value}>{option.label}</option>
@@ -156,7 +161,7 @@ function ProductFilters({
           type="checkbox"
           checked={filters.is_negotiable === 'true'}
           onChange={(event) => onImmediateChange('is_negotiable', event.target.checked ? 'true' : '')}
-          className="rounded border-gray-400"
+          className="rounded border-[#2c77d1]/40 bg-[#111827] text-[#2c77d1] [color-scheme:dark]"
         />
         Negotiable only
       </label>
@@ -166,7 +171,7 @@ function ProductFilters({
           type="checkbox"
           checked={filters.verified_product === 'true'}
           onChange={(event) => onImmediateChange('verified_product', event.target.checked ? 'true' : '')}
-          className="rounded border-gray-400"
+          className="rounded border-[#2c77d1]/40 bg-[#111827] text-[#2c77d1] [color-scheme:dark]"
         />
         Verified product only
       </label>
@@ -176,7 +181,7 @@ function ProductFilters({
           type="checkbox"
           checked={filters.verified_seller === 'true'}
           onChange={(event) => onImmediateChange('verified_seller', event.target.checked ? 'true' : '')}
-          className="rounded border-gray-400"
+          className="rounded border-[#2c77d1]/40 bg-[#111827] text-[#2c77d1] [color-scheme:dark]"
         />
         Verified seller only
       </label>
@@ -352,13 +357,39 @@ export default function ProductGrid({
   }, [searchDraft, normalizedFilters.search, parsedFilters, updateFilters]);
 
   useEffect(() => {
+    let isMounted = true;
+
+    const fetchCategories = async () => {
+      try {
+        const categoriesData = await getCategories();
+        if (isMounted) {
+          setCategories(categoriesData?.results || categoriesData || []);
+        }
+      } catch (error) {
+        console.error('Error loading categories:', error);
+        if (isMounted) {
+          setCategories([]);
+        }
+      }
+    };
+
+    fetchCategories();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [productsData, categoriesData] = await Promise.all([
-          getProducts(effectiveFilters),
-          getCategories(),
-        ]);
+        const productsData = await getProducts(effectiveFilters);
+        if (!isMounted) {
+          return;
+        }
 
         const normalizedResults = productsData?.results || productsData || [];
         setProductsResponse({
@@ -367,16 +398,23 @@ export default function ProductGrid({
           previous: productsData?.previous ?? null,
           results: limit ? normalizedResults.slice(0, limit) : normalizedResults,
         });
-        setCategories(categoriesData?.results || categoriesData || []);
       } catch (error) {
         console.error('Error loading products:', error);
-        setProductsResponse({ count: 0, next: null, previous: null, results: [] });
+        if (isMounted) {
+          setProductsResponse({ count: 0, next: null, previous: null, results: [] });
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     fetchData();
+
+    return () => {
+      isMounted = false;
+    };
   }, [effectiveFilters, limit]);
 
 
@@ -427,6 +465,8 @@ export default function ProductGrid({
           <button
             type="button"
             onClick={() => setViewMode((mode) => (mode === 'grid' ? 'list' : 'grid'))}
+            aria-label={viewMode === 'grid' ? 'Switch to list view' : 'Switch to grid view'}
+            title={viewMode === 'grid' ? 'Switch to list view' : 'Switch to grid view'}
             className="btn-icon-utility rounded-lg"
           >
             {viewMode === 'grid' ? <List className="w-5 h-5" /> : <Grid className="w-5 h-5" />}
@@ -445,7 +485,7 @@ export default function ProductGrid({
       <div className="flex gap-8 items-start">
         {showFilters && isDesktop && (
           <aside className="w-[300px] shrink-0">
-            <div className="sticky top-24 rounded-2xl border border-gray-200 dark:border-[#2c77d1]/20 bg-white dark:bg-[#050d1b] p-6">
+            <div className="sticky top-24 rounded-2xl border border-[#2c77d1]/20 bg-[#0b1222] p-6 shadow-sm shadow-black/20">
               <h3 className="text-xl font-bold mb-5">Filters</h3>
               <ProductFilters
                 filters={{ ...normalizedFilters, search: searchDraft }}
@@ -507,12 +547,14 @@ export default function ProductGrid({
       {showFilters && isMobileFilterOpen && (
         <div className="fixed inset-0 z-50 bg-black/50" onClick={() => setIsMobileFilterOpen(false)}>
           <div
-            className="absolute bottom-0 left-0 right-0 rounded-t-2xl bg-white dark:bg-[#050d1b] p-6 max-h-[82vh] overflow-y-auto"
+            className="absolute bottom-0 left-0 right-0 rounded-t-2xl bg-[#0b1222] p-6 max-h-[82vh] overflow-y-auto"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-xl font-bold">Filters</h3>
-              <button type="button" onClick={() => setIsMobileFilterOpen(false)}><X className="w-6 h-6" /></button>
+              <button type="button" onClick={() => setIsMobileFilterOpen(false)} aria-label="Close filters">
+                <X className="w-6 h-6" />
+              </button>
             </div>
 
             <ProductFilters

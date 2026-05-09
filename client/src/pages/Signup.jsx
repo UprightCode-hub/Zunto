@@ -5,6 +5,9 @@ import { Mail, Lock, User, Eye, EyeOff, Phone, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import GoogleAuthButton from '../components/auth/GoogleAuthButton';
 import AuthMarketplaceShowcase from '../components/auth/AuthMarketplaceShowcase';
+import { LegalLink } from '../components/common/LegalModal';
+
+const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -57,6 +60,11 @@ export default function Signup() {
       return;
     }
 
+    if (!isValidEmail(formData.email)) {
+      setError('Enter a valid email address.');
+      return;
+    }
+
     if (!acceptedPolicies) {
       setError('You must accept the Terms of Service and Privacy Policy to continue.');
       return;
@@ -76,7 +84,14 @@ export default function Signup() {
       });
       
       if (result.success) {
-        navigate(`/verify-registration?email=${encodeURIComponent(formData.email)}`);
+        navigate(formData.role === 'seller' ? '/become-seller' : '/', {
+          replace: true,
+          state: {
+            signupMessage: result.data?.message,
+            emailDeliveryStatus: result.data?.email_delivery_status,
+            email: formData.email,
+          },
+        });
       } else {
         setError(result.error || 'Signup failed. Please try again.');
       }
@@ -192,7 +207,7 @@ export default function Signup() {
                   <option value="managed">Managed by Zunto</option>
                 </select>
                 <p className="text-xs text-gray-500">
-                  Seller accounts require admin approval after email verification.
+                  Seller accounts require admin approval before selling.
                 </p>
               </div>
             )}
@@ -201,7 +216,9 @@ export default function Signup() {
               <label className="text-sm font-medium text-gray-300 ml-1">Email Address</label>
               <div className="relative group">
                 <input
-                  type="email"
+                  type="text"
+                  inputMode="email"
+                  autoComplete="email"
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
@@ -222,7 +239,7 @@ export default function Signup() {
                   value={formData.phone}
                   required
                   onChange={handleChange}
-                  placeholder="+1 (555) 000-0000"
+                  placeholder="+234 801 234 5678"
                   className="w-full bg-[#0f172a] border border-gray-800 rounded-xl pl-12 pr-4 py-3.5 text-white placeholder-gray-500 focus:outline-none focus:border-[#2c77d1] focus:ring-1 focus:ring-[#2c77d1] transition-all duration-200"
                 />
                 <Phone className="absolute left-4 top-3.5 w-5 h-5 text-gray-500 group-focus-within:text-[#2c77d1] transition-colors" />
@@ -287,9 +304,9 @@ export default function Signup() {
               />
               <span>
                 I agree to the{' '}
-                <Link to="/terms" className="text-[#2c77d1] hover:text-[#9426f4] underline">Terms of Service</Link>
+                <LegalLink type="terms" className="text-[#2c77d1] hover:text-[#9426f4] underline">Terms of Service</LegalLink>
                 {' '}and{' '}
-                <Link to="/privacy" className="text-[#2c77d1] hover:text-[#9426f4] underline">Privacy Policy</Link>.
+                <LegalLink type="privacy" className="text-[#2c77d1] hover:text-[#9426f4] underline">Privacy Policy</LegalLink>.
               </span>
             </label>
 
@@ -337,9 +354,9 @@ export default function Signup() {
           <div className="mt-8 pt-8 border-t border-gray-800 text-center">
             <p className="text-gray-500 text-sm">
               By creating an account, you agree to our{' '}
-              <Link to="/terms" className="text-gray-400 hover:text-white transition-colors">Terms of Service</Link>
+              <LegalLink type="terms" className="text-gray-400 hover:text-white transition-colors">Terms of Service</LegalLink>
               {' '}and{' '}
-              <Link to="/privacy" className="text-gray-400 hover:text-white transition-colors">Privacy Policy</Link>
+              <LegalLink type="privacy" className="text-gray-400 hover:text-white transition-colors">Privacy Policy</LegalLink>
             </p>
           </div>
         </div>

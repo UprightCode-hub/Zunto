@@ -13,6 +13,7 @@ export default function Navbar() {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const isSellerActive = Boolean(user?.isSellerActive);
+  const isPlatformAdmin = Boolean(user?.role === 'admin' || user?.is_staff || user?.is_superuser);
 
   const sellerCtaHref = isSellerActive ? '/seller' : user ? '/become-seller' : '/signup?role=seller';
   const sellerCtaLabel = isSellerActive ? 'Seller Dashboard' : 'Become a Seller';
@@ -77,7 +78,7 @@ export default function Navbar() {
             <Link to="/" className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition">Home</Link>
             <Link to="/products" className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition">Products</Link>
             <Link to="/products?mode=ai" className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition">AI Mode</Link>
-            {user?.role === 'admin' && <Link to="/admin" className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition">Admin</Link>}
+            {isPlatformAdmin && <Link to="/admin" className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition">Admin</Link>}
             {isSellerActive && <Link to="/seller" className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-[#2c77d1] font-medium transition">Seller</Link>}
           </div>
 
@@ -188,6 +189,7 @@ export default function Navbar() {
               <Link to="/products" className="py-2 text-gray-700 dark:text-gray-300 font-medium" onClick={closeMenus}>Products</Link>
               <Link to="/products?mode=ai" className="py-2 text-gray-700 dark:text-gray-300 font-medium" onClick={closeMenus}>AI Mode</Link>
               <Link to="/orders" className="py-2 text-gray-700 dark:text-gray-300 font-medium" onClick={closeMenus}>Orders</Link>
+              {isPlatformAdmin && <Link to="/admin" className="py-2 text-gray-700 dark:text-gray-300 font-medium" onClick={closeMenus}>Admin</Link>}
               {isAuthenticated && <Link to="/chat?mode=customer-service" className="py-2 text-gray-700 dark:text-gray-300 font-medium" onClick={closeMenus}>Customer Service</Link>}
               <Link to="/faqs" className="py-2 text-gray-700 dark:text-gray-300 font-medium" onClick={closeMenus}>Help Center</Link>
               <Link to={sellerCtaHref} className="py-2 text-gray-700 dark:text-gray-300 font-medium" onClick={closeMenus}>{sellerCtaLabel}</Link>

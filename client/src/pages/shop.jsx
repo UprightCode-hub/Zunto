@@ -7,7 +7,7 @@ export default function Shop() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <ProductGrid
           title="Products"
-          description="Expanded marketplace view with full query-driven filtering."
+          description="Browse trusted listings with precise filters for price, category, condition, and seller quality."
           showFilters
           showHeader
         />

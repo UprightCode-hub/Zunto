@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Flame } from 'lucide-react';
 import ProductCard from './products/ProductCard';
 import { getTrendingProducts } from '../services/api';
 
@@ -43,7 +44,10 @@ export default function TrendingProducts() {
     <section className="px-4 pb-8 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">🔥 Hot Demand</h2>
+          <h2 className="flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-white">
+            <Flame className="h-6 w-6 text-[#f97316]" />
+            Trending Products
+          </h2>
           {loading && <span className="text-sm text-gray-500 dark:text-gray-400">Loading...</span>}
         </div>
 

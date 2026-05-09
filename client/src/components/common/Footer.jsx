@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Facebook, Twitter, Instagram, Youtube, Mail, MapPin, Phone } from 'lucide-react';
+import { LegalLink } from './LegalModal';
 
 export default function Footer() {
   return (
@@ -94,7 +95,7 @@ export default function Footer() {
             <div className="flex flex-col gap-3 text-gray-400">
               <div className="flex items-center gap-2">
                 <Phone className="w-4 h-4" />
-                <span>+1 (555) 123-4567</span>
+                <span>Support available in-app</span>
               </div>
               <a href="mailto:support@zunto.com" className="flex items-center gap-2 hover:text-blue-400 transition">
                 <Mail className="w-4 h-4" />
@@ -102,7 +103,7 @@ export default function Footer() {
               </a>
               <div className="flex items-start gap-2">
                 <MapPin className="w-4 h-4 mt-1" />
-                <span>123 Business St, City, State 12345</span>
+                <span>Lagos, Nigeria</span>
               </div>
             </div>
           </div>
@@ -112,11 +113,11 @@ export default function Footer() {
 
         <div className="flex justify-between items-center flex-wrap gap-4">
           <p className="text-gray-400 text-sm">
-            &copy; 2024 Zunto. All rights reserved.
+            &copy; 2026 Zunto. All rights reserved.
           </p>
           <div className="flex gap-6 text-gray-400 text-sm">
-            <Link to="/privacy" className="hover:text-blue-400 transition">Privacy Policy</Link>
-            <Link to="/terms" className="hover:text-blue-400 transition">Terms of Service</Link>
+            <LegalLink type="privacy" className="hover:text-blue-400 transition">Privacy Policy</LegalLink>
+            <LegalLink type="terms" className="hover:text-blue-400 transition">Terms of Service</LegalLink>
             <Link to="/faqs" className="hover:text-blue-400 transition">Help Center</Link>
           </div>
         </div>

@@ -1,7 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { BarChart3, Users, Package, ShoppingCart, TrendingUp, RefreshCw } from 'lucide-react';
+import { AlertTriangle, BarChart3, CheckCircle2, Gavel, Package, RefreshCw, ShoppingCart, ShieldCheck, TrendingUp, UserCheck, Users } from 'lucide-react';
 import {
+  applyDisputeTicketDecision,
   applyBulkRefundDecision,
+  getAdminDisputeTickets,
+  getAssistantReportsQueue,
   getCompanyAdminOperations,
   getDashboardAnalytics,
   getDashboardCustomers,
@@ -10,9 +13,14 @@ import {
   getDashboardSales,
   getProductReportModerationQueue,
   getReviewFlagModerationQueue,
+  getSellerApplications,
   getSystemHealth,
   moderateProductReport,
   moderateReviewFlag,
+  updateAssistantReport,
+  updateDashboardProduct,
+  updateDashboardUser,
+  updateSellerApplication,
 } from '../services/api';
 
 const TABS = ['overview', 'operations', 'customers', 'products', 'orders'];
@@ -20,6 +28,10 @@ const PAGE_SIZE = 25;
 const MODERATION_STATUSES = ['pending', 'reviewing', 'resolved', 'dismissed'];
 const REPORT_REASONS = ['spam', 'fake', 'inappropriate', 'misleading', 'duplicate', 'other'];
 const FLAG_REASONS = ['spam', 'offensive', 'fake', 'irrelevant', 'personal_info', 'other'];
+const ASSISTANT_REPORT_STATUSES = ['pending', 'reviewing', 'resolved', 'closed'];
+const ASSISTANT_REPORT_TYPES = ['dispute', 'complaint', 'feedback', 'suggestion', 'bug', 'scam', 'other'];
+const DISPUTE_STATUSES = ['OPEN', 'UNDER_REVIEW', 'ESCALATED', 'UNDER_SENIOR_REVIEW', 'RESOLVED_APPROVED', 'RESOLVED_DENIED', 'CLOSED'];
+const SELLER_STATUSES = ['pending', 'approved', 'rejected'];
 
 const normalizePaginated = (data) => {
   if (Array.isArray(data)) return { count: data.length, next: null, previous: null, results: data };
@@ -57,11 +69,17 @@ export default function AdminDashboard() {
   const [operationsData, setOperationsData] = useState({
     productReports: { page: 1, status: 'pending', reason: '', ...normalizePaginated(null) },
     reviewFlags: { page: 1, status: 'pending', reason: '', ...normalizePaginated(null) },
+    assistantReports: { page: 1, status: 'pending', report_type: '', ...normalizePaginated(null) },
+    disputeTickets: { page: 1, status: 'OPEN', seller_type: '', ...normalizePaginated(null) },
+    sellerApplications: { page: 1, status: 'pending', ...normalizePaginated(null) },
     refundIds: '',
     refundDecision: 'approve',
     refundNotes: '',
     reportNotes: '',
     flagNotes: '',
+    assistantReportNotes: '',
+    disputeDecision: '',
+    disputeDecisionReason: '',
   });
 
   const loadOverview = useCallback(async () => {
@@ -116,7 +134,7 @@ export default function AdminDashboard() {
       setLoadingOperations(true);
       setOperationError('');
 
-      const [reports, flags] = await Promise.all([
+      const [reports, flags, assistantReports, disputeTickets, sellerApplications] = await Promise.all([
         getProductReportModerationQueue({
           page: operationsData.productReports.page,
           pageSize: PAGE_SIZE,
@@ -129,19 +147,54 @@ export default function AdminDashboard() {
           status: operationsData.reviewFlags.status,
           reason: operationsData.reviewFlags.reason,
         }),
+        getAssistantReportsQueue({
+          page: operationsData.assistantReports.page,
+          pageSize: PAGE_SIZE,
+          status: operationsData.assistantReports.status,
+          report_type: operationsData.assistantReports.report_type,
+        }),
+        getAdminDisputeTickets({
+          page: operationsData.disputeTickets.page,
+          pageSize: PAGE_SIZE,
+          status: operationsData.disputeTickets.status,
+          seller_type: operationsData.disputeTickets.seller_type,
+        }),
+        getSellerApplications({
+          page: operationsData.sellerApplications.page,
+          pageSize: PAGE_SIZE,
+          status: operationsData.sellerApplications.status,
+        }),
       ]);
 
       setOperationsData((prev) => ({
         ...prev,
         productReports: { ...prev.productReports, ...normalizePaginated(reports) },
         reviewFlags: { ...prev.reviewFlags, ...normalizePaginated(flags) },
+        assistantReports: { ...prev.assistantReports, ...normalizePaginated(assistantReports) },
+        disputeTickets: { ...prev.disputeTickets, ...normalizePaginated(disputeTickets) },
+        sellerApplications: { ...prev.sellerApplications, ...normalizePaginated(sellerApplications) },
       }));
     } catch (apiError) {
       setOperationError(apiError?.data?.detail || apiError?.data?.error || 'Failed to load operations queues.');
     } finally {
       setLoadingOperations(false);
     }
-  }, [operationsData.productReports.page, operationsData.productReports.reason, operationsData.productReports.status, operationsData.reviewFlags.page, operationsData.reviewFlags.reason, operationsData.reviewFlags.status]);
+  }, [
+    operationsData.assistantReports.page,
+    operationsData.assistantReports.report_type,
+    operationsData.assistantReports.status,
+    operationsData.disputeTickets.page,
+    operationsData.disputeTickets.seller_type,
+    operationsData.disputeTickets.status,
+    operationsData.productReports.page,
+    operationsData.productReports.reason,
+    operationsData.productReports.status,
+    operationsData.reviewFlags.page,
+    operationsData.reviewFlags.reason,
+    operationsData.reviewFlags.status,
+    operationsData.sellerApplications.page,
+    operationsData.sellerApplications.status,
+  ]);
 
   useEffect(() => {
     loadOverview();
@@ -200,6 +253,84 @@ export default function AdminDashboard() {
     }
   };
 
+  const runAssistantReportAction = async (reportId, status) => {
+    try {
+      setOperationBusy(true);
+      setOperationError('');
+      await updateAssistantReport(reportId, { status, admin_notes: operationsData.assistantReportNotes });
+      setOperationSuccess(`Assistant report updated to ${status}.`);
+      await Promise.all([loadOverview(), loadOperations()]);
+    } catch (apiError) {
+      setOperationError(apiError?.data?.detail || apiError?.data?.error || 'Failed to update assistant report.');
+    } finally {
+      setOperationBusy(false);
+    }
+  };
+
+  const runDisputeTicketAction = async (ticketId, status) => {
+    const fallbackDecision = status === 'RESOLVED_APPROVED'
+      ? 'Resolved in favor of buyer'
+      : status === 'RESOLVED_DENIED'
+        ? 'Resolved in favor of seller'
+        : `Moved to ${status.replace(/_/g, ' ').toLowerCase()}`;
+
+    try {
+      setOperationBusy(true);
+      setOperationError('');
+      await applyDisputeTicketDecision(ticketId, {
+        status,
+        admin_decision: operationsData.disputeDecision || fallbackDecision,
+        admin_decision_reason: operationsData.disputeDecisionReason,
+      });
+      setOperationSuccess(`Dispute ticket moved to ${status}.`);
+      await Promise.all([loadOverview(), loadOperations()]);
+    } catch (apiError) {
+      setOperationError(apiError?.data?.detail || apiError?.data?.error || 'Failed to update dispute ticket.');
+    } finally {
+      setOperationBusy(false);
+    }
+  };
+
+  const runSellerDecision = async (profileId, status) => {
+    try {
+      setOperationBusy(true);
+      setOperationError('');
+      await updateSellerApplication(profileId, { status, is_verified_seller: status === 'approved' });
+      setOperationSuccess(`Seller application updated to ${status}.`);
+      await Promise.all([loadOverview(), loadOperations(), loadTab('customers', tabData.customers.page || 1)]);
+    } catch (apiError) {
+      setOperationError(apiError?.data?.detail || apiError?.data?.error || 'Failed to update seller application.');
+    } finally {
+      setOperationBusy(false);
+    }
+  };
+
+  const runUserAction = async (userId, payload) => {
+    try {
+      setLoadingTab(true);
+      setError('');
+      await updateDashboardUser(userId, payload);
+      await Promise.all([loadOverview(), loadTab('customers', tabData.customers.page || 1)]);
+    } catch (apiError) {
+      setError(apiError?.data?.detail || apiError?.data?.error || 'Failed to update user.');
+    } finally {
+      setLoadingTab(false);
+    }
+  };
+
+  const runProductAction = async (productId, payload) => {
+    try {
+      setLoadingTab(true);
+      setError('');
+      await updateDashboardProduct(productId, payload);
+      await Promise.all([loadOverview(), loadTab('products', tabData.products.page || 1)]);
+    } catch (apiError) {
+      setError(apiError?.data?.detail || apiError?.data?.error || 'Failed to update product.');
+    } finally {
+      setLoadingTab(false);
+    }
+  };
+
   const submitBulkRefundDecision = async () => {
     const refundIds = operationsData.refundIds.split(',').map((id) => id.trim()).filter(Boolean);
     if (refundIds.length === 0) {
@@ -230,7 +361,7 @@ export default function AdminDashboard() {
     { label: 'Total Orders', value: analytics.total_orders ?? tabData.orders.count ?? 0, icon: ShoppingCart },
     {
       label: 'Revenue',
-      value: `₦${Number(sales.total_revenue || analytics.total_revenue || 0).toLocaleString()}`,
+      value: `NGN ${Number(sales.total_revenue || analytics.total_revenue || 0).toLocaleString()}`,
       icon: TrendingUp,
     },
   ]), [analytics, sales.total_revenue, tabData.customers.count, tabData.orders.count, tabData.products.count]);
@@ -301,6 +432,9 @@ export default function AdminDashboard() {
               <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">Company Admin Operations</h2>
               <p className="text-gray-600 dark:text-gray-400">Product reports pending/reviewing: <span className="font-semibold text-gray-900 dark:text-white">{opsQueues?.product_reports?.pending ?? 0}/{opsQueues?.product_reports?.reviewing ?? 0}</span></p>
               <p className="text-gray-600 dark:text-gray-400">Review flags pending/reviewing: <span className="font-semibold text-gray-900 dark:text-white">{opsQueues?.review_flags?.pending ?? 0}/{opsQueues?.review_flags?.reviewing ?? 0}</span></p>
+              <p className="text-gray-600 dark:text-gray-400">Assistant reports pending/reviewing: <span className="font-semibold text-gray-900 dark:text-white">{opsQueues?.assistant_reports?.pending ?? 0}/{opsQueues?.assistant_reports?.reviewing ?? 0}</span></p>
+              <p className="text-gray-600 dark:text-gray-400">Disputes open/review/escalated: <span className="font-semibold text-gray-900 dark:text-white">{opsQueues?.dispute_tickets?.open ?? 0}/{opsQueues?.dispute_tickets?.under_review ?? 0}/{opsQueues?.dispute_tickets?.escalated ?? 0}</span></p>
+              <p className="text-gray-600 dark:text-gray-400">Seller applications pending: <span className="font-semibold text-gray-900 dark:text-white">{opsQueues?.seller_applications?.pending ?? 0}</span></p>
               <p className="text-gray-600 dark:text-gray-400">Refunds pending/processing: <span className="font-semibold text-gray-900 dark:text-white">{opsQueues?.refunds?.pending ?? 0}/{opsQueues?.refunds?.processing ?? 0}</span></p>
               <p className="text-gray-600 dark:text-gray-400">Videos pending scan/quarantined: <span className="font-semibold text-gray-900 dark:text-white">{opsQueues?.product_videos?.pending_scan ?? 0}/{opsQueues?.product_videos?.quarantined ?? 0}</span></p>
             </div>
@@ -323,6 +457,9 @@ export default function AdminDashboard() {
             onChange={setOperationsData}
             onModerateReport={runReportAction}
             onModerateFlag={runFlagAction}
+            onModerateAssistantReport={runAssistantReportAction}
+            onDisputeTicketAction={runDisputeTicketAction}
+            onSellerDecision={runSellerDecision}
             onSubmitRefundDecision={submitBulkRefundDecision}
           />
         )}
@@ -338,6 +475,17 @@ export default function AdminDashboard() {
             hasPrevious={Boolean(currentTabState?.previous)}
             hasNext={Boolean(currentTabState?.next)}
             onChangePage={(nextPage) => loadTab('customers', nextPage)}
+            renderActions={(row) => (
+              <div className="flex flex-wrap gap-2">
+                {!row.is_verified && <SmallActionButton onClick={() => runUserAction(row.id, { action: 'verify_email' })}>Verify</SmallActionButton>}
+                {row.is_suspended || !row.is_active ? (
+                  <SmallActionButton onClick={() => runUserAction(row.id, { action: 'activate' })}>Activate</SmallActionButton>
+                ) : (
+                  <SmallActionButton onClick={() => runUserAction(row.id, { action: 'suspend', suspension_reason: 'Suspended from admin dashboard' })}>Suspend</SmallActionButton>
+                )}
+                {row.role !== 'admin' && <SmallActionButton onClick={() => runUserAction(row.id, { role: 'admin', is_staff: true })}>Make Admin</SmallActionButton>}
+              </div>
+            )}
           />
         )}
 
@@ -352,6 +500,15 @@ export default function AdminDashboard() {
             hasPrevious={Boolean(currentTabState?.previous)}
             hasNext={Boolean(currentTabState?.next)}
             onChangePage={(nextPage) => loadTab('products', nextPage)}
+            renderActions={(row) => (
+              <div className="flex flex-wrap gap-2">
+                {!row.is_verified_product && <SmallActionButton onClick={() => runProductAction(row.id, { is_verified: true, is_verified_product: true })}>Verify</SmallActionButton>}
+                {!row.is_featured && <SmallActionButton onClick={() => runProductAction(row.id, { is_featured: true })}>Feature</SmallActionButton>}
+                {row.status !== 'suspended' && <SmallActionButton onClick={() => runProductAction(row.id, { status: 'suspended' })}>Suspend</SmallActionButton>}
+                {row.status !== 'sold' && <SmallActionButton onClick={() => runProductAction(row.id, { status: 'sold' })}>Sold</SmallActionButton>}
+                {row.status !== 'active' && <SmallActionButton onClick={() => runProductAction(row.id, { status: 'active' })}>Activate</SmallActionButton>}
+              </div>
+            )}
           />
         )}
 
@@ -373,7 +530,20 @@ export default function AdminDashboard() {
   );
 }
 
-function OperationsPanel({ data, loading, busy, error, success, onChange, onModerateReport, onModerateFlag, onSubmitRefundDecision }) {
+function OperationsPanel({
+  data,
+  loading,
+  busy,
+  error,
+  success,
+  onChange,
+  onModerateReport,
+  onModerateFlag,
+  onModerateAssistantReport,
+  onDisputeTicketAction,
+  onSellerDecision,
+  onSubmitRefundDecision,
+}) {
   return (
     <div className="space-y-6">
       {error && <p className="text-red-500">{error}</p>}
@@ -409,7 +579,138 @@ function OperationsPanel({ data, loading, busy, error, success, onChange, onMode
       </div>
 
       <QueueCard
+        title="Seller Applications"
+        icon={UserCheck}
+        loading={loading}
+        rows={data.sellerApplications.results || []}
+        page={data.sellerApplications.page}
+        totalCount={data.sellerApplications.count}
+        hasPrevious={Boolean(data.sellerApplications.previous)}
+        hasNext={Boolean(data.sellerApplications.next)}
+        status={data.sellerApplications.status}
+        reason=""
+        statuses={SELLER_STATUSES}
+        reasons={[]}
+        notesValue={null}
+        onStatusChange={(value) => onChange((prev) => ({
+          ...prev,
+          sellerApplications: { ...prev.sellerApplications, page: 1, status: value },
+        }))}
+        onReasonChange={() => {}}
+        onPrevPage={() => onChange((prev) => ({
+          ...prev,
+          sellerApplications: { ...prev.sellerApplications, page: Math.max(1, prev.sellerApplications.page - 1) },
+        }))}
+        onNextPage={() => onChange((prev) => ({
+          ...prev,
+          sellerApplications: { ...prev.sellerApplications, page: prev.sellerApplications.page + 1 },
+        }))}
+        onNotesChange={() => {}}
+        busy={busy}
+        actionButtons={[
+          { label: 'Approve', status: 'approved' },
+          { label: 'Reject', status: 'rejected' },
+          { label: 'Pending', status: 'pending' },
+        ]}
+        onAction={(row, status) => onSellerDecision(row.id, status)}
+        renderTitle={(row) => row.name || row.email || row.id}
+        renderMeta={(row) => `Status: ${row.status || '-'} - Mode: ${row.seller_commerce_mode || '-'} - Reviews: ${row.total_reviews ?? 0}`}
+      />
+
+      <QueueCard
+        title="Assistant Reports"
+        icon={AlertTriangle}
+        loading={loading}
+        rows={data.assistantReports.results || []}
+        page={data.assistantReports.page}
+        totalCount={data.assistantReports.count}
+        hasPrevious={Boolean(data.assistantReports.previous)}
+        hasNext={Boolean(data.assistantReports.next)}
+        status={data.assistantReports.status}
+        reason={data.assistantReports.report_type}
+        statuses={ASSISTANT_REPORT_STATUSES}
+        reasons={ASSISTANT_REPORT_TYPES}
+        filterLabel="all report types"
+        notesValue={data.assistantReportNotes}
+        onStatusChange={(value) => onChange((prev) => ({
+          ...prev,
+          assistantReports: { ...prev.assistantReports, page: 1, status: value },
+        }))}
+        onReasonChange={(value) => onChange((prev) => ({
+          ...prev,
+          assistantReports: { ...prev.assistantReports, page: 1, report_type: value },
+        }))}
+        onPrevPage={() => onChange((prev) => ({
+          ...prev,
+          assistantReports: { ...prev.assistantReports, page: Math.max(1, prev.assistantReports.page - 1) },
+        }))}
+        onNextPage={() => onChange((prev) => ({
+          ...prev,
+          assistantReports: { ...prev.assistantReports, page: prev.assistantReports.page + 1 },
+        }))}
+        onNotesChange={(value) => onChange((prev) => ({ ...prev, assistantReportNotes: value }))}
+        busy={busy}
+        actionButtons={[
+          { label: 'Reviewing', status: 'reviewing' },
+          { label: 'Resolved', status: 'resolved' },
+          { label: 'Closed', status: 'closed' },
+        ]}
+        onAction={(row, status) => onModerateAssistantReport(row.id, status)}
+        renderTitle={(row) => `${row.report_type || 'report'} #${row.id}`}
+        renderMeta={(row) => `Severity: ${row.severity || '-'} - Status: ${row.status || '-'} - User: ${row.user_email || row.user_username || '-'}`}
+        renderBody={(row) => row.message}
+      />
+
+      <QueueCard
+        title="Dispute Tickets"
+        icon={Gavel}
+        loading={loading}
+        rows={data.disputeTickets.results || []}
+        page={data.disputeTickets.page}
+        totalCount={data.disputeTickets.count}
+        hasPrevious={Boolean(data.disputeTickets.previous)}
+        hasNext={Boolean(data.disputeTickets.next)}
+        status={data.disputeTickets.status}
+        reason={data.disputeTickets.seller_type}
+        statuses={DISPUTE_STATUSES}
+        reasons={['verified', 'unverified']}
+        filterLabel="all seller types"
+        notesValue={data.disputeDecisionReason}
+        onStatusChange={(value) => onChange((prev) => ({
+          ...prev,
+          disputeTickets: { ...prev.disputeTickets, page: 1, status: value },
+        }))}
+        onReasonChange={(value) => onChange((prev) => ({
+          ...prev,
+          disputeTickets: { ...prev.disputeTickets, page: 1, seller_type: value },
+        }))}
+        onPrevPage={() => onChange((prev) => ({
+          ...prev,
+          disputeTickets: { ...prev.disputeTickets, page: Math.max(1, prev.disputeTickets.page - 1) },
+        }))}
+        onNextPage={() => onChange((prev) => ({
+          ...prev,
+          disputeTickets: { ...prev.disputeTickets, page: prev.disputeTickets.page + 1 },
+        }))}
+        onNotesChange={(value) => onChange((prev) => ({ ...prev, disputeDecisionReason: value }))}
+        busy={busy}
+        actionButtons={[
+          { label: 'Reviewing', status: 'UNDER_REVIEW' },
+          { label: 'Escalate', status: 'ESCALATED' },
+          { label: 'Senior Review', status: 'UNDER_SENIOR_REVIEW' },
+          { label: 'Approve', status: 'RESOLVED_APPROVED' },
+          { label: 'Deny', status: 'RESOLVED_DENIED' },
+          { label: 'Close', status: 'CLOSED' },
+        ]}
+        onAction={(row, status) => onDisputeTicketAction(row.ticket_id, status)}
+        renderTitle={(row) => `${row.ticket_id} - ${row.dispute_category || 'dispute'}`}
+        renderMeta={(row) => `Status: ${row.status || '-'} - Buyer: ${row.buyer_email || '-'} - Seller: ${row.seller_email || '-'} - Product: ${row.product_title || '-'}`}
+        renderBody={(row) => row.description}
+      />
+
+      <QueueCard
         title="Product Reports"
+        icon={ShieldCheck}
         loading={loading}
         rows={data.productReports.results || []}
         page={data.productReports.page}
@@ -446,11 +747,12 @@ function OperationsPanel({ data, loading, busy, error, success, onChange, onMode
         ]}
         onAction={(row, status) => onModerateReport(row.id, status)}
         renderTitle={(row) => row.product_title || row.id}
-        renderMeta={(row) => `Reason: ${row.reason || '-'} · Status: ${row.status || '-'} · Reporter: ${row.reporter_name || '-'}`}
+        renderMeta={(row) => `Reason: ${row.reason || '-'} - Status: ${row.status || '-'} - Reporter: ${row.reporter_name || '-'}`}
       />
 
       <QueueCard
         title="Review Flags"
+        icon={CheckCircle2}
         loading={loading}
         rows={data.reviewFlags.results || []}
         page={data.reviewFlags.page}
@@ -487,7 +789,7 @@ function OperationsPanel({ data, loading, busy, error, success, onChange, onMode
         ]}
         onAction={(row, status) => onModerateFlag(row.id, status)}
         renderTitle={(row) => row.id}
-        renderMeta={(row) => `Reason: ${row.reason || '-'} · Status: ${row.status || '-'} · Flagger: ${row.flagger_name || '-'}`}
+        renderMeta={(row) => `Reason: ${row.reason || '-'} - Status: ${row.status || '-'} - Flagger: ${row.flagger_name || '-'}`}
       />
     </div>
   );
@@ -495,6 +797,7 @@ function OperationsPanel({ data, loading, busy, error, success, onChange, onMode
 
 function QueueCard({
   title,
+  icon: Icon,
   loading,
   rows,
   page,
@@ -505,6 +808,7 @@ function QueueCard({
   reason,
   statuses,
   reasons,
+  filterLabel = 'all reasons',
   notesValue,
   onStatusChange,
   onReasonChange,
@@ -515,29 +819,39 @@ function QueueCard({
   onAction,
   renderTitle,
   renderMeta,
+  renderBody,
   busy,
 }) {
   const start = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const end = Math.min(page * PAGE_SIZE, totalCount);
+  const hasReasonFilter = Array.isArray(reasons) && reasons.length > 0;
+  const hasNotes = typeof notesValue === 'string';
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-bold text-gray-900 dark:text-white">{title}</h3>
+        <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+          {Icon && <Icon className="w-5 h-5 text-blue-600 dark:text-blue-400" />}
+          {title}
+        </h3>
         <span className="text-sm text-gray-500 dark:text-gray-400">{start}-{end} of {totalCount}</span>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-3 mb-3">
+      <div className={`grid ${hasReasonFilter ? 'md:grid-cols-2' : 'md:grid-cols-1'} gap-3 mb-3`}>
         <select value={status} onChange={(e) => onStatusChange(e.target.value)} className="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm">
           {statuses.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
-        <select value={reason} onChange={(e) => onReasonChange(e.target.value)} className="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm">
-          <option value="">all reasons</option>
-          {reasons.map((r) => <option key={r} value={r}>{r}</option>)}
-        </select>
+        {hasReasonFilter && (
+          <select value={reason} onChange={(e) => onReasonChange(e.target.value)} className="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm">
+            <option value="">{filterLabel}</option>
+            {reasons.map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+        )}
       </div>
 
-      <input value={notesValue} onChange={(e) => onNotesChange(e.target.value)} className="w-full mb-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm" placeholder="Notes for actions (optional)" />
+      {hasNotes && (
+        <input value={notesValue} onChange={(e) => onNotesChange(e.target.value)} className="w-full mb-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm" placeholder="Notes for actions (optional)" />
+      )}
 
       {loading ? (
         <p className="text-sm text-gray-500">Loading queue...</p>
@@ -549,6 +863,9 @@ function QueueCard({
             <div key={row.id} className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
               <p className="text-sm font-semibold text-gray-900 dark:text-white">{renderTitle(row)}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{renderMeta(row)}</p>
+              {renderBody && row && (
+                <p className="text-xs text-gray-600 dark:text-gray-300 mb-2 line-clamp-2">{renderBody(row) || ''}</p>
+              )}
               <div className="flex flex-wrap gap-2">
                 {actionButtons.map((action) => (
                   <button key={action.status} onClick={() => onAction(row, action.status)} disabled={busy} className="px-3 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50">
@@ -570,7 +887,19 @@ function QueueCard({
   );
 }
 
-function ListTable({ title, rows, columns, loading, page, totalCount, hasPrevious, hasNext, onChangePage }) {
+function SmallActionButton({ children, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="px-3 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+    >
+      {children}
+    </button>
+  );
+}
+
+function ListTable({ title, rows, columns, loading, page, totalCount, hasPrevious, hasNext, onChangePage, renderActions = null }) {
   const start = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
   const end = Math.min(page * PAGE_SIZE, totalCount);
 
@@ -593,6 +922,11 @@ function ListTable({ title, rows, columns, loading, page, totalCount, hasPreviou
                     {col.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
                   </th>
                 ))}
+                {renderActions && (
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white">
+                    Actions
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -601,6 +935,11 @@ function ListTable({ title, rows, columns, loading, page, totalCount, hasPreviou
                   {columns.map((col) => (
                     <td key={col} className="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">{String(row[col] ?? '-')}</td>
                   ))}
+                  {renderActions && (
+                    <td className="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">
+                      {renderActions(row)}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

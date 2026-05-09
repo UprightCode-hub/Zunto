@@ -32,6 +32,9 @@ import {
   uploadProductImage,
   uploadProductVideo,
 } from '../services/api';
+import { formatNaira } from '../utils/helpers';
+import ProductImage from '../components/products/ProductImage';
+import { getProductImage } from '../utils/product';
 
 const OrdersTab = lazy(() => import('./sellerTabs/OrdersTab'));
 const InboxTab = lazy(() => import('./sellerTabs/InboxTab'));
@@ -155,7 +158,7 @@ const SellerDashboard = () => {
   const stats = useMemo(() => {
     return [
       { label: 'Total Orders', value: String(sellerStats.total_orders), icon: ShoppingCart, accent: 'text-blue-600 dark:text-blue-400' },
-      { label: 'Total Sales', value: `${sellerStats.total_sales.toLocaleString()}`, icon: DollarSign, accent: 'text-green-600 dark:text-green-400' },
+      { label: 'Total Sales', value: formatNaira(sellerStats.total_sales), icon: DollarSign, accent: 'text-green-600 dark:text-green-400' },
       { label: 'Items Sold', value: String(sellerStats.total_items_sold), icon: Package, accent: 'text-purple-600 dark:text-purple-400' },
       { label: 'Pending Items', value: String(sellerStats.pending_items), icon: TrendingUp, accent: 'text-amber-600 dark:text-amber-400' },
       { label: 'Shipped Items', value: String(sellerStats.shipped_items), icon: TrendingUp, accent: 'text-emerald-600 dark:text-emerald-400' },
@@ -320,8 +323,8 @@ const SellerDashboard = () => {
       setFormData({
         title: detail.title || '',
         description: detail.description || '',
-        category: detail.category || '',
-        location: detail.location || '',
+        category: detail.category?.id || detail.category || '',
+        location: detail.location?.id || detail.location || '',
         price: detail.price || '',
         quantity: detail.quantity || '1',
         listing_type: detail.listing_type || 'product',
@@ -347,8 +350,8 @@ const SellerDashboard = () => {
       setSubmitting(true);
       const createdProduct = await createProduct({
         ...formData,
-        category: Number(formData.category),
-        location: Number(formData.location),
+        category: formData.category,
+        location: formData.location,
         price: Number(formData.price),
         quantity: Number(formData.quantity),
       });
@@ -358,7 +361,7 @@ const SellerDashboard = () => {
           await Promise.all(
             pendingImages.map((image) => uploadProductImage(createdProduct.slug, image.file)),
           );
-        } catch (uploadError) {
+        } catch {
           closeCreateModal();
           await fetchDashboardData(false);
           setSuccessMessage('Product created, but one or more images failed to upload. Open Media Manager to retry.');
@@ -393,8 +396,8 @@ const SellerDashboard = () => {
       setSubmitting(true);
       await updateProduct(editingProduct.slug, {
         ...formData,
-        category: Number(formData.category),
-        location: Number(formData.location),
+        category: formData.category,
+        location: formData.location,
         price: Number(formData.price),
         quantity: Number(formData.quantity),
       });
@@ -410,7 +413,7 @@ const SellerDashboard = () => {
           await Promise.all(
             pendingImages.map((image) => uploadProductImage(editingProduct.slug, image.file)),
           );
-        } catch (uploadError) {
+        } catch {
           await fetchDashboardData(false);
           const refreshedProduct = await getProductDetail(editingProduct.slug);
           setEditingProduct(refreshedProduct);
@@ -673,12 +676,11 @@ const SellerDashboard = () => {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="h-14 w-14 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-700 flex items-center justify-center shrink-0">
-                            {product.primary_image ? (
-                              <img
-                                src={product.primary_image}
+                            {getProductImage(product, '') ? (
+                              <ProductImage
+                                src={getProductImage(product, '')}
                                 alt={product.title || product.name}
                                 className="h-full w-full object-cover"
-                                loading="lazy"
                               />
                             ) : (
                               <ImagePlus className="w-5 h-5 text-gray-400 dark:text-gray-500" />
@@ -687,13 +689,13 @@ const SellerDashboard = () => {
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{product.title || product.name}</p>
                             <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                              {product.primary_image ? 'Image ready' : 'No image yet'}
+                              {getProductImage(product, '') ? 'Image ready' : 'No image yet'}
                             </p>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">{product.category_name || 'N/A'}</td>
-                      <td className="px-6 py-4 text-sm font-semibold text-gray-900 dark:text-white">${product.price}</td>
+                      <td className="px-6 py-4 text-sm font-semibold text-gray-900 dark:text-white">{formatNaira(product.price)}</td>
                       <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">{product.views_count || 0}</td>
                       <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">{product.favorites_count || 0}</td>
                       <td className="px-6 py-4 text-sm flex gap-2">
@@ -826,7 +828,8 @@ const SellerDashboard = () => {
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">Price</label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       min="0"
                       step="0.01"
                       required
@@ -838,7 +841,8 @@ const SellerDashboard = () => {
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">Quantity</label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
                       min="1"
                       required
                       value={formData.quantity}
@@ -877,7 +881,7 @@ const SellerDashboard = () => {
                     <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-3">
                       {pendingImages.map((image) => (
                         <div key={image.id} className="relative overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-                          <img src={image.previewUrl} alt={image.file.name} className="h-24 w-full object-cover" />
+                          <ProductImage src={image.previewUrl} alt={image.file.name} className="h-24 w-full object-cover" />
                           <div className="px-2 py-2">
                             <p className="text-xs text-gray-700 dark:text-gray-200 truncate">{image.file.name}</p>
                           </div>
@@ -975,7 +979,8 @@ const SellerDashboard = () => {
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">Price</label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       min="0"
                       step="0.01"
                       required
@@ -987,7 +992,8 @@ const SellerDashboard = () => {
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">Quantity</label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
                       min="1"
                       required
                       value={formData.quantity}
@@ -1032,7 +1038,7 @@ const SellerDashboard = () => {
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                       {editingProduct.images.map((image) => (
                         <div key={image.id} className="relative overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
-                          <img src={image.image} alt={image.caption || 'Product image'} className="h-28 w-full object-cover" />
+                          <ProductImage src={image.image} alt={image.caption || 'Product image'} className="h-28 w-full object-cover" />
                           <button
                             type="button"
                             onClick={() => handleDeleteEditImage(image.id)}
@@ -1069,7 +1075,7 @@ const SellerDashboard = () => {
                       <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-3">
                         {pendingImages.map((image) => (
                           <div key={image.id} className="relative overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-                            <img src={image.previewUrl} alt={image.file.name} className="h-24 w-full object-cover" />
+                            <ProductImage src={image.previewUrl} alt={image.file.name} className="h-24 w-full object-cover" />
                             <div className="px-2 py-2">
                               <p className="text-xs text-gray-700 dark:text-gray-200 truncate">{image.file.name}</p>
                             </div>
@@ -1139,7 +1145,7 @@ const SellerDashboard = () => {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {(selectedProduct.images || []).map((image) => (
                       <div key={image.id} className="relative border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                        <img src={image.image} loading="lazy" alt={image.caption || 'Product image'} className="w-full h-32 object-cover" />
+                        <ProductImage src={image.image} alt={image.caption || 'Product image'} className="w-full h-32 object-cover" />
                         <button
                           type="button"
                           onClick={() => handleDeleteImage(image.id)}

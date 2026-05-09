@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 const ProtectedRoute = ({ children, requiredRole = null, requireVerified = false }) => {
   const { user, isAuthenticated, loading } = useAuth();
   const isSellerActive = Boolean(user?.isSellerActive);
+  const isPlatformAdmin = Boolean(user?.role === 'admin' || user?.is_staff || user?.is_superuser);
 
   if (loading) {
     return (
@@ -42,7 +43,23 @@ const ProtectedRoute = ({ children, requiredRole = null, requireVerified = false
     );
   }
 
-  if (requiredRole && requiredRole !== 'seller' && user?.role !== requiredRole) {
+  if (requiredRole === 'admin' && !isPlatformAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Access Denied</h1>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
+            You don't have permission to access this page.
+          </p>
+          <a href="/" className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+            Go to Home
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  if (requiredRole && !['admin', 'seller'].includes(requiredRole) && user?.role !== requiredRole) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">

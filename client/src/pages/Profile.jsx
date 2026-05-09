@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { User, Package, MapPin, Heart, Settings, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { changePassword, getMyOrders, updateUserProfile } from '../services/api';
+import { formatNaira } from '../utils/helpers';
 
 const INITIAL_PASSWORDS = {
   old_password: '',
@@ -297,7 +298,7 @@ export default function Profile() {
                           </div>
                           <div className="flex justify-between items-center">
                             <p className="text-gray-600 dark:text-gray-300">{order.items_count || order.items?.length || 0} items</p>
-                            <p className="text-xl font-bold text-[#2c77d1]">${order.total}</p>
+                            <p className="text-xl font-bold text-[#2c77d1]">{formatNaira(order.total_amount ?? order.total)}</p>
                           </div>
                         </div>
                       ))}

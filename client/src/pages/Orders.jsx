@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getMyOrders, cancelOrder } from '../services/api';
 import { Package, Truck, Check, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { formatNaira } from '../utils/helpers';
 
 const STATUS_COLORS = {
   pending: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
@@ -20,8 +21,6 @@ const STATUS_ICONS = {
   delivered: <Check className="w-5 h-5" />,
   cancelled: <X className="w-5 h-5" />,
 };
-
-const formatMoney = (value) => Number(value || 0).toFixed(2);
 
 export default function Orders() {
   useAuth();
@@ -149,7 +148,7 @@ export default function Orders() {
                     </div>
                     <div className="flex flex-wrap gap-6 text-sm text-gray-400">
                       <span>{new Date(order.created_at).toLocaleDateString()}</span>
-                      <span>${formatMoney(order.total_amount)}</span>
+                      <span>{formatNaira(order.total_amount)}</span>
                       <span>{order.items?.length || 0} item(s)</span>
                     </div>
                   </div>
@@ -170,8 +169,8 @@ export default function Orders() {
                         <div className="space-y-3">
                           {order.items?.map(item => (
                             <div key={item.id} className="flex justify-between text-sm">
-                              <span className="text-gray-300">{item.product_name || item.product?.name || 'Product'} × {item.quantity}</span>
-                              <span className="font-semibold">${Number(item.total_price || (item.unit_price * item.quantity) || 0).toFixed(2)}</span>
+                              <span className="text-gray-300">{item.product_name || item.product?.name || 'Product'} x {item.quantity}</span>
+                              <span className="font-semibold">{formatNaira(item.total_price || (item.unit_price * item.quantity) || 0)}</span>
                             </div>
                           )) || <p className="text-gray-400">No items</p>}
                         </div>
@@ -183,23 +182,23 @@ export default function Orders() {
                         <div className="space-y-2 text-sm mb-4">
                           <div className="flex justify-between text-gray-300">
                             <span>Subtotal</span>
-                            <span>${order.subtotal != null ? formatMoney(order.subtotal) : formatMoney(order.total_amount)}</span>
+                            <span>{formatNaira(order.subtotal != null ? order.subtotal : order.total_amount)}</span>
                           </div>
                           {(order.shipping_fee || 0) > 0 && (
                             <div className="flex justify-between text-gray-300">
                               <span>Shipping</span>
-                              <span>${Number(order.shipping_fee).toFixed(2)}</span>
+                              <span>{formatNaira(order.shipping_fee)}</span>
                             </div>
                           )}
                           {(order.tax_amount || 0) > 0 && (
                             <div className="flex justify-between text-gray-300">
                               <span>Tax</span>
-                              <span>${Number(order.tax_amount).toFixed(2)}</span>
+                              <span>{formatNaira(order.tax_amount)}</span>
                             </div>
                           )}
                           <div className="pt-2 border-t border-[#2c77d1]/20 flex justify-between font-semibold">
                             <span>Total</span>
-                            <span className="text-[#2c77d1]">${formatMoney(order.total_amount)}</span>
+                            <span className="text-[#2c77d1]">{formatNaira(order.total_amount)}</span>
                           </div>
                         </div>
                       </div>

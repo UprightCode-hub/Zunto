@@ -557,7 +557,7 @@ export default function MarketplaceInbox({
                     <p className="text-sm font-semibold text-white truncate">{getConversationTitle(conversation)}</p>
                     <span className="text-[11px] text-gray-500">{new Date(conversation.updated_at || conversation.created_at).toLocaleDateString()}</span>
                   </div>
-                  <p className="text-xs text-gray-400 truncate mt-1">{typingMap.get(String(conversation.id))?.expiresAt > Date.now() && String(typingMap.get(String(conversation.id))?.actor_id) !== String(user?.id) ? 'Typing…' : `${getOtherParticipantOnline(conversation) ? '● ' : ''}${getConversationPreview(conversation) || getOtherParticipantLabel(conversation, user)}`}</p>
+                  <p className="text-xs text-gray-400 truncate mt-1">{typingMap.get(String(conversation.id))?.expiresAt > Date.now() && String(typingMap.get(String(conversation.id))?.actor_id) !== String(user?.id) ? 'Typing...' : `${getOtherParticipantOnline(conversation) ? 'online - ' : ''}${getConversationPreview(conversation) || getOtherParticipantLabel(conversation, user)}`}</p>
                 </button>
               ))
             )}
@@ -574,7 +574,7 @@ export default function MarketplaceInbox({
                     {String(selectedConversation?.seller?.id) === String(user?.id)
                       ? `Buyer: ${getPersonLabel(selectedConversation?.buyer)}`
                       : `Seller: ${getPersonLabel(selectedConversation?.seller)}`}
-                    {getOtherParticipantOnline(selectedConversation) ? ' · online' : ''}
+                    {getOtherParticipantOnline(selectedConversation) ? ' - online' : ''}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -605,7 +605,7 @@ export default function MarketplaceInbox({
                         <p className="text-sm whitespace-pre-wrap break-words">{message.content || message.message}</p>
                         <p className="text-[11px] mt-1 opacity-75 text-right">
                           {new Date(message.created_at || message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          {isSeen ? ' · Seen' : ''}
+                          {isSeen ? ' - Seen' : ''}
                         </p>
                       </div>
                     </div>
@@ -615,7 +615,7 @@ export default function MarketplaceInbox({
               </div>
 
               {isConversationTyping ? (
-                <div className="px-4 py-2 text-xs text-gray-400 border-t border-[#2c77d1]/10">Typing…</div>
+                <div className="px-4 py-2 text-xs text-gray-400 border-t border-[#2c77d1]/10">Typing...</div>
               ) : null}
 
               <form onSubmit={handleSendMessage} className="border-t border-[#2c77d1]/20 p-3 safe-bottom-pad bg-[#0b1222] flex items-center gap-2">
@@ -630,6 +630,7 @@ export default function MarketplaceInbox({
                 />
                 <button
                   type="submit"
+                  aria-label="Send message"
                   disabled={!newMessage.trim() || sendingMessage}
                   className="btn-primary"
                 >

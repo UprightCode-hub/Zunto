@@ -1,10 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
-
-const SHIPPING_THRESHOLD = 100;
-const SHIPPING_FEE = 8.99;
-const TAX_RATE = 0.1;
+import { formatNaira } from '../../utils/helpers';
 
 export default function CartSummary({
   cartCount,
@@ -15,22 +12,11 @@ export default function CartSummary({
   blockedSellerNames = [],
   checkoutDisabledReason = '',
 }) {
-  const hasFreeShipping = cartTotal >= SHIPPING_THRESHOLD;
-  const shipping = hasFreeShipping ? 0 : SHIPPING_FEE;
-  const tax = cartTotal * TAX_RATE;
-  const grandTotal = cartTotal + shipping + tax;
-  const remainingForFreeShipping = Math.max(0, SHIPPING_THRESHOLD - cartTotal);
   const isCheckoutBlocked = blockedSellerNames.length > 0;
 
   return (
     <div className="bg-[#050d1b] border border-[#2c77d1]/20 rounded-2xl p-6 sticky top-24">
       <h2 className="text-2xl font-bold mb-6">Order Summary</h2>
-
-      {!hasFreeShipping && cartTotal > 0 && (
-        <p className="text-sm text-amber-300 bg-amber-500/10 border border-amber-400/20 rounded-lg px-3 py-2 mb-4">
-          Add ${remainingForFreeShipping.toFixed(2)} more for free shipping.
-        </p>
-      )}
 
       {isCheckoutBlocked && (
         <p className="text-sm text-red-200 bg-red-500/10 border border-red-400/20 rounded-lg px-3 py-2 mb-4">
@@ -41,22 +27,16 @@ export default function CartSummary({
       <div className="space-y-4 mb-6">
         <div className="flex justify-between text-gray-300">
           <span>Subtotal ({cartCount} items)</span>
-          <span>${cartTotal.toFixed(2)}</span>
+          <span>{formatNaira(cartTotal)}</span>
         </div>
         <div className="flex justify-between text-gray-300">
-          <span>Shipping</span>
-          <span className={hasFreeShipping ? 'text-green-400' : 'text-gray-300'}>
-            {hasFreeShipping ? 'Free' : `$${shipping.toFixed(2)}`}
-          </span>
-        </div>
-        <div className="flex justify-between text-gray-300">
-          <span>Tax</span>
-          <span>${tax.toFixed(2)}</span>
+          <span>Delivery</span>
+          <span className="text-gray-400">Calculated at checkout</span>
         </div>
         <div className="border-t border-[#2c77d1]/20 pt-4">
           <div className="flex justify-between text-xl font-bold">
             <span>Total</span>
-            <span className="text-[#2c77d1]">${grandTotal.toFixed(2)}</span>
+            <span className="text-[#2c77d1]">{formatNaira(cartTotal)}</span>
           </div>
         </div>
       </div>

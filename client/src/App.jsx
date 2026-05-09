@@ -58,6 +58,10 @@ function AppLayout() {
     };
   }, []);
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0 });
+  }, [location.pathname]);
+
   return (
     <div className="min-h-[var(--app-min-height)] bg-white dark:bg-[#050d1b] text-gray-900 dark:text-white transition-colors duration-300 flex flex-col">
       {!isDashboard && <Navbar />}
@@ -72,6 +76,7 @@ function AppLayout() {
           <Route path="/cart" element={<Cart />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Navigate to="/signup" replace />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/become-seller" element={<BecomeSeller />} />
           <Route path="/verify-registration" element={<VerifyRegistration />} />

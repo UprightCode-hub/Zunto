@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 
 const THEME_STYLES = {
   light: {
@@ -91,7 +91,7 @@ export default function AssistantReply({ text, tone = 'light', className = '' })
 
   text.split('\n').forEach((line, index) => {
     const trimmed = line.trim();
-    const unorderedMatch = trimmed.match(/^[-*•]\s+(.+)/);
+    const unorderedMatch = trimmed.match(/^[-*\u2022]\s+(.+)/);
     const orderedMatch = trimmed.match(/^\d+[.)]\s+(.+)/);
 
     if (unorderedMatch) {

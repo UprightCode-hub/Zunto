@@ -63,7 +63,7 @@ export default function useProductFilters() {
         pathname: location.pathname,
         search: queryString ? `?${queryString}` : '',
       },
-      { replace: false },
+      { replace: true },
     );
   }, [location.pathname, location.search, navigate]);
 
@@ -77,7 +77,7 @@ export default function useProductFilters() {
         pathname: location.pathname,
         search: queryString ? `?${queryString}` : '',
       },
-      { replace: false },
+      { replace: true },
     );
   }, [location.pathname, location.search, navigate]);
 

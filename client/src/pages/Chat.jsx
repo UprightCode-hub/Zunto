@@ -8,7 +8,7 @@ function CustomerServiceChat() {
   const [messages, setMessages] = useState([
     {
       sender: 'bot',
-      text: 'Customer Service AI is for disputes and complaint handling only. Share your dispute details.',
+      text: 'Hi, I am Gigi from Zunto Customer Service. I can help with payments, refunds, deliveries, and buyer/seller disputes. What happened?',
     },
   ]);
   const [input, setInput] = useState('');

@@ -1,16 +1,115 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, MessageSquare, RotateCcw, Send } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { getAssistantSessions, sendAssistantMessage } from '../services/api';
+import { ArrowLeft, Bot, Clock3, MessageSquare, Package, Plus, RotateCcw, Send, Sparkles } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { getAssistantSession, getAssistantSessions, sendAssistantMessage } from '../services/api';
 import AssistantReply from '../components/assistant/AssistantReply';
 import ProductSuggestionRail from '../components/assistant/ProductSuggestionRail';
+import ProductImage from '../components/products/ProductImage';
+import { getProductImage } from '../utils/product';
 
-const modeLabel = (mode) => (mode === 'homepage_reco' ? 'Homepage AI' : 'Inbox AI');
 const MESSAGE_WINDOW_SIZE = 200;
+const NEW_HOMEPAGE_SESSION_KEY = 'new-homepage-reco-session';
 
-// ---------------------------------------------------------------------------
-// MessageRow
-// ---------------------------------------------------------------------------
+const modeLabel = (mode) => {
+  if (mode === 'homepage_reco') return 'Homepage AI';
+  if (mode === 'customer_service') return 'Customer Service';
+  return 'Inbox AI';
+};
+
+const modeBadgeClass = (mode, active = false) => {
+  if (mode === 'customer_service') {
+    return active
+      ? 'bg-emerald-400/15 text-emerald-100 border-emerald-300/25'
+      : 'bg-emerald-400/10 text-emerald-200 border-emerald-300/15';
+  }
+  if (mode === 'homepage_reco') {
+    return active
+      ? 'bg-purple-400/15 text-purple-100 border-purple-300/25'
+      : 'bg-purple-400/10 text-purple-200 border-purple-300/15';
+  }
+  return active
+    ? 'bg-blue-400/15 text-blue-100 border-blue-300/25'
+    : 'bg-blue-400/10 text-blue-200 border-blue-300/15';
+};
+
+const createDraftHomepageSession = () => ({
+  client_session_key: NEW_HOMEPAGE_SESSION_KEY,
+  session_id: null,
+  assistant_mode: 'homepage_reco',
+  conversation_title: 'New Conversation',
+  last_activity: new Date().toISOString(),
+  isDraft: true,
+});
+
+const stripReplyYesFlow = (text) => {
+  const value = String(text || '');
+  return value
+    .split(/\n+/)
+    .filter((line) => {
+      const normalized = line.toLowerCase();
+      return !(
+        /\b(?:reply|respond|type|say)\s+(?:with\s+)?["']?yes["']?\b/.test(normalized)
+        || /\bnew\s+recommendation\s+thread\b/.test(normalized)
+        || /\bshall i\b.*\b(?:show|search|continue|resume|pick up)\b/.test(normalized)
+      );
+    })
+    .join('\n')
+    .trim();
+};
+
+const titleForSession = (session) => (
+  session?.conversation_title
+  || session?.formatted_summary
+  || 'AI Conversation'
+);
+
+const formatThreadTime = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const now = new Date();
+  const sameDay = date.toDateString() === now.toDateString();
+  if (sameDay) {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+  return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+};
+
+const formatMessageTime = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+const normalizeHistoryMessages = (messages = [], sessionId = 'history') => (
+  (Array.isArray(messages) ? messages : [])
+    .map((entry, index) => {
+      const role = String(entry?.sender || entry?.role || '').toLowerCase();
+      const sender = role === 'assistant' || role === 'ai' || role === 'bot' ? 'assistant' : 'user';
+      const text = stripReplyYesFlow(entry?.text ?? entry?.content ?? entry?.message ?? '');
+      if (!text) return null;
+      return {
+        id: entry?.id || `${sessionId}-${index}`,
+        sender,
+        text,
+        status: 'completed',
+        timestamp: entry?.timestamp || entry?.created_at || entry?.createdAt || null,
+        metadata: entry?.metadata || {},
+      };
+    })
+    .filter(Boolean)
+);
+
+const ChatTypingDots = memo(function ChatTypingDots() {
+  return (
+    <span className="flex h-5 items-center gap-1" aria-label="AI is typing">
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-blue-200 [animation-delay:0ms]" />
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-blue-200 [animation-delay:150ms]" />
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-blue-200 [animation-delay:300ms]" />
+    </span>
+  );
+});
 
 const MessageRow = memo(function MessageRow({ message, onRetry }) {
   const isUser = message.sender === 'user';
@@ -19,54 +118,55 @@ const MessageRow = memo(function MessageRow({ message, onRetry }) {
 
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-      <div
-        className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm ${
-          isUser
-            ? 'bg-gradient-to-r from-[#2c77d1] to-[#9426f4] text-white'
-            : 'bg-[#1c2742] text-gray-100'
-        }`}
-      >
-        {isPending ? (
-          // Animated typing dots instead of raw "Working on your request..."
-          <span className="flex items-center gap-1 h-5">
-            <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce [animation-delay:0ms]" />
-            <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce [animation-delay:150ms]" />
-            <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce [animation-delay:300ms]" />
+      <div className={`${isUser ? 'items-end' : 'items-start'} flex max-w-[92%] flex-col gap-1 sm:max-w-[78%]`}>
+        <div
+          className={`rounded-[18px] px-4 py-3 text-sm shadow-lg shadow-black/10 ${
+            isUser
+              ? 'rounded-br-md bg-gradient-to-r from-[#2c77d1] to-[#9426f4] text-white'
+              : 'rounded-bl-md border border-white/10 bg-[#101a31] text-gray-100'
+          }`}
+        >
+          {isPending ? (
+            <ChatTypingDots />
+          ) : isUser ? (
+            <p className="whitespace-pre-wrap break-words leading-relaxed">{message.text}</p>
+          ) : (
+            <div className="space-y-2">
+              <AssistantReply text={message.text} tone="dark" />
+              <ProductSuggestionRail products={suggestedProducts} tone="dark" />
+            </div>
+          )}
+
+          {!isUser && message.status === 'failed' && (
+            <div className="mt-2 flex items-center gap-2">
+              <span className="text-[11px] text-red-300">Failed</span>
+              <button
+                type="button"
+                onClick={() => onRetry(message)}
+                className="inline-flex items-center gap-1 rounded-md bg-red-400/20 px-2 py-0.5 text-[11px] text-red-200 hover:bg-red-400/30"
+              >
+                <RotateCcw className="h-3 w-3" /> Retry
+              </button>
+            </div>
+          )}
+
+          {!isUser && message.status === 'aborted' && (
+            <div className="mt-2 flex items-center gap-2">
+              <span className="text-[11px] text-yellow-200">Aborted</span>
+              <button
+                type="button"
+                onClick={() => onRetry(message)}
+                className="inline-flex items-center gap-1 rounded-md bg-yellow-400/20 px-2 py-0.5 text-[11px] text-yellow-100 hover:bg-yellow-400/30"
+              >
+                <RotateCcw className="h-3 w-3" /> Retry
+              </button>
+            </div>
+          )}
+        </div>
+        {message.timestamp && (
+          <span className="px-1 text-[11px] text-slate-500">
+            {formatMessageTime(message.timestamp)}
           </span>
-        ) : isUser ? (
-          <p>{message.text}</p>
-        ) : (
-          // Assistant messages — render markdown
-          <div className="space-y-0.5">
-            <AssistantReply text={message.text} tone="dark" />
-            <ProductSuggestionRail products={suggestedProducts} tone="dark" />
-          </div>
-        )}
-
-        {!isUser && message.status === 'failed' && (
-          <div className="mt-2 flex items-center gap-2">
-            <span className="text-[11px] text-red-300">Failed</span>
-            <button
-              type="button"
-              onClick={() => onRetry(message)}
-              className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] bg-red-400/20 text-red-200 hover:bg-red-400/30"
-            >
-              <RotateCcw className="w-3 h-3" /> Retry
-            </button>
-          </div>
-        )}
-
-        {!isUser && message.status === 'aborted' && (
-          <div className="mt-2 flex items-center gap-2">
-            <span className="text-[11px] text-yellow-200">Aborted</span>
-            <button
-              type="button"
-              onClick={() => onRetry(message)}
-              className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] bg-yellow-400/20 text-yellow-100 hover:bg-yellow-400/30"
-            >
-              <RotateCcw className="w-3 h-3" /> Retry
-            </button>
-          </div>
         )}
       </div>
     </div>
@@ -75,21 +175,21 @@ const MessageRow = memo(function MessageRow({ message, onRetry }) {
 
 const LoginGateBubble = memo(function LoginGateBubble({ onGoogleSuccess, onManualSignup }) {
   return (
-    <div className="mx-4 mb-3 rounded-2xl border border-blue-100 bg-white p-4 shadow-md">
-      <p className="text-sm font-semibold text-gray-900">
+    <div className="mx-4 mb-3 rounded-lg border border-blue-300/20 bg-[#101a31] p-4 shadow-md">
+      <p className="text-sm font-semibold text-white">
         Create your free account to unlock personalized product results.
       </p>
       <button
         type="button"
         onClick={onGoogleSuccess}
-        className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50"
+        className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium text-gray-100 hover:bg-white/10"
       >
         Continue with Google
       </button>
       <button
         type="button"
         onClick={onManualSignup}
-        className="mt-2 inline-flex w-full items-center justify-center rounded-xl bg-[#2c77d1] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2566b4]"
+        className="mt-2 inline-flex w-full items-center justify-center rounded-lg bg-gradient-to-r from-[#2c77d1] to-[#9426f4] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
       >
         Sign up manually
       </button>
@@ -97,9 +197,70 @@ const LoginGateBubble = memo(function LoginGateBubble({ onGoogleSuccess, onManua
   );
 });
 
-// ---------------------------------------------------------------------------
-// InboxAI
-// ---------------------------------------------------------------------------
+function ProductPanel({ products }) {
+  const items = Array.isArray(products) ? products.slice(0, 5) : [];
+
+  return (
+    <aside className="hidden min-h-0 rounded-lg border border-[#2c77d1]/20 bg-[#071124]/95 lg:flex lg:flex-col">
+      <div className="border-b border-[#2c77d1]/20 p-4">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-purple-300" />
+          <h2 className="text-sm font-semibold text-white">Product Picks</h2>
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        {items.length === 0 ? (
+          <div className="flex h-full min-h-48 items-center justify-center rounded-lg border border-dashed border-white/10 bg-white/[0.03] p-5 text-center">
+            <div>
+              <Package className="mx-auto mb-3 h-8 w-8 text-slate-500" />
+              <p className="text-sm text-slate-400">Product suggestions will appear here.</p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {items.map((product) => (
+              <article
+                key={product.id || product.slug || product.title}
+                className="rounded-lg border border-white/10 bg-[#101a31] p-3"
+              >
+                <div className="flex gap-3">
+                  <div className="h-16 w-16 shrink-0 overflow-hidden rounded-md bg-[#17233f]">
+                    <ProductImage
+                      src={getProductImage(product)}
+                      alt={product.title || 'Product'}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-semibold leading-snug text-white">
+                      {product.title || product.name || 'Product'}
+                    </p>
+                    <p className="mt-1 text-sm font-bold text-blue-300">
+                      {Number.isFinite(Number(product.price))
+                        ? `\u20A6${Number(product.price).toLocaleString('en-NG', { maximumFractionDigits: 0 })}`
+                        : product.price || 'Price on listing'}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <span className="min-w-0 truncate text-xs text-slate-400">
+                    {product.location || product.condition || 'Zunto listing'}
+                  </span>
+                  <Link
+                    to={product.product_url || (product.slug ? `/product/${product.slug}` : '/products')}
+                    className="inline-flex min-h-8 shrink-0 items-center justify-center rounded-md bg-white/10 px-3 text-xs font-semibold text-white hover:bg-white/15"
+                  >
+                    View Product
+                  </Link>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
+    </aside>
+  );
+}
 
 export default function InboxAI() {
   const navigate = useNavigate();
@@ -107,41 +268,37 @@ export default function InboxAI() {
   const [selected, setSelected] = useState(null);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingSessions, setLoadingSessions] = useState(true);
+  const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [loginGate, setLoginGate] = useState(null);
 
-  const loadAbortRef = useRef(null);
+  const sessionsAbortRef = useRef(null);
+  const detailAbortRef = useRef(null);
   const sendAbortRef = useRef(null);
   const mountedRef = useRef(true);
   const selectedRef = useRef(null);
   const requestSeqRef = useRef(0);
+  const detailSeqRef = useRef(0);
   const messageIdRef = useRef(0);
   const inFlightRef = useRef(null);
   const messageListRef = useRef(null);
+  const inputRef = useRef(null);
   const shouldStickToBottomRef = useRef(true);
 
   const createMessageId = () => `m-${++messageIdRef.current}`;
+  const selectedSessionId = selected?.session_id;
+  const selectedClientSessionKey = selected?.client_session_key;
 
   const updateAssistantStatus = (messageId, nextStatus, fallbackText = null) => {
     setMessages((prev) =>
-      prev.map((item) => {
-        if (item.id !== messageId) return item;
-        return { ...item, status: nextStatus, text: fallbackText ?? item.text };
-      })
+      prev.map((item) => (
+        item.id === messageId
+          ? { ...item, status: nextStatus, text: fallbackText ?? item.text }
+          : item
+      ))
     );
-  };
-
-  const bumpSessionToTop = (session) => {
-    if (!session?.session_id) return;
-    const updated = { ...session, last_activity: new Date().toISOString() };
-    setSessions((prev) => [updated, ...prev.filter((s) => s.session_id !== session.session_id)]);
-    setSelected((prev) => {
-      if (!prev || prev.session_id !== session.session_id) return prev;
-      return updated;
-    });
-    selectedRef.current = updated;
   };
 
   const abortActiveSend = useCallback((markAs = 'aborted') => {
@@ -158,65 +315,165 @@ export default function InboxAI() {
     setSending(false);
   }, []);
 
+  const refreshSessions = useCallback(async (signal) => {
+    const data = await getAssistantSessions({ signal });
+    const next = (data?.sessions || []).filter((session) => session?.session_id);
+    setSessions(next);
+  }, []);
+
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      loadAbortRef.current?.abort();
+      sessionsAbortRef.current?.abort();
+      detailAbortRef.current?.abort();
       abortActiveSend('aborted');
     };
   }, [abortActiveSend]);
 
-  useEffect(() => { selectedRef.current = selected; }, [selected]);
+  useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
+
+  useEffect(() => {
+    if (!selectedSessionId && !selectedClientSessionKey) return;
+    window.setTimeout(() => inputRef.current?.focus(), 0);
+  }, [selectedSessionId, selectedClientSessionKey]);
 
   useEffect(() => {
     const list = messageListRef.current;
     if (!list) return undefined;
     const onScroll = () => {
       shouldStickToBottomRef.current =
-        list.scrollHeight - list.scrollTop - list.clientHeight < 24;
+        list.scrollHeight - list.scrollTop - list.clientHeight < 48;
     };
     onScroll();
     list.addEventListener('scroll', onScroll);
     return () => list.removeEventListener('scroll', onScroll);
-  }, []);
+  }, [selected]);
 
   useEffect(() => {
     if (!shouldStickToBottomRef.current) return;
     const list = messageListRef.current;
-    if (list) list.scrollTop = list.scrollHeight;
+    if (list) {
+      list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+    }
   }, [messages]);
 
-  // Load sessions once
   useEffect(() => {
     const controller = new AbortController();
-    loadAbortRef.current = controller;
+    sessionsAbortRef.current = controller;
 
     (async () => {
       try {
-        setLoading(true);
-        const data = await getAssistantSessions({
-          excludeCustomerService: true,
-          signal: controller.signal,
-        });
+        setLoadingSessions(true);
+        setError('');
+        await refreshSessions(controller.signal);
         if (!mountedRef.current || controller.signal.aborted) return;
-        const next = (data?.sessions || []).filter(
-          (s) => s.assistant_mode !== 'customer_service'
-        );
-        setSessions(next);
-        setSelected(next[0] || null);
+        setSelected(null);
+        setMessages([]);
       } catch (err) {
         if (err?.name === 'AbortError' || !mountedRef.current) return;
-        setError(err?.message || 'Unable to load AI workspace sessions.');
+        setError(err?.message || 'Unable to load AI conversations.');
       } finally {
-        if (mountedRef.current && !controller.signal.aborted) setLoading(false);
+        if (mountedRef.current && !controller.signal.aborted) {
+          setLoadingSessions(false);
+        }
       }
     })();
 
     return () => controller.abort();
-  }, []);
+  }, [refreshSessions]);
 
   const orderedMessages = useMemo(() => messages.slice(-MESSAGE_WINDOW_SIZE), [messages]);
+
+  const latestSuggestedProducts = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const products = messages[index]?.metadata?.suggested_products;
+      if (Array.isArray(products) && products.length > 0) {
+        return products;
+      }
+    }
+    return [];
+  }, [messages]);
+
+  const handleNewConversation = () => {
+    detailAbortRef.current?.abort();
+    abortActiveSend('aborted');
+    requestSeqRef.current += 1;
+    const draft = createDraftHomepageSession();
+    setSelected(draft);
+    selectedRef.current = draft;
+    setMessages([]);
+    setInput('');
+    setError('');
+    setLoginGate(null);
+    shouldStickToBottomRef.current = true;
+  };
+
+  const handleBackToList = () => {
+    detailAbortRef.current?.abort();
+    abortActiveSend('aborted');
+    requestSeqRef.current += 1;
+    setSelected(null);
+    selectedRef.current = null;
+    setMessages([]);
+    setInput('');
+    setLoginGate(null);
+  };
+
+  const openSession = useCallback(async (session) => {
+    if (!session?.session_id) return;
+
+    detailAbortRef.current?.abort();
+    abortActiveSend('aborted');
+    const controller = new AbortController();
+    detailAbortRef.current = controller;
+    const seq = ++detailSeqRef.current;
+
+    setSelected({ ...session, isDraft: false });
+    setMessages([]);
+    setInput('');
+    setLoginGate(null);
+    setLoadingMessages(true);
+    setError('');
+    shouldStickToBottomRef.current = true;
+
+    try {
+      const data = await getAssistantSession(session.session_id, controller.signal);
+      if (!mountedRef.current || controller.signal.aborted || seq !== detailSeqRef.current) return;
+
+      const history = normalizeHistoryMessages(
+        data?.messages || data?.conversation_history || [],
+        session.session_id,
+      );
+      const hydratedSession = {
+        ...session,
+        conversation_title: data?.conversation_title || session.conversation_title,
+        assistant_mode: data?.assistant_mode || session.assistant_mode,
+        assistant_lane: data?.assistant_lane || session.assistant_lane,
+        last_activity: data?.last_activity || session.last_activity,
+        isDraft: false,
+      };
+      setSelected(hydratedSession);
+      selectedRef.current = hydratedSession;
+      setMessages(history);
+      setSessions((prev) =>
+        prev.map((item) => (
+          item.session_id === hydratedSession.session_id
+            ? { ...item, ...hydratedSession }
+            : item
+        ))
+      );
+    } catch (err) {
+      if (err?.name === 'AbortError' || !mountedRef.current) return;
+      setError(err?.message || 'Unable to load this conversation.');
+    } finally {
+      if (mountedRef.current && !controller.signal.aborted && seq === detailSeqRef.current) {
+        setLoadingMessages(false);
+      }
+    }
+  }, [abortActiveSend]);
 
   const handlePostLoginSearch = useCallback(async () => {
     if (!loginGate?.collected_slots || !loginGate?.message) return;
@@ -239,8 +496,9 @@ export default function InboxAI() {
         {
           id: createMessageId(),
           sender: 'assistant',
-          text: response?.reply || 'No response.',
+          text: stripReplyYesFlow(response?.reply) || 'No response.',
           status: 'completed',
+          timestamp: new Date().toISOString(),
           metadata: response?.metadata || {},
         },
       ]);
@@ -252,47 +510,98 @@ export default function InboxAI() {
     }
   }, [loginGate]);
 
+  const upsertSessionFromResponse = (targetSession, response, userText) => {
+    const responseSessionId = response?.new_session_id || response?.session_id || targetSession.session_id;
+    if (!responseSessionId) return targetSession;
+
+    const nextSession = {
+      ...targetSession,
+      session_id: responseSessionId,
+      assistant_mode: response?.metadata?.assistant_mode || targetSession.assistant_mode || 'homepage_reco',
+      assistant_lane: response?.metadata?.assistant_lane || targetSession.assistant_lane || 'inbox',
+      conversation_title:
+        response?.metadata?.conversation_title
+        || response?.conversation_title
+        || targetSession.conversation_title
+        || userText,
+      last_activity: new Date().toISOString(),
+      isDraft: false,
+    };
+    delete nextSession.client_session_key;
+
+    setSelected(nextSession);
+    selectedRef.current = nextSession;
+    setSessions((prev) => [
+      nextSession,
+      ...prev.filter((session) => session.session_id !== responseSessionId),
+    ]);
+    return nextSession;
+  };
+
   const dispatchSend = async ({ text, targetSession }) => {
+    abortActiveSend('aborted');
+
     const seq = ++requestSeqRef.current;
+    const timestamp = new Date().toISOString();
     const userMsgId = createMessageId();
     const asstMsgId = createMessageId();
 
     setMessages((prev) => [
       ...prev,
-      { id: userMsgId, sender: 'user', text, status: 'completed' },
-      { id: asstMsgId, sender: 'assistant', text: '', status: 'pending', requestText: text, metadata: {} },
+      { id: userMsgId, sender: 'user', text, status: 'completed', timestamp, metadata: {} },
+      {
+        id: asstMsgId,
+        sender: 'assistant',
+        text: '',
+        status: 'pending',
+        requestText: text,
+        timestamp: new Date().toISOString(),
+        metadata: {},
+      },
     ]);
 
     setInput('');
     setSending(true);
     setError('');
-    bumpSessionToTop(targetSession);
-    abortActiveSend('aborted');
+    setLoginGate(null);
+    shouldStickToBottomRef.current = true;
 
     const controller = new AbortController();
     sendAbortRef.current = controller;
-    inFlightRef.current = { placeholderId: asstMsgId, requestSeq: seq, sessionId: targetSession.session_id };
+    inFlightRef.current = {
+      placeholderId: asstMsgId,
+      requestSeq: seq,
+      sessionId: targetSession.session_id || targetSession.client_session_key,
+    };
 
     try {
       const response = await sendAssistantMessage(
         text,
-        targetSession.session_id,
+        targetSession.session_id || null,
         null,
-        targetSession.assistant_mode || 'inbox_general',
+        targetSession.assistant_mode || 'homepage_reco',
         controller.signal,
       );
 
-      if (
-        !mountedRef.current ||
-        controller.signal.aborted ||
-        seq !== requestSeqRef.current ||
-        selectedRef.current?.session_id !== targetSession.session_id
-      ) return;
+      const stillSelected = (
+        selectedRef.current?.session_id === targetSession.session_id
+        || (!targetSession.session_id && selectedRef.current?.client_session_key === targetSession.client_session_key)
+      );
+      if (!mountedRef.current || controller.signal.aborted || seq !== requestSeqRef.current || !stillSelected) {
+        return;
+      }
 
+      const nextSession = upsertSessionFromResponse(targetSession, response, text);
       setMessages((prev) =>
         prev.map((item) =>
           item.id === asstMsgId
-            ? { ...item, text: response?.reply || 'No response.', status: 'completed', metadata: response?.metadata || {} }
+            ? {
+                ...item,
+                text: stripReplyYesFlow(response?.reply) || 'No response.',
+                status: 'completed',
+                timestamp: new Date().toISOString(),
+                metadata: response?.metadata || {},
+              }
             : item
         )
       );
@@ -300,11 +609,9 @@ export default function InboxAI() {
       if (response?.login_required === true) {
         setLoginGate({
           collected_slots: response.collected_slots,
-          session_id: response.session_id || targetSession.session_id,
+          session_id: nextSession?.session_id || null,
           message: text,
         });
-      } else {
-        setLoginGate(null);
       }
     } catch (err) {
       if (!mountedRef.current || seq !== requestSeqRef.current) return;
@@ -321,8 +628,8 @@ export default function InboxAI() {
     }
   };
 
-  const onSend = async (e) => {
-    e.preventDefault();
+  const onSend = async (event) => {
+    event.preventDefault();
     const text = input.trim();
     const targetSession = selectedRef.current;
     if (!text || !targetSession || sending) return;
@@ -337,115 +644,156 @@ export default function InboxAI() {
   };
 
   return (
-    <div className="min-h-[var(--app-min-height)] pb-8 bg-[#050d1b] flex flex-col">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex-1 min-h-0 flex flex-col">
-        <div className="flex-1 min-h-[65vh] grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4">
-
-          {/* Session sidebar */}
-          <aside className="rounded-2xl border border-[#2c77d1]/20 bg-[#0b1222] min-h-0 flex flex-col">
-            <div className="p-4 border-b border-[#2c77d1]/20">
-              <h1 className="text-lg font-bold text-white flex items-center gap-2">
-                <Bot className="w-5 h-5 text-blue-300" /> AI Workspace
-              </h1>
-              <p className="text-xs text-gray-400 mt-1">Homepage and Inbox AI threads.</p>
+    <div className="min-h-[var(--app-min-height)] bg-[#050d1b] text-white">
+      <div className="mx-auto flex min-h-[calc(var(--app-min-height)-4rem)] max-w-7xl flex-col px-3 py-4 sm:px-5 lg:px-8">
+        <div className="min-h-0 flex-1 grid-cols-1 gap-4 lg:grid lg:grid-cols-[300px_minmax(0,1fr)_320px]">
+          <aside className={`${selected ? 'hidden lg:flex' : 'flex'} min-h-[calc(var(--app-min-height)-6rem)] flex-col rounded-lg border border-[#2c77d1]/20 bg-[#071124]/95 lg:min-h-0`}>
+            <div className="sticky top-0 z-10 border-b border-[#2c77d1]/20 bg-[#071124] p-4">
+              <button
+                type="button"
+                onClick={handleNewConversation}
+                className="mb-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#2c77d1] to-[#9426f4] px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-950/30 transition hover:opacity-90"
+              >
+                <Plus className="h-4 w-4" />
+                New Conversation
+              </button>
+              <div className="flex items-center gap-2">
+                <Bot className="h-5 w-5 text-blue-300" />
+                <h1 className="text-base font-bold text-white">AI Inbox</h1>
+              </div>
             </div>
-            <div className="overflow-y-auto flex-1 min-h-0">
-              {loading ? (
-                <div className="p-4 text-gray-400 text-sm">Loading...</div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {loadingSessions ? (
+                <div className="p-4 text-sm text-slate-400">Loading conversations...</div>
               ) : sessions.length === 0 ? (
-                <div className="p-4 text-gray-400 text-sm">No AI conversations yet.</div>
+                <div className="p-4 text-sm text-slate-400">No conversations yet.</div>
               ) : (
-                sessions.map((session) => (
-                  <button
-                    key={session.session_id}
-                    onClick={() => {
-                      requestSeqRef.current += 1;
-                      abortActiveSend('aborted');
-                      setSelected(session);
-                      setMessages([]);
-                    }}
-                    className={`w-full text-left px-4 py-3 border-b border-[#2c77d1]/10 hover:bg-[#111b32] transition-colors ${
-                      selected?.session_id === session.session_id ? 'bg-[#14203d]' : ''
-                    }`}
-                  >
-                    <p className="text-sm font-semibold text-white truncate">
-                      {session.conversation_title || 'AI Conversation'}
-                    </p>
-                    <div className="mt-1 flex items-center justify-between">
-                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300">
-                        {modeLabel(session.assistant_mode)}
-                      </span>
-                      <span className="text-[11px] text-gray-500">
-                        {new Date(session.last_activity).toLocaleDateString()}
-                      </span>
-                    </div>
-                  </button>
-                ))
+                <div className="p-2">
+                  {sessions.map((session) => {
+                    const active = selected?.session_id === session.session_id;
+                    return (
+                      <button
+                        key={session.session_id}
+                        type="button"
+                        onClick={() => openSession(session)}
+                        className={`mb-1 w-full rounded-lg border px-3 py-3 text-left transition ${
+                          active
+                            ? 'border-[#2c77d1]/40 bg-[#14203d]'
+                            : 'border-transparent hover:border-[#2c77d1]/20 hover:bg-[#0d1830]'
+                        }`}
+                      >
+                        <p className="line-clamp-2 break-words text-sm font-semibold leading-snug text-white">
+                          {titleForSession(session)}
+                        </p>
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${modeBadgeClass(session.assistant_mode, active)}`}>
+                            {modeLabel(session.assistant_mode)}
+                          </span>
+                          <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-slate-500">
+                            <Clock3 className="h-3 w-3" />
+                            {formatThreadTime(session.last_activity)}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               )}
             </div>
           </aside>
 
-          {/* Chat panel */}
-          <section className="rounded-2xl border border-[#2c77d1]/20 bg-[#0b1222] min-h-0 flex flex-col">
+          <section className={`${selected ? 'flex' : 'hidden lg:flex'} min-h-[calc(var(--app-min-height)-6rem)] flex-col overflow-hidden rounded-lg border border-[#2c77d1]/20 bg-[#071124]/95 lg:min-h-0`}>
             {selected ? (
               <>
-                <header className="p-4 border-b border-[#2c77d1]/20">
-                  <h2 className="text-white font-semibold truncate">
-                    {selected.conversation_title || 'AI Conversation'}
-                  </h2>
-                  <p className="text-xs text-gray-400">{modeLabel(selected.assistant_mode)}</p>
+                <header className="flex min-h-16 items-center gap-3 border-b border-[#2c77d1]/20 bg-[#08152b] px-4">
+                  <button
+                    type="button"
+                    onClick={handleBackToList}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-slate-200 hover:bg-white/10 lg:hidden"
+                    aria-label="Back to conversations"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="truncate text-sm font-semibold text-white sm:text-base">
+                      {titleForSession(selected)}
+                    </h2>
+                    <span className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${modeBadgeClass(selected.assistant_mode, true)}`}>
+                      {modeLabel(selected.assistant_mode)}
+                    </span>
+                  </div>
                 </header>
 
-                <div ref={messageListRef} className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
-                  {orderedMessages.length === 0 && (
-                    <p className="text-sm text-gray-400">Start the conversation.</p>
+                <div ref={messageListRef} className="min-h-0 flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top_left,rgba(44,119,209,0.13),transparent_34%),#071124] p-4">
+                  {loadingMessages ? (
+                    <div className="flex h-full min-h-64 items-center justify-center text-sm text-slate-400">
+                      Loading conversation...
+                    </div>
+                  ) : orderedMessages.length === 0 ? (
+                    <div className="flex h-full min-h-64 items-center justify-center text-center">
+                      <div>
+                        <MessageSquare className="mx-auto mb-3 h-10 w-10 text-blue-300/70" />
+                        <p className="text-sm font-medium text-slate-200">Start a new conversation.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {orderedMessages.map((msg) => (
+                        <MessageRow key={msg.id} message={msg} onRetry={onRetry} />
+                      ))}
+                    </div>
                   )}
-                  {orderedMessages.map((msg) => (
-                    <MessageRow key={msg.id} message={msg} onRetry={onRetry} />
-                  ))}
                 </div>
+
                 {loginGate && (
                   <LoginGateBubble
                     onGoogleSuccess={handlePostLoginSearch}
-                    onManualSignup={() => navigate('/register')}
+                    onManualSignup={() => navigate('/signup')}
                   />
                 )}
 
                 <form
                   onSubmit={onSend}
-                  className="p-4 safe-bottom-pad border-t border-[#2c77d1]/20 bg-[#0b1222] flex gap-2"
+                  className="safe-bottom-pad border-t border-[#2c77d1]/20 bg-[#08152b] p-3 sm:p-4"
                 >
-                  <input
-                    type="text"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    placeholder="Message AI workspace..."
-                    className="flex-1 rounded-full bg-[#111b32] border border-[#2c77d1]/20 px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-[#2c77d1]"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!input.trim() || sending}
-                    className="btn-primary disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <Send className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-end gap-2 rounded-full border border-[#2c77d1]/25 bg-[#101a31] p-1.5 shadow-lg shadow-black/20 focus-within:border-[#2c77d1]/70">
+                    <input
+                      ref={inputRef}
+                      type="text"
+                      value={input}
+                      onChange={(event) => setInput(event.target.value)}
+                      placeholder="Message Gigi AI..."
+                      className="min-h-10 flex-1 bg-transparent px-3 text-sm text-white placeholder-slate-500 outline-none"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!input.trim() || sending || loadingMessages}
+                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-[#2c77d1] to-[#9426f4] text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                      aria-label="Send message"
+                    >
+                      <Send className="h-4 w-4" />
+                    </button>
+                  </div>
                 </form>
               </>
             ) : (
-              <div className="h-full flex items-center justify-center text-gray-400 text-sm">
-                <div className="text-center">
-                  <MessageSquare className="w-10 h-10 mx-auto mb-2 opacity-70" />
-                  Select an AI conversation.
+              <div className="flex h-full min-h-96 items-center justify-center text-center text-slate-400">
+                <div>
+                  <MessageSquare className="mx-auto mb-3 h-10 w-10 text-blue-300/70" />
+                  <p className="text-sm">Select a conversation or start a new one.</p>
                 </div>
               </div>
             )}
 
             {error && (
-              <div className="px-4 py-2 text-sm text-red-300 border-t border-red-400/20 bg-red-500/10">
+              <div className="border-t border-red-400/20 bg-red-500/10 px-4 py-2 text-sm text-red-300">
                 {error}
               </div>
             )}
           </section>
+
+          <ProductPanel products={latestSuggestedProducts} />
         </div>
       </div>
     </div>

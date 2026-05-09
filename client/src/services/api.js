@@ -9,6 +9,7 @@ const rawApiBaseUrl = import.meta.env.VITE_API_BASE
 const API_BASE_URL = rawApiBaseUrl.replace(/\/+$/, '');
 const BROWSER_ORIGIN = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173';
 const API_ORIGIN = API_BASE_URL ? new URL(API_BASE_URL, BROWSER_ORIGIN).origin : '';
+let refreshPromise = null;
 
 const normalizeMediaUrl = (value) => {
   if (typeof value !== 'string') {
@@ -77,7 +78,7 @@ const shouldSkipRefresh = (endpoint) => (
   || endpoint.includes('/api/accounts/register/')
 );
 
-const performTokenRefresh = async () => {
+const refreshStoredToken = async () => {
   const refresh = localStorage.getItem('refresh_token');
   if (!refresh) {
     return null;
@@ -96,12 +97,26 @@ const performTokenRefresh = async () => {
 
   const data = await parseResponse(response);
   if (!data?.access) {
+    clearStoredAuth();
     return null;
   }
 
   localStorage.setItem('access_token', data.access);
   localStorage.setItem('token', data.access);
+  if (data.refresh) {
+    localStorage.setItem('refresh_token', data.refresh);
+  }
   return data.access;
+};
+
+const performTokenRefresh = async () => {
+  if (!refreshPromise) {
+    refreshPromise = refreshStoredToken().finally(() => {
+      refreshPromise = null;
+    });
+  }
+
+  return refreshPromise;
 };
 
 const isTokenInvalidResponse = (response, data) => (
@@ -812,6 +827,10 @@ export const getAssistantSessions = ({ assistantMode = null, excludeCustomerServ
   return apiCall(`/assistant/api/chat/sessions/${query ? `?${query}` : ''}`, { signal });
 };
 
+export const getAssistantSession = (sessionId, signal = undefined) => {
+  return apiCall(`/assistant/api/chat/session/${encodeURIComponent(sessionId)}/`, { signal });
+};
+
 export const sendHomepageRecommendationMessage = (message, sessionId = null, userId = null) => (
   sendAssistantMessage(message, sessionId, userId, 'homepage_reco')
 );
@@ -858,24 +877,48 @@ export const getDashboardOverview = () => apiCall('/dashboard/');
 export const getDashboardAnalytics = () => apiCall('/dashboard/analytics/');
 export const getDashboardSales = () => apiCall('/dashboard/sales/');
 
-const buildDashboardQuery = ({ page, pageSize } = {}) => {
-  const params = new URLSearchParams();
-  if (page) {
-    params.set('page', String(page));
-  }
-  if (pageSize) {
-    params.set('page_size', String(pageSize));
-  }
-  const query = params.toString();
+const buildDashboardQuery = (params = {}) => {
+  const queryParams = new URLSearchParams();
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') {
+      return;
+    }
+    queryParams.set(key === 'pageSize' ? 'page_size' : key, String(value));
+  });
+  const query = queryParams.toString();
   return query ? `?${query}` : '';
 };
 
 export const getDashboardProducts = (params) => apiCall(`/dashboard/products/${buildDashboardQuery(params)}`);
 export const getDashboardOrders = (params) => apiCall(`/dashboard/orders/${buildDashboardQuery(params)}`);
 export const getDashboardCustomers = (params) => apiCall(`/dashboard/customers/${buildDashboardQuery(params)}`);
+export const updateDashboardUser = (userId, payload) => apiCall(`/dashboard/customers/${userId}/admin-update/`, {
+  method: 'PATCH',
+  body: JSON.stringify(payload),
+});
+export const getSellerApplications = (params) => apiCall(`/dashboard/sellers/${buildDashboardQuery(params)}`);
+export const updateSellerApplication = (profileId, payload) => apiCall(`/dashboard/sellers/${profileId}/decision/`, {
+  method: 'PATCH',
+  body: JSON.stringify(payload),
+});
+export const updateDashboardProduct = (productId, payload) => apiCall(`/dashboard/products/${productId}/admin-update/`, {
+  method: 'PATCH',
+  body: JSON.stringify(payload),
+});
 export const getSystemHealth = () => apiCall('/health/');
 export const getCompanyAdminOperations = () => apiCall('/dashboard/company-ops/');
 
 export const getFaqSections = () => {
   return apiCall('/assistant/api/faqs/sections/');
 };
+
+export const getAssistantReportsQueue = (params = {}) => apiCall(`/assistant/api/admin/reports/queue/${buildDashboardQuery(params)}`);
+export const updateAssistantReport = (reportId, payload) => apiCall(`/assistant/api/admin/reports/${reportId}/`, {
+  method: 'PATCH',
+  body: JSON.stringify(payload),
+});
+export const getAdminDisputeTickets = (params = {}) => apiCall(`/assistant/api/admin/dispute-tickets/${buildDashboardQuery(params)}`);
+export const applyDisputeTicketDecision = (ticketId, payload) => apiCall(`/assistant/api/dispute-tickets/${encodeURIComponent(ticketId)}/admin-decision/`, {
+  method: 'POST',
+  body: JSON.stringify(payload),
+});

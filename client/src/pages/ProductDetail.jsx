@@ -5,23 +5,14 @@ import { getProductDetail, getProductReviews, toggleFavorite, createProductRevie
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { getProductImage, getProductTitle } from '../utils/product';
-
-const formatConditionLabel = (condition) => {
-  const value = String(condition || '').trim().toLowerCase();
-  if (!value) return 'N/A';
-  if (value === 'new') return 'New';
-  if (value === 'like_new') return 'Used – Like New';
-  if (value === 'good') return 'Used – Good';
-  if (value === 'fair') return 'Used – Fair';
-  if (value === 'poor') return 'Used – Poor';
-  return value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
-};
+import { formatConditionLabel, formatNaira } from '../utils/helpers';
+import ProductImage from '../components/products/ProductImage';
 
 export default function ProductDetail() {
   const { slug } = useParams();
   const navigate = useNavigate();
   const { addToCart } = useCart();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [reviews, setReviews] = useState([]);
@@ -35,6 +26,18 @@ export default function ProductDetail() {
   const [reviewText, setReviewText] = useState('');
   const [reviewRating, setReviewRating] = useState(5);
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [actionFeedback, setActionFeedback] = useState('');
+  const [reviewFeedback, setReviewFeedback] = useState('');
+
+  const flashActionFeedback = useCallback((message) => {
+    setActionFeedback(message);
+    window.setTimeout(() => setActionFeedback(''), 2200);
+  }, []);
+
+  const flashReviewFeedback = useCallback((message) => {
+    setReviewFeedback(message);
+    window.setTimeout(() => setReviewFeedback(''), 3000);
+  }, []);
 
   const fetchProduct = useCallback(async () => {
     try {
@@ -78,9 +81,9 @@ export default function ProductDetail() {
     try {
       setAddingToCart(true);
       await addToCart(product.id, quantity);
-      alert('Product added to cart!');
-    } catch {
-      alert('Failed to add to cart');
+      flashActionFeedback('Product added to cart');
+    } catch (error) {
+      flashActionFeedback(error?.message || 'Unable to add product to cart');
     } finally {
       setAddingToCart(false);
     }
@@ -91,26 +94,41 @@ export default function ProductDetail() {
       setAddingToCart(true);
       await addToCart(product.id, quantity);
       navigate('/checkout');
-    } catch {
-      alert('Failed to proceed to checkout');
+    } catch (error) {
+      flashActionFeedback(error?.message || 'Unable to proceed to checkout');
     } finally {
       setAddingToCart(false);
     }
   };
 
   const handleToggleFavorite = async () => {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+
+    const previous = isFavorite;
+    setIsFavorite(!previous);
+
     try {
-      await toggleFavorite(slug);
-      setIsFavorite(!isFavorite);
+      const response = await toggleFavorite(slug);
+      if (typeof response?.is_favorited === 'boolean') {
+        setIsFavorite(response.is_favorited);
+        flashActionFeedback(response.is_favorited ? 'Saved to wishlist' : 'Removed from wishlist');
+      } else {
+        flashActionFeedback(previous ? 'Removed from wishlist' : 'Saved to wishlist');
+      }
     } catch (error) {
       console.error('Error toggling favorite:', error);
+      setIsFavorite(previous);
+      flashActionFeedback(error?.data?.detail || 'Unable to update wishlist');
     }
   };
 
 
   const handleShareProduct = async () => {
     if (!user) {
-      alert('Please login to share this product');
+      flashActionFeedback('Please sign in to share this product');
       return;
     }
 
@@ -126,13 +144,13 @@ export default function ProductDetail() {
         });
       } else if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(shareUrl);
-        alert('Product link copied to clipboard');
+        flashActionFeedback('Product link copied to clipboard');
       } else {
-        alert(shareUrl);
+        flashActionFeedback('Sharing is not available in this browser');
       }
     } catch (error) {
       console.error('Error sharing product:', error);
-      alert(error?.data?.error || 'Unable to share this product');
+      flashActionFeedback(error?.data?.error || 'Unable to share this product');
     }
   };
 
@@ -140,13 +158,13 @@ export default function ProductDetail() {
 
   const handleMessageSeller = async () => {
     if (!user) {
-      alert('Please login to message this seller');
+      flashActionFeedback('Please sign in to message this seller');
       navigate('/login');
       return;
     }
 
     if (String(user?.id) === String(product?.seller?.id)) {
-      alert('You cannot start a buyer-seller conversation on your own product.');
+      flashActionFeedback('You cannot start a buyer-seller conversation on your own product');
       return;
     }
 
@@ -161,17 +179,17 @@ export default function ProductDetail() {
       navigate(`/chat?conversation=${conversationId}`);
     } catch (error) {
       console.error('Error opening conversation:', error);
-      alert(error?.data?.error || 'Unable to message seller right now');
+      flashActionFeedback(error?.data?.error || 'Unable to message seller right now');
     }
   };
 
   const handleSubmitReview = async () => {
     if (!user) {
-      alert('Please login to submit a review');
+      flashReviewFeedback('Please sign in to submit a review');
       return;
     }
     if (!reviewText.trim()) {
-      alert('Review text is required');
+      flashReviewFeedback('Review text is required');
       return;
     }
     
@@ -185,9 +203,9 @@ export default function ProductDetail() {
       setReviewRating(5);
       setShowReviewForm(false);
       fetchReviews();
-      alert('Review submitted successfully!');
-    } catch {
-      alert('Failed to submit review');
+      flashReviewFeedback('Review submitted successfully.');
+    } catch (error) {
+      flashReviewFeedback(error?.data?.detail || 'Unable to submit review');
     } finally {
       setSubmittingReview(false);
     }
@@ -229,10 +247,20 @@ export default function ProductDetail() {
 
   const productTitle = getProductTitle(product);
   const availableStock = Number(product?.quantity ?? 0);
+  const ratingValue = reviewCount > 0
+    ? Number(product?.average_rating ?? product?.rating ?? 0)
+    : 0;
   const categoryName = product?.category?.name || product?.category_name || 'Uncategorized';
-  const images = Array.isArray(product.images) && product.images.length > 0
+  const locationDisplay = product?.location
+    ? [product.location.area, product.location.city, product.location.state].filter(Boolean).join(', ')
+    : product?.location_display || 'Location not specified';
+  const sellerName = product?.seller?.full_name || product?.seller_name || 'Zunto seller';
+  const sellerStatus = product?.seller?.isVerifiedSeller ? 'Verified seller' : 'Marketplace seller';
+  const sellerMode = product?.seller?.sellerCommerceMode === 'managed' ? 'Managed checkout' : 'Direct seller';
+  const uploadedImages = Array.isArray(product.images) && product.images.length > 0
     ? product.images.map((image) => (typeof image === 'string' ? image : image.image)).filter(Boolean)
-    : [getProductImage(product)];
+    : [];
+  const images = uploadedImages.length > 0 ? uploadedImages : [getProductImage(product)];
 
   const productVideos = Array.isArray(product.videos)
     ? product.videos
@@ -260,9 +288,8 @@ export default function ProductDetail() {
           {/* Images */}
           <div>
             <div className="bg-gradient-to-br from-[#2c77d1]/20 to-[#9426f4]/20 rounded-2xl aspect-square mb-4 overflow-hidden">
-              <img
-                src={images[selectedImage] || '/placeholder.svg'}
-                loading="lazy"
+              <ProductImage
+                src={images[selectedImage]}
                 alt={productTitle}
                 className="w-full h-full object-cover"
               />
@@ -272,12 +299,14 @@ export default function ProductDetail() {
                 {images.map((img, idx) => (
                   <button
                     key={idx}
+                    type="button"
+                    aria-label={`View ${productTitle} image ${idx + 1}`}
                     onClick={() => setSelectedImage(idx)}
                     className={`aspect-square rounded-lg overflow-hidden border-2 transition ${
                       selectedImage === idx ? 'border-[#2c77d1]' : 'border-[#2c77d1]/20'
                     }`}
                   >
-                    <img src={img} loading="lazy" alt={`${productTitle} ${idx + 1}`} className="w-full h-full object-cover" />
+                    <ProductImage src={img} alt={`${productTitle} ${idx + 1}`} className="w-full h-full object-cover" />
                   </button>
                 ))}
               </div>
@@ -321,14 +350,14 @@ export default function ProductDetail() {
                     <Star
                       key={i}
                       className={`w-5 h-5 ${
-                        i < Math.floor(product.rating || 4.5)
+                        i < Math.floor(ratingValue)
                           ? 'text-yellow-400 fill-current'
                           : 'text-gray-600'
                       }`}
                     />
                   ))}
                 </div>
-                <span className="text-lg">{product.rating || 4.5}</span>
+                <span className="text-lg">{ratingValue > 0 ? ratingValue.toFixed(1) : 'Unrated'}</span>
               </div>
               <span className="text-gray-400">
                 ({reviewCount} reviews)
@@ -337,11 +366,11 @@ export default function ProductDetail() {
 
             <div className="flex items-center gap-4 mb-6">
               <span className="text-4xl font-bold text-[#2c77d1]">
-                ${product.price}
+                {formatNaira(product.price)}
               </span>
               {product.old_price && (
                 <span className="text-2xl text-gray-400 line-through">
-                  ${product.old_price}
+                  {formatNaira(product.old_price)}
                 </span>
               )}
               {product.old_price && (
@@ -372,6 +401,8 @@ export default function ProductDetail() {
                   <div className="flex items-center gap-4">
                     <div className="flex items-center border border-[#2c77d1]/30 rounded-lg">
                       <button
+                        type="button"
+                        aria-label="Decrease quantity"
                         onClick={decrementQuantity}
                         disabled={quantity <= 1}
                         className="p-3 hover:bg-[#2c77d1]/10 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -380,6 +411,8 @@ export default function ProductDetail() {
                       </button>
                       <span className="px-6 font-semibold">{quantity}</span>
                       <button
+                        type="button"
+                        aria-label="Increase quantity"
                         onClick={incrementQuantity}
                         disabled={quantity >= availableStock}
                         className="p-3 hover:bg-[#2c77d1]/10 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -394,6 +427,7 @@ export default function ProductDetail() {
                 <div className="space-y-3 mb-8">
                   <div className="flex gap-4">
                     <button
+                      type="button"
                       onClick={handleBuyNow}
                       disabled={availableStock === 0 || addingToCart}
                       className="btn-primary btn-primary-lg flex-1"
@@ -402,6 +436,7 @@ export default function ProductDetail() {
                       {addingToCart ? 'Processing...' : 'Buy Now'}
                     </button>
                     <button
+                      type="button"
                       onClick={handleAddToCart}
                       disabled={availableStock === 0 || addingToCart}
                       className="btn-secondary flex-1"
@@ -410,6 +445,8 @@ export default function ProductDetail() {
                       {addingToCart ? 'Adding...' : 'Add to Cart'}
                     </button>
                     <button
+                      type="button"
+                      aria-label={isFavorite ? 'Remove from wishlist' : 'Save to wishlist'}
                       onClick={handleToggleFavorite}
                       className={`btn-icon-utility h-14 w-14 border-2 ${
                         isFavorite ? 'border-red-500 bg-red-500/10' : 'border-[#2c77d1]'
@@ -418,6 +455,8 @@ export default function ProductDetail() {
                       <Heart className={`w-6 h-6 ${isFavorite ? 'fill-red-500 text-red-500' : ''}`} />
                     </button>
                     <button
+                      type="button"
+                      aria-label="Share product"
                       onClick={handleShareProduct}
                       className="btn-icon-utility h-14 w-14 border-2 border-[#2c77d1]"
                       title="Share product"
@@ -427,6 +466,7 @@ export default function ProductDetail() {
                   </div>
 
                   <button
+                    type="button"
                     onClick={handleMessageSeller}
                     className="btn-secondary w-full"
                   >
@@ -434,6 +474,11 @@ export default function ProductDetail() {
                     Contact Seller
                   </button>
                 </div>
+                {actionFeedback && (
+                  <p className="mb-6 rounded-lg border border-[#2c77d1]/25 bg-[#2c77d1]/10 px-4 py-3 text-sm text-[#9cc8ff]">
+                    {actionFeedback}
+                  </p>
+                )}
               </>
             ) : (
               <div className="space-y-3 mb-8">
@@ -442,6 +487,7 @@ export default function ProductDetail() {
                 </div>
                 <div className="flex gap-4">
                   <button
+                    type="button"
                     onClick={handleMessageSeller}
                     className="btn-secondary flex-1"
                   >
@@ -449,6 +495,8 @@ export default function ProductDetail() {
                     Contact Seller
                   </button>
                   <button
+                    type="button"
+                    aria-label={isFavorite ? 'Remove from wishlist' : 'Save to wishlist'}
                     onClick={handleToggleFavorite}
                     className={`btn-icon-utility h-14 w-14 border-2 ${
                       isFavorite ? 'border-red-500 bg-red-500/10' : 'border-[#2c77d1]'
@@ -457,6 +505,8 @@ export default function ProductDetail() {
                     <Heart className={`w-6 h-6 ${isFavorite ? 'fill-red-500 text-red-500' : ''}`} />
                   </button>
                   <button
+                    type="button"
+                    aria-label="Share product"
                     onClick={handleShareProduct}
                     className="btn-icon-utility h-14 w-14 border-2 border-[#2c77d1]"
                     title="Share product"
@@ -464,16 +514,37 @@ export default function ProductDetail() {
                     <Share2 className="w-6 h-6" />
                   </button>
                 </div>
+                {actionFeedback && (
+                  <p className="rounded-lg border border-[#2c77d1]/25 bg-[#2c77d1]/10 px-4 py-3 text-sm text-[#9cc8ff]">
+                    {actionFeedback}
+                  </p>
+                )}
               </div>
             )}
+
+            <div className="mb-8 rounded-2xl border border-[#2c77d1]/20 bg-[#050d1b]/70 p-5">
+              <h3 className="mb-4 text-lg font-semibold">Seller & Location</h3>
+              <div className="grid gap-3 text-sm text-gray-300 sm:grid-cols-2">
+                <div>
+                  <p className="text-gray-500">Seller</p>
+                  <p className="font-semibold text-white">{sellerName}</p>
+                  <p className="text-xs text-gray-400">{sellerStatus} - {sellerMode}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Location</p>
+                  <p className="font-semibold text-white">{locationDisplay}</p>
+                  <p className="text-xs text-gray-400">Condition: {formatConditionLabel(product.condition)}</p>
+                </div>
+              </div>
+            </div>
 
             {/* Features */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
               <div className="flex items-center gap-3 p-4 bg-[#2c77d1]/10 rounded-lg">
                 <Truck className="w-6 h-6 text-[#2c77d1]" />
                 <div>
-                  <p className="font-semibold text-sm">Free Shipping</p>
-                  <p className="text-xs text-gray-400">Orders over $50</p>
+                  <p className="font-semibold text-sm">Delivery Options</p>
+                  <p className="text-xs text-gray-400">Confirmed at checkout</p>
                 </div>
               </div>
               <div className="flex items-center gap-3 p-4 bg-[#2c77d1]/10 rounded-lg">
@@ -525,12 +596,19 @@ export default function ProductDetail() {
               <p className="text-gray-400">{reviewCount} reviews</p>
             </div>
             <button
+              type="button"
               onClick={() => setShowReviewForm(!showReviewForm)}
               className="px-6 py-3 bg-gradient-to-r from-[#2c77d1] to-[#9426f4] rounded-full font-semibold hover:opacity-90 transition"
             >
               {showReviewForm ? 'Cancel' : 'Write Review'}
             </button>
           </div>
+
+          {reviewFeedback && (
+            <p className="mb-6 rounded-lg border border-[#2c77d1]/25 bg-[#2c77d1]/10 px-4 py-3 text-sm text-[#9cc8ff]">
+              {reviewFeedback}
+            </p>
+          )}
 
           {showReviewForm && (
             <div className="bg-[#1a1a1a] border border-[#2c77d1]/20 rounded-2xl p-6 mb-8">
@@ -542,6 +620,8 @@ export default function ProductDetail() {
                     {[1, 2, 3, 4, 5].map(star => (
                       <button
                         key={star}
+                        type="button"
+                        aria-label={`Set rating to ${star} star${star === 1 ? '' : 's'}`}
                         onClick={() => setReviewRating(star)}
                         className="transition"
                       >
@@ -566,6 +646,7 @@ export default function ProductDetail() {
                   />
                 </div>
                 <button
+                  type="button"
                   onClick={handleSubmitReview}
                   disabled={submittingReview}
                   className="w-full bg-gradient-to-r from-[#2c77d1] to-[#9426f4] py-3 rounded-lg font-semibold hover:opacity-90 transition disabled:opacity-50"

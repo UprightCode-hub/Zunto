@@ -1,14 +1,22 @@
 import React, { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { CreditCard, Truck, MapPin, Lock } from 'lucide-react';
+import { CreditCard, Truck, Lock } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { checkout, initializeOrderPayment } from '../services/api';
+import { formatNaira } from '../utils/helpers';
+import ProductImage from '../components/products/ProductImage';
+import { getProductImage } from '../utils/product';
+
+const panelClass = 'bg-[#0b1222] border border-[#2c77d1]/20 rounded-2xl p-6 shadow-sm shadow-black/20';
+const fieldClass = 'w-full bg-[#111827] border border-[#2c77d1]/30 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#2c77d1] focus:ring-1 focus:ring-[#2c77d1] [color-scheme:dark]';
+const textAreaClass = `${fieldClass} resize-none`;
 
 export default function Checkout() {
   const navigate = useNavigate();
   const { cart, cartTotal, cartCount } = useCart();
   const [loading, setLoading] = useState(false);
   const [paymentRedirecting, setPaymentRedirecting] = useState(false);
+  const [checkoutFeedback, setCheckoutFeedback] = useState(null);
   
   const [formData, setFormData] = useState({
     // Shipping Info
@@ -20,14 +28,10 @@ export default function Checkout() {
     city: '',
     state: '',
     zipCode: '',
-    country: '',
+    country: 'Nigeria',
     
     // Payment Info
     paymentMethod: 'paystack',
-    cardNumber: '',
-    cardName: '',
-    expiryDate: '',
-    cvv: '',
     
     // Order Notes
     notes: '',
@@ -45,9 +49,13 @@ export default function Checkout() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setCheckoutFeedback(null);
 
     if (isCheckoutBlocked) {
-      alert(`Zunto checkout works only for managed sellers. Remove items from: ${blockedSellerNames.join(', ')}.`);
+      setCheckoutFeedback({
+        type: 'error',
+        message: `Zunto checkout works only for managed sellers. Remove items from: ${blockedSellerNames.join(', ')}.`,
+      });
       return;
     }
 
@@ -63,6 +71,8 @@ export default function Checkout() {
         shipping_country: formData.country || 'Nigeria',
         shipping_phone: formData.phone,
         shipping_email: formData.email,
+        shipping_postal_code: formData.zipCode,
+        shipping_full_name: `${formData.firstName} ${formData.lastName}`.trim(),
         payment_method: selectedPaymentMethod,
         notes: formData.notes,
         save_address: false,
@@ -78,8 +88,11 @@ export default function Checkout() {
 
         setPaymentRedirecting(true);
         const callbackUrl = `${window.location.origin}/payment/verify/${orderNumber}/`;
-        const initialized = await initializeOrderPayment(orderNumber, callbackUrl);
-        const authorizationUrl = initialized?.data?.authorization_url;
+        const checkoutAuthorizationUrl = response?.payment_data?.authorization_url;
+        const initialized = checkoutAuthorizationUrl
+          ? null
+          : await initializeOrderPayment(orderNumber, callbackUrl);
+        const authorizationUrl = checkoutAuthorizationUrl || initialized?.data?.authorization_url;
 
         if (!authorizationUrl) {
           throw new Error('Payment initialized, but authorization URL was not returned.');
@@ -89,7 +102,6 @@ export default function Checkout() {
         return;
       }
 
-      alert(response?.message || 'Order placed successfully!');
       if (orderNumber) {
         navigate(`/orders/${orderNumber}`);
       } else {
@@ -99,9 +111,15 @@ export default function Checkout() {
       const blockedSellers = error?.data?.blocked_sellers;
       if (Array.isArray(blockedSellers) && blockedSellers.length > 0) {
         const names = blockedSellers.map((seller) => seller.seller_name).join(', ');
-        alert(`This cart contains direct/unverified sellers (${names}). Zunto checkout works only for managed sellers.`);
+        setCheckoutFeedback({
+          type: 'error',
+          message: `This cart contains direct/unverified sellers (${names}). Zunto checkout works only for managed sellers.`,
+        });
       } else {
-        alert(error?.data?.error || error?.data?.detail || error?.message || 'Failed to place order. Please try again.');
+        setCheckoutFeedback({
+          type: 'error',
+          message: error?.data?.error || error?.data?.detail || error?.message || 'Failed to place order. Please try again.',
+        });
       }
       setPaymentRedirecting(false);
     } finally {
@@ -114,7 +132,7 @@ export default function Checkout() {
   }
 
   return (
-    <div className="min-h-screen pb-12">
+    <div className="min-h-screen bg-[#050d1b] pb-12 text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <h1 className="text-4xl font-bold mb-8">Checkout</h1>
 
@@ -124,12 +142,22 @@ export default function Checkout() {
           </div>
         )}
 
+        {checkoutFeedback && (
+          <div className={`mb-6 rounded-xl border px-4 py-3 ${
+            checkoutFeedback.type === 'error'
+              ? 'border-red-400/30 bg-red-500/10 text-red-200'
+              : 'border-green-400/30 bg-green-500/10 text-green-200'
+          }`}>
+            {checkoutFeedback.message}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Checkout Form */}
             <div className="lg:col-span-2 space-y-8">
               {/* Shipping Information */}
-              <div className="bg-[#050d1b] border border-[#2c77d1]/20 rounded-2xl p-6">
+              <div className={panelClass}>
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-10 h-10 bg-gradient-to-r from-[#2c77d1] to-[#9426f4] rounded-full flex items-center justify-center">
                     <Truck className="w-5 h-5" />
@@ -146,7 +174,7 @@ export default function Checkout() {
                       value={formData.firstName}
                       onChange={handleChange}
                       required
-                      className="w-full bg-[#050d1b] border border-[#2c77d1]/30 rounded-lg px-4 py-3 focus:outline-none focus:border-[#2c77d1]"
+                      className={fieldClass}
                     />
                   </div>
                   <div>
@@ -157,18 +185,19 @@ export default function Checkout() {
                       value={formData.lastName}
                       onChange={handleChange}
                       required
-                      className="w-full bg-[#050d1b] border border-[#2c77d1]/30 rounded-lg px-4 py-3 focus:outline-none focus:border-[#2c77d1]"
+                      className={fieldClass}
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-2">Email *</label>
                     <input
-                      type="email"
+                      type="text"
+                      inputMode="email"
                       name="email"
                       value={formData.email}
                       onChange={handleChange}
                       required
-                      className="w-full bg-[#050d1b] border border-[#2c77d1]/30 rounded-lg px-4 py-3 focus:outline-none focus:border-[#2c77d1]"
+                      className={fieldClass}
                     />
                   </div>
                   <div>
@@ -179,7 +208,7 @@ export default function Checkout() {
                       value={formData.phone}
                       onChange={handleChange}
                       required
-                      className="w-full bg-[#050d1b] border border-[#2c77d1]/30 rounded-lg px-4 py-3 focus:outline-none focus:border-[#2c77d1]"
+                      className={fieldClass}
                     />
                   </div>
                   <div className="md:col-span-2">
@@ -190,7 +219,7 @@ export default function Checkout() {
                       value={formData.address}
                       onChange={handleChange}
                       required
-                      className="w-full bg-[#050d1b] border border-[#2c77d1]/30 rounded-lg px-4 py-3 focus:outline-none focus:border-[#2c77d1]"
+                      className={fieldClass}
                     />
                   </div>
                   <div>
@@ -201,7 +230,7 @@ export default function Checkout() {
                       value={formData.city}
                       onChange={handleChange}
                       required
-                      className="w-full bg-[#050d1b] border border-[#2c77d1]/30 rounded-lg px-4 py-3 focus:outline-none focus:border-[#2c77d1]"
+                      className={fieldClass}
                     />
                   </div>
                   <div>
@@ -212,18 +241,17 @@ export default function Checkout() {
                       value={formData.state}
                       onChange={handleChange}
                       required
-                      className="w-full bg-[#050d1b] border border-[#2c77d1]/30 rounded-lg px-4 py-3 focus:outline-none focus:border-[#2c77d1]"
+                      className={fieldClass}
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">ZIP Code *</label>
+                    <label className="block text-sm font-medium mb-2">Postal Code</label>
                     <input
                       type="text"
                       name="zipCode"
                       value={formData.zipCode}
                       onChange={handleChange}
-                      required
-                      className="w-full bg-[#050d1b] border border-[#2c77d1]/30 rounded-lg px-4 py-3 focus:outline-none focus:border-[#2c77d1]"
+                      className={fieldClass}
                     />
                   </div>
                   <div>
@@ -234,14 +262,14 @@ export default function Checkout() {
                       value={formData.country}
                       onChange={handleChange}
                       required
-                      className="w-full bg-[#050d1b] border border-[#2c77d1]/30 rounded-lg px-4 py-3 focus:outline-none focus:border-[#2c77d1]"
+                      className={fieldClass}
                     />
                   </div>
                 </div>
               </div>
 
               {/* Payment Information */}
-              <div className="bg-[#050d1b] border border-[#2c77d1]/20 rounded-2xl p-6">
+              <div className={panelClass}>
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-10 h-10 bg-gradient-to-r from-[#2c77d1] to-[#9426f4] rounded-full flex items-center justify-center">
                     <CreditCard className="w-5 h-5" />
@@ -256,7 +284,7 @@ export default function Checkout() {
                       name="paymentMethod"
                       value={formData.paymentMethod}
                       onChange={handleChange}
-                      className="w-full bg-[#050d1b] border border-[#2c77d1]/30 rounded-lg px-4 py-3 focus:outline-none focus:border-[#2c77d1]"
+                      className={fieldClass}
                     >
                       <option value="paystack">Paystack (Card/Bank Transfer)</option>
                       <option value="cash_on_delivery">Cash on Delivery</option>
@@ -265,65 +293,13 @@ export default function Checkout() {
 
                   {formData.paymentMethod === 'paystack' ? (
                     <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
-                      ⚠ Do not refresh or close this page while payment is processing.
+                      You will be redirected to Paystack to complete payment by card, bank transfer, or USSD.
                     </div>
                   ) : (
-                    <>
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Card Number</label>
-                        <input
-                          type="text"
-                          name="cardNumber"
-                          value={formData.cardNumber}
-                          onChange={handleChange}
-                          placeholder="1234 5678 9012 3456"
-                          required
-                          maxLength="19"
-                          className="w-full bg-[#050d1b] border border-[#2c77d1]/30 rounded-lg px-4 py-3 focus:outline-none focus:border-[#2c77d1]"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Cardholder Name</label>
-                        <input
-                          type="text"
-                          name="cardName"
-                          value={formData.cardName}
-                          onChange={handleChange}
-                          required
-                          className="w-full bg-[#050d1b] border border-[#2c77d1]/30 rounded-lg px-4 py-3 focus:outline-none focus:border-[#2c77d1]"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium mb-2">Expiry Date</label>
-                          <input
-                            type="text"
-                            name="expiryDate"
-                            value={formData.expiryDate}
-                            onChange={handleChange}
-                            placeholder="MM/YY"
-                            required
-                            maxLength="5"
-                            className="w-full bg-[#050d1b] border border-[#2c77d1]/30 rounded-lg px-4 py-3 focus:outline-none focus:border-[#2c77d1]"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium mb-2">CVV</label>
-                          <input
-                            type="text"
-                            name="cvv"
-                            value={formData.cvv}
-                            onChange={handleChange}
-                            placeholder="123"
-                            required
-                            maxLength="4"
-                            className="w-full bg-[#050d1b] border border-[#2c77d1]/30 rounded-lg px-4 py-3 focus:outline-none focus:border-[#2c77d1]"
-                          />
-                        </div>
-                      </div>
-                    </>
+                    <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-3 text-sm text-blue-100">
+                      Pay the seller when your order is delivered. No card details are collected on this page.
+                    </div>
                   )}
-
                   <div className="flex items-center gap-2 mt-4 text-sm text-gray-400">
                     <Lock className="w-4 h-4" />
                     <span>Your payment information is secure and encrypted</span>
@@ -332,7 +308,7 @@ export default function Checkout() {
               </div>
 
               {/* Order Notes */}
-              <div className="bg-[#050d1b] border border-[#2c77d1]/20 rounded-2xl p-6">
+              <div className={panelClass}>
                 <h3 className="font-semibold mb-4">Order Notes (Optional)</h3>
                 <textarea
                   name="notes"
@@ -340,22 +316,22 @@ export default function Checkout() {
                   onChange={handleChange}
                   rows="4"
                   placeholder="Any special instructions for your order..."
-                  className="w-full bg-[#050d1b] border border-[#2c77d1]/30 rounded-lg px-4 py-3 focus:outline-none focus:border-[#2c77d1] resize-none"
+                  className={textAreaClass}
                 />
               </div>
             </div>
 
             {/* Order Summary */}
             <div className="lg:col-span-1">
-              <div className="bg-[#050d1b] border border-[#2c77d1]/20 rounded-2xl p-6 sticky top-24">
+              <div className="bg-[#0b1222] border border-[#2c77d1]/20 rounded-2xl p-6 sticky top-24 shadow-sm shadow-black/20">
                 <h2 className="text-2xl font-bold mb-6">Order Summary</h2>
 
                 <div className="space-y-4 mb-6">
                   {cart.map((item) => (
                     <div key={item.id} className="flex gap-3">
                       <div className="w-16 h-16 bg-gradient-to-br from-[#2c77d1]/20 to-[#9426f4]/20 rounded-lg overflow-hidden shrink-0">
-                        <img
-                          src={item.product?.primary_image || '/placeholder.png'}
+                        <ProductImage
+                          src={getProductImage(item.product, item.product_image)}
                           alt={item.product?.title || 'Product'}
                           className="w-full h-full object-cover"
                         />
@@ -364,7 +340,7 @@ export default function Checkout() {
                         <p className="font-medium text-sm">{item.product?.title}</p>
                         <p className="text-xs text-gray-400">Qty: {item.quantity}</p>
                         <p className="text-sm text-[#2c77d1] font-semibold">
-                          ${(Number(item.price_at_addition) * item.quantity).toFixed(2)}
+                          {formatNaira(Number(item.price_at_addition) * Number(item.quantity || 0))}
                         </p>
                       </div>
                     </div>
@@ -374,21 +350,21 @@ export default function Checkout() {
                 <div className="space-y-3 border-t border-[#2c77d1]/20 pt-4">
                   <div className="flex justify-between text-gray-300">
                     <span>Subtotal ({cartCount} items)</span>
-                    <span>${cartTotal.toFixed(2)}</span>
+                    <span>{formatNaira(cartTotal)}</span>
                   </div>
                   <div className="flex justify-between text-gray-300">
-                    <span>Shipping</span>
-                    <span className="text-green-400">Free</span>
+                    <span>Delivery</span>
+                    <span className="text-gray-400">Confirmed at checkout</span>
                   </div>
                   <div className="flex justify-between text-gray-300">
-                    <span>Tax (10%)</span>
-                    <span>${(cartTotal * 0.1).toFixed(2)}</span>
+                    <span>Tax</span>
+                    <span>{formatNaira(0)}</span>
                   </div>
                   <div className="border-t border-[#2c77d1]/20 pt-3">
                     <div className="flex justify-between text-xl font-bold">
                       <span>Total</span>
                       <span className="text-[#2c77d1]">
-                        ${(cartTotal * 1.1).toFixed(2)}
+                        {formatNaira(cartTotal)}
                       </span>
                     </div>
                   </div>
@@ -396,7 +372,7 @@ export default function Checkout() {
 
                 {(paymentRedirecting || (loading && formData.paymentMethod === 'paystack')) && (
                   <p className="mt-4 text-sm text-amber-300 border border-amber-500/30 bg-amber-500/10 rounded-lg px-3 py-2">
-                    ⚠ Do not refresh or close this page while payment is processing.
+                    Do not refresh or close this page while payment is processing.
                   </p>
                 )}
 
@@ -405,7 +381,11 @@ export default function Checkout() {
                   disabled={loading || isCheckoutBlocked}
                   className="w-full bg-gradient-to-r from-[#2c77d1] to-[#9426f4] py-4 rounded-full font-semibold text-lg mt-6 hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isCheckoutBlocked ? 'Checkout Unavailable' : loading ? (formData.paymentMethod === 'paystack' ? 'Redirecting to Paystack...' : 'Processing...') : 'Place Order'}
+                  {isCheckoutBlocked
+                    ? 'Checkout Unavailable'
+                    : loading
+                      ? (formData.paymentMethod === 'paystack' ? 'Redirecting to Paystack...' : 'Processing...')
+                      : (formData.paymentMethod === 'paystack' ? 'Continue to Paystack' : 'Place Order')}
                 </button>
               </div>
             </div>

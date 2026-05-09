@@ -93,7 +93,8 @@ export default function VerifyRegistration() {
           <div className="space-y-1">
             <label className="text-sm text-gray-300">Email</label>
             <input
-              type="email"
+              type="text"
+              inputMode="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
