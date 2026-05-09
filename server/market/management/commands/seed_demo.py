@@ -90,13 +90,11 @@ class Command(BaseCommand):
 
     def _seller_count(self):
         from django.contrib.auth import get_user_model
-
         User = get_user_model()
         return User.objects.filter(email__endswith=SELLER_DOMAIN).count()
 
     def _buyer_count(self):
         from django.contrib.auth import get_user_model
-
         User = get_user_model()
         return User.objects.filter(email__endswith=BUYER_DOMAIN).count()
 
@@ -180,13 +178,12 @@ class Command(BaseCommand):
         }
 
     def _encode_texts(self, texts):
-        if getattr(settings, "RENDER_FREE_TIER", False):
-            return [_fallback_embedding(text, PRODUCT_VECTOR_DIMENSIONS) for text in texts]
-
+        # Always use real sentence transformer embeddings.
+        # Falls back to hash-based embeddings only if the model
+        # genuinely fails to load or encode — not based on tier.
         vectors = _encode_batch(texts)
         if vectors:
             return vectors
-
         return [_fallback_embedding(text, PRODUCT_VECTOR_DIMENSIONS) for text in texts]
 
     def _print_summary(self, summary, *, embedding_summary):

@@ -26,8 +26,6 @@ PRODUCT_VECTOR_TABLE = (
     str(getattr(settings, 'PRODUCT_VECTOR_TABLE', '') or '').strip()
     or _default_table_for_dimensions(PRODUCT_VECTOR_DIMENSIONS)
 )
-# Internal alias: PRODUCT_VECTOR_MODEL holds the active embedding model name.
-# Source of truth is settings.EMBEDDING_MODEL (env var: EMBEDDING_MODEL).
 PRODUCT_VECTOR_MODEL = getattr(settings, 'EMBEDDING_MODEL', 'all-MiniLM-L12-v2')
 _TABLE_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$')
 
@@ -287,11 +285,20 @@ def bulk_sync_product_vectors(product_vector_pairs, embedding_text_map=None) -> 
     return 0
 
 
-def _bulk_sync_pgvector(pairs, embedding_text_map) -> int:
-    """Upsert all vectors inside a single cursor context."""
+def _bulk_sync_pgvector(pairs, embedding_text_map, *, batch_size: int = 500) -> int:
+    """
+    Upsert all vectors using batched multi-row INSERT for performance.
+
+    Instead of one SQL call per product (slow for CSV bulk uploads with
+    thousands of rows), rows are grouped into batches and sent in a single
+    INSERT ... ON CONFLICT statement per batch. This cuts round-trips from
+    N to ceil(N / batch_size).
+    """
     if not pgvector_table_ready():
         return 0
 
+    # Build validated rows first so we can skip bad vectors without
+    # disrupting the batch.
     rows = []
     for product, vector in pairs:
         cleaned = _clean_vector(vector)
@@ -315,24 +322,40 @@ def _bulk_sync_pgvector(pairs, embedding_text_map) -> int:
         return 0
 
     table = _table_sql()
+    synced = 0
+
     try:
         with connection.cursor() as cursor:
-            for row in rows:
+            # Process in batches to avoid huge single queries
+            for batch_start in range(0, len(rows), batch_size):
+                batch = rows[batch_start: batch_start + batch_size]
+
+                # Build a multi-row VALUES clause:
+                # (%s, %s::vector, %s, %s, %s, NOW()), (%s, %s::vector, ...), ...
+                placeholders = ', '.join(
+                    '(%s, %s::vector, %s, %s, %s, NOW())' for _ in batch
+                )
+                flat_params = [param for row in batch for param in row]
+
                 cursor.execute(
                     f"""
                     INSERT INTO {table}
-                        (product_id, embedding, embedding_dimensions, embedding_model, text_hash, updated_at)
-                    VALUES (%s, %s::vector, %s, %s, %s, NOW())
+                        (product_id, embedding, embedding_dimensions,
+                         embedding_model, text_hash, updated_at)
+                    VALUES {placeholders}
                     ON CONFLICT (product_id) DO UPDATE SET
-                        embedding        = EXCLUDED.embedding,
+                        embedding            = EXCLUDED.embedding,
                         embedding_dimensions = EXCLUDED.embedding_dimensions,
-                        embedding_model  = EXCLUDED.embedding_model,
-                        text_hash        = EXCLUDED.text_hash,
-                        updated_at       = NOW()
+                        embedding_model      = EXCLUDED.embedding_model,
+                        text_hash            = EXCLUDED.text_hash,
+                        updated_at           = NOW()
                     """,
-                    list(row),
+                    flat_params,
                 )
-        return len(rows)
+                synced += len(batch)
+
     except Exception as exc:
         logger.warning("bulk pgvector sync failed: %s", exc)
-        return 0
+        return synced  # return how many succeeded before failure
+
+    return synced

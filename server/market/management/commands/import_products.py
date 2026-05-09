@@ -13,11 +13,22 @@ from django.utils.text import slugify
 
 from market.demo_image_urls import existing_image_url_or_blank, image_url_for_product, is_placeholder_image_url
 from market.models import Category, Location, Product, ProductFamily
+from market.search.embeddings import (
+    _build_product_embedding_text,
+    _encode_batch,
+    _fallback_embedding,
+)
+from market.search.vector_backend import (
+    PRODUCT_VECTOR_DIMENSIONS,
+    bulk_sync_product_vectors,
+    product_vector_backend_status,
+)
 
 
 User = get_user_model()
 
 BATCH_SIZE = 1000
+EMBEDDING_BATCH_SIZE = 256  # encode this many texts at once to manage memory
 TRUE_VALUES = {"1", "true", "yes", "y", "on"}
 FALSE_VALUES = {"0", "false", "no", "n", "off"}
 CONDITION_ALIASES = {
@@ -69,6 +80,14 @@ class Command(BaseCommand):
             "--no-demo-image-fallback",
             action="store_true",
             help="Leave image_url_locked blank when a row does not provide an external image URL.",
+        )
+        parser.add_argument(
+            "--skip-embeddings",
+            action="store_true",
+            help=(
+                "Skip embedding generation and pgvector sync after import. "
+                "Useful for fast bulk loads; run rebuild_product_vector_index afterwards."
+            ),
         )
 
     def handle(self, *args, **options):
@@ -158,7 +177,7 @@ class Command(BaseCommand):
             )
             return
 
-        created_count = self._bulk_create(to_create, batch_size=batch_size)
+        created_count, created_ids = self._bulk_create(to_create, batch_size=batch_size)
         updated_count = self._bulk_update(to_update, batch_size=batch_size) if options["update_existing"] else 0
 
         self._print_errors(errors)
@@ -168,6 +187,115 @@ class Command(BaseCommand):
                 f"duplicates_skipped={skipped_duplicates}, bad_rows={len(errors)}."
             )
         )
+
+        # ------------------------------------------------------------------ #
+        # Embedding + pgvector sync                                            #
+        # ------------------------------------------------------------------ #
+        if options["skip_embeddings"]:
+            self.stdout.write(
+                self.style.WARNING(
+                    "Embeddings skipped. Run python manage.py rebuild_product_vector_index to sync."
+                )
+            )
+            return
+
+        products_to_embed = []
+
+        # Fetch newly created products (bulk_create doesn't return PKs on all DBs)
+        if created_ids:
+            products_to_embed += list(
+                Product.objects.filter(id__in=created_ids)
+                .select_related("category", "product_family", "location")
+            )
+
+        # Add updated products (we already have the instances)
+        if options["update_existing"] and to_update:
+            updated_ids = {str(p.id) for p in to_update}
+            already_ids = {str(p.id) for p in products_to_embed}
+            products_to_embed += [p for p in to_update if str(p.id) not in already_ids]
+
+        if not products_to_embed:
+            self.stdout.write("No products to embed.")
+            return
+
+        self.stdout.write(f"Generating embeddings for {len(products_to_embed)} products...")
+        embedding_summary = self._generate_and_sync_embeddings(products_to_embed)
+
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Embeddings: encoded={embedding_summary['encoded']} "
+                f"empty={embedding_summary['empty']} "
+                f"synced={embedding_summary['synced']}"
+            )
+        )
+        status = product_vector_backend_status()
+        self.stdout.write(
+            f"Vector backend: {status.backend} ready={status.ready}"
+            + (f" — {status.reason}" if status.reason else "")
+        )
+
+    def _generate_and_sync_embeddings(self, products):
+        """
+        Generate real sentence-transformer embeddings for the given products,
+        save them to Product.embedding_vector, then sync to pgvector.
+        Falls back to hash-based embeddings only if the model fails.
+        """
+        to_encode = []
+        embedding_text_map = {}
+        empty = 0
+
+        for product in products:
+            text = _build_product_embedding_text(product)
+            if not text.strip():
+                empty += 1
+                continue
+            to_encode.append((product, text))
+            embedding_text_map[product.id] = text
+
+        encoded_pairs = []
+
+        if to_encode:
+            # Process in smaller batches to manage memory
+            for batch_start in range(0, len(to_encode), EMBEDDING_BATCH_SIZE):
+                batch = to_encode[batch_start: batch_start + EMBEDDING_BATCH_SIZE]
+                texts = [text for _, text in batch]
+
+                vectors = _encode_batch(texts)
+                if not vectors or len(vectors) != len(texts):
+                    # Genuine model failure — use fallback
+                    vectors = [_fallback_embedding(text, PRODUCT_VECTOR_DIMENSIONS) for text in texts]
+
+                products_to_update = []
+                for (product, _), vector in zip(batch, vectors):
+                    if not vector or len(vector) != PRODUCT_VECTOR_DIMENSIONS:
+                        empty += 1
+                        continue
+                    product.embedding_vector = vector
+                    products_to_update.append(product)
+                    encoded_pairs.append((product, vector))
+
+                if products_to_update:
+                    Product.objects.bulk_update(
+                        products_to_update,
+                        ["embedding_vector"],
+                        batch_size=500,
+                    )
+
+                self.stdout.write(
+                    f"  Encoded {min(batch_start + EMBEDDING_BATCH_SIZE, len(to_encode))}"
+                    f"/{len(to_encode)}..."
+                )
+
+        synced = bulk_sync_product_vectors(
+            encoded_pairs,
+            embedding_text_map=embedding_text_map,
+        )
+
+        return {
+            "encoded": len(encoded_pairs),
+            "empty": empty,
+            "synced": synced,
+        }
 
     def _load_rows(self, path):
         suffix = path.suffix.lower()
@@ -393,14 +521,17 @@ class Command(BaseCommand):
 
     def _bulk_create(self, products, *, batch_size):
         created = 0
+        created_ids = []
         total = len(products)
         for start in range(0, total, batch_size):
             batch = products[start:start + batch_size]
             with transaction.atomic():
-                Product.objects.bulk_create(batch, batch_size=batch_size, ignore_conflicts=True)
+                result = Product.objects.bulk_create(batch, batch_size=batch_size, ignore_conflicts=True)
+            # bulk_create returns instances with PKs on PostgreSQL
+            created_ids += [str(p.id) for p in result if p.id]
             created += len(batch)
             self.stdout.write(f"Created batch progress: {min(start + batch_size, total)}/{total}")
-        return created
+        return created, created_ids
 
     def _bulk_update(self, products, *, batch_size):
         if not products:
