@@ -5,12 +5,12 @@ Unified embedding model: all-MiniLM-L12-v2 (384-dim).
 Both the product-search lane (this file) and the FAQ/RAG lane (lazy_loader.py)
 share a single model controlled by settings.EMBEDDING_MODEL.
 
-Improvements:
-  1. Batch-encode products missing stored vectors in ONE model.encode() call —
-     eliminates per-product encode loops (was 70+ calls = ~82s).
-  2. normalize_embeddings=True on all encode paths — unit-norm vectors make
-     inner-product equivalent to cosine similarity for FAISS and pgvector.
-  3. Products with pre-stored embedding_vector skip encoding entirely.
+Key behaviour:
+  - Model loads LAZILY on first use, never at startup.
+  - pgvector is always tried first when a query vector is available.
+  - Falls back to ORM keyword search only when encoding genuinely fails.
+  - RENDER_FREE_TIER no longer bypasses pgvector — vectors are in the DB,
+    so we use them as long as the model can encode the query.
 """
 import logging
 import hashlib
@@ -33,30 +33,20 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Shared model singleton — single instance for the whole process.
-# Both this module and assistant/processors/lazy_loader.py resolve their model
-# name from settings.EMBEDDING_MODEL, so only one model is ever loaded.
+# Model loader — always lazy, never at import/startup time
 # ---------------------------------------------------------------------------
 
 def _load_sentence_transformer_model():
     """
     Load the shared sentence transformer once per process and cache it.
-    Reads settings.EMBEDDING_MODEL (env var: EMBEDDING_MODEL) so the model
-    can be changed or rolled back without a code deploy.
-    Falls back to the value resolved at vector_backend import time if the
-    setting is absent (should not happen in a correctly configured env).
+    Never called at startup — only when a search or embed is requested.
     """
-    if getattr(settings, 'RENDER_FREE_TIER', False):
-        logger.info("Sentence transformer loading skipped on Render free tier.")
-        return None
-
     if getattr(settings, 'AI_COMPONENTS_DISABLED', False):
         logger.info("Sentence transformer loading skipped; AI components are disabled.")
         return None
 
     try:
         from assistant.processors.lazy_loader import get_ai_loader
-
         return get_ai_loader().sentence_model
     except Exception as exc:
         logger.error("Failed to load sentence transformer: %s", exc)
@@ -106,36 +96,36 @@ def _build_product_embedding_text(product):
 
 
 def _encode_single(text):
-    """Encode one text string. Use only when batching is not possible.
-
-    normalize_embeddings=True produces unit-norm vectors, so inner-product
-    and cosine similarity are equivalent — required for FAISS IndexFlatIP
-    and pgvector cosine distance to behave correctly.
     """
-    if getattr(settings, 'RENDER_FREE_TIER', False):
+    Encode one text string using the sentence transformer.
+    Returns None if the model cannot be loaded — callers should fall back
+    to keyword search in that case.
+    """
+    if not text or not text.strip():
         return None
 
     model = _load_sentence_transformer_model()
     if model is None:
-        return _fallback_embedding(text)
+        return None
+
     try:
-        vector = model.encode(text, convert_to_numpy=True, normalize_embeddings=True)
+        vector = model.encode(
+            text,
+            convert_to_numpy=True,
+            normalize_embeddings=True,
+        )
         return [float(v) for v in vector.tolist()]
     except Exception as exc:
-        logger.warning(f"Encode failed, using fallback: {exc}")
-        return _fallback_embedding(text)
+        logger.warning("Encode failed: %s", exc)
+        return None
 
 
 def _encode_batch(texts):
     """
-    Encode a list of texts in ONE model call.
-    Returns list of unit-normalized vectors in the same order as input texts.
-    normalize_embeddings=True is required for inner-product search correctness.
+    Encode a list of texts in one model call.
+    Returns list of unit-normalised vectors, or empty list on failure.
     """
     if not texts:
-        return []
-
-    if getattr(settings, 'RENDER_FREE_TIER', False):
         return []
 
     model = _load_sentence_transformer_model()
@@ -152,7 +142,7 @@ def _encode_batch(texts):
         )
         return [[float(v) for v in row.tolist()] for row in vectors]
     except Exception as exc:
-        logger.warning(f"Batch encode failed, using fallback: {exc}")
+        logger.warning("Batch encode failed, using fallback: %s", exc)
         return [_fallback_embedding(t) for t in texts]
 
 
@@ -168,7 +158,7 @@ def _cosine_similarity(left, right):
 
 
 def _search_products_orm_text(query, base_queryset, candidate_limit=200, top_k=60):
-    """Lightweight text fallback for free-tier deployments."""
+    """Keyword fallback — used when the sentence transformer is unavailable."""
     tokens = [
         token
         for token in re.findall(r"[a-z0-9]+", str(query or "").lower())
@@ -192,7 +182,8 @@ def _search_products_orm_text(query, base_queryset, candidate_limit=200, top_k=6
         base_queryset.select_related('category', 'location', 'product_family')
         .filter(text_query)
         .distinct()
-        .order_by('-is_verified_product', '-views_count', '-favorites_count', '-created_at')[:candidate_limit]
+        .order_by('-is_verified_product', '-views_count', '-favorites_count', '-created_at')
+        [:candidate_limit]
     )
     if not candidates:
         return []
@@ -214,12 +205,12 @@ def _search_products_orm_text(query, base_queryset, candidate_limit=200, top_k=6
 # ---------------------------------------------------------------------------
 
 def generate_product_embedding(product):
-    """Generate embedding for a single product (used at index time)."""
+    """Generate and store embedding for a single product."""
     text = _build_product_embedding_text(product)
     if not text:
         return []
     vector = _encode_single(text)
-    if vector is None:
+    if not vector:
         return []
     sync_product_vector(product, vector, embedding_text=text)
     return vector
@@ -229,37 +220,46 @@ def search_similar_products(query, base_queryset, candidate_limit=200, top_k=60)
     """
     Semantic similarity search over a product queryset.
 
-    Key fix: products missing stored embedding_vector are batch-encoded in a
-    SINGLE model call instead of one encode call per product.
+    Strategy (in order):
+      1. Encode the query with the sentence transformer.
+      2. If encoding succeeds, search pgvector — fast, semantically aware.
+      3. If pgvector returns results, return them directly.
+      4. If encoding fails (model not loaded / OOM) fall back to keyword search.
+
+    This means pgvector is used whenever the model is available, regardless
+    of RENDER_FREE_TIER — the vectors are already in the DB, so we use them.
     """
     if not query:
         return []
 
-    # Encode the query — 1 model call
-    if getattr(settings, 'RENDER_FREE_TIER', False):
+    # Step 1: try to encode the query
+    query_vector = _encode_single(query)
+
+    # Step 2: if encoding failed, go straight to keyword search
+    if not query_vector:
+        logger.debug("search_similar_products: no query vector, using ORM text fallback")
         return _search_products_orm_text(
-            query,
-            base_queryset,
+            query, base_queryset,
             candidate_limit=candidate_limit,
             top_k=top_k,
         )
 
-    query_vector = _encode_single(query)
-    if not query_vector:
-        return []
-
+    # Step 3: fetch candidates
     candidates = list(
         base_queryset.select_related('category', 'location', 'product_family').only(
             'id', 'title', 'description', 'brand', 'condition',
-            'attributes', 'search_tags', 'embedding_vector', 'category__name',
-            'product_family__name', 'product_family__aliases', 'product_family__keywords',
-            'location__state', 'location__city', 'location__area', 'created_at'
+            'attributes', 'search_tags', 'embedding_vector',
+            'category__name', 'product_family__name',
+            'product_family__aliases', 'product_family__keywords',
+            'location__state', 'location__city', 'location__area',
+            'created_at',
         ).order_by('-created_at')[:candidate_limit]
     )
 
     if not candidates:
         return []
 
+    # Step 4: try pgvector first — vectors are already synced in the DB
     vector_backend_results = search_product_vectors(
         query_vector,
         [product.id for product in candidates],
@@ -267,16 +267,17 @@ def search_similar_products(query, base_queryset, candidate_limit=200, top_k=60)
     )
     if vector_backend_results:
         logger.debug(
-            "search_similar_products: vector backend returned %s results",
+            "search_similar_products: pgvector returned %s results",
             len(vector_backend_results),
         )
         return vector_backend_results
-    if product_vector_backend_status().backend == 'pgvector':
-        logger.warning("Configured vector backend returned no results; using JSON cosine fallback")
 
-    # Separate products that already have stored vectors from those that don't
-    stored = []       # (product, vector)
-    need_encode = []  # products without stored vector
+    if product_vector_backend_status().backend == 'pgvector':
+        logger.warning("pgvector returned no results; falling back to JSON cosine")
+
+    # Step 5: JSON cosine fallback using stored embedding_vector fields
+    stored = []
+    need_encode = []
 
     for product in candidates:
         vec = getattr(product, 'embedding_vector', None)
@@ -285,25 +286,15 @@ def search_similar_products(query, base_queryset, candidate_limit=200, top_k=60)
         else:
             need_encode.append(product)
 
-    # Batch-encode all products missing vectors — ONE model call total
     if need_encode:
         texts = [_build_product_embedding_text(p) for p in need_encode]
-        # Skip products with no meaningful text
         valid_pairs = [(p, t) for p, t in zip(need_encode, texts) if t.strip()]
-
         if valid_pairs:
             valid_products, valid_texts = zip(*valid_pairs)
             batch_vectors = _encode_batch(list(valid_texts))
             for product, vector in zip(valid_products, batch_vectors):
                 stored.append((product, vector))
 
-        logger.debug(
-            f"search_similar_products: {len(stored)} encoded "
-            f"({len(candidates) - len(need_encode)} pre-stored, "
-            f"{len(need_encode)} batch-encoded in 1 call)"
-        )
-
-    # Score all candidates
     scored = []
     for product, vec in stored:
         score = _cosine_similarity(query_vector, vec)
