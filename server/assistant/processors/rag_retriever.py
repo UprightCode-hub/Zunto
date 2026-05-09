@@ -2,8 +2,9 @@
 import json
 import logging
 import pickle
+import re
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 from django.conf import settings
@@ -92,9 +93,57 @@ class RAGRetriever:
         ]
 
     @staticmethod
+    def _flatten_metadata(value: Any) -> str:
+        if isinstance(value, dict):
+            parts = []
+            for key in sorted(value):
+                nested = RAGRetriever._flatten_metadata(value[key])
+                if nested:
+                    parts.append(f"{key} {nested}")
+            return ' '.join(parts)
+        if isinstance(value, (list, tuple, set)):
+            return ' '.join(RAGRetriever._flatten_metadata(item) for item in value)
+        if value in (None, ''):
+            return ''
+        return str(value).strip()
+
+    @staticmethod
+    def _retrieval_terms(faq: Dict, *, max_terms: int = 1200) -> List[str]:
+        base_text = ' '.join(
+            str(part or '')
+            for part in (
+                faq.get('question', ''),
+                faq.get('answer', ''),
+                RAGRetriever._flatten_metadata(faq.get('metadata') or {}),
+                RAGRetriever._flatten_metadata(faq.get('keywords') or []),
+                RAGRetriever._flatten_metadata(faq.get('secondary_tags') or []),
+            )
+        ).lower()
+        tokens = re.findall(r"[a-z0-9]+", base_text)
+        stop_words = {
+            'the', 'and', 'for', 'you', 'your', 'with', 'that', 'this', 'from',
+            'are', 'can', 'will', 'our', 'how', 'what', 'when', 'where', 'why',
+            'into', 'then', 'than', 'have', 'has', 'had',
+        }
+        tokens = [token for token in tokens if len(token) > 2 and token not in stop_words]
+        terms = []
+        seen = set()
+        for ngram_size in range(1, 5):
+            for index in range(0, max(0, len(tokens) - ngram_size + 1)):
+                term = ' '.join(tokens[index:index + ngram_size])
+                if term and term not in seen:
+                    seen.add(term)
+                    terms.append(term)
+                    if len(terms) >= max_terms:
+                        return terms
+        return terms
+
+    @staticmethod
     def _document_text(faq: Dict) -> str:
         tags = ' '.join(faq.get('secondary_tags') or [])
         keywords = ' '.join(faq.get('keywords') or [])
+        metadata = RAGRetriever._flatten_metadata(faq.get('metadata') or {})
+        retrieval_terms = ' '.join(RAGRetriever._retrieval_terms(faq))
         return ' '.join(
             str(part).strip()
             for part in [
@@ -102,6 +151,8 @@ class RAGRetriever:
                 faq.get('answer', ''),
                 keywords,
                 tags,
+                metadata,
+                retrieval_terms,
                 faq.get('priority', ''),
             ]
             if part
@@ -124,6 +175,24 @@ class RAGRetriever:
                         payload = json.load(f)
                     self.faqs = self._lane_filter(payload.get('faqs', []))
                     logger.info("Loaded %s %s FAQs from JSON fallback", len(self.faqs), self.lane)
+                    if embeddings_file.exists():
+                        self.embeddings = np.load(embeddings_file)
+                        if len(self.embeddings.shape) == 2:
+                            self.dimension = int(self.embeddings.shape[1])
+                        if len(self.embeddings) != len(self.faqs):
+                            logger.warning(
+                                "RAG lane %s embeddings/JSON metadata count mismatch: %s != %s",
+                                self.lane,
+                                len(self.embeddings),
+                                len(self.faqs),
+                            )
+                            self.embeddings = None
+                        else:
+                            logger.info(
+                                "Loaded %s embeddings for lane %s using JSON metadata fallback",
+                                len(self.faqs),
+                                self.lane,
+                            )
                 except Exception as exc:
                     logger.error("Failed loading canonical FAQ JSON fallback: %s", exc)
             return
@@ -287,6 +356,16 @@ class RAGRetriever:
                 confidence = self._score_to_confidence(float(raw_score))
                 unfiltered_results.append(self._result_from_faq(faq, idx, confidence, float(raw_score)))
 
+            lexical_results = self._fallback_search(query, k=max(k, TOP_K))
+            merged_by_id = {str(result['id']): result for result in unfiltered_results}
+            for result in lexical_results:
+                key = str(result['id'])
+                if key not in merged_by_id or result.get('score', 0) > merged_by_id[key].get('score', 0):
+                    result = dict(result)
+                    result['method'] = 'rich_metadata_lexical_rerank'
+                    merged_by_id[key] = result
+            unfiltered_results = list(merged_by_id.values())
+
             unfiltered_results.sort(key=lambda item: item['score'], reverse=True)
             results = [r for r in unfiltered_results if r['score'] >= FAQ_MATCH_THRESHOLD]
             if not results and unfiltered_results:
@@ -310,11 +389,18 @@ class RAGRetriever:
         return max(0.0, min(1.0, raw_score))
 
     def _result_from_faq(self, faq: Dict, idx: int, score: float, raw_score: float) -> Dict:
+        metadata = dict(faq.get('metadata') or {})
+        metadata.update({
+            'retrieval_term_count': len(self._retrieval_terms(faq)),
+            'canonical_source': metadata.get('canonical_source', KNOWLEDGE_SOURCE_FILENAME),
+            'rag_lane': self.lane,
+        })
         return {
             'id': faq.get('id', idx),
             'question': faq.get('question', ''),
             'answer': faq.get('answer', ''),
             'keywords': faq.get('keywords', []),
+            'metadata': metadata,
             'primary_lane': faq.get('primary_lane', self.lane),
             'secondary_tags': faq.get('secondary_tags', []),
             'priority': faq.get('priority', 'useful'),

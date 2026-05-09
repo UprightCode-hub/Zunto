@@ -4,7 +4,6 @@ from core.storage_backends import PublicMediaStorage
 
 
 @override_settings(
-    USE_OBJECT_STORAGE=False,
     MEDIA_ROOT='C:/tmp/zunto-media',
     MEDIA_URL='/media/',
 )

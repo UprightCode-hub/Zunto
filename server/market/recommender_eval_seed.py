@@ -10,6 +10,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from accounts.models import SellerProfile
+from market.demo_image_urls import existing_image_url_or_blank, image_url_for_product
 from market.models import Category, Location, Product, ProductImage
 from market.search.embeddings import generate_product_embedding
 
@@ -21,6 +22,7 @@ SELLER_DOMAIN = '@zunto-reco-eval.local'
 VERIFIER_EMAIL = f'recommender.verifier{SELLER_DOMAIN}'
 PASSWORD = 'ZuntoRecoEval@2026!'
 IMAGE_CAPTION_PREFIX = 'Zunto recommender eval image'
+IMAGE_SOURCE = 'demo_external_url:loremflickr_category'
 
 
 LOCATION_SPECS = {
@@ -800,8 +802,24 @@ def _seed_products(
     for index, spec in enumerate(PRODUCT_SPECS, start=1):
         attributes = dict(spec['attributes'])
         attributes_verified = bool(spec.get('attributes_verified', True))
+        seller = sellers[spec['location']]
+        existing_product = Product.objects.filter(seller=seller, title=spec['title']).only(
+            'image_url_locked',
+            'image_source',
+        ).first()
+        existing_image_url = existing_image_url_or_blank(getattr(existing_product, 'image_url_locked', ''))
+        image_url = existing_image_url or image_url_for_product(
+            title=spec['title'],
+            category=spec['category'],
+            brand=spec.get('brand', ''),
+        )
+        image_source = (
+            getattr(existing_product, 'image_source', '')
+            if existing_image_url
+            else IMAGE_SOURCE
+        )
         product, _ = Product.objects.update_or_create(
-            seller=sellers[spec['location']],
+            seller=seller,
             title=spec['title'],
             defaults={
                 'description': spec['description'],
@@ -825,6 +843,8 @@ def _seed_products(
                 'views_count': int(spec.get('views_count', 40 + index * 7)),
                 'favorites_count': int(spec.get('favorites_count', 4 + index)),
                 'shares_count': int(spec.get('shares_count', index % 5)),
+                'image_url_locked': image_url,
+                'image_source': image_source,
             },
         )
         _ensure_seed_image(product, index)

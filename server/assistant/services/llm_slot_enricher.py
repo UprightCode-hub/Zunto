@@ -1,6 +1,5 @@
 import json
 import logging
-from typing import Dict
 
 from assistant.processors.local_model import LocalModelAdapter
 
@@ -16,10 +15,40 @@ class LLMSlotEnricher:
             logger.info("LLM slot enrichment skipped: adapter unavailable")
             return {}
 
-        system_prompt = (
-            "You are a slot extraction engine for a Nigerian marketplace\n"
-            "called Zunto. Extract product search parameters..."
-        )
+        system_prompt = """
+You are a strict JSON extraction engine for a marketplace recommendation system.
+Extract only values explicitly present in the user message. Do not infer inventory,
+availability, ranking, filtering, product facts, or hidden attributes.
+
+Return one JSON object using only these top-level keys:
+{
+  "product_type": string|null,
+  "attributes": {
+    "dynamic_snake_case_key": {
+      "value": string|number|boolean|array|object|null,
+      "match_type": "text|numeric|categorical|boolean|range|unknown",
+      "importance": "low|medium|high"
+    }
+  },
+  "numeric_filters": {
+    "dynamic_numeric_key": {
+      "min": number|null,
+      "max": number|null,
+      "target": number|null,
+      "unit": string|null,
+      "currency": string|null
+    }
+  },
+  "preferences": {
+    "dynamic_preference_key": string|number|boolean|array|object|null
+  },
+  "intent": "buy|browse|compare|budget|premium|gift|replacement|unknown",
+  "strictness": "low|medium|high"
+}
+
+Use null or omit a field when it is not directly supported by the text.
+Respond with JSON only.
+"""
 
         llm_output = adapter.generate(
             prompt=message,
@@ -38,31 +67,15 @@ class LLMSlotEnricher:
         try:
             parsed = json.loads(stripped)
         except Exception:
-            logger.warning("LLM slot enrichment parse failed, using SlotExtractor only")
+            logger.warning("LLM raw extraction parse failed, using empty extraction")
             return {}
 
         if not isinstance(parsed, dict):
-            logger.warning("LLM slot enrichment parse failed, using SlotExtractor only")
+            logger.warning("LLM raw extraction parse failed, using empty extraction")
             return {}
 
-        result: Dict = {k: v for k, v in parsed.items() if v is not None}
-
-        for price_key in ('price_min', 'price_max'):
-            if price_key in result and isinstance(result[price_key], str):
-                try:
-                    result[price_key] = float(result[price_key])
-                except Exception:
-                    result.pop(price_key, None)
-
-        if 'condition' in result:
-            condition = str(result.get('condition', '')).lower()
-            if condition in {"new", "fair", "used", "like_new"}:
-                result['condition'] = condition
-            else:
-                result.pop('condition', None)
-
-        logger.info(f"LLM slot enrichment: {len(result)} slots extracted")
-        return result
+        logger.info("LLM raw structured extraction returned %s top-level fields", len(parsed))
+        return parsed
 
 
 def enrich_slots(message: str, prior_slots: dict) -> dict:

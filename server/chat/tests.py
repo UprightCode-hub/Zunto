@@ -2,6 +2,7 @@
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -84,6 +85,7 @@ class ChatConversationFlowTests(APITestCase):
         self.assertEqual(response.data['error'], 'Cannot create conversation with yourself')
 
 
+    @override_settings(CHAT_BLOCKED_LINK_DOMAINS=['grabify.link'])
     def test_message_with_blocked_link_domain_is_rejected(self):
         self.client.force_authenticate(user=self.buyer)
         create_response = self.client.post(

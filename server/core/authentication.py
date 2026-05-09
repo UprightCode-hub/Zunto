@@ -1,4 +1,5 @@
 #server/core/authentication.py
+from rest_framework.authentication import SessionAuthentication
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 
@@ -30,3 +31,15 @@ class CookieJWTAuthentication(JWTAuthentication):
             return None
 
         return self.get_user(validated_token), validated_token
+
+
+class HeaderAwareSessionAuthentication(SessionAuthentication):
+    """Avoid session CSRF checks when a request is clearly using JWT auth."""
+
+    def authenticate(self, request):
+        has_auth_header = bool(request.META.get('HTTP_AUTHORIZATION'))
+        has_jwt_cookie = any(request.COOKIES.get(name) for name in CookieJWTAuthentication.cookie_names)
+        if has_auth_header or has_jwt_cookie:
+            return None
+
+        return super().authenticate(request)

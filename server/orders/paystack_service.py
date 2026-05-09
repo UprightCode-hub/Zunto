@@ -9,13 +9,20 @@ from decimal import Decimal
 class PaystackService:
     """Service for interacting with Paystack API"""
     
-    BASE_URL = settings.PAYSTACK_BASE_URL
-    SECRET_KEY = settings.PAYSTACK_SECRET_KEY
-    
     def __init__(self):
+        self.base_url = getattr(settings, 'PAYSTACK_BASE_URL', 'https://api.paystack.co')
+        self.secret_key = getattr(settings, 'PAYSTACK_SECRET_KEY', '')
         self.headers = {
-            'Authorization': f'Bearer {self.SECRET_KEY}',
+            'Authorization': f'Bearer {self.secret_key}',
             'Content-Type': 'application/json',
+        }
+
+    def _configuration_error(self):
+        if self.secret_key:
+            return None
+        return {
+            'success': False,
+            'error': 'Paystack secret key is not configured. Set PAYSTACK_SECRET_KEY to enable platform payments.',
         }
     
     def initialize_transaction(self, email, amount, reference, callback_url=None, metadata=None):
@@ -32,7 +39,11 @@ class PaystackService:
         Returns:
             dict: Response from Paystack API
         """
-        url = f"{self.BASE_URL}/transaction/initialize"
+        config_error = self._configuration_error()
+        if config_error:
+            return config_error
+
+        url = f"{self.base_url}/transaction/initialize"
         
                                                          
         if isinstance(amount, (int, float, Decimal)):
@@ -104,20 +115,25 @@ class PaystackService:
         Returns:
             dict: Response from Paystack API
         """
-        url = f"{self.BASE_URL}/transaction/verify/{reference}"
+        config_error = self._configuration_error()
+        if config_error:
+            return config_error
+
+        url = f"{self.base_url}/transaction/verify/{reference}"
         
         try:
-            response = requests.get(url, headers=self.headers)
+            response = requests.get(url, headers=self.headers, timeout=30)
             response.raise_for_status()
             return {
                 'success': True,
                 'data': response.json()
             }
         except requests.exceptions.RequestException as e:
+            response = getattr(e, 'response', None)
             return {
                 'success': False,
                 'error': str(e),
-                'response': response.json() if hasattr(response, 'json') else None
+                'response': response.json() if response is not None and hasattr(response, 'json') else None
             }
     
     def list_transactions(self, page=1, per_page=50):
@@ -131,14 +147,18 @@ class PaystackService:
         Returns:
             dict: Response from Paystack API
         """
-        url = f"{self.BASE_URL}/transaction"
+        config_error = self._configuration_error()
+        if config_error:
+            return config_error
+
+        url = f"{self.base_url}/transaction"
         params = {
             'page': page,
             'perPage': per_page
         }
         
         try:
-            response = requests.get(url, params=params, headers=self.headers)
+            response = requests.get(url, params=params, headers=self.headers, timeout=30)
             response.raise_for_status()
             return {
                 'success': True,
@@ -160,10 +180,14 @@ class PaystackService:
         Returns:
             dict: Response from Paystack API
         """
-        url = f"{self.BASE_URL}/transaction/{transaction_id}"
+        config_error = self._configuration_error()
+        if config_error:
+            return config_error
+
+        url = f"{self.base_url}/transaction/{transaction_id}"
         
         try:
-            response = requests.get(url, headers=self.headers)
+            response = requests.get(url, headers=self.headers, timeout=30)
             response.raise_for_status()
             return {
                 'success': True,
@@ -188,7 +212,11 @@ class PaystackService:
         Returns:
             dict: Response from Paystack API
         """
-        url = f"{self.BASE_URL}/transaction/charge_authorization"
+        config_error = self._configuration_error()
+        if config_error:
+            return config_error
+
+        url = f"{self.base_url}/transaction/charge_authorization"
         
                                 
         if isinstance(amount, (int, float, Decimal)):
@@ -205,7 +233,7 @@ class PaystackService:
         }
         
         try:
-            response = requests.post(url, json=payload, headers=self.headers)
+            response = requests.post(url, json=payload, headers=self.headers, timeout=30)
             response.raise_for_status()
             return {
                 'success': True,
@@ -228,7 +256,11 @@ class PaystackService:
         Returns:
             dict: Response from Paystack API
         """
-        url = f"{self.BASE_URL}/refund"
+        config_error = self._configuration_error()
+        if config_error:
+            return config_error
+
+        url = f"{self.base_url}/refund"
         
         payload = {
             'transaction': transaction_reference
@@ -242,7 +274,7 @@ class PaystackService:
             payload['amount'] = amount_in_kobo
         
         try:
-            response = requests.post(url, json=payload, headers=self.headers)
+            response = requests.post(url, json=payload, headers=self.headers, timeout=30)
             response.raise_for_status()
             return {
                 'success': True,
@@ -264,14 +296,18 @@ class PaystackService:
         Returns:
             dict: Response from Paystack API
         """
-        url = f"{self.BASE_URL}/refund"
+        config_error = self._configuration_error()
+        if config_error:
+            return config_error
+
+        url = f"{self.base_url}/refund"
         
         params = {}
         if reference:
             params['reference'] = reference
         
         try:
-            response = requests.get(url, params=params, headers=self.headers)
+            response = requests.get(url, params=params, headers=self.headers, timeout=30)
             response.raise_for_status()
             return {
                 'success': True,
@@ -295,8 +331,12 @@ class PaystackService:
         Returns:
             bool: True if signature is valid
         """
+        webhook_secret = getattr(settings, 'PAYSTACK_WEBHOOK_SECRET', '')
+        if not webhook_secret or not signature:
+            return False
+
         computed_signature = hmac.new(
-            settings.PAYSTACK_WEBHOOK_SECRET.encode('utf-8'),
+            webhook_secret.encode('utf-8'),
             request_body,
             hashlib.sha512
         ).hexdigest()

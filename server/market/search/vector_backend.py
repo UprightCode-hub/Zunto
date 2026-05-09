@@ -15,8 +15,17 @@ from django.db import connection
 logger = logging.getLogger(__name__)
 
 PRODUCT_VECTOR_LANE = 'homepage_reco_catalog'
-PRODUCT_VECTOR_TABLE = getattr(settings, 'PRODUCT_VECTOR_TABLE', 'market_product_vector')
 PRODUCT_VECTOR_DIMENSIONS = int(getattr(settings, 'PRODUCT_VECTOR_DIMENSIONS', 384))
+
+
+def _default_table_for_dimensions(dimensions: int) -> str:
+    return 'market_product_vector' if int(dimensions) == 384 else f'market_product_vector_{int(dimensions)}'
+
+
+PRODUCT_VECTOR_TABLE = (
+    str(getattr(settings, 'PRODUCT_VECTOR_TABLE', '') or '').strip()
+    or _default_table_for_dimensions(PRODUCT_VECTOR_DIMENSIONS)
+)
 # Internal alias: PRODUCT_VECTOR_MODEL holds the active embedding model name.
 # Source of truth is settings.EMBEDDING_MODEL (env var: EMBEDDING_MODEL).
 PRODUCT_VECTOR_MODEL = getattr(settings, 'EMBEDDING_MODEL', 'all-MiniLM-L12-v2')
@@ -37,12 +46,12 @@ def configured_product_vector_backend() -> str:
     return str(getattr(settings, 'PRODUCT_VECTOR_BACKEND', 'auto') or 'auto').strip().lower()
 
 
+def _render_free_tier() -> bool:
+    return bool(getattr(settings, 'RENDER_FREE_TIER', False))
+
+
 def _is_postgres() -> bool:
     return connection.vendor == 'postgresql'
-
-
-def _is_sqlite() -> bool:
-    return connection.vendor == 'sqlite'
 
 
 def _table_sql() -> str:
@@ -90,59 +99,24 @@ def pgvector_table_ready() -> bool:
         return False
 
 
-def _load_sqlite_vec_extension() -> bool:
-    if not _is_sqlite():
-        return False
-
-    try:
-        import sqlite_vec
-    except Exception as exc:
-        logger.info("sqlite-vec package unavailable: %s", exc)
-        return False
-
-    try:
-        connection.ensure_connection()
-        raw_connection = connection.connection
-        raw_connection.enable_load_extension(True)
-        sqlite_vec.load(raw_connection)
-        raw_connection.enable_load_extension(False)
-        return True
-    except Exception as exc:
-        logger.warning("sqlite-vec extension load failed: %s", exc)
-        try:
-            connection.connection.enable_load_extension(False)
-        except Exception:
-            pass
-        return False
-
-
-def sqlite_vec_table_ready() -> bool:
-    if not _load_sqlite_vec_extension():
-        return False
-
-    try:
-        table = _table_sql()
-        with connection.cursor() as cursor:
-            cursor.execute(
-                f"""
-                CREATE VIRTUAL TABLE IF NOT EXISTS {table}
-                USING vec0(
-                    embedding float[{PRODUCT_VECTOR_DIMENSIONS}],
-                    product_id text,
-                    embedding_model text,
-                    text_hash text
-                )
-                """
-            )
-        return True
-    except Exception as exc:
-        logger.warning("sqlite-vec readiness check failed: %s", exc)
-        return False
-
-
 def product_vector_backend_status() -> VectorBackendStatus:
     configured = configured_product_vector_backend()
-    if configured not in {'auto', 'json_cosine', 'pgvector', 'sqlite_vec'}:
+    if _render_free_tier():
+        if pgvector_table_ready():
+            return VectorBackendStatus(
+                backend='pgvector',
+                ready=True,
+                lane=PRODUCT_VECTOR_LANE,
+                reason='Postgres pgvector table and extension ready',
+            )
+        return VectorBackendStatus(
+            backend='orm_text',
+            ready=True,
+            lane=PRODUCT_VECTOR_LANE,
+            reason='Render free tier: JSON cosine fallback disabled; use ORM text fallback',
+        )
+
+    if configured not in {'auto', 'json_cosine', 'pgvector'}:
         return VectorBackendStatus(
             backend='json_cosine',
             ready=True,
@@ -164,14 +138,6 @@ def product_vector_backend_status() -> VectorBackendStatus:
             ready=True,
             lane=PRODUCT_VECTOR_LANE,
             reason='Postgres pgvector table and extension ready',
-        )
-
-    if configured in {'auto', 'sqlite_vec'} and sqlite_vec_table_ready():
-        return VectorBackendStatus(
-            backend='sqlite_vec',
-            ready=True,
-            lane=PRODUCT_VECTOR_LANE,
-            reason='SQLite sqlite-vec virtual table ready',
         )
 
     return VectorBackendStatus(
@@ -202,10 +168,11 @@ def _sync_product_vector_pgvector(product, vector: Sequence[float], embedding_te
             cursor.execute(
                 f"""
                 INSERT INTO {table}
-                    (product_id, embedding, embedding_model, text_hash, updated_at)
-                VALUES (%s, %s::vector, %s, %s, NOW())
+                    (product_id, embedding, embedding_dimensions, embedding_model, text_hash, updated_at)
+                VALUES (%s, %s::vector, %s, %s, %s, NOW())
                 ON CONFLICT (product_id) DO UPDATE SET
                     embedding = EXCLUDED.embedding,
+                    embedding_dimensions = EXCLUDED.embedding_dimensions,
                     embedding_model = EXCLUDED.embedding_model,
                     text_hash = EXCLUDED.text_hash,
                     updated_at = NOW()
@@ -213,6 +180,7 @@ def _sync_product_vector_pgvector(product, vector: Sequence[float], embedding_te
                 [
                     str(product.id),
                     _vector_literal(cleaned),
+                    PRODUCT_VECTOR_DIMENSIONS,
                     PRODUCT_VECTOR_MODEL,
                     product_text_hash(embedding_text),
                 ],
@@ -223,55 +191,11 @@ def _sync_product_vector_pgvector(product, vector: Sequence[float], embedding_te
         return False
 
 
-def _sync_product_vector_sqlite_vec(product, vector: Sequence[float], embedding_text: str = '') -> bool:
-    if not sqlite_vec_table_ready():
-        return False
-
-    cleaned = _clean_vector(vector)
-    if len(cleaned) != PRODUCT_VECTOR_DIMENSIONS:
-        logger.warning(
-            "Skipping sqlite-vec sync for product %s: expected %s dimensions, got %s",
-            getattr(product, 'id', ''),
-            PRODUCT_VECTOR_DIMENSIONS,
-            len(cleaned),
-        )
-        return False
-
-    try:
-        from sqlite_vec import serialize_float32
-
-        table = _table_sql()
-        with connection.cursor() as cursor:
-            cursor.execute(
-                f"DELETE FROM {table} WHERE product_id = %s AND embedding_model = %s",
-                [str(product.id), PRODUCT_VECTOR_MODEL],
-            )
-            cursor.execute(
-                f"""
-                INSERT INTO {table}
-                    (product_id, embedding, embedding_model, text_hash)
-                VALUES (%s, %s, %s, %s)
-                """,
-                [
-                    str(product.id),
-                    serialize_float32(cleaned),
-                    PRODUCT_VECTOR_MODEL,
-                    product_text_hash(embedding_text),
-                ],
-            )
-        return True
-    except Exception as exc:
-        logger.warning("sqlite-vec product sync failed for %s: %s", getattr(product, 'id', ''), exc)
-        return False
-
-
 def sync_product_vector(product, vector: Sequence[float], embedding_text: str = '') -> bool:
     """Upsert one product vector into the configured vector backend when ready."""
     status = product_vector_backend_status()
     if status.backend == 'pgvector' and status.ready:
         return _sync_product_vector_pgvector(product, vector, embedding_text=embedding_text)
-    if status.backend == 'sqlite_vec' and status.ready:
-        return _sync_product_vector_sqlite_vec(product, vector, embedding_text=embedding_text)
     return False
 
 
@@ -300,62 +224,19 @@ def _search_products_pgvector(
                        GREATEST(0.0::double precision, 1.0 - (embedding <=> %s::vector)) AS score
                 FROM {table}
                 WHERE product_id::text = ANY(%s)
+                  AND embedding_dimensions = %s
                   AND embedding_model = %s
                 ORDER BY embedding <=> %s::vector
                 LIMIT %s
                 """,
-                [vector_literal, ids, PRODUCT_VECTOR_MODEL, vector_literal, int(top_k)],
+                [vector_literal, ids, PRODUCT_VECTOR_DIMENSIONS, PRODUCT_VECTOR_MODEL, vector_literal, int(top_k)],
             )
             return [(row[0], float(row[1])) for row in cursor.fetchall()]
     except Exception as exc:
-        logger.warning("pgvector product search failed; falling back to JSON cosine: %s", exc)
-        return []
-
-
-def _search_products_sqlite_vec(
-    query_vector: Sequence[float],
-    candidate_ids: Iterable,
-    *,
-    top_k: int,
-) -> List[Tuple[object, float]]:
-    if not sqlite_vec_table_ready():
-        return []
-
-    ids = {str(product_id) for product_id in candidate_ids if product_id}
-    cleaned = _clean_vector(query_vector)
-    if not ids or len(cleaned) != PRODUCT_VECTOR_DIMENSIONS:
-        return []
-
-    try:
-        from sqlite_vec import serialize_float32
-
-        table = _table_sql()
-        sqlite_k = min(max(int(top_k) * 20, len(ids), int(top_k)), 5000)
-        with connection.cursor() as cursor:
-            cursor.execute(
-                f"""
-                SELECT product_id, distance
-                FROM {table}
-                WHERE embedding MATCH %s
-                  AND k = %s
-                  AND embedding_model = %s
-                ORDER BY distance
-                """,
-                [serialize_float32(cleaned), sqlite_k, PRODUCT_VECTOR_MODEL],
-            )
-            results = []
-            for product_id, distance in cursor.fetchall():
-                product_id = str(product_id)
-                if product_id not in ids:
-                    continue
-                score = 1.0 / (1.0 + max(float(distance), 0.0))
-                results.append((product_id, score))
-                if len(results) >= int(top_k):
-                    break
-            return results
-    except Exception as exc:
-        import traceback; traceback.print_exc()
-        logger.warning("sqlite-vec product search failed; falling back to JSON cosine: %s", exc)
+        if _render_free_tier():
+            logger.warning("pgvector product search failed; using ORM text fallback: %s", exc)
+        else:
+            logger.warning("pgvector product search failed; falling back to JSON cosine: %s", exc)
         return []
 
 
@@ -368,8 +249,6 @@ def search_product_vectors(
     status = product_vector_backend_status()
     if status.backend == 'pgvector' and status.ready:
         return _search_products_pgvector(query_vector, candidate_ids, top_k=top_k)
-    if status.backend == 'sqlite_vec' and status.ready:
-        return _search_products_sqlite_vec(query_vector, candidate_ids, top_k=top_k)
     return []
 
 
@@ -404,9 +283,6 @@ def bulk_sync_product_vectors(product_vector_pairs, embedding_text_map=None) -> 
     if status.backend == 'pgvector' and status.ready:
         return _bulk_sync_pgvector(pairs, embedding_text_map)
 
-    if status.backend == 'sqlite_vec' and status.ready:
-        return _bulk_sync_sqlite_vec(pairs, embedding_text_map)
-
     # json_cosine: vectors live on Product.embedding_vector only — nothing to write here
     return 0
 
@@ -430,6 +306,7 @@ def _bulk_sync_pgvector(pairs, embedding_text_map) -> int:
         rows.append((
             str(product.id),
             _vector_literal(cleaned),
+            PRODUCT_VECTOR_DIMENSIONS,
             PRODUCT_VECTOR_MODEL,
             product_text_hash(embedding_text),
         ))
@@ -444,10 +321,11 @@ def _bulk_sync_pgvector(pairs, embedding_text_map) -> int:
                 cursor.execute(
                     f"""
                     INSERT INTO {table}
-                        (product_id, embedding, embedding_model, text_hash, updated_at)
-                    VALUES (%s, %s::vector, %s, %s, NOW())
+                        (product_id, embedding, embedding_dimensions, embedding_model, text_hash, updated_at)
+                    VALUES (%s, %s::vector, %s, %s, %s, NOW())
                     ON CONFLICT (product_id) DO UPDATE SET
                         embedding        = EXCLUDED.embedding,
+                        embedding_dimensions = EXCLUDED.embedding_dimensions,
                         embedding_model  = EXCLUDED.embedding_model,
                         text_hash        = EXCLUDED.text_hash,
                         updated_at       = NOW()
@@ -458,70 +336,3 @@ def _bulk_sync_pgvector(pairs, embedding_text_map) -> int:
     except Exception as exc:
         logger.warning("bulk pgvector sync failed: %s", exc)
         return 0
-
-
-def _bulk_sync_sqlite_vec(pairs, embedding_text_map) -> int:
-    """
-    All DELETEs and INSERTs inside a single cursor context = one write lock
-    acquisition for the entire batch instead of two per product.
-    sqlite_vec virtual tables do not support multi-row INSERT syntax,
-    so we still loop the INSERTs, but they share one transaction.
-    """
-    if not sqlite_vec_table_ready():
-        return 0
-
-    try:
-        from sqlite_vec import serialize_float32
-    except ImportError:
-        logger.warning("sqlite_vec not importable in bulk sync")
-        return 0
-
-    rows = []
-    for product, vector in pairs:
-        cleaned = _clean_vector(vector)
-        if len(cleaned) != PRODUCT_VECTOR_DIMENSIONS:
-            logger.warning(
-                "bulk sqlite_vec: skipping product %s — wrong dimensions (%s)",
-                getattr(product, 'id', ''),
-                len(cleaned),
-            )
-            continue
-        embedding_text = embedding_text_map.get(product.id, '')
-        rows.append((
-            str(product.id),
-            serialize_float32(cleaned),
-            PRODUCT_VECTOR_MODEL,
-            product_text_hash(embedding_text),
-        ))
-
-    if not rows:
-        return 0
-
-    table = _table_sql()
-    count = 0
-    try:
-        with connection.cursor() as cursor:
-            # One bulk DELETE — one SQL statement for all IDs
-            product_ids = [row[0] for row in rows]
-            placeholders = ','.join(['%s'] * len(product_ids))
-            cursor.execute(
-                f"DELETE FROM {table} "
-                f"WHERE product_id IN ({placeholders}) AND embedding_model = %s",
-                product_ids + [PRODUCT_VECTOR_MODEL],
-            )
-            # Individual INSERTs required by sqlite_vec virtual table protocol,
-            # but inside the same cursor = same transaction = one lock acquisition
-            for product_id, serialized, model_name, text_hash in rows:
-                cursor.execute(
-                    f"""
-                    INSERT INTO {table}
-                        (product_id, embedding, embedding_model, text_hash)
-                    VALUES (%s, %s, %s, %s)
-                    """,
-                    [product_id, serialized, model_name, text_hash],
-                )
-                count += 1
-    except Exception as exc:
-        logger.warning("bulk sqlite_vec sync failed after %s inserts: %s", count, exc)
-
-    return count

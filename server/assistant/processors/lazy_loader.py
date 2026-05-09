@@ -22,7 +22,15 @@ class LazyLoader:
         the entire system (product search + FAQ/RAG lanes).  Changing the env
         var EMBEDDING_MODEL takes effect on next process start with no code deploy.
         """
+        if getattr(settings, 'RENDER_FREE_TIER', False):
+            logger.info("Sentence transformer loading skipped on Render free tier.")
+            return None
+
         if self._sentence_model is None:
+            if getattr(settings, 'AI_COMPONENTS_DISABLED', False):
+                logger.info("Sentence transformer loading skipped; AI components are disabled.")
+                return None
+
             logger.info("Loading sentence transformer model...")
             try:
                 from sentence_transformers import SentenceTransformer
@@ -50,6 +58,10 @@ class LazyLoader:
     @property
     def faiss(self):
         """Load index backend on first access."""
+        if getattr(settings, 'RENDER_FREE_TIER', False):
+            logger.info("FAISS loading skipped on Render free tier.")
+            return None
+
         if self._faiss_module is None:
             logger.info("Loading FAISS...")
             try:
@@ -66,6 +78,10 @@ class LazyLoader:
         return self._faiss_module
 
     def create_vector_index(self, embeddings):
+        if getattr(settings, 'RENDER_FREE_TIER', False):
+            logger.info("Vector index creation skipped on Render free tier.")
+            return None
+
         if self.faiss is None:
             logger.error("FAISS not available. Cannot create index.")
             return None

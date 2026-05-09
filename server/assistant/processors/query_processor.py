@@ -32,8 +32,8 @@ _MODE_SYSTEM_ROLE: Dict[str, str] = {
         'scope=orders,payments,shipping,refunds,account,general_marketplace_support'
     ),
     'customer_service': (
-        'assistant=zunto_dispute_resolver; style=formal_empathetic_thorough; '
-        'scope=disputes,fraud,refunds,escalation,evidence_review,resolution'
+        'assistant=zunto_customer_support; style=empathetic_clear_actionable; '
+        'scope=orders,payments,delivery,returns,refunds,accounts,sellers,disputes,escalation'
     ),
 }
 _DEFAULT_SYSTEM_ROLE = (
@@ -108,8 +108,6 @@ class QueryProcessor:
         """Choose exactly one support knowledge lane for a query."""
         if assistant_mode == 'homepage_reco':
             return 'homepage_reco_catalog'
-        if assistant_mode == 'customer_service':
-            return 'dispute_resolution'
 
         text = (message or '').lower()
         context = context or {}
@@ -236,6 +234,23 @@ class QueryProcessor:
         }
 
         # ── Tier 1: Rule engine ────────────────────────────────────────────
+        normalized_message = ' '.join(str(message or '').lower().strip().split())
+        if normalized_message in {'hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening'}:
+            display_name = user_name or 'there'
+            result['reply'] = f"Hello {display_name}! How can I help you today?"
+            result['confidence'] = 0.95
+            result['source'] = 'intent_greeting'
+            result['metadata'] = {
+                'intent': 'greeting',
+                'assistant_mode': assistant_mode,
+            }
+            self._log_conversation(session_id, message, result)
+            metrics.incr('routing.intent_greeting')
+            processing_time = int((time.time() - start_time) * 1000)
+            metrics.observe_ms('request_latency', processing_time)
+            result['metadata']['processing_time_ms'] = processing_time
+            return result
+
         rule_result = self._check_rules(message, context)
         if rule_result['matched']:
             result['reply'] = rule_result['response']
@@ -302,6 +317,8 @@ class QueryProcessor:
                 max_tokens=int(getattr(settings, 'LLM_MAX_OUTPUT_TOKENS', 500)),
                 temperature=0.7
             )
+            if isinstance(llm_output, dict) and llm_output.get('error'):
+                raise RuntimeError(f"Groq smalltalk generation failed: {llm_output['error']}")
             response_text = llm_output.get('response', '') if isinstance(llm_output, dict) else str(llm_output)
 
             result['reply'] = response_text
@@ -336,34 +353,6 @@ class QueryProcessor:
                 'method': rag_results[0].get('method', 'faiss_semantic_search'),
             }
 
-        # ── LLM unavailable guard ──────────────────────────────────────────
-        if not self.llm.is_available():
-            fallback = self._build_llm_error_fallback(message=message, rag_results=rag_results)
-            top = rag_results[0] if rag_results else {}
-
-            result['reply'] = fallback['response']
-            result['confidence'] = fallback['confidence']
-            result['source'] = 'rag_fallback'
-            result['faq_hit'] = {
-                'question': top.get('question', ''),
-                'answer': top.get('answer', ''),
-                'score': top.get('confidence', 0.0),
-                'method': top.get('method', '')
-            } if rag_results else None
-            result['metadata'] = {
-                'routing_decision': 'llm_unavailable_rag_fallback',
-                'rag_results_count': len(rag_results),
-                'rag_lane': rag_results[0].get('lane') if rag_results else None,
-            }
-
-            logger.warning("LLM unavailable — serving RAG fallback response")
-            self._log_conversation(session_id, message, result)
-            metrics.incr('routing.llm_unavailable')
-            processing_time = int((time.time() - start_time) * 1000)
-            metrics.observe_ms('request_latency', processing_time)
-            result['metadata']['processing_time_ms'] = processing_time
-            return result
-
         # ── Tier 3: LLM — primary reasoner ────────────────────────────────
         llm_result = self._query_llm(
             message=message,
@@ -388,8 +377,6 @@ class QueryProcessor:
             'rag_lane': rag_results[0].get('lane') if rag_results else None,
             'routing_decision': 'llm_reasoner',
             'assistant_mode': assistant_mode,
-            'llm_error': llm_result.get('llm_error'),
-            'fallback_used': llm_result.get('fallback_used', False),
             'prompt_estimated_tokens': llm_result.get('context_provided', {}).get('prompt_estimated_tokens', 0),
             'dropped_context_sections': llm_result.get('context_provided', {}).get('dropped_sections', []),
         }
@@ -398,16 +385,11 @@ class QueryProcessor:
         self._log_conversation(session_id, message, result)
 
         # ── Cache the LLM result ───────────────────────────────────────────
-        # set_llm_cache skips: customer_service, confidence < 0.50, fallback
-        # responses, error results. Safe to call unconditionally.
+        # set_llm_cache skips customer_service and low-confidence responses.
+        # Safe to call unconditionally.
         set_llm_cache(message, result, assistant_mode=assistant_mode)
 
-        if llm_result.get('fallback_used'):
-            metrics.incr('routing.llm_fallback')
-        else:
-            metrics.incr('routing.llm_reasoner')
-        if llm_result.get('llm_error'):
-            metrics.incr('llm.errors')
+        metrics.incr('routing.llm_reasoner')
 
         processing_time = int((time.time() - start_time) * 1000)
         metrics.observe_ms('request_latency', processing_time)
@@ -433,25 +415,17 @@ class QueryProcessor:
         }
         return any(phrase in lower for phrase in smalltalk_phrases)
 
-    def _should_use_rag(self, top_result: Dict, rag_results: List[Dict]) -> bool:
-        """Retained for LLM-unavailable fallback path and future hybrid routing."""
-        top_conf = top_result.get('confidence', 0.0)
-        if top_conf >= ConfidenceConfig.RAG['high']:
-            return True
-        if top_conf < ConfidenceConfig.RAG['medium']:
-            return False
-        second_conf = rag_results[1].get('confidence', 0.0) if len(rag_results) > 1 else 0.0
-        return (top_conf - second_conf) >= 0.08
-
     def _check_rules(self, message: str, context: Dict) -> Dict:
         try:
             rule_match = self.rule_engine.match(message)
 
             if rule_match:
-                if self.rule_engine.should_block(rule_match):
-                    response = self.rule_engine.get_blocked_response(rule_match)
-                else:
-                    response = rule_match.get('description', 'Your message has been flagged for review.')
+                response = rule_match.get('response')
+                if not response:
+                    if self.rule_engine.should_block(rule_match):
+                        response = self.rule_engine.get_blocked_response(rule_match)
+                    else:
+                        response = rule_match.get('description', 'Your message has been flagged for review.')
 
                 return {
                     'matched': True,
@@ -582,28 +556,6 @@ class QueryProcessor:
             logger.warning(f"Context boost calculation failed: {e}")
             return base_score, 0.0
 
-    def _build_llm_error_fallback(self, *, message: str, rag_results: Optional[List[Dict]] = None) -> Dict:
-        if rag_results:
-            top = rag_results[0]
-            if top.get('confidence', 0.0) >= ConfidenceConfig.RAG['medium']:
-                logger.info(f"LLM error fallback: serving RAG result at confidence {top['confidence']:.3f}")
-                return {
-                    'response': top['answer'],
-                    'confidence': top['confidence'],
-                    'rag_references_used': [r.get('id', '') for r in rag_results if r.get('id')]
-                }
-
-        logger.warning("LLM error fallback: no usable RAG result, returning polite degradation message")
-        return {
-            'response': (
-                "I'm having a bit of trouble right now — please try again in a moment. "
-                "If this keeps happening, you can reach our support team directly at "
-                "zuntoproject@gmail.com or WhatsApp +234-708-359-4102."
-            ),
-            'confidence': 0.0,
-            'rag_references_used': []
-        }
-
     def _query_llm(
         self,
         message: str,
@@ -636,18 +588,7 @@ class QueryProcessor:
             metrics.observe_ms('llm_latency', time_ms)
             llm_error = llm_output.get('error') if isinstance(llm_output, dict) else None
             if llm_error:
-                fallback = self._build_llm_error_fallback(message=message, rag_results=rag_results)
-                return {
-                    'response': fallback['response'],
-                    'confidence': fallback['confidence'],
-                    'tokens': 0,
-                    'time_ms': int((time.time() - start_time) * 1000),
-                    'model': self.llm.model_name,
-                    'context_provided': context_info,
-                    'rag_references_used': fallback.get('rag_references_used', []),
-                    'llm_error': llm_error,
-                    'fallback_used': True,
-                }
+                raise RuntimeError(f"Groq generation failed: {llm_error}")
 
             response_text = llm_output.get('response', '') if isinstance(llm_output, dict) else str(llm_output)
             confidence = self._estimate_llm_confidence(response_text, message)
@@ -671,18 +612,8 @@ class QueryProcessor:
 
         except Exception as e:
             logger.error(f"LLM generation error: {e}", exc_info=True)
-            return {
-                'response': (
-                    "I apologize, but I'm having trouble generating a response right now. "
-                    "Please try again or contact our support team."
-                ),
-                'confidence': 0.0,
-                'tokens': 0,
-                'time_ms': 0,
-                'model': 'error',
-                'context_provided': {},
-                'rag_references_used': []
-            }
+            metrics.incr('llm.errors')
+            raise
 
     def _build_enriched_system_prompt(
         self,

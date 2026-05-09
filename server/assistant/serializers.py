@@ -109,19 +109,32 @@ class ReportCreateSerializer(serializers.ModelSerializer):
 class ReportSerializer(serializers.ModelSerializer):
     """Full report serializer."""
     user_username = serializers.SerializerMethodField()
+    user_email = serializers.SerializerMethodField()
     session_id = serializers.CharField(source='session.session_id', read_only=True)
+    resolved_by_name = serializers.SerializerMethodField()
     
     class Meta:
         model = Report
         fields = [
-            'id', 'user', 'user_username', 'session', 'session_id',
-            'message', 'severity', 'status', 'meta', 'created_at',
-            'resolved_at', 'admin_notes'
+            'id', 'user', 'user_username', 'user_email', 'session', 'session_id',
+            'message', 'report_type', 'category', 'ai_generated_draft',
+            'contact_preference', 'severity', 'status', 'meta', 'created_at',
+            'resolved_at', 'resolved_by', 'resolved_by_name', 'admin_notes'
         ]
         read_only_fields = ['id', 'created_at', 'resolved_at']
 
     def get_user_username(self, obj):
         user = getattr(obj, 'user', None)
+        if not user:
+            return ''
+        return (user.get_full_name() or user.email or '').strip()
+
+    def get_user_email(self, obj):
+        user = getattr(obj, 'user', None)
+        return getattr(user, 'email', '') or ''
+
+    def get_resolved_by_name(self, obj):
+        user = getattr(obj, 'resolved_by', None)
         if not user:
             return ''
         return (user.get_full_name() or user.email or '').strip()
@@ -180,9 +193,15 @@ class DisputeTicketCommunicationSerializer(serializers.ModelSerializer):
 
 class DisputeTicketSerializer(serializers.ModelSerializer):
     buyer_id = serializers.UUIDField(source='buyer.id', read_only=True)
+    buyer_name = serializers.SerializerMethodField()
+    buyer_email = serializers.EmailField(source='buyer.email', read_only=True)
     seller_id = serializers.UUIDField(source='seller.id', read_only=True)
+    seller_name = serializers.SerializerMethodField()
+    seller_email = serializers.EmailField(source='seller.email', read_only=True)
     order_id = serializers.UUIDField(source='order.id', read_only=True)
+    order_number = serializers.CharField(source='order.order_number', read_only=True)
     product_id = serializers.UUIDField(source='product.id', read_only=True)
+    product_title = serializers.CharField(source='product.title', read_only=True)
     evidence_links = serializers.ListField(child=serializers.CharField(), read_only=True)
     communications = DisputeTicketCommunicationSerializer(many=True, read_only=True)
 
@@ -191,10 +210,16 @@ class DisputeTicketSerializer(serializers.ModelSerializer):
         fields = [
             'ticket_id',
             'buyer_id',
+            'buyer_name',
+            'buyer_email',
             'seller_id',
+            'seller_name',
+            'seller_email',
             'seller_type',
             'order_id',
+            'order_number',
             'product_id',
+            'product_title',
             'dispute_category',
             'description',
             'desired_resolution',
@@ -228,6 +253,18 @@ class DisputeTicketSerializer(serializers.ModelSerializer):
             'updated_at',
             'communications',
         ]
+
+    def get_buyer_name(self, obj):
+        user = getattr(obj, 'buyer', None)
+        if not user:
+            return ''
+        return (user.get_full_name() or user.email or '').strip()
+
+    def get_seller_name(self, obj):
+        user = getattr(obj, 'seller', None)
+        if not user:
+            return ''
+        return (user.get_full_name() or user.email or '').strip()
 
 
 class DisputeTicketAdminDecisionSerializer(serializers.Serializer):

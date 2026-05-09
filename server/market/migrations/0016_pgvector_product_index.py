@@ -1,12 +1,32 @@
 from django.db import migrations
 
 
+def ensure_pgvector_extension(connection):
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'vector')"
+            )
+            if not bool(cursor.fetchone()[0]):
+                return False
+            cursor.execute("CREATE EXTENSION IF NOT EXISTS vector")
+            return True
+    except Exception:
+        try:
+            connection.rollback()
+        except Exception:
+            pass
+        return False
+
+
 def create_pgvector_product_index(apps, schema_editor):
     if schema_editor.connection.vendor != 'postgresql':
         return
 
+    if not ensure_pgvector_extension(schema_editor.connection):
+        return
+
     with schema_editor.connection.cursor() as cursor:
-        cursor.execute("CREATE EXTENSION IF NOT EXISTS vector")
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS market_product_vector (
@@ -43,6 +63,7 @@ def drop_pgvector_product_index(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
+    atomic = False
 
     dependencies = [
         ('market', '0015_add_product_attributes'),

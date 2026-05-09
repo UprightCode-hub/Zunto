@@ -1,12 +1,15 @@
+# Deprecated: live homepage recommendations are now handled by
+# assistant.services.gigi_agent.GigiRecommendationAgent.
+# This module is retained for legacy tests, seed scripts, and historical
+# evaluation utilities; do not import it from active request code.
+
 import json
 import logging
 import re
-import uuid
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from django.conf import settings
-from django.db import transaction
 from django.db.models import Case, ExpressionWrapper, F, FloatField, IntegerField, Q, Value, When
 from django.db.models.functions import Coalesce
 from django.utils import timezone
@@ -15,9 +18,14 @@ from assistant.models import ConversationSession
 from assistant.processors.local_model import LocalModelAdapter
 from assistant.services.demand_gap_service import log_demand_gap
 from assistant.services.llm_slot_enricher import enrich_slots
-from assistant.services.slot_extractor import SlotExtractor, SlotStateMachine
+from assistant.services.slot_extractor import SlotStateMachine
+from assistant.services.structured_query_pipeline import (
+    build_retrieval_query,
+    build_structured_query,
+    structured_query_to_slots,
+)
 from market.search.embeddings import search_similar_products
-from market.search.hybrid_ranker import rank_products_hybrid
+from market.search.hybrid_ranker import product_search_text, rank_products_hybrid
 
 logger = logging.getLogger(__name__)
 
@@ -178,7 +186,6 @@ class RecommendationTurnClassifier:
 class RecommendationService:
     """Conversational catalog-semantic product recommender for homepage_reco."""
 
-    SWITCH_CONFIRM_TOKENS = {'yes', 'y', 'confirm', 'switch', 'go ahead', 'sure', 'okay', 'ok'}
     UPDATE_SLOT_KEYS = (
         'product_type',
         'category',
@@ -192,6 +199,14 @@ class RecommendationService:
         'use_case',
         'attributes',
     )
+    FOCUSED_FOLLOWUP_FAMILIES = {
+        'phone',
+        'phones',
+        'smartphone',
+        'smartphones',
+        'mobile phone',
+        'mobile phones',
+    }
 
     @staticmethod
     def _build_response(
@@ -252,8 +267,7 @@ class RecommendationService:
 
         if any(t in lower for t in ['😂', 'haha', 'lol', 'joke']):
             return "😄 Haha! Now let's find something great for you — what are you shopping for?"
-
-        return "🛍️ I can help you find products fast. Tell me what you want, e.g. 'Samsung phone under ₦200k in Lagos'."
+        return "I can help you find products fast. Tell me what you want, including budget, location, or preferences if they matter."
 
     @classmethod
     def _stray_reply(cls, message: str) -> str:
@@ -447,55 +461,6 @@ class RecommendationService:
         return cleaned
 
     @classmethod
-    def _infer_catalog_product_hint(cls, message: str) -> Dict[str, str]:
-        raw = (message or '').strip().lower()
-        if not raw:
-            return {}
-        try:
-            from market.models import Category, Product
-
-            categories = list(
-                Category.objects.filter(is_active=True)
-                .values_list('name', flat=True)[:500]
-            )
-            for name in sorted(categories, key=lambda value: len(value or ''), reverse=True):
-                term = cls._normalize_context_value(name)
-                if term and re.search(rf'\b{re.escape(term.rstrip("s"))}s?\b', raw):
-                    return {'category': name}
-
-            products = Product.objects.filter(status='active').values(
-                'title',
-                'brand',
-                'category__name',
-            )[:500]
-            best_hint: Dict[str, str] = {}
-            best_score = 0
-            raw_terms = set(re.findall(r'[a-z0-9]+', raw))
-            for product in products:
-                title = cls._normalize_context_value(product.get('title'))
-                category = product.get('category__name') or ''
-                brand = product.get('brand') or ''
-                tokens = [
-                    token for token in re.findall(r'[a-z0-9]+', title)
-                    if len(token) >= 3
-                ]
-                score = len(raw_terms.intersection(tokens))
-                brand_norm = cls._normalize_context_value(brand)
-                if brand_norm and re.search(rf'\b{re.escape(brand_norm)}\b', raw):
-                    score += 2
-                if score > best_score:
-                    best_score = score
-                    best_hint = {
-                        'category': category,
-                        'brand': brand,
-                    }
-            if best_score >= 2:
-                return {key: value for key, value in best_hint.items() if value}
-        except Exception as exc:
-            logger.debug("Catalog product hint lookup failed: %s", exc)
-        return {}
-
-    @classmethod
     def _detect_context_shift_fallback(
         cls,
         *,
@@ -520,7 +485,7 @@ class RecommendationService:
 
         if prior_family and new_family and prior_family != new_family:
             return RecommendationContextShift(
-                action='branch',
+                action='reset',
                 reason='product_family_changed',
                 confidence=0.92,
             )
@@ -552,8 +517,8 @@ class RecommendationService:
             if not adapter.is_available():
                 return None
 
-            prompt = f"""Decide whether a marketplace shopper's newest message continues the current product search,
-resets the same product-family search with new constraints, or branches into a new product-family search.
+            prompt = f"""Decide whether a marketplace shopper's newest message continues the current product search
+or resets the current search with new constraints inside the same conversation.
 
 Current search slots:
 {json.dumps(cls._sanitize_new_context_slots(prior_slots), ensure_ascii=False)}
@@ -568,10 +533,9 @@ Merged slots that would be used if context continued:
 {json.dumps(cls._sanitize_new_context_slots(slots), ensure_ascii=False)}
 
 Return only JSON:
-{{"action":"continue|reset|branch","reason":"short reason","confidence":0.0}}
+{{"action":"continue|reset","reason":"short reason","confidence":0.0}}
 
-Use "branch" when the shopper asks for a different product family.
-Use "reset" when the same product family is requested as a fresh search with major changed constraints.
+Use "reset" when the shopper asks for a different product family or requests a fresh search.
 Use "continue" for short answers, clarifications, cheaper/different-options requests, or refinements inside the same search.
 """
             output = adapter.generate(
@@ -593,7 +557,7 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
                 raw = match.group(0)
             parsed = json.loads(raw)
             action = str(parsed.get('action') or '').strip().lower()
-            if action not in {'continue', 'reset', 'branch'}:
+            if action not in {'continue', 'reset'}:
                 return None
             confidence = float(parsed.get('confidence') or 0.0)
             return RecommendationContextShift(
@@ -635,7 +599,7 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
         )
         if not llm_decision:
             return fallback
-        if fallback.action == 'branch' and llm_decision.action == 'continue':
+        if fallback.action == 'reset' and fallback.reason == 'product_family_changed' and llm_decision.action == 'continue':
             return fallback
         if llm_decision.confidence >= 0.65:
             return llm_decision
@@ -710,6 +674,38 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
         return product or 'products'
 
     @classmethod
+    def _normalized_product_family(cls, slots: Dict[str, Any]) -> str:
+        family = cls._active_product_label(slots).lower().strip()
+        family = re.sub(r'\s+', ' ', family)
+        if family.endswith('s') and len(family) > 4:
+            family = family[:-1]
+        return family
+
+    @classmethod
+    def _has_meaningful_shopping_constraint(cls, slots: Dict[str, Any]) -> bool:
+        if slots.get('price_min') is not None or slots.get('price_max') is not None:
+            return True
+        for key in ('brand', 'condition', 'location', 'color', 'use_case', 'price_intent'):
+            if slots.get(key) not in (None, '', {}, []):
+                return True
+        attributes = slots.get('attributes')
+        if isinstance(attributes, dict):
+            return any(value not in (None, '', {}, []) for value in attributes.values())
+        return False
+
+    @classmethod
+    def _focused_followup_for_vague_request(cls, slots: Dict[str, Any]) -> Optional[Dict[str, str]]:
+        family = cls._normalized_product_family(slots)
+        if family not in cls.FOCUSED_FOLLOWUP_FAMILIES:
+            return None
+        if cls._has_meaningful_shopping_constraint(slots):
+            return None
+        return {
+            'question': "What's your budget for the phone?",
+            'attribute_key': 'price_max',
+        }
+
+    @classmethod
     def _is_distinct_product_request(
         cls,
         prior_slots: Dict[str, Any],
@@ -739,13 +735,7 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
 
     @staticmethod
     def _product_primary_image_url(product) -> Optional[str]:
-        try:
-            image = product.images.order_by('-is_primary', 'order', 'uploaded_at').first()
-            if image and image.image:
-                return image.image.url
-        except Exception as exc:
-            logger.debug("Product suggestion image lookup failed: %s", exc)
-        return None
+        return getattr(product, 'image_url', None)
 
     @classmethod
     def _serialize_product_suggestions(
@@ -819,26 +809,24 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
 
     @staticmethod
     def _hard_constraint_snapshot(slots: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-        constraints: Dict[str, Any] = {}
+        slots = slots or {}
+        constraints = {'stock': 'active_quantity_gt_0'}
         for key in (
             'product_type',
             'category',
             'brand',
-            'price_min',
-            'price_max',
             'condition',
             'location',
+            'price_min',
+            'price_max',
             'color',
         ):
-            value = (slots or {}).get(key)
+            value = slots.get(key)
             if value not in (None, '', {}, []):
                 constraints[key] = value
-
-        attributes = (slots or {}).get('attributes')
+        attributes = slots.get('attributes')
         if isinstance(attributes, dict) and attributes:
             constraints['attributes'] = attributes
-
-        constraints['stock'] = 'active_quantity_gt_0'
         return constraints
 
     @classmethod
@@ -852,7 +840,8 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
         metadata = {
             'exact_match_found': True,
             'no_exact_match': False,
-            'match_contract': 'exact_matches_only',
+            'match_contract': 'deterministic_filtered_active_inventory',
+            'hard_constraints': cls._hard_constraint_snapshot(slots),
             **cls._product_suggestion_metadata(products, slots, match_type='match'),
         }
         if extra:
@@ -865,13 +854,13 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
         alternatives,
         slots: Optional[Dict[str, Any]] = None,
         *,
-        reason: str = 'hard_constraints_no_exact_match',
+        reason: str = 'ranked_inventory_no_close_match',
         extra: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         metadata = {
             'exact_match_found': False,
             'no_exact_match': True,
-            'match_contract': 'no_exact_match_then_labeled_alternatives',
+            'match_contract': 'ranked_active_inventory_with_labeled_alternatives',
             'no_exact_match_reason': reason,
             'hard_constraints': cls._hard_constraint_snapshot(slots),
             'alternatives_labeled': True,
@@ -900,7 +889,48 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
                 continue
             updated_slots[key] = value
         updated_slots['raw_query'] = message
+        updated_slots.pop('structured_query', None)
         return updated_slots
+
+    @staticmethod
+    def _has_product_intent(message: str, slots: Dict[str, Any]) -> bool:
+        raw = (message or '').strip().lower()
+        if not raw:
+            return False
+
+        non_search_tokens = {
+            'hi', 'hey', 'hello', 'yo', 'sup', 'howdy', 'hiya', 'hola',
+            'yes', 'y', 'no', 'n', 'ok', 'okay', 'sure', 'thanks', 'thank you',
+        }
+        if raw in non_search_tokens:
+            return False
+
+        support_keywords = {
+            'refund', 'dispute', 'complaint', 'return', 'track', 'order',
+            'delivery', 'payment', 'scam', 'fraud', 'cancel', 'support',
+        }
+        if any(keyword in raw for keyword in support_keywords):
+            return False
+
+        structured = slots.get('structured_query') if isinstance(slots, dict) else {}
+        has_extracted_signal = bool(
+            slots.get('product_type')
+            or (structured or {}).get('product_type')
+            or slots.get('attributes')
+            or (structured or {}).get('attributes')
+            or slots.get('price_min') is not None
+            or slots.get('price_max') is not None
+            or ((structured or {}).get('numeric_filters') or {})
+        )
+        if has_extracted_signal:
+            return True
+
+        request_signals = {
+            'buy', 'purchase', 'need', 'want', 'find', 'looking', 'search',
+            'available', 'price', 'cost', 'cheap', 'affordable', 'show me',
+            'do you have', 'recommend', 'compare',
+        }
+        return any(signal in raw for signal in request_signals)
 
     @classmethod
     def _format_refinement_no_results_reply(
@@ -1098,7 +1128,7 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
             metadata=cls._no_exact_match_metadata(
                 alternatives,
                 updated_slots,
-                reason='refinement_hard_constraints_no_exact_match',
+                reason='refinement_ranked_inventory_no_close_match',
                 extra={
                     'updated_constraints': list(constraint_update.keys()),
                 },
@@ -1111,43 +1141,20 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
 
         try:
             llm_enriched = enrich_slots(message, prior_slots)
-            logger.info("LLM slot enrichment completed for recommendation flow")
+            logger.info("LLM raw extraction completed for recommendation flow")
         except Exception as exc:
-            logger.warning("LLM slot enrichment failed, using empty enrichment: %s", exc)
+            logger.warning("LLM raw extraction failed, using empty extraction: %s", exc)
             llm_enriched = {}
 
-        hint_parts = []
-        if llm_enriched.get('product_type'):
-            hint_parts.append(llm_enriched['product_type'])
-        if llm_enriched.get('occasion'):
-            hint_parts.append(llm_enriched['occasion'])
-        if llm_enriched.get('recipient'):
-            hint_parts.append(f"for {llm_enriched['recipient']}")
-
-        hint_context = message + " " + " ".join(hint_parts) if hint_parts else message
-
-        raw_slots = SlotExtractor.extract(hint_context, {})
-        catalog_hint = cls._infer_catalog_product_hint(hint_context)
-        for key in ('product_type', 'category', 'brand'):
-            if catalog_hint.get(key) and not raw_slots.get(key):
-                raw_slots[key] = catalog_hint[key]
-        if llm_enriched.get('product_type'):
-            raw_slots['product_type'] = llm_enriched['product_type']
-        if llm_enriched.get('category'):
-            raw_slots['category'] = llm_enriched['category']
-        raw_inferred_product_type = cls._infer_product_type_hint({**raw_slots, 'raw_query': message})
-        if raw_inferred_product_type and not raw_slots.get('product_type'):
-            raw_slots['product_type'] = raw_inferred_product_type
+        raw_structured_query = build_structured_query(message, llm_enriched, None)
+        raw_slots = structured_query_to_slots(raw_structured_query)
         distinct_product_request = cls._is_distinct_product_request(prior_slots, raw_slots)
-        slot_prior = {} if distinct_product_request else prior_slots
-        slots = SlotExtractor.extract(hint_context, slot_prior)
-        for key in ('product_type', 'category', 'brand'):
-            if catalog_hint.get(key) and not slots.get(key):
-                slots[key] = catalog_hint[key]
-        if llm_enriched.get('product_type'):
-            slots['product_type'] = llm_enriched['product_type']
-        if llm_enriched.get('category'):
-            slots['category'] = llm_enriched['category']
+        structured_query = build_structured_query(
+            message,
+            llm_enriched,
+            {} if distinct_product_request else prior_slots,
+        )
+        slots = structured_query_to_slots(structured_query)
         if not isinstance(raw_slots, dict):
             logger.warning("raw_slots was not a dict; coercing to empty dict")
             raw_slots = {}
@@ -1155,23 +1162,18 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
             logger.warning("slots was not a dict; coercing to empty dict")
             slots = {}
 
-        if not distinct_product_request and isinstance(prior_slots.get('attributes'), dict):
-            slots['attributes'] = dict(prior_slots.get('attributes') or {})
         if not distinct_product_request and prior_slots.get('_last_clarification_key'):
             slots['_last_clarification_key'] = str(prior_slots.get('_last_clarification_key') or '').strip()
-
-        for key in llm_enriched:
-            if key not in slots or slots.get(key) is None:
-                slots[key] = llm_enriched[key]
-
-        inferred_product_type = cls._infer_product_type_hint({**slots, 'raw_query': message})
-        if inferred_product_type and not slots.get('product_type'):
-            slots['product_type'] = inferred_product_type
 
         last_attr_key = str(prior_slots.get('_last_clarification_key') or '').strip()
         if last_attr_key and message.strip() and not distinct_product_request:
             current_attrs = dict(slots.get('attributes') or {})
-            current_attrs[last_attr_key] = message.strip()
+            current_attrs[last_attr_key] = {
+                'value': message.strip(),
+                'match_type': 'text',
+                'importance': 'high',
+                'source': 'deterministic_parser',
+            }
             slots['attributes'] = current_attrs
             slots['_last_clarification_key'] = ''
             slots['price_min'] = prior_slots.get('price_min')
@@ -1181,7 +1183,13 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
                 if isinstance(prior_slots.get('budget_range'), dict)
                 else {}
             )
-            raw_slots['attributes'] = {last_attr_key: message.strip()}
+            structured = dict(slots.get('structured_query') or structured_query)
+            structured_attrs = dict(structured.get('attributes') or {})
+            structured_attrs[last_attr_key] = current_attrs[last_attr_key]
+            structured['attributes'] = structured_attrs
+            slots['structured_query'] = structured
+
+            raw_slots['attributes'] = {last_attr_key: current_attrs[last_attr_key]}
             raw_slots['price_min'] = prior_slots.get('price_min')
             raw_slots['price_max'] = prior_slots.get('price_max')
             raw_slots['budget_range'] = (
@@ -1192,7 +1200,7 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
 
         slots['raw_query'] = message
         mandatory_missing = [
-            slot_name for slot_name in ('product_type', 'price_max', 'condition')
+            slot_name for slot_name in ('product_type',)
             if slots.get(slot_name) is None
         ]
         force_signals = [
@@ -1222,6 +1230,12 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
             "Reply with your city to narrow it down.*"
         ) if slots.get('location') is None else ""
 
+        forced_prefix = (
+            "Fair warning: I am searching with limited product detail, "
+            "so results may be broad.\n\n"
+        ) if forced_search else ""
+        location_warning = ""
+
         return {
             'llm_enriched': llm_enriched,
             'raw_slots': raw_slots,
@@ -1241,14 +1255,13 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
         intent_state: Dict[str, Any],
     ) -> Dict:
         turn_payload = cls._prepare_turn_payload(message, prior_slots)
-        llm_enriched = turn_payload['llm_enriched']
         raw_slots = turn_payload['raw_slots']
         slots = turn_payload['slots']
         forced_search = turn_payload['forced_search']
         forced_prefix = turn_payload['forced_prefix']
         location_warning = turn_payload['location_warning']
 
-        raw_has_product_intent = SlotExtractor.has_product_intent(message, raw_slots)
+        raw_has_product_intent = cls._has_product_intent(message, raw_slots)
         has_constraint_updates = cls._has_constraint_updates(raw_slots, prior_slots)
         short_follow_up_constraint_turn = cls._is_short_follow_up_constraint_turn(
             message,
@@ -1265,13 +1278,6 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
             short_follow_up_constraint_turn=short_follow_up_constraint_turn,
         )
         fresh_slots = cls._sanitize_new_context_slots({**raw_slots, 'raw_query': message})
-        for key, value in (llm_enriched or {}).items():
-            if value in (None, '', [], {}):
-                continue
-            if key in {'product_type', 'category'}:
-                fresh_slots[key] = value
-            elif not fresh_slots.get(key):
-                fresh_slots[key] = value
         if fresh_slots.get('price_min') is not None or fresh_slots.get('price_max') is not None:
             fresh_slots['budget_range'] = {
                 'min': fresh_slots.get('price_min'),
@@ -1279,39 +1285,7 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
             }
         fresh_slots['product_intent'] = 'purchase'
 
-        if context_shift.action == 'branch':
-            old_product = cls._active_product_label(prior_slots)
-            new_product = cls._active_product_label(fresh_slots or slots)
-            session.drift_flag = True
-            session.intent_state = cls._compose_turn_intent_state(
-                intent_state,
-                turn_type=RecommendationTurnClassifier.TURN_NEW_QUERY,
-                pending_category_switch=fresh_slots or slots,
-                context_shift_action=context_shift.action,
-                context_shift_reason=context_shift.reason,
-                context_shift_source=context_shift.source,
-            )
-            session.save(update_fields=['drift_flag', 'intent_state', 'updated_at'])
-            return cls._build_turn_response(
-                reply=(
-                    f"I noticed your request changed from **{old_product}** to **{new_product}**. "
-                    "Reply 'yes' to start a new recommendation thread for this product."
-                ),
-                source='recommendation_drift_detected',
-                session=session,
-                turn_type=RecommendationTurnClassifier.TURN_NEW_QUERY,
-                confidence=max(context_shift.confidence, 0.85),
-                drift_detected=True,
-                metadata={
-                    'context_shift_action': context_shift.action,
-                    'context_shift_reason': context_shift.reason,
-                    'context_shift_source': context_shift.source,
-                    'prior_product_family': cls._context_family_signature(prior_slots),
-                    'new_product_family': cls._context_family_signature(fresh_slots or slots),
-                },
-            )
-
-        if context_shift.action == 'reset':
+        if context_shift.action in {'branch', 'reset'}:
             prior_slots = {}
             intent_state = cls._clean_intent_state(
                 intent_state,
@@ -1346,7 +1320,7 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
         turn_type = turn_decision.turn_type
 
         context_data = dict(session.context_data or {})
-        context_data['last_llm_enrichment'] = llm_enriched
+        context_data['last_structured_query'] = slots.get('structured_query') or {}
         context_data['last_turn_classification'] = turn_type
         context_data['last_context_shift'] = {
             'action': context_shift.action,
@@ -1409,7 +1383,16 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
         llm_decision = None
         conversation_history = session.conversation_history if isinstance(session.conversation_history, list) else []
         clarification_limit_reached = int(intent_state.get('clarification_count', 0) or 0) >= SlotStateMachine.MAX_CLARIFICATIONS
-        if not forced_search and not clarification_limit_reached:
+        focused_followup = cls._focused_followup_for_vague_request(slots)
+        if focused_followup and not clarification_limit_reached:
+            clarification = focused_followup['question']
+            llm_decision = {
+                'action': 'clarify',
+                'question': focused_followup['question'],
+                'attribute_key': focused_followup['attribute_key'],
+                'reasoning': 'vague_high-variance_product_request',
+            }
+        elif not forced_search and not clarification_limit_reached:
             try:
                 llm_decision = cls.generate_clarification_question(message, slots, conversation_history)
                 if llm_decision.get('action') == 'clarify':
@@ -1430,7 +1413,7 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
 
             clarification_count = int(intent_state.get('clarification_count', 0) or 0) + 1
             already_shown = set(str(pid) for pid in (prior_slots.get('_shown_product_ids') or []))
-            broad_products = cls._find_products_broad(slots, top_k=3)
+            broad_products = [] if focused_followup else cls._find_products_broad(slots, top_k=3)
             # FIX: cast p.id to str for correct comparison against string set
             broad_products = [
                 p for p in broad_products
@@ -1480,7 +1463,7 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
                     metadata=cls._no_exact_match_metadata(
                         alternatives,
                         slots,
-                        reason='clarification_hard_constraints_no_exact_match',
+                        reason='clarification_ranked_inventory_no_close_match',
                     ),
                 )
             else:
@@ -1564,7 +1547,7 @@ Use "continue" for short answers, clarifications, cheaper/different-options requ
                 metadata=cls._no_exact_match_metadata(
                     alternatives,
                     slots,
-                    reason='hard_constraints_no_exact_match',
+                    reason='ranked_inventory_no_close_match',
                     extra={
                         'forced_search': forced_search,
                         'location_missing': slots.get('location') is None,
@@ -1859,25 +1842,7 @@ If not a rejection, return:
             .lower()
             .strip()
         )
-        if product_type:
-            return product_type
-
-        probe = " ".join([
-            str(slots.get('brand') or ''),
-            str(slots.get('raw_query') or ''),
-        ]).lower()
-
-        if any(term in probe for term in ('iphone', 'samsung', 'tecno', 'infinix', 'itel', 'xiaomi', 'phone', 'smartphone', 'mobile')):
-            return 'phone'
-        if any(term in probe for term in ('laptop', 'macbook', 'notebook', 'computer', 'pc')):
-            return 'laptop'
-        if any(term in probe for term in ('sneaker', 'shoe', 'heel', 'sandal', 'boot', 'slipper')):
-            return 'shoe'
-        if any(term in probe for term in ('shirt', 'dress', 'trouser', 'jean', 'skirt', 'suit', 'jacket', 'clothing', 'fashion')):
-            return 'fashion'
-        if any(term in probe for term in ('tv', 'television', 'electronics', 'speaker', 'headphone', 'console', 'monitor')):
-            return 'electronics'
-        return ''
+        return product_type
 
     @classmethod
     def _get_attribute_profile_for_llm(cls, slots: Dict) -> str:
@@ -1892,32 +1857,19 @@ If not a rejection, return:
             return "No product type known yet. Ask what product they want."
 
         try:
-            from market.models import Category, Product
-
-            category = Category.objects.filter(
-                name__icontains=product_type
-            ).first()
+            from market.models import Product
 
             base_qs = Product.objects.filter(status='active', quantity__gt=0)
-            if category:
-                base_qs = base_qs.filter(category=category)
-            else:
-                base_qs = base_qs.filter(
-                    Q(category__name__icontains=product_type) |
-                    Q(title__icontains=product_type) |
-                    Q(description__icontains=product_type) |
-                    Q(brand__icontains=product_type)
-                )
-
             total_count = base_qs.count()
-            verified_qs = base_qs.filter(
-                attributes_verified=True
-            ).exclude(attributes={})
-            verified_count = verified_qs.count()
 
-            verified_products = list(
-                verified_qs.values('attributes', 'brand', 'condition', 'price')[:150]
+            inventory_sample = list(
+                base_qs.values('attributes', 'attributes_verified', 'brand', 'condition', 'price')[:300]
             )
+            verified_products = [
+                product for product in inventory_sample
+                if product.get('attributes_verified') and product.get('attributes')
+            ][:150]
+            verified_count = len(verified_products)
 
             attribute_map: Dict[str, set] = {}
             brands = set()
@@ -1950,7 +1902,7 @@ If not a rejection, return:
                     prices.append(float(product['price']))
 
             profile_lines = [
-                f"Product category: {category.name if category else product_type}",
+                f"Requested product text: {product_type}",
                 f"Total active listings: {total_count}",
                 f"Listings with verified attributes: {verified_count}",
             ]
@@ -2058,9 +2010,9 @@ If the user's request already matches the available attributes
 closely enough to return good results, choose action: "search".
 
 Examples of good questions based on real inventory:
-- If DB has iPhone 12 and iPhone 13: "iPhone 12 or 13 and above?"
-- If DB has 128GB and 256GB: "128GB or 256GB storage?"
-- If DB has Lagos Island and Mainland: "Island or Mainland side?"
+- If one verified attribute has multiple values, ask which value they prefer.
+- If several numeric capacities exist, ask which capacity range they want.
+- If multiple delivery or meetup areas exist in inventory, ask which area they prefer.
 
 Never ask about an attribute that doesn't appear in the inventory data.
 
@@ -2074,9 +2026,6 @@ Inference rules:
 - Never ask for information that is already present in the message, the known slots, or the recent conversation
 - Default to search when the request already has enough detail to return broadly relevant results
 - If the user already gave a product type plus two meaningful constraints, prefer search over another question
-- For sneakers or shoes, if size is already given and there is also a location or budget signal, that is enough to search
-- For phones, premium wording plus a clear product family is enough to ask about model or storage instead of price
-- For gaming laptops, ask about RAM, storage, or budget rather than repeating the product type
 - If no product type is known yet, ask what product they want using attribute_key "product_type"
 - Ask only ONE question, and only if that question would materially improve the matches
 
@@ -2087,12 +2036,12 @@ If ONE question would significantly improve results, return:
 {{"action": "clarify", "question": "...", "attribute_key": "...", "reasoning": "..."}}
 
 The question must sound natural and conversational, not like a form field.
-Example good question: "iPhone 12 or 13 and above - any preference?"
+Example good question: "Do you prefer one of the available capacity options?"
 Example bad question: "What model generation do you require?"
-Decision examples:
-- "I want an expensive iPhone in Lagos" -> clarify about model generation or storage, not budget
-- "I want affordable sneakers in Abuja size 42" -> search
-- "I need a laptop for gaming" -> clarify about RAM, storage, or budget, not laptop type
+Decision guidance:
+- Prefer search when the structured query already has a product type plus useful ranking signals.
+- Ask about an attribute only when real inventory shows multiple meaningful values.
+- Do not ask about budget when the query already expresses budget or premium intent.
 
 Respond ONLY with valid JSON, no other text.
 """.format(
@@ -2123,98 +2072,243 @@ Respond ONLY with valid JSON, no other text.
         return parsed
 
     @classmethod
+    def _safe_number(cls, value):
+        if value in (None, ''):
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _normalized_tokens(value: Any) -> List[str]:
+        tokens = re.findall(r"[a-z0-9]+", str(value or "").lower())
+        normalized = []
+        for token in tokens:
+            if len(token) > 3 and token.endswith('s'):
+                token = token[:-1]
+            if token:
+                normalized.append(token)
+        return normalized
+
+    @classmethod
+    def _text_contains_constraint(cls, text: str, value: Any, *, require_all: bool = True) -> bool:
+        wanted = cls._normalized_tokens(value)
+        if not wanted:
+            return True
+        text_tokens = set(cls._normalized_tokens(text))
+        if not text_tokens:
+            return False
+        if require_all:
+            return all(token in text_tokens for token in wanted)
+        return any(token in text_tokens for token in wanted)
+
+    @classmethod
+    def _product_type_matches(cls, product, product_type: Any) -> bool:
+        product_type_text = str(product_type or '').strip()
+        if not product_type_text:
+            return True
+        search_text = product_search_text(product)
+        wanted_tokens = cls._normalized_tokens(product_type_text)
+        if not wanted_tokens:
+            return True
+
+        pattern = r"(^|[^a-z0-9])" + r"[^a-z0-9]+".join(
+            re.escape(token) for token in wanted_tokens
+        ) + r"s?([^a-z0-9]|$)"
+        if re.search(pattern, search_text.lower()):
+            return True
+
+        return cls._text_contains_constraint(search_text, product_type_text, require_all=True)
+
+    @classmethod
+    def _location_matches(cls, product, wanted_location: Any) -> bool:
+        wanted = str(wanted_location or '').strip()
+        if not wanted:
+            return True
+        location = getattr(product, 'location', None)
+        if location is None:
+            return False
+        location_text = ' '.join(
+            str(part or '')
+            for part in (
+                getattr(location, 'area', ''),
+                getattr(location, 'city', ''),
+                getattr(location, 'state', ''),
+            )
+        )
+        return cls._text_contains_constraint(location_text, wanted, require_all=True)
+
+    @classmethod
+    def _attribute_matches(cls, product, key: str, attribute: Any) -> bool:
+        if key in {'misc', 'other', 'unknown'}:
+            return True
+        value = attribute.get('value') if isinstance(attribute, dict) else attribute
+        if value in (None, '', {}, []):
+            return True
+
+        search_text = product_search_text(product)
+        match_type = str(attribute.get('match_type') if isinstance(attribute, dict) else '').lower()
+        if match_type in {'numeric', 'range'}:
+            return cls._text_contains_constraint(search_text, value, require_all=False)
+        return cls._text_contains_constraint(search_text, value, require_all=True)
+
+    @classmethod
+    def _product_satisfies_hard_constraints(cls, product, slots: Dict[str, Any]) -> bool:
+        if str(getattr(product, 'status', '') or '').lower() != 'active':
+            return False
+        if int(getattr(product, 'quantity', 0) or 0) <= 0:
+            return False
+
+        price = cls._safe_number(getattr(product, 'price', None))
+        price_min = cls._safe_number(slots.get('price_min'))
+        price_max = cls._safe_number(slots.get('price_max'))
+        if price is None:
+            return False
+        if price_min is not None and price < price_min:
+            return False
+        if price_max is not None and price > price_max:
+            return False
+
+        product_type = slots.get('product_type') or slots.get('category')
+        if product_type and not cls._product_type_matches(product, product_type):
+            return False
+
+        brand = slots.get('brand')
+        if brand and not cls._text_contains_constraint(
+            f"{getattr(product, 'brand', '')} {getattr(product, 'title', '')}",
+            brand,
+            require_all=True,
+        ):
+            return False
+
+        condition = str(slots.get('condition') or '').strip().lower()
+        if condition and condition not in {'any', 'unknown'}:
+            product_condition = str(getattr(product, 'condition', '') or '').lower()
+            if condition == 'used':
+                if product_condition not in {'like_new', 'good', 'fair', 'poor', 'used'}:
+                    return False
+            elif condition != product_condition:
+                return False
+
+        if slots.get('location') and not cls._location_matches(product, slots.get('location')):
+            return False
+
+        if slots.get('color') and not cls._attribute_matches(product, 'color', slots.get('color')):
+            return False
+
+        attributes = slots.get('attributes') or {}
+        if isinstance(attributes, dict):
+            for key, attribute in attributes.items():
+                if key == 'color' and slots.get('color'):
+                    continue
+                if not cls._attribute_matches(product, str(key), attribute):
+                    return False
+
+        return True
+
+    @classmethod
+    def _apply_database_hard_filters(cls, queryset, slots: Dict[str, Any]):
+        price_min = cls._safe_number(slots.get('price_min'))
+        price_max = cls._safe_number(slots.get('price_max'))
+        if price_min is not None:
+            queryset = queryset.filter(price__gte=price_min)
+        if price_max is not None:
+            queryset = queryset.filter(price__lte=price_max)
+
+        location = str(slots.get('location') or '').strip()
+        if location:
+            queryset = queryset.filter(
+                Q(location__area__icontains=location)
+                | Q(location__city__icontains=location)
+                | Q(location__state__icontains=location)
+            )
+
+        product_type = str(slots.get('product_type') or slots.get('category') or '').strip()
+        if product_type:
+            queryset = cls._apply_product_family_filter(queryset, product_type)
+
+        brand = str(slots.get('brand') or '').strip()
+        if brand:
+            queryset = queryset.filter(Q(brand__icontains=brand) | Q(title__icontains=brand))
+
+        condition = str(slots.get('condition') or '').strip().lower()
+        if condition and condition not in {'any', 'unknown'}:
+            if condition == 'used':
+                queryset = queryset.filter(condition__in=['like_new', 'good', 'fair', 'poor', 'used'])
+            else:
+                queryset = queryset.filter(condition__iexact=condition)
+
+        return queryset
+
+    @staticmethod
+    def _apply_product_family_filter(queryset, product_type: str):
+        model = getattr(queryset, 'model', None)
+        meta = getattr(model, '_meta', None)
+        if meta is None:
+            return queryset.filter(product_family__icontains=product_type)
+
+        try:
+            field = meta.get_field('product_family')
+        except Exception:
+            return queryset.filter(product_family__icontains=product_type)
+
+        if not getattr(field, 'is_relation', False):
+            return queryset.filter(product_family__icontains=product_type)
+
+        related_meta = getattr(getattr(field, 'related_model', None), '_meta', None)
+        product_family_query = Q()
+        for related_field in ('name', 'title', 'label', 'slug'):
+            try:
+                related_meta.get_field(related_field)
+            except Exception:
+                continue
+            product_family_query |= Q(**{f'product_family__{related_field}__icontains': product_type})
+
+        if not product_family_query:
+            return queryset.filter(product_family__icontains=product_type)
+        return queryset.filter(product_family_query)
+
+    @staticmethod
+    def _merge_hard_filter_slots(extracted_slots: Dict[str, Any], ranking_slots: Dict[str, Any]) -> Dict[str, Any]:
+        hard_filter_slots = dict(extracted_slots or {})
+        for key, value in (ranking_slots or {}).items():
+            if value not in (None, '', [], {}):
+                hard_filter_slots[key] = value
+        return hard_filter_slots
+
+    @classmethod
+    def _filter_hard_constraint_candidates(cls, products, slots: Dict[str, Any]):
+        return [
+            product
+            for product in products
+            if cls._product_satisfies_hard_constraints(product, slots)
+        ]
+
+    @classmethod
     def _build_semantic_queryset(cls, slots: Dict, base_queryset=None):
         from market.models import Product
 
         base_qs = base_queryset if base_queryset is not None else Product.objects.all()
-        base_qs = base_qs.filter(status='active', quantity__gt=0)
-        base_qs = cls._apply_product_family_constraint(base_qs, slots)
-
-        if slots.get('category'):
-            category = str(slots['category']).strip()
-            product_type = str(slots.get('product_type') or '').strip()
-            if category and not product_type:
-                base_qs = base_qs.filter(Q(category__name__icontains=category) | Q(title__icontains=category))
-
-        if slots.get('brand'):
-            base_qs = base_qs.filter(Q(brand__icontains=slots['brand']) | Q(title__icontains=slots['brand']))
-
-        if slots.get('price_min') is not None:
-            base_qs = base_qs.filter(price__gte=slots['price_min'])
-
-        if slots.get('price_max') is not None:
-            base_qs = base_qs.filter(price__lte=slots['price_max'])
-
-        if slots.get('condition'):
-            cond = str(slots['condition']).lower()
-            if cond == 'used':
-                base_qs = base_qs.filter(condition__in=['fair', 'good', 'like_new', 'poor'])
-            else:
-                base_qs = base_qs.filter(condition__iexact=cond)
-
-        if slots.get('location'):
-            base_qs = base_qs.filter(Q(location__state__icontains=slots['location']) | Q(location__city__icontains=slots['location']))
-
-        if slots.get('color'):
-            base_qs = base_qs.filter(Q(title__icontains=slots['color']) | Q(description__icontains=slots['color']))
-
-        user_attributes = slots.get('attributes') or {}
-        if user_attributes and isinstance(user_attributes, dict):
-            try:
-                base_qs = base_qs.filter(attributes_verified=True)
-                for attr_key, attr_value in user_attributes.items():
-                    if not attr_key or not attr_value:
-                        continue
-                    base_qs = base_qs.filter(
-                        attributes__icontains=str(attr_value).strip().lower()
-                    )
-            except Exception as exc:
-                logger.warning("Verified attribute filter failed; continuing without attribute filter: %s", exc)
-
-        return base_qs
-
-    @classmethod
-    def _product_family_term(cls, slots: Dict) -> str:
-        product_type = str(slots.get('product_type') or '').strip()
-        if product_type:
-            return product_type
-        return str(slots.get('category') or '').strip()
-
-    @classmethod
-    def _token_boundary_pattern(cls, value: str) -> str:
-        tokens = re.findall(r"[a-z0-9]+", str(value or "").lower())
-        if not tokens:
-            return ""
-        phrase = r"[^a-z0-9]+".join(re.escape(token) for token in tokens)
-        return rf"(^|[^a-z0-9]){phrase}s?([^a-z0-9]|$)"
-
-    @classmethod
-    def _apply_product_family_constraint(cls, queryset, slots: Dict):
-        family_term = cls._product_family_term(slots)
-        if not family_term:
-            return queryset
-        family_pattern = cls._token_boundary_pattern(family_term)
-        if not family_pattern:
-            return queryset
-
-        family_filter = (
-            Q(category__name__iregex=family_pattern) |
-            Q(product_family__name__iregex=family_pattern) |
-            Q(product_family__aliases__iregex=family_pattern) |
-            Q(product_family__keywords__iregex=family_pattern) |
-            Q(title__iregex=family_pattern) |
-            Q(description__iregex=family_pattern) |
-            Q(brand__iregex=family_pattern) |
-            Q(search_tags__iregex=family_pattern) |
-            Q(attributes__iregex=family_pattern)
-        )
-
-        return queryset.filter(family_filter)
+        return base_qs.filter(status='active', quantity__gt=0)
 
     @classmethod
     def _find_products(cls, slots: Dict, top_k: int = 5, base_queryset=None):
-        qs = cls._build_semantic_queryset(slots, base_queryset=base_queryset)
-        query = SlotExtractor.build_semantic_query(slots)
+        structured_query = (slots or {}).get('structured_query')
+        if not isinstance(structured_query, dict):
+            structured_query = build_structured_query(
+                str((slots or {}).get('raw_query') or ''),
+                {},
+                slots or {},
+            )
+        ranking_slots = structured_query_to_slots(structured_query)
+        hard_filter_slots = cls._merge_hard_filter_slots(slots or {}, ranking_slots)
+
+        qs = cls._apply_database_hard_filters(
+            cls._build_semantic_queryset(hard_filter_slots, base_queryset=base_queryset),
+            hard_filter_slots,
+        )
+        query = build_retrieval_query(structured_query)
         candidate_limit = int(getattr(settings, 'PRODUCT_RECOMMENDER_CANDIDATE_LIMIT', 1000) or 1000)
 
         semantic_results = search_similar_products(
@@ -2243,9 +2337,22 @@ Respond ONLY with valid JSON, no other text.
                 candidates_qs.order_by('-is_verified_product', '-views_count', '-favorites_count', '-created_at')[:candidate_limit]
             )
 
+        candidates = cls._filter_hard_constraint_candidates(candidates, hard_filter_slots)
+        if len(candidates) < top_k:
+            seen_ids = {str(getattr(product, 'id', '')) for product in candidates}
+            fallback_pool = list(
+                candidates_qs.exclude(id__in=seen_ids)
+                .order_by('-is_verified_product', '-views_count', '-favorites_count', '-created_at')[:candidate_limit]
+            )
+            candidates.extend(
+                product
+                for product in cls._filter_hard_constraint_candidates(fallback_pool, hard_filter_slots)
+                if str(getattr(product, 'id', '')) not in seen_ids
+            )
+
         ranked = rank_products_hybrid(
             candidates,
-            slots=slots,
+            slots=ranking_slots,
             semantic_scores=semantic_scores,
         )
         return ranked[:top_k]
@@ -2273,6 +2380,7 @@ Respond ONLY with valid JSON, no other text.
             'condition': None,
             'attributes': {},
         }
+        relaxed.pop('structured_query', None)
         return cls._find_products(relaxed, top_k=top_k, base_queryset=base_queryset)
 
     @staticmethod
@@ -2338,142 +2446,24 @@ Respond ONLY with valid JSON, no other text.
         )
 
     @classmethod
-    def _switch_conversation(cls, session: ConversationSession, pending_constraints: Dict) -> Dict:
-        with transaction.atomic():
-            now = timezone.now()
-            session.completed_at = now
-            session.current_state = 'closed'
-            session.drift_flag = False
-            session.save(update_fields=['completed_at', 'current_state', 'drift_flag', 'updated_at'])
-
-            new_session = ConversationSession.objects.create(
-                session_id=str(uuid.uuid4()),
-                user=session.user,
-                user_name=session.user_name,
-                assistant_lane=session.assistant_lane,
-                assistant_mode=session.assistant_mode,
-                is_persistent=session.is_persistent,
-                current_state='chat_mode',
-                context=session.context,
-                context_data=session.context_data,
-                context_type=ConversationSession.CONTEXT_TYPE_RECOMMENDATION,
-                constraint_state=pending_constraints,
-                intent_state={
-                    'confirmed': False,
-                    'confirmation_pending': False,
-                    'clarification_count': 0,
-                    'last_intent': 'product_search',
-                },
-                conversation_history=[],
-            )
-        return cls._build_response(
-            reply="Got it — I started a new recommendation thread for this product category.",
-            source='recommendation_switch',
-            confidence=0.9,
-            drift_detected=False,
-            new_session_id=new_session.session_id,
-            session=session,
-            metadata={'pending_category_switch': False},
-        )
-
-    @classmethod
     def evaluate_recommendation_message(cls, session: ConversationSession, message: str) -> Dict:
         cls.initialize_context(session)
 
         prior_slots = session.constraint_state if isinstance(session.constraint_state, dict) else {}
         intent_state = session.intent_state if isinstance(session.intent_state, dict) else {}
         intent_state = cls._clean_intent_state(intent_state)
-        msg_lower = (message or '').lower().strip()
         if not isinstance(session.context_data, dict):
             session.context_data = {}
 
-        is_fresh = not prior_slots.get('product_type') and not prior_slots.get('category')
-        memory_greeting_sent = session.context_data.get('memory_greeting_sent', False)
-        if is_fresh and not memory_greeting_sent:
-            prior_search = cls._get_prior_search_slots(session.user)
-            if prior_search:
-                context_data = dict(session.context_data or {})
-                context_data['memory_greeting_sent'] = True
-                context_data['pending_memory_resume'] = prior_search
-                session.context_data = context_data
-                session.save(update_fields=['context_data', 'updated_at'])
-                return cls._build_response(
-                    reply=cls._build_memory_greeting(prior_search),
-                    source='buyer_memory_greeting',
-                    confidence=1.0,
-                    drift_detected=False,
-                    new_session_id=None,
-                    session=session,
-                )
-
-        pending = intent_state.get('pending_category_switch')
-        if pending and msg_lower in cls.SWITCH_CONFIRM_TOKENS:
-            return cls._switch_conversation(session, pending)
-
         context_data = dict(session.context_data or {})
-        pending_memory = context_data.get('pending_memory_resume')
-        if pending_memory and isinstance(pending_memory, dict):
-            resume_tokens = {
-                'yes', 'y', 'sure', 'okay', 'ok', 'yeah',
-                'continue', 'same', 'go ahead', 'pick up',
-            }
-            decline_tokens = {
-                'no', 'nope', 'nah', 'different', 'new',
-                'something else', 'start fresh', 'change',
-            }
-
-            if msg_lower in resume_tokens:
-                restored = dict(pending_memory)
-                restored['raw_query'] = message
-                context_data['pending_memory_resume'] = None
-                session.context_data = context_data
-                session.constraint_state = restored
-                session.intent_state = cls._clean_intent_state(
-                    intent_state,
-                    last_intent='product_search',
-                    pending_category_switch=None,
-                )
-                session.save(update_fields=[
-                    'constraint_state',
-                    'context_data',
-                    'intent_state',
-                    'updated_at',
-                ])
-                products = cls._find_products(restored)
-                if products:
-                    session.active_product = products[0]
-                    session.save(update_fields=['active_product', 'updated_at'])
-                    return cls._build_response(
-                        reply=cls._format_results_reply(products, restored),
-                        source='recommendation_memory_resume',
-                        confidence=0.9,
-                        drift_detected=False,
-                        new_session_id=None,
-                        session=session,
-                        metadata=cls._exact_match_metadata(products, restored),
-                    )
-                prior_slots = restored
-            elif msg_lower in decline_tokens:
-                context_data['pending_memory_resume'] = None
-                session.context_data = context_data
-                session.constraint_state = {}
-                session.save(update_fields=[
-                    'constraint_state',
-                    'context_data',
-                    'updated_at',
-                ])
-                return cls._build_response(
-                    reply="No problem! What are you looking for today?",
-                    source='recommendation_fresh_start',
-                    confidence=1.0,
-                    drift_detected=False,
-                    new_session_id=None,
-                    session=session,
-                )
-            else:
-                context_data['pending_memory_resume'] = None
-                session.context_data = context_data
-                session.save(update_fields=['context_data', 'updated_at'])
+        stale_keys = {'pending_memory_resume', 'memory_greeting_sent'}
+        if any(key in context_data for key in stale_keys) or intent_state.get('pending_category_switch'):
+            for key in stale_keys:
+                context_data.pop(key, None)
+            intent_state = cls._clean_intent_state(intent_state, pending_category_switch=None)
+            session.context_data = context_data
+            session.intent_state = intent_state
+            session.save(update_fields=['context_data', 'intent_state', 'updated_at'])
 
         prior_slots = session.constraint_state if isinstance(session.constraint_state, dict) else {}
         intent_state = session.intent_state if isinstance(session.intent_state, dict) else {}

@@ -2,6 +2,7 @@ from django.test import TestCase
 
 from accounts.models import SellerProfile, User
 from assistant.services.seller_memory_service import SellerMemoryService
+from market.models import Category
 
 
 class SellerMemoryServiceTests(TestCase):
@@ -19,6 +20,7 @@ class SellerMemoryServiceTests(TestCase):
             status=SellerProfile.STATUS_APPROVED,
             is_verified_seller=True,
         )
+        Category.objects.create(name='Phones', slug='phone')
 
     def test_update_from_conversation_updates_memory(self):
         ok = SellerMemoryService.update_from_conversation(

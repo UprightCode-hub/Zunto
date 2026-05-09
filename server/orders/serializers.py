@@ -122,6 +122,8 @@ class CheckoutSerializer(serializers.Serializer):
     shipping_country = serializers.CharField(default='Nigeria')
     shipping_phone = serializers.CharField(required=False)
     shipping_email = serializers.EmailField(required=False)
+    shipping_postal_code = serializers.CharField(required=False, allow_blank=True)
+    shipping_full_name = serializers.CharField(required=False, allow_blank=True)
     
              
     payment_method = serializers.ChoiceField(

@@ -1,6 +1,6 @@
 {
   "lane": "trust_safety_account",
-  "num_faqs": 52,
+  "num_faqs": 53,
   "dimension": 384,
   "vector_backend": "faiss_hnsw_ip",
   "source": "updated_faq.json"

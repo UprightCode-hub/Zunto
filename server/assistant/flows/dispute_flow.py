@@ -73,7 +73,7 @@ Type your choice or "menu" to return to main menu."""
 
 **Report ID:** #{report_id}
 
-Our support team will review your case and reach out within 24 hours. You can also reach out directly using the contact info shared earlier.
+Our support team will review your case and reach out within 24 hours.
 
 Is there anything else I can help you with today?
 Type "menu" to see options or ask another question."""
@@ -183,20 +183,8 @@ Type "menu" to see options or ask another question."""
         knowledge_refs = self._get_dispute_knowledge_refs(message)
         self.context['dispute']['knowledge_refs'] = knowledge_refs
 
-        self.context['dispute']['step'] = self.STEP_SHOW_CONTACT
-        self._save_context()
-
         logger.info(f"Dispute description collected (category: {category})")
-
-        reply = self.CONTACT_INFO.format(name=self.name)
-
-        return reply, {
-            'step': self.STEP_SHOW_CONTACT,
-            'complete': False,
-            'category': category,
-            'knowledge_refs': knowledge_refs,
-            'rag_lane': 'dispute_resolution',
-        }
+        return self._save_dispute_without_draft()
 
     def _get_dispute_knowledge_refs(self, message: str):
         """Retrieve dispute-lane policy references without mixing FAQ lanes."""
@@ -264,9 +252,8 @@ Type "menu" to see options or ask another question."""
         description = self.context['dispute']['description']
         category = self.context['dispute']['category']
 
-        if not self.llm or not self.llm.is_available():
-            logger.warning("LLM unavailable for draft generation")
-            return self._save_dispute_without_draft()
+        if not self.llm:
+            raise RuntimeError("Groq adapter is required for dispute draft generation")
 
         try:
             if platform == 'email':
@@ -342,6 +329,8 @@ Format:
                 max_tokens=300,
                 temperature=0.3
             )
+            if isinstance(result, dict) and result.get('error'):
+                raise RuntimeError(f"Groq draft generation failed: {result['error']}")
 
             draft = result['response'].strip()
 
@@ -364,14 +353,7 @@ Format:
 
         except Exception as e:
             logger.error(f"Draft generation failed: {e}", exc_info=True)
-            return (
-                f"I apologize, {self.name}, but I'm having trouble generating the draft right now.\n\n"
-                "You can copy your details and send them manually:\n\n"
-                f"{description}\n\n"
-                "I've logged your report. Our team will review it shortly.\n\n"
-                "Is there anything else I can help with?",
-                {'step': 'error', 'complete': True}
-            )
+            raise
 
     def _handle_draft_feedback(self, message: str) -> Tuple[str, Dict]:
         """Step 3: Handle feedback on generated draft."""
@@ -408,12 +390,8 @@ Format:
         current_draft = self.context['dispute']['draft_message']
         platform = self.context['dispute']['platform']
 
-        if not self.llm or not self.llm.is_available():
-            return (
-                "I'm unable to edit the draft right now. You can copy and modify it manually.\n\n"
-                "Type 'done' when you're satisfied, or 'menu' to return to main menu.",
-                {'step': self.STEP_DRAFT_SHOWN, 'complete': False}
-            )
+        if not self.llm:
+            raise RuntimeError("Groq adapter is required for dispute draft editing")
 
         try:
             prompt = f"""Edit this {platform} message based on the user's request.
@@ -432,6 +410,8 @@ Generate an improved version that incorporates the requested changes while maint
 Improved Message:"""
 
             result = self.llm.generate(prompt=prompt, max_tokens=300, temperature=0.3)
+            if isinstance(result, dict) and result.get('error'):
+                raise RuntimeError(f"Groq draft editing failed: {result['error']}")
             new_draft = result['response'].strip()
 
             self.context['dispute']['draft_message'] = new_draft
@@ -451,12 +431,8 @@ How's this? Type:
             return reply, {'step': self.STEP_DRAFT_SHOWN, 'complete': False}
 
         except Exception as e:
-            logger.error(f"Draft editing failed: {e}")
-            return (
-                "I had trouble editing that. You can copy the original and modify it manually.\n\n"
-                "Type 'done' to proceed or 'menu' to return.",
-                {'step': self.STEP_DRAFT_SHOWN, 'complete': False}
-            )
+            logger.error(f"Draft editing failed: {e}", exc_info=True)
+            raise
 
     def _detect_category(self, message: str) -> str:
         """Auto-detect dispute category from keywords."""

@@ -1,5 +1,5 @@
 {
-  "version": "2026-04-29-lane-separated-v1",
+  "version": "2026-05-09-targeted-marketplace-expansion-v1",
   "source_of_truth": true,
   "lanes": [
     "buyer_support",
@@ -7077,6 +7077,535 @@
         ],
         "priority": "low-value",
         "status": "rewrite",
+        "canonical_source": "updated_faq.json"
+      }
+    },
+    {
+      "id": 225,
+      "question": "How long does delivery usually take in Nigeria?",
+      "answer": "Delivery time depends on the seller, courier, buyer location, and item type. Same-city delivery is often fastest, while interstate delivery can take longer. Check the seller's stated delivery estimate before paying, and use Customer Service if a paid order is late or marked delivered but not received.",
+      "keywords": [
+        "delivery time",
+        "shipping time",
+        "how long delivery",
+        "same city delivery",
+        "interstate delivery"
+      ],
+      "primary_lane": "buyer_support",
+      "secondary_tags": [
+        "buyer",
+        "orders",
+        "delivery",
+        "shipping"
+      ],
+      "priority": "critical",
+      "status": "active",
+      "metadata": {
+        "section": "delivery_shipping",
+        "duplicate_count": 1,
+        "primary_lane": "buyer_support",
+        "secondary_tags": [
+          "buyer",
+          "orders",
+          "delivery",
+          "shipping"
+        ],
+        "priority": "critical",
+        "status": "active",
+        "canonical_source": "updated_faq.json"
+      }
+    },
+    {
+      "id": 226,
+      "question": "How does Paystack payment work on Zunto?",
+      "answer": "When you choose in-app payment, Zunto sends you through a Paystack checkout flow for card, bank transfer, or other supported payment options. Paystack confirms the transaction, Zunto records the payment reference, and the order can then be tracked in your account.",
+      "keywords": [
+        "paystack payment",
+        "paystack checkout",
+        "how paystack works",
+        "card payment",
+        "bank transfer payment"
+      ],
+      "primary_lane": "buyer_support",
+      "secondary_tags": [
+        "buyer",
+        "payments",
+        "paystack",
+        "checkout"
+      ],
+      "priority": "critical",
+      "status": "active",
+      "metadata": {
+        "section": "payments",
+        "duplicate_count": 1,
+        "primary_lane": "buyer_support",
+        "secondary_tags": [
+          "buyer",
+          "payments",
+          "paystack",
+          "checkout"
+        ],
+        "priority": "critical",
+        "status": "active",
+        "canonical_source": "updated_faq.json"
+      }
+    },
+    {
+      "id": 227,
+      "question": "What should I do if a product is out of stock before I pay?",
+      "answer": "Do not pay for an item the seller says is unavailable. Ask the seller to update the listing or suggest a valid alternative. If the listing still appears available after the seller says it is out of stock, report the listing so it can be reviewed.",
+      "keywords": [
+        "out of stock before payment",
+        "not available",
+        "seller says unavailable",
+        "item unavailable",
+        "available listing"
+      ],
+      "primary_lane": "buyer_support",
+      "secondary_tags": [
+        "buyer",
+        "stock",
+        "listing",
+        "availability"
+      ],
+      "priority": "critical",
+      "status": "active",
+      "metadata": {
+        "section": "catalog_availability",
+        "duplicate_count": 1,
+        "primary_lane": "buyer_support",
+        "secondary_tags": [
+          "buyer",
+          "stock",
+          "listing",
+          "availability"
+        ],
+        "priority": "critical",
+        "status": "active",
+        "canonical_source": "updated_faq.json"
+      }
+    },
+    {
+      "id": 228,
+      "question": "What is Zunto's return policy for buyers?",
+      "answer": "Returns are reviewed based on the order, seller terms, delivery evidence, and the reason for return. Strong return reasons include wrong item, damaged item, counterfeit item, or item not matching the listing. Change-of-mind returns depend on the seller's stated terms.",
+      "keywords": [
+        "return policy",
+        "return item",
+        "buyer return",
+        "wrong item return",
+        "damaged item return"
+      ],
+      "primary_lane": "buyer_support",
+      "secondary_tags": [
+        "buyer",
+        "returns",
+        "refunds",
+        "orders"
+      ],
+      "priority": "critical",
+      "status": "active",
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 1,
+        "primary_lane": "buyer_support",
+        "secondary_tags": [
+          "buyer",
+          "returns",
+          "refunds",
+          "orders"
+        ],
+        "priority": "critical",
+        "status": "active",
+        "canonical_source": "updated_faq.json"
+      }
+    },
+    {
+      "id": 229,
+      "question": "What should I check before confirming delivery?",
+      "answer": "Confirm that the item arrived, matches the listing, is not visibly damaged, and includes the promised accessories. If anything is wrong, do not confirm delivery yet; contact the seller or Customer Service with photos and the order number.",
+      "keywords": [
+        "confirm delivery",
+        "before confirming delivery",
+        "inspect delivery",
+        "received item",
+        "delivery confirmation"
+      ],
+      "primary_lane": "buyer_support",
+      "secondary_tags": [
+        "buyer",
+        "delivery",
+        "orders",
+        "disputes"
+      ],
+      "priority": "critical",
+      "status": "active",
+      "metadata": {
+        "section": "delivery_shipping",
+        "duplicate_count": 1,
+        "primary_lane": "buyer_support",
+        "secondary_tags": [
+          "buyer",
+          "delivery",
+          "orders",
+          "disputes"
+        ],
+        "priority": "critical",
+        "status": "active",
+        "canonical_source": "updated_faq.json"
+      }
+    },
+    {
+      "id": 230,
+      "question": "Can I inspect an item before accepting delivery?",
+      "answer": "Yes, where the seller or courier process allows it. Inspect quickly and respectfully, checking that the product matches the listing. If the seller refuses inspection for a high-value item, consider using in-app payment and documented delivery evidence.",
+      "keywords": [
+        "inspect item",
+        "inspect before delivery",
+        "check item before accepting",
+        "delivery inspection",
+        "accepting delivery"
+      ],
+      "primary_lane": "buyer_support",
+      "secondary_tags": [
+        "buyer",
+        "delivery",
+        "safety",
+        "orders"
+      ],
+      "priority": "useful",
+      "status": "active",
+      "metadata": {
+        "section": "delivery_shipping",
+        "duplicate_count": 1,
+        "primary_lane": "buyer_support",
+        "secondary_tags": [
+          "buyer",
+          "delivery",
+          "safety",
+          "orders"
+        ],
+        "priority": "useful",
+        "status": "active",
+        "canonical_source": "updated_faq.json"
+      }
+    },
+    {
+      "id": 231,
+      "question": "How do I open a dispute for an order?",
+      "answer": "Open Customer Service, choose buyer/seller dispute, and select the affected order or chat. Explain what happened, what resolution you want, and attach evidence such as photos, delivery proof, payment reference, or chat screenshots.",
+      "keywords": [
+        "open dispute",
+        "start dispute",
+        "dispute order",
+        "raise complaint",
+        "order complaint"
+      ],
+      "primary_lane": "dispute_resolution",
+      "secondary_tags": [
+        "buyer",
+        "seller",
+        "disputes",
+        "orders",
+        "evidence"
+      ],
+      "priority": "critical",
+      "status": "active",
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 1,
+        "primary_lane": "dispute_resolution",
+        "secondary_tags": [
+          "buyer",
+          "seller",
+          "disputes",
+          "orders",
+          "evidence"
+        ],
+        "priority": "critical",
+        "status": "active",
+        "canonical_source": "updated_faq.json"
+      }
+    },
+    {
+      "id": 232,
+      "question": "What evidence should I upload for an order dispute?",
+      "answer": "Useful evidence includes product photos, unboxing photos or video, delivery receipt, tracking information, Paystack reference, order number, and chat screenshots. Clear evidence helps support compare the order, listing, seller claims, and buyer complaint faster.",
+      "keywords": [
+        "dispute evidence",
+        "upload proof",
+        "photos for dispute",
+        "paystack reference dispute",
+        "chat screenshots"
+      ],
+      "primary_lane": "dispute_resolution",
+      "secondary_tags": [
+        "buyer",
+        "seller",
+        "disputes",
+        "evidence",
+        "payments"
+      ],
+      "priority": "critical",
+      "status": "active",
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 1,
+        "primary_lane": "dispute_resolution",
+        "secondary_tags": [
+          "buyer",
+          "seller",
+          "disputes",
+          "evidence",
+          "payments"
+        ],
+        "priority": "critical",
+        "status": "active",
+        "canonical_source": "updated_faq.json"
+      }
+    },
+    {
+      "id": 233,
+      "question": "What happens after I submit a dispute?",
+      "answer": "Zunto links the dispute to the order or chat, reviews the evidence, may ask either party for more details, and then recommends a resolution such as seller action, refund review, return coordination, or escalation to support staff.",
+      "keywords": [
+        "after dispute",
+        "dispute process",
+        "what happens next dispute",
+        "support review",
+        "dispute resolution steps"
+      ],
+      "primary_lane": "dispute_resolution",
+      "secondary_tags": [
+        "buyer",
+        "seller",
+        "disputes",
+        "support_contact"
+      ],
+      "priority": "critical",
+      "status": "active",
+      "metadata": {
+        "section": "returns_disputes",
+        "duplicate_count": 1,
+        "primary_lane": "dispute_resolution",
+        "secondary_tags": [
+          "buyer",
+          "seller",
+          "disputes",
+          "support_contact"
+        ],
+        "priority": "critical",
+        "status": "active",
+        "canonical_source": "updated_faq.json"
+      }
+    },
+    {
+      "id": 234,
+      "question": "How do I become a seller on Zunto?",
+      "answer": "Create or sign in to your account, complete your seller profile, add your business or personal contact details, and publish your first listing with clear photos, price, condition, location, and stock quantity. Verification improves buyer trust but basic selling can begin from your account.",
+      "keywords": [
+        "become seller",
+        "seller registration",
+        "start selling",
+        "create seller account",
+        "seller profile"
+      ],
+      "primary_lane": "seller_support",
+      "secondary_tags": [
+        "seller",
+        "seller_onboarding",
+        "listing",
+        "account"
+      ],
+      "priority": "critical",
+      "status": "active",
+      "metadata": {
+        "section": "seller_support",
+        "duplicate_count": 1,
+        "primary_lane": "seller_support",
+        "secondary_tags": [
+          "seller",
+          "seller_onboarding",
+          "listing",
+          "account"
+        ],
+        "priority": "critical",
+        "status": "active",
+        "canonical_source": "updated_faq.json"
+      }
+    },
+    {
+      "id": 235,
+      "question": "What should sellers do when a product is out of stock?",
+      "answer": "Update the product quantity or mark the listing sold/reserved as soon as stock runs out. If a buyer has already paid, contact support or use the order flow so the buyer can receive a replacement option, cancellation, or refund review.",
+      "keywords": [
+        "seller out of stock",
+        "update stock",
+        "product unavailable seller",
+        "mark sold",
+        "stock quantity"
+      ],
+      "primary_lane": "seller_support",
+      "secondary_tags": [
+        "seller",
+        "stock",
+        "listing",
+        "orders"
+      ],
+      "priority": "critical",
+      "status": "active",
+      "metadata": {
+        "section": "seller_support",
+        "duplicate_count": 1,
+        "primary_lane": "seller_support",
+        "secondary_tags": [
+          "seller",
+          "stock",
+          "listing",
+          "orders"
+        ],
+        "priority": "critical",
+        "status": "active",
+        "canonical_source": "updated_faq.json"
+      }
+    },
+    {
+      "id": 236,
+      "question": "How should sellers handle delivery timelines?",
+      "answer": "State realistic delivery timelines before payment, dispatch only when the item is ready, share tracking or dispatch proof when available, and notify the buyer quickly if a delay occurs. Late delivery without communication can lead to disputes.",
+      "keywords": [
+        "seller delivery timeline",
+        "dispatch time",
+        "delivery delay seller",
+        "shipping promise",
+        "seller tracking"
+      ],
+      "primary_lane": "seller_support",
+      "secondary_tags": [
+        "seller",
+        "delivery",
+        "shipping",
+        "disputes"
+      ],
+      "priority": "critical",
+      "status": "active",
+      "metadata": {
+        "section": "delivery_shipping",
+        "duplicate_count": 1,
+        "primary_lane": "seller_support",
+        "secondary_tags": [
+          "seller",
+          "delivery",
+          "shipping",
+          "disputes"
+        ],
+        "priority": "critical",
+        "status": "active",
+        "canonical_source": "updated_faq.json"
+      }
+    },
+    {
+      "id": 237,
+      "question": "What details should I include when contacting Zunto Support?",
+      "answer": "Include the order number, payment or Paystack reference, product title, seller or buyer name, delivery status, screenshots, and a short description of what went wrong. More context helps support route the issue faster.",
+      "keywords": [
+        "contact support details",
+        "support information",
+        "what to send support",
+        "order number support",
+        "paystack reference support"
+      ],
+      "primary_lane": "platform_help",
+      "secondary_tags": [
+        "support_contact",
+        "orders",
+        "payments",
+        "app_technical"
+      ],
+      "priority": "critical",
+      "status": "active",
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1,
+        "primary_lane": "platform_help",
+        "secondary_tags": [
+          "support_contact",
+          "orders",
+          "payments",
+          "app_technical"
+        ],
+        "priority": "critical",
+        "status": "active",
+        "canonical_source": "updated_faq.json"
+      }
+    },
+    {
+      "id": 238,
+      "question": "When should I use Customer Service instead of the FAQ?",
+      "answer": "Use the FAQ for general policy and how-to questions. Use Customer Service when the issue needs your real account records, such as a specific payment, refund, delivery, order, seller, buyer, or dispute.",
+      "keywords": [
+        "customer service vs faq",
+        "use customer service",
+        "specific order help",
+        "real account records",
+        "support flow"
+      ],
+      "primary_lane": "platform_help",
+      "secondary_tags": [
+        "support_contact",
+        "orders",
+        "payments",
+        "disputes"
+      ],
+      "priority": "critical",
+      "status": "active",
+      "metadata": {
+        "section": "general",
+        "duplicate_count": 1,
+        "primary_lane": "platform_help",
+        "secondary_tags": [
+          "support_contact",
+          "orders",
+          "payments",
+          "disputes"
+        ],
+        "priority": "critical",
+        "status": "active",
+        "canonical_source": "updated_faq.json"
+      }
+    },
+    {
+      "id": 239,
+      "question": "How can I tell if a Paystack checkout is legitimate?",
+      "answer": "Only use checkout links opened from inside Zunto or the official Zunto payment flow. Do not enter card or bank details into links sent casually in chat. If a seller sends a separate payment link and claims it is Zunto, contact support before paying.",
+      "keywords": [
+        "fake paystack link",
+        "legitimate paystack checkout",
+        "safe payment link",
+        "payment scam",
+        "seller sent payment link"
+      ],
+      "primary_lane": "trust_safety_account",
+      "secondary_tags": [
+        "payments",
+        "paystack",
+        "fraud",
+        "safety"
+      ],
+      "priority": "critical",
+      "status": "active",
+      "metadata": {
+        "section": "trust_safety",
+        "duplicate_count": 1,
+        "primary_lane": "trust_safety_account",
+        "secondary_tags": [
+          "payments",
+          "paystack",
+          "fraud",
+          "safety"
+        ],
+        "priority": "critical",
+        "status": "active",
         "canonical_source": "updated_faq.json"
       }
     }

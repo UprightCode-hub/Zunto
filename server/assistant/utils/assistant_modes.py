@@ -44,9 +44,23 @@ def resolve_legacy_lane(assistant_mode: str) -> str:
 def is_dispute_message(message: str) -> bool:
     text = (message or '').lower()
     keywords = {
-        'dispute', 'complaint', 'issue', 'problem', 'refund', 'scam',
-        'seller', 'buyer', 'order issue', 'did not receive', 'not delivered',
-        'damaged', 'chargeback', 'wrong item', 'fake product'
+        'dispute', 'formal complaint', 'chargeback', 'scam', 'fraud',
+        'did not receive', 'not delivered', 'never arrived', 'damaged',
+        'wrong item', 'fake product', 'counterfeit', 'seller refused',
+        'buyer refused', 'report seller', 'report buyer', 'escalate',
+        'mediation', 'evidence', 'proof',
+    }
+    return any(keyword in text for keyword in keywords)
+
+
+def is_customer_service_message(message: str) -> bool:
+    text = (message or '').lower()
+    keywords = {
+        'order', 'payment', 'paystack', 'checkout', 'delivery', 'shipping',
+        'tracking', 'track', 'refund', 'return', 'cancel', 'receipt',
+        'address', 'account', 'login', 'password', 'verification', 'wishlist',
+        'favorite', 'seller', 'buyer', 'listing', 'payout', 'support',
+        'help', 'complaint', 'dispute', 'damaged', 'wrong item',
     }
     return any(keyword in text for keyword in keywords)
 
@@ -76,10 +90,10 @@ def mode_gate_response(mode: str, message: str):
             "This AI inbox is for general marketplace Q&A."
         )
 
-    if mode == ASSISTANT_MODE_CUSTOMER_SERVICE and not is_dispute_message(message):
+    if mode == ASSISTANT_MODE_CUSTOMER_SERVICE and is_recommendation_message(message):
         return (
-            "Customer Service mode is for disputes only. "
-            "Please describe the dispute, affected order/product, and timeline."
+            "For personalized product recommendations, please start from the homepage assistant. "
+            "Customer Service can help with orders, payments, delivery, returns, accounts, and disputes."
         )
 
     return None

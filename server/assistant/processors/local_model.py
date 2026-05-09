@@ -59,6 +59,10 @@ class LocalModelAdapter:
 
     def _initialize_groq(self):
         """Initialize Groq API client."""
+        if getattr(settings, 'AI_COMPONENTS_DISABLED', False):
+            logger.info("Groq LLM initialization skipped; AI components are disabled.")
+            return
+
         try:
             if Groq is None:
                 logger.warning("groq package not installed; LLM will be unavailable.")

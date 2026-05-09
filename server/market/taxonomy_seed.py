@@ -8,6 +8,7 @@ from django.db import transaction
 from django.utils.text import slugify
 
 from accounts.models import SellerProfile
+from market.demo_image_urls import existing_image_url_or_blank, image_url_for_product
 from market.models import (
     Category,
     Location,
@@ -22,6 +23,7 @@ User = get_user_model()
 SCALE_DATASET_LABEL = 'zunto_taxonomy_scale_v1'
 SCALE_SELLER_DOMAIN = '@zunto-scale.local'
 SCALE_PASSWORD = 'ZuntoScaleSeed@2026!'
+IMAGE_SOURCE = 'demo_external_url:loremflickr_category'
 
 TOP_CATEGORIES = [
     'Phones & Tablets',
@@ -475,6 +477,22 @@ def _seed_products(
         location = locations[(index - 1) % len(locations)]
         brand = BRANDS[index % len(BRANDS)]
         title = _build_product_title(family, index)
+        existing_product = Product.objects.filter(seller=seller, title=title).only(
+            'image_url_locked',
+            'image_source',
+        ).first()
+        existing_image_url = existing_image_url_or_blank(getattr(existing_product, 'image_url_locked', ''))
+        image_url = existing_image_url or image_url_for_product(
+            title=title,
+            category=(family.subcategory or family.top_category).name,
+            product_family=family.name,
+            brand=brand,
+        )
+        image_source = (
+            getattr(existing_product, 'image_source', '')
+            if existing_image_url
+            else IMAGE_SOURCE
+        )
         attrs = _attributes_for_family(family, index)
         description = (
             f'{title} in {family.get_full_path()}. '
@@ -513,6 +531,8 @@ def _seed_products(
                 'views_count': 20 + index % 500,
                 'favorites_count': index % 80,
                 'shares_count': index % 20,
+                'image_url_locked': image_url,
+                'image_source': image_source,
             },
         )
         created_products.append(product)
@@ -531,8 +551,7 @@ def _seed_products(
     #   2. Builds all embedding texts in one Python loop (no DB hits).
     #   3. Calls _encode_batch() once — one model.encode() call for all products.
     #   4. Writes all vectors with bulk_update (one SQL statement) and
-    #      bulk_sync_product_vectors (one write-lock acquisition for sqlite_vec,
-    #      one cursor block for pgvector).
+    #      bulk_sync_product_vectors (one cursor block for pgvector).
     # -------------------------------------------------------------------------
     if rebuild_embeddings and created_products:
         from market.search.embeddings import _build_product_embedding_text, _encode_batch

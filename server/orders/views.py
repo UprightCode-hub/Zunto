@@ -112,10 +112,12 @@ class CheckoutView(APIView):
                         'shipping_address': saved_address.address,
                         'shipping_city': saved_address.city,
                         'shipping_state': saved_address.state,
-                        'shipping_country': saved_address.country,
-                        'shipping_phone': saved_address.phone,
-                        'shipping_email': request.user.email,
-                    }
+                    'shipping_country': saved_address.country,
+                    'shipping_phone': saved_address.phone,
+                    'shipping_email': request.user.email,
+                    'shipping_postal_code': saved_address.postal_code,
+                    'shipping_full_name': saved_address.full_name,
+                }
                 except ShippingAddress.DoesNotExist:
                     return Response({
                         'error': 'Shipping address not found.'
@@ -128,6 +130,8 @@ class CheckoutView(APIView):
                     'shipping_country': serializer.validated_data.get('shipping_country', 'Nigeria'),
                     'shipping_phone': serializer.validated_data['shipping_phone'],
                     'shipping_email': serializer.validated_data['shipping_email'],
+                    'shipping_postal_code': serializer.validated_data.get('shipping_postal_code', ''),
+                    'shipping_full_name': serializer.validated_data.get('shipping_full_name', request.user.get_full_name()),
                 }
             
                               
@@ -155,13 +159,7 @@ class CheckoutView(APIView):
                 product = cart_item.product
                 
                                    
-                primary_image = product.images.filter(is_primary=True).first()
-                if not primary_image:
-                    primary_image = product.images.first()
-                
-                product_image_url = ''
-                if primary_image:
-                    product_image_url = request.build_absolute_uri(primary_image.image.url)
+                product_image_url = product.image_url
                 
                 OrderItem.objects.create(
                     order=order,

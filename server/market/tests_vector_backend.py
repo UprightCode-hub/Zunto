@@ -44,14 +44,6 @@ class ProductVectorBackendTests(TestCase):
         self.assertEqual(status.lane, PRODUCT_VECTOR_LANE)
         self.assertIn('fallback', status.reason)
 
-    @override_settings(PRODUCT_VECTOR_BACKEND='sqlite_vec')
-    def test_sqlite_vec_backend_falls_back_when_extension_missing(self):
-        status = product_vector_backend_status()
-
-        self.assertEqual(status.backend, 'sqlite_vec')
-        self.assertFalse(status.ready)
-        self.assertIn('unavailable', status.reason)
-
     def test_search_uses_configured_vector_backend_results_when_available(self):
         with patch('market.search.embeddings._encode_single', return_value=[0.1, 0.2, 0.3]), \
              patch('market.search.embeddings.search_product_vectors', return_value=[

@@ -105,12 +105,14 @@ class ContextManager:
     ):
         try:
             message_num = self.context['metadata']['message_count'] + 1
+            timestamp = datetime.now().isoformat()
+            safe_content = str(content or '')
 
             message = {
                 'num': message_num,
                 'role': role,
-                'content': content[:500],
-                'timestamp': datetime.now().isoformat(),
+                'content': safe_content[:500],
+                'timestamp': timestamp,
                 'intent': intent,
                 'emotion': emotion,
                 'confidence': confidence
@@ -127,15 +129,35 @@ class ContextManager:
 
             self.context['history'] = history
             self.context['metadata']['message_count'] = message_num
-            self.context['metadata']['last_active'] = datetime.now().isoformat()
+            self.context['metadata']['last_active'] = timestamp
+
+            full_history = (
+                self.session.conversation_history
+                if isinstance(self.session.conversation_history, list)
+                else []
+            )
+            history_record = {
+                'num': message_num,
+                'role': role,
+                'content': safe_content[:4000],
+                'timestamp': timestamp,
+                'intent': intent,
+                'emotion': emotion,
+                'confidence': confidence,
+            }
+            if metadata:
+                history_record['metadata'] = metadata
+            full_history.append(history_record)
+            self.session.conversation_history = full_history[-400:]
+            self.session.message_count = message_num
 
             if role == 'user':
-                self._update_traits(content, intent)
-                self._track_sentiment(content, emotion, message_num)
+                self._update_traits(safe_content, intent)
+                self._track_sentiment(safe_content, emotion, message_num)
 
-            self._update_short_memory_summary(role=role, content=content, intent=intent)
+            self._update_short_memory_summary(role=role, content=safe_content, intent=intent)
             self._save()
-            logger.info(f"Message {message_num} added ({role}): {content[:50]}...")
+            logger.info(f"Message {message_num} added ({role}): {safe_content[:50]}...")
         except Exception as e:
             logger.error(f"Add message error: {e}", exc_info=True)
 
@@ -393,7 +415,7 @@ class ContextManager:
     def _save(self):
         try:
             self.session.context = self.context
-            self.session.save(update_fields=['context', 'updated_at'])
+            self.session.save(update_fields=['context', 'conversation_history', 'message_count', 'updated_at'])
         except Exception as e:
             logger.error(f"Context save failed: {e}", exc_info=True)
 

@@ -43,8 +43,11 @@ urlpatterns = [
     
                                   
     path('api/admin/logs/', views.recent_logs, name='recent_logs'),
+    path('api/admin/reports/queue/', views.admin_reports_queue, name='admin_reports_queue'),
+    path('api/admin/reports/<int:report_id>/', views.admin_report_update, name='admin_report_update'),
     path('api/admin/reports/', views.recent_reports, name='recent_reports'),
     path('api/admin/metrics/', views.assistant_metrics_summary, name='assistant_metrics_summary'),
+    path('api/admin/dispute-tickets/', views.admin_dispute_tickets, name='admin_dispute_tickets'),
     path('api/admin/disputes/oversight-summary/', views.admin_disputes_oversight_summary, name='admin_disputes_oversight_summary'),
     path('api/admin/disputes/escalated/', views.admin_disputes_escalated, name='admin_disputes_escalated'),
     path('api/admin/disputes/high-risk/', views.admin_disputes_high_risk, name='admin_disputes_high_risk'),

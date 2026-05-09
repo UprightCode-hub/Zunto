@@ -1,3 +1,6 @@
+# DEPRECATED: This Blueprint is outdated and intentionally kept only for
+# historical reference. Render auto-detects the production Blueprint from
+# the repository root at ../render.yaml.
 services:
   # Backend Django API
   - type: web
@@ -15,6 +18,8 @@ services:
         generateValue: true
       - key: DEBUG
         value: False
+      - key: RENDER_FREE_TIER
+        value: True
       - key: ALLOWED_HOSTS
         sync: false
       - key: GROQ_API_KEY

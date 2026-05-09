@@ -27,6 +27,13 @@ def _build_media_url(request, image_field):
     return image_url
 
 
+def _build_locked_product_image_url(request, product):
+    image_url = getattr(product, 'image_url_locked', '') or ''
+    if request and image_url.startswith('/'):
+        return request.build_absolute_uri(image_url)
+    return image_url or None
+
+
 class CategorySerializer(serializers.ModelSerializer):
     """Serializer for categories"""
     
@@ -114,8 +121,7 @@ class ProductImageSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        request = self.context.get('request')
-        data['image'] = _build_media_url(request, instance.image)
+        data['image'] = _build_media_url(self.context.get('request'), instance.image)
         return data
 
     class Meta:
@@ -214,9 +220,10 @@ class ProductListSerializer(serializers.ModelSerializer):
     
     category_name = serializers.CharField(source='category.name', read_only=True)
     product_family_name = serializers.CharField(source='product_family.name', read_only=True)
-    location_display = serializers.CharField(source='location.__str__', read_only=True)
+    location_display = serializers.SerializerMethodField()
     seller_name = serializers.CharField(source='seller.get_full_name', read_only=True)
     primary_image = serializers.SerializerMethodField()
+    image_url_locked = serializers.SerializerMethodField()
     is_favorited = serializers.SerializerMethodField()
     average_rating = serializers.SerializerMethodField()
     review_count = serializers.SerializerMethodField()
@@ -230,7 +237,7 @@ class ProductListSerializer(serializers.ModelSerializer):
             'id', 'title', 'slug', 'description', 'listing_type', 'price', 'negotiable',
             'condition', 'brand', 'status', 'category_name', 
             'product_family_name',
-            'location_display', 'seller_name', 'primary_image',
+            'location_display', 'seller_name', 'primary_image', 'image_url_locked', 'image_source',
             'is_featured', 'is_boosted', 'is_verified', 'is_verified_product', 'is_favorited',
             'views_count', 'favorites_count', 'average_rating', 'review_count',
             'seller_commerce_mode', 'seller_profile_status', 'is_managed_commerce_eligible',
@@ -250,17 +257,13 @@ class ProductListSerializer(serializers.ModelSerializer):
         return obj.review_count
 
     def get_primary_image(self, obj):
-        request = self.context.get('request')
+        return _build_locked_product_image_url(self.context.get('request'), obj)
 
-        prefetched_images = getattr(obj, 'prefetched_images', None)
-        if prefetched_images:
-            return _build_media_url(request, prefetched_images[0].image)
+    def get_image_url_locked(self, obj):
+        return _build_locked_product_image_url(self.context.get('request'), obj)
 
-        primary_image = obj.images.order_by('-is_primary', 'order', 'uploaded_at').first()
-        if primary_image:
-            return _build_media_url(request, primary_image.image)
-
-        return None
+    def get_location_display(self, obj):
+        return str(obj.location) if obj.location else ''
 
     def get_is_favorited(self, obj):
         return bool(getattr(obj, 'is_favorited', False))
@@ -311,6 +314,8 @@ class ProductDetailSerializer(serializers.ModelSerializer):
     location = LocationSerializer(read_only=True)
     seller = SellerInfoSerializer(read_only=True)
     images = ProductImageSerializer(many=True, read_only=True)
+    primary_image = serializers.SerializerMethodField()
+    image_url_locked = serializers.SerializerMethodField()
     videos = serializers.SerializerMethodField()
     is_favorited = serializers.SerializerMethodField()
     
@@ -321,9 +326,16 @@ class ProductDetailSerializer(serializers.ModelSerializer):
             'category', 'product_family', 'location', 'price', 'negotiable', 'condition',
             'brand', 'quantity', 'status', 'is_featured', 'is_boosted',
             'is_verified', 'is_verified_product', 'is_favorited', 'views_count', 'favorites_count',
-            'shares_count', 'search_tags', 'images', 'videos', 'created_at', 'updated_at'
+            'shares_count', 'search_tags', 'primary_image', 'image_url_locked', 'image_source',
+            'images', 'videos', 'created_at', 'updated_at'
         ]
         read_only_fields = fields
+
+    def get_primary_image(self, obj):
+        return _build_locked_product_image_url(self.context.get('request'), obj)
+
+    def get_image_url_locked(self, obj):
+        return _build_locked_product_image_url(self.context.get('request'), obj)
     
     def get_is_favorited(self, obj):
         request = self.context.get('request')

@@ -32,7 +32,7 @@ class LaneSeparatedRAGTests(TestCase):
         self.assertTrue(FAQ_PATH.exists())
         self.assertFalse(DEDUPED_PATH.exists())
         self.assertTrue(self.payload.get('source_of_truth'))
-        self.assertEqual(len(self.faqs), 212)
+        self.assertEqual(len(self.faqs), 227)
 
     def test_every_faq_has_one_valid_primary_lane_and_priority(self):
         valid_priorities = {'critical', 'useful', 'low-value', 'obsolete'}

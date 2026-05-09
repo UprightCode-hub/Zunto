@@ -315,6 +315,21 @@ class Product(SoftDeleteModel):
             "Examples: ['iphone', '128gb', 'tokunbo', 'gaming laptop']."
         ),
     )
+    image_url_locked = models.URLField(
+        max_length=1000,
+        blank=True,
+        default='',
+        help_text=(
+            "Permanent URL for the product's assigned image. Must point to "
+            "Zunto-owned media storage and must not be recomputed from title."
+        ),
+    )
+    image_source = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        help_text="One-time source metadata for the locked product image.",
+    )
     attributes = models.JSONField(
         default=dict,
         blank=True,
@@ -359,6 +374,8 @@ class Product(SoftDeleteModel):
         return self.title
     
     def save(self, *args, **kwargs):
+        should_lock_image = not self.image_url_locked and not kwargs.get('raw', False)
+
         if self.product_family_id and not self.category_id:
             family_category = self.product_family.subcategory or self.product_family.top_category
             self.category = family_category
@@ -368,18 +385,27 @@ class Product(SoftDeleteModel):
                 seller_profile = self.seller.seller_profile
             except ObjectDoesNotExist:
                 seller_profile = None
-            if seller_profile:
+            if seller_profile and not self.location_id:
                 self.location_id = seller_profile.active_location_id
 
         if not self.slug:
-            base_slug = slugify(self.title)
-            slug = base_slug
+            base_slug = slugify(self.title) or 'product'
+            slug = base_slug[:255]
             counter = 1
-            while Product.objects.filter(slug=slug).exists():
-                slug = f"{base_slug}-{counter}"
+            slug_queryset = Product.all_objects.all()
+            if self.pk:
+                slug_queryset = slug_queryset.exclude(pk=self.pk)
+            while slug_queryset.filter(slug=slug).exists():
+                suffix = f"-{counter}"
+                slug = f"{base_slug[:255 - len(suffix)]}{suffix}"
                 counter += 1
             self.slug = slug
         super().save(*args, **kwargs)
+
+        if should_lock_image:
+            from market.product_images import ensure_product_image_locked
+
+            ensure_product_image_locked(self)
     
     @property
     def is_available(self):
@@ -405,6 +431,11 @@ class Product(SoftDeleteModel):
     def review_count(self):
         """Get total number of approved reviews"""
         return self.reviews.filter(is_approved=True).count()
+
+    @property
+    def image_url(self):
+        """Permanent product image URL assigned once and never title-derived."""
+        return self.image_url_locked or ''
 
 
 class ProductImage(models.Model):

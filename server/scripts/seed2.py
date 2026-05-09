@@ -60,11 +60,13 @@ from faker import Faker
 import requests
 
 from accounts.models import User, SellerProfile
+from market.demo_image_urls import image_url_for_product
 from market.models import Category, Location, Product, ProductImage
 
 fake = Faker("en_NG")  # Nigerian locale for realistic names
 Faker.seed(42)
 random.seed(42)
+IMAGE_SOURCE = "demo_external_url:loremflickr_category"
 
 # ---------------------------------------------------------------------------
 # Seed data definitions
@@ -517,6 +519,11 @@ def seed_products(
                 continue
 
             with transaction.atomic():
+                image_url = image_url_for_product(
+                    title=title,
+                    category=category.name,
+                    brand=tmpl.get("brand", ""),
+                )
                 product = Product(
                     seller=seller,
                     title=title,
@@ -532,6 +539,8 @@ def seed_products(
                     quantity=tmpl.get("quantity", 1),
                     status="active",
                     is_featured=random.random() < 0.2,
+                    image_url_locked=image_url,
+                    image_source=IMAGE_SOURCE,
                 )
                 product.save()  # triggers slug generation + location assignment
 
@@ -571,9 +580,7 @@ def seed_products(
 # ---------------------------------------------------------------------------
 
 def main():
-    use_r2 = getattr(settings, "USE_OBJECT_STORAGE", False)
-    storage_mode = "Cloudflare R2" if use_r2 else "local filesystem"
-    log(f"Starting Zunto seed  |  storage: {storage_mode}")
+    log("Starting Zunto seed  |  storage: local filesystem")
     log(f"Database: {settings.DATABASES['default'].get('NAME', '(see settings)')}")
     print()
 

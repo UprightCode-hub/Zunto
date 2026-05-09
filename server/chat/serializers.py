@@ -152,17 +152,7 @@ class ConversationListSerializer(serializers.ModelSerializer):
     
     def get_product_image(self, obj):
         """Get product's primary image URL"""
-        if obj.product and obj.product.images.exists():
-            primary_image = obj.product.images.filter(is_primary=True).first()
-            if not primary_image:
-                primary_image = obj.product.images.first()
-            
-            if primary_image:
-                request = self.context.get('request')
-                if request:
-                    return request.build_absolute_uri(primary_image.image.url)
-                return primary_image.image.url
-        return None
+        return obj.product.image_url if obj.product else None
 
 
 class ConversationDetailSerializer(serializers.ModelSerializer):
@@ -225,17 +215,7 @@ class ConversationDetailSerializer(serializers.ModelSerializer):
     
     def get_product_image(self, obj):
         """Get product's primary image"""
-        if obj.product and obj.product.images.exists():
-            primary_image = obj.product.images.filter(is_primary=True).first()
-            if not primary_image:
-                primary_image = obj.product.images.first()
-            
-            if primary_image:
-                request = self.context.get('request')
-                if request:
-                    return request.build_absolute_uri(primary_image.image.url)
-                return primary_image.image.url
-        return None
+        return obj.product.image_url if obj.product else None
 
 
 class ConversationSerializer(serializers.ModelSerializer):
@@ -284,17 +264,7 @@ class ConversationSerializer(serializers.ModelSerializer):
         return None
     
     def get_product_image(self, obj):
-        if obj.product and obj.product.images.exists():
-            primary_image = obj.product.images.filter(is_primary=True).first()
-            if not primary_image:
-                primary_image = obj.product.images.first()
-            
-            if primary_image:
-                request = self.context.get('request')
-                if request:
-                    return request.build_absolute_uri(primary_image.image.url)
-                return primary_image.image.url
-        return None
+        return obj.product.image_url if obj.product else None
 
 
 class MessageReadSerializer(serializers.ModelSerializer):

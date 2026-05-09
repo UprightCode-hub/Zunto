@@ -1,9 +1,14 @@
+# Deprecated: the live homepage recommendation path now uses
+# assistant.services.gigi_agent.GigiRecommendationAgent for slot handling.
+# This legacy extractor is retained only for old recommender tests/utilities;
+# do not import it from active request code.
+
 import logging
 import re
 import threading
 import time
 from decimal import Decimal, InvalidOperation
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -18,31 +23,6 @@ _SUPPORT_KEYWORDS = frozenset([
     'refund', 'dispute', 'complaint', 'return', 'track', 'order', 'delivery',
     'payment', 'scam', 'fraud', 'cancel', 'support', 'issue',
 ])
-
-_LOCATION_KEYWORDS: Dict[str, str] = {
-    'port harcourt': 'Port Harcourt',
-    'benin city': 'Benin City',
-    'lagos': 'Lagos',
-    'abuja': 'Abuja',
-    'kano': 'Kano',
-    'ibadan': 'Ibadan',
-    'oyo': 'Oyo',
-    'enugu': 'Enugu',
-    'benin': 'Benin City',
-    'calabar': 'Calabar',
-    'warri': 'Warri',
-    'jos': 'Jos',
-    'owerri': 'Owerri',
-    'uyo': 'Uyo',
-    'ilorin': 'Ilorin',
-    'abeokuta': 'Abeokuta',
-    'akure': 'Akure',
-    'delta': 'Delta',
-    'asaba': 'Asaba',
-    'kaduna': 'Kaduna',
-    'maiduguri': 'Maiduguri',
-    'ph': 'Port Harcourt',
-}
 
 _CONDITION_MAP: Dict[str, str] = {
     'brand new': 'new',
@@ -69,60 +49,6 @@ _COLORS = {
     'beige', 'maroon', 'violet', 'indigo', 'cyan', 'magenta', 'rose',
     'ash', 'charcoal', 'turquoise', 'wine',
 }
-
-_KNOWN_BRANDS = {
-    'samsung', 'apple', 'iphone', 'nokia', 'tecno', 'infinix', 'itel',
-    'xiaomi', 'realme', 'oppo', 'vivo', 'huawei', 'lg', 'sony', 'hp',
-    'dell', 'lenovo', 'acer', 'asus', 'toshiba', 'hisense', 'haier',
-    'nike', 'adidas', 'puma', 'reebok', 'converse', 'vans', 'new balance',
-    'gucci', 'louis vuitton', 'zara', 'h&m',
-    'thermocool', 'nexus', 'binatone', 'bruhm', 'scanfrost', 'polystar',
-    'miyako', 'midea',
-    'toyota', 'honda', 'hyundai', 'kia', 'mercedes', 'bmw', 'lexus',
-    'ford', 'suzuki', 'nissan',
-}
-
-_USE_CASE_MAP: Dict[str, List[str]] = {
-    'jogging': ['sneakers', 'running shoes', 'sportswear'],
-    'running': ['sneakers', 'running shoes'],
-    'gym': ['sportswear', 'sneakers', 'activewear'],
-    'office': ['laptop', 'bag', 'formal shoes', 'shirt'],
-    'work': ['laptop', 'bag', 'office chair'],
-    'school': ['bag', 'laptop', 'stationery'],
-    'gaming': ['gaming laptop', 'console', 'headphone'],
-    'cooking': ['blender', 'pot', 'microwave', 'gas cooker'],
-    'music': ['headphone', 'speaker', 'earphone'],
-    'photography': ['camera', 'tripod', 'lens'],
-    'travel': ['bag', 'suitcase', 'luggage'],
-    'wedding': ['dress', 'suit', 'shoes', 'jewelry', 'bag'],
-    'birthday': ['gift', 'watch', 'perfume', 'jewelry'],
-    'watching tv': ['tv', 'television', 'remote'],
-    'sleeping': ['mattress', 'bed', 'pillow', 'bedsheet'],
-    'driving': ['car', 'tyre', 'car accessories'],
-    'farming': ['generator', 'pump', 'equipment'],
-    'church': ['dress', 'suit', 'heels'],
-    'beach': ['swimwear', 'sandals', 'sunglasses'],
-    'baby': ['baby clothes', 'diaper', 'baby food', 'stroller'],
-}
-
-_PRODUCT_TERMS = [
-    'washing machine', 'air conditioner',
-    'phone', 'smartphone', 'laptop', 'tablet', 'ipad', 'computer', 'pc',
-    'tv', 'television', 'fridge', 'freezer', 'microwave', 'blender', 'fan', 'ac', 'generator',
-    'sneaker', 'shoe', 'heel', 'sandal', 'boot', 'slipper',
-    'shirt', 'dress', 'trouser', 'jean', 'skirt', 'suit', 'jacket',
-    'bag', 'handbag', 'backpack', 'wallet', 'purse',
-    'watch', 'perfume', 'jewelry', 'ring', 'necklace', 'bracelet',
-    'car', 'motorcycle', 'bicycle',
-    'sofa', 'chair', 'table', 'bed', 'mattress', 'wardrobe',
-    'headphone', 'earphone', 'earbuds', 'speaker',
-    'camera', 'tripod', 'lens',
-    'baby', 'diaper', 'book', 'textbook',
-    'game', 'console', 'playstation', 'xbox',
-    'basmati rice', 'rice', 'beans', 'maize', 'tomatoes', 'catfish', 'palm oil',
-    'sunscreen', 'shea butter', 'hair growth oil', 'vitamin c serum', 'multivitamin',
-    'barbing kit',
-]
 
 
 class SlotExtractor:
@@ -286,9 +212,21 @@ class SlotExtractor:
 
     @staticmethod
     def _extract_location(lower: str) -> Optional[str]:
-        for key in sorted(_LOCATION_KEYWORDS, key=len, reverse=True):
-            if re.search(rf'\b{re.escape(key)}\b', lower):
-                return _LOCATION_KEYWORDS[key]
+        try:
+            from market.models import Location
+
+            values = []
+            for location in Location.objects.filter(is_active=True).only('area', 'city', 'state')[:500]:
+                values.extend([
+                    getattr(location, 'area', '') or '',
+                    getattr(location, 'city', '') or '',
+                    getattr(location, 'state', '') or '',
+                ])
+            for value in sorted({item.strip() for item in values if item.strip()}, key=len, reverse=True):
+                if re.search(rf'\b{re.escape(value.lower())}\b', lower):
+                    return value
+        except Exception as exc:
+            logger.debug("Location lookup failed during legacy slot extraction: %s", exc)
         return None
 
     @staticmethod
@@ -308,10 +246,16 @@ class SlotExtractor:
     @staticmethod
     def _extract_brand(text: str) -> Optional[str]:
         lower = text.lower()
-        for brand in sorted(_KNOWN_BRANDS, key=len, reverse=True):
-            match = re.search(rf'\b{re.escape(brand)}\b', lower)
-            if match:
-                return text[match.start(): match.end()].title()
+        try:
+            from market.models import Product
+
+            brands = Product.objects.filter(status='active').exclude(brand='').values_list('brand', flat=True).distinct()[:500]
+            for brand in sorted({str(value).strip() for value in brands if str(value).strip()}, key=len, reverse=True):
+                match = re.search(rf'\b{re.escape(brand.lower())}\b', lower)
+                if match:
+                    return text[match.start(): match.end()]
+        except Exception as exc:
+            logger.debug("Brand lookup failed during legacy slot extraction: %s", exc)
         return None
 
     @staticmethod
@@ -324,17 +268,11 @@ class SlotExtractor:
 
     @staticmethod
     def _extract_use_case(lower: str) -> Tuple[Optional[str], Optional[str]]:
-        for use_case, hints in _USE_CASE_MAP.items():
-            if use_case in lower:
-                return use_case, hints[0]
         return None, None
 
-    @staticmethod
-    def _extract_product_type(lower: str) -> Optional[str]:
-        for term in sorted(_PRODUCT_TERMS, key=len, reverse=True):
-            suffix = 's?' if ' ' not in term and not term.endswith('s') else ''
-            if re.search(rf'\b{re.escape(term)}{suffix}\b', lower):
-                return term
+    @classmethod
+    def _extract_product_type(cls, lower: str) -> Optional[str]:
+        return cls._resolve_category(lower, None)
         return None
 
     @classmethod
@@ -452,7 +390,7 @@ class SlotStateMachine:
             return None
 
         if not slots.get('product_type'):
-            return "What are you looking for? 🛍️ (e.g. Nike sneakers, Samsung phone, fairly used laptop)"
+            return "What product are you looking for?"
 
         if slots.get('price_max') is None:
             product = slots.get('product_type') or 'it'

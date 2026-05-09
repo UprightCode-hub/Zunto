@@ -2,7 +2,7 @@
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.shortcuts import get_object_or_404
 from market.models import Product
 from .models import Cart, CartItem
@@ -60,7 +60,7 @@ def get_or_create_cart(request):
 
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_cart(request):
     """Get current user's cart"""
     cart = get_or_create_cart(request)
@@ -69,7 +69,7 @@ def get_cart(request):
 
 
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def add_to_cart(request):
     """Add item to cart"""
     cart = get_or_create_cart(request)
@@ -121,7 +121,7 @@ def add_to_cart(request):
 
 
 @api_view(['PUT', 'PATCH'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def update_cart_item(request, item_id):
     """Update cart item quantity"""
     cart = get_or_create_cart(request)
@@ -154,7 +154,7 @@ def update_cart_item(request, item_id):
 
 
 @api_view(['DELETE'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def remove_from_cart(request, item_id):
     """Remove item from cart"""
     cart = get_or_create_cart(request)
@@ -173,7 +173,7 @@ def remove_from_cart(request, item_id):
 
 
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def clear_cart(request):
     """Clear all items from cart"""
     cart = get_or_create_cart(request)

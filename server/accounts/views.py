@@ -4,7 +4,6 @@ import random
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.contrib.auth.hashers import make_password
 from django.db import IntegrityError, transaction
 from django.core.cache import cache
 from django.shortcuts import render
@@ -66,11 +65,40 @@ def _queue_verification_email(recipient_email, recipient_name, code):
         send_verification_email_to_recipient_task.delay(recipient_email, recipient_name, code)
         return True
     except Exception:
-        return EmailService.send_verification_email_to_recipient(
-            recipient_email=recipient_email,
-            recipient_name=recipient_name,
-            code=code,
-        )
+        try:
+            return EmailService.send_verification_email_to_recipient(
+                recipient_email=recipient_email,
+                recipient_name=recipient_name,
+                code=code,
+            )
+        except Exception:
+            return False
+
+
+def _create_email_verification(user, code=None):
+    verification_code = code or UserRegistrationView.generate_verification_code()
+    VerificationCode.objects.filter(user=user, code_type='email', is_used=False).update(is_used=True)
+    VerificationCode.objects.create(
+        user=user,
+        code=verification_code,
+        code_type='email',
+        expires_at=timezone.now() + timedelta(minutes=15),
+    )
+    return verification_code
+
+
+def _issue_auth_payload(user, message, *, email_sent=None, status_code=status.HTTP_200_OK):
+    refresh = RefreshToken.for_user(user)
+    payload = {
+        'access': str(refresh.access_token),
+        'refresh': str(refresh),
+        'user': _user_payload(user),
+        'message': message,
+        'verification_required': not user.is_verified,
+    }
+    if email_sent is not None:
+        payload['email_delivery_status'] = 'sent' if email_sent else 'deferred'
+    return Response(payload, status=status_code)
 
 
 def _resend_cooldown_key(email, scope=''):
@@ -93,6 +121,8 @@ def _user_payload(user):
         'first_name': user.first_name,
         'last_name': user.last_name,
         'role': user.role,
+        'is_staff': user.is_staff,
+        'is_superuser': user.is_superuser,
         # legacy compatibility
         'is_seller': user.is_seller,
         'is_verified_seller': user.is_verified_seller,
@@ -112,8 +142,9 @@ def _user_payload(user):
 @method_decorator(ratelimit(key='ip', rate='50/h', method='POST'), name='post')
 class UserRegistrationView(generics.CreateAPIView):
     """
-    Initiate registration: store pending data and send email code.
-    A User account is created only after /register/verify/ succeeds.
+    Create an account immediately and send the verification code best-effort.
+    Email delivery must never block initial signup because a transient SMTP/Celery
+    failure should not strand a valid buyer or seller during onboarding.
     """
 
     queryset = PendingRegistration.objects.all()
@@ -125,47 +156,51 @@ class UserRegistrationView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        code = self.generate_verification_code()
-        expires_at = timezone.now() + timedelta(minutes=15)
+        try:
+            with transaction.atomic():
+                user = User.objects.create_user(
+                    email=data['email'],
+                    password=data['password'],
+                    first_name=data['first_name'],
+                    last_name=data['last_name'],
+                    phone=data.get('phone'),
+                    role=data.get('role', 'buyer'),
+                    is_seller=(data.get('role', 'buyer') == 'seller'),
+                    is_verified=False,
+                    is_verified_seller=False,
+                    seller_commerce_mode=data.get('seller_commerce_mode', 'direct'),
+                )
 
-        PendingRegistration.objects.update_or_create(
-            email=data['email'],
-            defaults={
-                'first_name': data['first_name'],
-                'last_name': data['last_name'],
-                'phone': data.get('phone'),
-                'role': data.get('role', 'buyer'),
-                'seller_commerce_mode': data.get('seller_commerce_mode', 'direct'),
-                'password_hash': make_password(data['password']),
-                'verification_code': code,
-                'code_expires_at': expires_at,
-            },
-        )
+                if user.role == 'seller':
+                    SellerProfile.objects.update_or_create(
+                        user=user,
+                        defaults={
+                            'status': SellerProfile.STATUS_PENDING,
+                            'is_verified_seller': False,
+                            'seller_commerce_mode': user.seller_commerce_mode,
+                        },
+                    )
 
-        recipient_name = f"{data['first_name']} {data['last_name']}".strip()
+                PendingRegistration.objects.filter(email=user.email).delete()
+                code = _create_email_verification(user)
+        except IntegrityError:
+            return Response(
+                {'error': 'Could not complete registration due to conflicting account data.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        recipient_name = user.get_full_name() or user.email
         email_sent = _queue_verification_email(
-            recipient_email=data['email'],
+            recipient_email=user.email,
             recipient_name=recipient_name,
             code=code,
         )
 
-        if not email_sent:
-            return Response(
-                {
-                    'error': (
-                        'Unable to send verification email right now. '
-                        'Check email configuration and try again.'
-                    )
-                },
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
-
-        return Response(
-            {
-                'message': 'Verification code sent. Verify code to complete registration.',
-                'email': data['email'],
-            },
-            status=status.HTTP_200_OK,
+        return _issue_auth_payload(
+            user,
+            'Account created successfully. Verify your email when the code arrives.',
+            email_sent=email_sent,
+            status_code=status.HTTP_201_CREATED,
         )
 
     @staticmethod
@@ -186,12 +221,51 @@ class VerifyRegistrationView(APIView):
         email = serializer.validated_data['email']
         code = serializer.validated_data['code']
 
-        try:
-            pending = PendingRegistration.objects.get(email=email)
-        except PendingRegistration.DoesNotExist:
-            return Response(
-                {'error': 'No pending registration found for this email.'},
-                status=status.HTTP_400_BAD_REQUEST,
+        pending = PendingRegistration.objects.filter(email=email).first()
+        if not pending:
+            user = User.objects.filter(email=email).first()
+            if not user:
+                return Response(
+                    {'error': 'No account or pending registration found for this email.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            try:
+                verification = VerificationCode.objects.get(
+                    user=user,
+                    code=code,
+                    code_type='email',
+                    is_used=False,
+                )
+            except VerificationCode.DoesNotExist:
+                return Response(
+                    {'error': 'Invalid verification code.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if verification.is_expired():
+                return Response(
+                    {'error': 'Verification code has expired. Request a new code.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            user.is_verified = True
+            user.save(update_fields=['is_verified'])
+            verification.is_used = True
+            verification.save(update_fields=['is_used'])
+
+            try:
+                send_welcome_email_task.delay(str(user.id))
+            except Exception:
+                try:
+                    EmailService.send_welcome_email(user)
+                except Exception:
+                    pass
+
+            return _issue_auth_payload(
+                user,
+                'Email verified successfully.',
+                status_code=status.HTTP_200_OK,
             )
 
         if pending.is_expired():
@@ -258,17 +332,15 @@ class VerifyRegistrationView(APIView):
         try:
             send_welcome_email_task.delay(str(user.id))
         except Exception:
-            EmailService.send_welcome_email(user)
+            try:
+                EmailService.send_welcome_email(user)
+            except Exception:
+                pass
 
-        refresh = RefreshToken.for_user(user)
-        return Response(
-            {
-                'access': str(refresh.access_token),
-                'refresh': str(refresh),
-                'user': _user_payload(user),
-                'message': 'Registration completed successfully.',
-            },
-            status=status.HTTP_201_CREATED,
+        return _issue_auth_payload(
+            user,
+            'Registration completed successfully.',
+            status_code=status.HTTP_201_CREATED,
         )
 
 
@@ -284,10 +356,38 @@ class ResendRegistrationCodeView(APIView):
 
         email = serializer.validated_data['email']
 
-        if User.objects.filter(email=email).exists():
+        user = User.objects.filter(email=email).first()
+        if user:
+            if user.is_verified:
+                return Response(
+                    {'message': 'Email is already verified.'},
+                    status=status.HTTP_200_OK,
+                )
+
+            scope = str(user.id)
+            if not _resend_available(email, scope):
+                return Response(
+                    {
+                        'error': (
+                            f'Resend cooldown active. Please wait {RESEND_COOLDOWN_SECONDS} seconds before trying again.'
+                        )
+                    },
+                    status=status.HTTP_429_TOO_MANY_REQUESTS,
+                )
+
+            code = _create_email_verification(user)
+            email_sent = _queue_verification_email(
+                recipient_email=user.email,
+                recipient_name=user.get_full_name() or user.email,
+                code=code,
+            )
+            _set_resend_cooldown(email, scope)
             return Response(
-                {'error': 'An account already exists for this email. Please login.'},
-                status=status.HTTP_400_BAD_REQUEST,
+                {
+                    'message': 'Verification code queued.' if email_sent else 'Verification code created; email delivery will retry later.',
+                    'email_delivery_status': 'sent' if email_sent else 'deferred',
+                },
+                status=status.HTTP_200_OK,
             )
 
         try:
@@ -320,20 +420,12 @@ class ResendRegistrationCodeView(APIView):
             code=pending.verification_code,
         )
 
-        if not email_sent:
-            return Response(
-                {
-                    'error': (
-                        'Unable to send verification email right now. '
-                        'Check email configuration and try again.'
-                    )
-                },
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
-
         _set_resend_cooldown(email, scope)
         return Response(
-            {'message': 'Verification code resent successfully.'},
+            {
+                'message': 'Verification code resent successfully.' if email_sent else 'Verification code refreshed; email delivery will retry later.',
+                'email_delivery_status': 'sent' if email_sent else 'deferred',
+            },
             status=status.HTTP_200_OK,
         )
 
@@ -460,14 +552,9 @@ class GoogleAuthView(APIView):
 class SellerRegistrationView(APIView):
     """Create or update seller application profile. Requires admin approval to become active."""
 
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        if not request.user or not request.user.is_authenticated:
-            return Response(
-                {'error': 'Authentication credentials were not provided.'},
-                status=status.HTTP_401_UNAUTHORIZED,
-            )
         user = request.user
 
         user_updates = []
@@ -495,6 +582,7 @@ class SellerRegistrationView(APIView):
 
         return Response({
             'message': 'Seller registration submitted and pending admin approval.',
+            'user': _user_payload(user),
             'seller_profile_status': profile.status,
             'isSellerActive': is_active_seller(user),
             'isSellerPending': is_pending_seller(user),

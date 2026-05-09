@@ -25,10 +25,9 @@ class AssistantModePolicyTests(unittest.TestCase):
         self.assertIsNotNone(reply)
         self.assertIn('homepage assistant', reply.lower())
 
-    def test_customer_service_blocks_non_dispute(self):
+    def test_customer_service_allows_account_support_requests(self):
         reply = mode_gate_response('customer_service', 'How do I update my profile?')
-        self.assertIsNotNone(reply)
-        self.assertIn('disputes only', reply.lower())
+        self.assertIsNone(reply)
 
 
 if __name__ == '__main__':

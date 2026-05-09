@@ -93,11 +93,6 @@ def is_spam_message(message: str) -> bool:
             return True
     
                                               
-    if len(message) > 20:
-        caps_ratio = sum(1 for c in message if c.isupper()) / len(message)
-        if caps_ratio > 0.7:
-            return True
-    
                                 
     emoji_count = sum(1 for c in message if ord(c) > 0x1F300)
     if emoji_count > 20:

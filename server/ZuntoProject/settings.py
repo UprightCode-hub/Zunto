@@ -1,10 +1,10 @@
 #server/ZuntoProject/settings.py
 import os
 import sys
-import importlib.util
 from pathlib import Path
 from decouple import Csv, config
 from celery.schedules import crontab
+from django.core.exceptions import ImproperlyConfigured
 import dj_database_url
 from datetime import timedelta
 
@@ -12,21 +12,84 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
                        
 
-IS_PRODUCTION = os.environ.get('RENDER', 'False') == 'True'
 TESTING = ('test' in sys.argv) or any(mod.startswith('unittest') for mod in sys.modules)
+RENDER_FREE_TIER = config('RENDER_FREE_TIER', default=False, cast=bool)
+PRODUCTION = config('PRODUCTION', default=False, cast=bool)
+IS_RENDER = os.environ.get('RENDER', '').lower() == 'true'
+IS_PRODUCTION = PRODUCTION or IS_RENDER or RENDER_FREE_TIER
+
+
+def _csv_values(*values):
+    items = []
+    for value in values:
+        if not value:
+            continue
+        if isinstance(value, (list, tuple, set)):
+            candidates = value
+        else:
+            candidates = str(value).split(',')
+        for candidate in candidates:
+            item = str(candidate).strip()
+            if item:
+                items.append(item)
+    return items
+
+
+def _unique(values):
+    seen = set()
+    unique_values = []
+    for value in values:
+        if value not in seen:
+            seen.add(value)
+            unique_values.append(value)
+    return unique_values
+
+
+def _origin(value):
+    value = str(value).strip().rstrip('/')
+    if not value:
+        return ''
+    if not value.startswith(('http://', 'https://')):
+        value = f'https://{value}'
+    return value
+
+
+def _hostname(value):
+    value = str(value).strip()
+    if not value:
+        return ''
+    value = value.replace('https://', '').replace('http://', '')
+    return value.split('/')[0].strip()
+
+
+DEBUG = False if IS_PRODUCTION else config('DEBUG', default=True, cast=bool)
+SECRET_KEY = config(
+    'SECRET_KEY',
+    default='' if IS_PRODUCTION else 'dev-secret-key-change-me-in-production',
+)
+BACKEND_URL = config('BACKEND_URL', default=os.environ.get('RENDER_EXTERNAL_URL', ''))
+FRONTEND_URL = config(
+    'FRONTEND_URL',
+    default='https://zunto-frontend.onrender.com' if IS_PRODUCTION else 'http://localhost:5173',
+)
+
+if IS_PRODUCTION and not SECRET_KEY:
+    raise ImproperlyConfigured('SECRET_KEY must be set in production.')
 
 if IS_PRODUCTION:
-    DEBUG = False
-    SECRET_KEY = os.environ.get('SECRET_KEY')
-    ALLOWED_HOSTS = [
-        '.onrender.com',
-        'zunto-backend.onrender.com',
-        'localhost',
-    ]
+    ALLOWED_HOSTS = _unique([
+        host
+        for host in (
+            [_hostname(BACKEND_URL)]
+            + [_hostname(os.environ.get('RENDER_EXTERNAL_HOSTNAME', ''))]
+            + [_hostname(value) for value in _csv_values(config('ALLOWED_HOSTS', default=''))]
+        )
+        if host
+    ])
+    if not ALLOWED_HOSTS:
+        raise ImproperlyConfigured('Set BACKEND_URL, ALLOWED_HOSTS, or RENDER_EXTERNAL_HOSTNAME in production.')
 else:
-    DEBUG = config('DEBUG', default=True, cast=bool)
-    SECRET_KEY = config('SECRET_KEY', default='dev-secret-key-change-me-in-production')
-    ALLOWED_HOSTS = ['*']
+    ALLOWED_HOSTS = _csv_values(config('ALLOWED_HOSTS', default='*')) or ['*']
 
 if TESTING:
     DEBUG = True
@@ -122,13 +185,17 @@ TEMPLATES = [
 
           
 
+DATABASE_URL = config('DATABASE_URL', default='')
+
 if IS_PRODUCTION:
+    if not DATABASE_URL:
+        raise ImproperlyConfigured('DATABASE_URL must be set in production.')
     DATABASES = {
         'default': dj_database_url.config(
-            default=os.environ.get('DATABASE_URL'),
+            default=DATABASE_URL,
             conn_max_age=600,
             conn_health_checks=True,
-            ssl_require=False,
+            ssl_require=True,
         )
     }
 else:
@@ -140,24 +207,46 @@ else:
     }
 
 
-PRODUCT_VECTOR_BACKEND = config('PRODUCT_VECTOR_BACKEND', default='auto')  # auto, json_cosine, sqlite_vec, pgvector
+PRODUCT_VECTOR_BACKEND = config('PRODUCT_VECTOR_BACKEND', default='auto')  # auto, json_cosine, pgvector
 EMBEDDING_MODEL = config('EMBEDDING_MODEL', default='all-MiniLM-L12-v2')
 PRODUCT_VECTOR_DIMENSIONS = config('PRODUCT_VECTOR_DIMENSIONS', default=384, cast=int)
-PRODUCT_VECTOR_TABLE = config('PRODUCT_VECTOR_TABLE', default='market_product_vector')
+PRODUCT_VECTOR_TABLE = config('PRODUCT_VECTOR_TABLE', default='')
+PRODUCT_RECOMMENDER_CANDIDATE_LIMIT = (
+    150
+    if RENDER_FREE_TIER
+    else config('PRODUCT_RECOMMENDER_CANDIDATE_LIMIT', default=1000, cast=int)
+)
+HOMEPAGE_RECO_SESSION_TTL_MINUTES = config('HOMEPAGE_RECO_SESSION_TTL_MINUTES', default=20, cast=int)
+ASSISTANT_PRELOAD_DATA = (
+    False
+    if RENDER_FREE_TIER
+    else config(
+        'ASSISTANT_PRELOAD_DATA',
+        default=not TESTING,
+        cast=bool,
+    )
+)
+AI_COMPONENTS_DISABLED = config(
+    'AI_COMPONENTS_DISABLED',
+    default=TESTING,
+    cast=bool,
+)
 
                        
 
 REDIS_HOST = config('REDIS_HOST', default='localhost')
 REDIS_PORT = config('REDIS_PORT', default=6379, cast=int)
-REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}'
+DEFAULT_REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}'
+REDIS_URL = config('REDIS_URL', default='')
+HAS_REDIS_URL = bool(REDIS_URL)
 
          
 
-if IS_PRODUCTION:
+if IS_PRODUCTION and HAS_REDIS_URL:
     CACHES = {
         'default': {
             'BACKEND': 'django_redis.cache.RedisCache',
-            'LOCATION': config('REDIS_URL', default=REDIS_URL + '/0'),
+            'LOCATION': REDIS_URL,
             'OPTIONS': {
                 'CLIENT_CLASS': 'django_redis.client.DefaultClient',
                 'SOCKET_CONNECT_TIMEOUT': 3,
@@ -178,7 +267,11 @@ else:
 
                        
 
-SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+SESSION_ENGINE = (
+    'django.contrib.sessions.backends.db'
+    if IS_PRODUCTION and not HAS_REDIS_URL
+    else 'django.contrib.sessions.backends.cache'
+)
 SESSION_CACHE_ALIAS = 'default'
 SESSION_COOKIE_AGE = 1209600
 SESSION_SAVE_EVERY_REQUEST = True
@@ -216,15 +309,24 @@ PAYMENT_ALLOWED_CALLBACK_HOSTS = config(
 
                        
 
-if IS_PRODUCTION:
+if IS_PRODUCTION and HAS_REDIS_URL:
     CHANNEL_LAYERS = {
         'default': {
             'BACKEND': 'channels_redis.core.RedisChannelLayer',
             'CONFIG': {
-                'hosts': [config('REDIS_URL', default=REDIS_URL)],
+                'hosts': [REDIS_URL],
                 'capacity': 1500,
                 'expiry': 10,
             },
+        },
+    }
+elif IS_PRODUCTION:
+    # Render free-tier demo Blueprint does not provision Redis. In-memory
+    # Channels works for one backend instance; production scale-out needs
+    # Render Key Value/Redis plus channels_redis.
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer',
         },
     }
 else:
@@ -243,7 +345,7 @@ else:
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.SessionAuthentication',
+        'core.authentication.HeaderAwareSessionAuthentication',
         'core.authentication.CookieJWTAuthentication',
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
@@ -280,9 +382,9 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-LOGIN_URL = 'accounts:login'
-LOGIN_REDIRECT_URL = 'dashboard'
-LOGOUT_REDIRECT_URL = 'accounts:login'
+LOGIN_URL = 'accounts:login_page'
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = 'accounts:login_page'
 PASSWORD_RESET_TIMEOUT = 3600
 
                       
@@ -302,18 +404,6 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(os.path.dirname(BASE_DIR), "static_cdn", "media_root")
 
 
-USE_OBJECT_STORAGE = config('USE_OBJECT_STORAGE', default=False, cast=bool)
-OBJECT_STORAGE_FREE_TIER = config('OBJECT_STORAGE_FREE_TIER', default=True, cast=bool)
-OBJECT_STORAGE_PROVIDER = config('OBJECT_STORAGE_PROVIDER', default='cloudflare_r2')
-OBJECT_STORAGE_BUCKET_NAME = config('OBJECT_STORAGE_BUCKET_NAME', default='zuntomedia')
-OBJECT_STORAGE_REGION = config('OBJECT_STORAGE_REGION', default='auto')
-OBJECT_STORAGE_ENDPOINT_URL = config('OBJECT_STORAGE_ENDPOINT_URL', default='')
-OBJECT_STORAGE_ACCESS_KEY_ID = config('OBJECT_STORAGE_ACCESS_KEY_ID', default='')
-OBJECT_STORAGE_SECRET_ACCESS_KEY = config('OBJECT_STORAGE_SECRET_ACCESS_KEY', default='')
-OBJECT_STORAGE_CUSTOM_DOMAIN = config('OBJECT_STORAGE_CUSTOM_DOMAIN', default='')
-OBJECT_UPLOAD_SIGNED_UPLOAD_EXP_SECONDS = config('OBJECT_UPLOAD_SIGNED_UPLOAD_EXP_SECONDS', default=900, cast=int)
-OBJECT_UPLOAD_HMAC_SECRET = config('OBJECT_UPLOAD_HMAC_SECRET', default=SECRET_KEY)
-
 STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
@@ -322,27 +412,6 @@ STORAGES = {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
 }
-
-if USE_OBJECT_STORAGE:
-    storages_available = importlib.util.find_spec('storages') is not None
-    if not storages_available and IS_PRODUCTION:
-        raise ValueError('USE_OBJECT_STORAGE requires django-storages and boto3 in production.')
-
-    if storages_available:
-        if 'storages' not in INSTALLED_APPS:
-            INSTALLED_APPS.append('storages')
-
-        STORAGES['default'] = {
-            'BACKEND': 'core.storage_backends.PublicMediaStorage',
-        }
-        STORAGES['public_media'] = {
-            'BACKEND': 'core.storage_backends.PublicMediaStorage',
-        }
-        STORAGES['private_media'] = {
-            'BACKEND': 'core.storage_backends.PrivateMediaStorage',
-        }
-        if OBJECT_STORAGE_CUSTOM_DOMAIN:
-            MEDIA_URL = f"https://{OBJECT_STORAGE_CUSTOM_DOMAIN}/"
 
 ALLOWED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
 MAX_UPLOAD_SIZE = 5242880
@@ -366,13 +435,20 @@ if DEBUG and EMAIL_USE_CONSOLE_IN_DEBUG:
 
                       
 
-if IS_PRODUCTION:
-    CELERY_BROKER_URL = config('REDIS_URL', default=REDIS_URL + '/1')
-    CELERY_RESULT_BACKEND = config('REDIS_URL', default=REDIS_URL + '/2')
+if IS_PRODUCTION and HAS_REDIS_URL:
+    CELERY_BROKER_URL = REDIS_URL
+    CELERY_RESULT_BACKEND = REDIS_URL
     CELERY_TASK_ALWAYS_EAGER = False
+elif IS_PRODUCTION:
+    # No Redis service is defined in the free-tier demo Blueprint, so keep
+    # Celery synchronous to avoid runtime Redis failures. Add Redis + workers
+    # before relying on scheduled/background jobs in production.
+    CELERY_BROKER_URL = 'memory://'
+    CELERY_RESULT_BACKEND = 'cache+memory://'
+    CELERY_TASK_ALWAYS_EAGER = True
 else:
-    CELERY_BROKER_URL = REDIS_URL + '/1'
-    CELERY_RESULT_BACKEND = REDIS_URL + '/2'
+    CELERY_BROKER_URL = DEFAULT_REDIS_URL + '/1'
+    CELERY_RESULT_BACKEND = DEFAULT_REDIS_URL + '/2'
     CELERY_TASK_ALWAYS_EAGER = True
 
 CELERY_ACCEPT_CONTENT = ['json']
@@ -427,6 +503,7 @@ CELERY_BEAT_SCHEDULE = {
 
 PAYSTACK_SECRET_KEY = config('PAYSTACK_SECRET_KEY', default='')
 PAYSTACK_PUBLIC_KEY = config('PAYSTACK_PUBLIC_KEY', default='')
+PAYSTACK_WEBHOOK_SECRET = config('PAYSTACK_WEBHOOK_SECRET', default='')
 PAYSTACK_BASE_URL = 'https://api.paystack.co'
 
 RECO_FEED_CATEGORY_WEIGHT = config('RECO_FEED_CATEGORY_WEIGHT', default=1.15, cast=float)
@@ -436,12 +513,24 @@ RECO_BEHAVIOR_AGGREGATION_MINUTES = config('RECO_BEHAVIOR_AGGREGATION_MINUTES', 
                     
 
 if IS_PRODUCTION:
-    CORS_ALLOWED_ORIGINS = [
-        'https://zunto-frontend.onrender.com',
-    ]
-    CSRF_TRUSTED_ORIGINS = [
-        'https://zunto-frontend.onrender.com',
-    ]
+    CORS_ALLOWED_ORIGINS = _unique([
+        origin
+        for origin in (
+            [_origin(FRONTEND_URL)]
+            + [_origin(value) for value in _csv_values(config('CORS_ALLOWED_ORIGINS', default=''))]
+        )
+        if origin
+    ])
+    if not CORS_ALLOWED_ORIGINS:
+        raise ImproperlyConfigured('FRONTEND_URL or CORS_ALLOWED_ORIGINS must be set in production.')
+    CSRF_TRUSTED_ORIGINS = _unique(
+        CORS_ALLOWED_ORIGINS
+        + [
+            _origin(value)
+            for value in _csv_values(config('CSRF_TRUSTED_ORIGINS', default=''))
+            if _origin(value)
+        ]
+    )
     CORS_ALLOW_ALL_ORIGINS = False
 else:
     CORS_ALLOW_ALL_ORIGINS = True
@@ -490,7 +579,11 @@ CORS_ALLOW_HEADERS = [
 GROQ_API_KEY = config('GROQ_API_KEY', default='')
 GROQ_MODEL = config('GROQ_MODEL', default='llama-3.3-70b-versatile')
 GROQ_TIMEOUT_SECONDS = config('GROQ_TIMEOUT_SECONDS', default=8, cast=int)
-GROQ_BULKHEAD_LIMIT = config('GROQ_BULKHEAD_LIMIT', default=16, cast=int)
+GROQ_BULKHEAD_LIMIT = (
+    3
+    if RENDER_FREE_TIER
+    else config('GROQ_BULKHEAD_LIMIT', default=16, cast=int)
+)
 GROQ_RATE_LIMIT_COOLDOWN_SECONDS = config('GROQ_RATE_LIMIT_COOLDOWN_SECONDS', default=30, cast=int)
 LLM_MAX_PROMPT_TOKENS = config('LLM_MAX_PROMPT_TOKENS', default=900, cast=int)
 LLM_MAX_OUTPUT_TOKENS = config('LLM_MAX_OUTPUT_TOKENS', default=500, cast=int)
@@ -654,14 +747,6 @@ SIMPLE_JWT = {
     
     'JTI_CLAIM': 'jti',
 }
-
-              
-if IS_PRODUCTION:
-    FRONTEND_URL = config('FRONTEND_URL', default='https://zunto-frontend.onrender.com')
-else:
-    FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173')
-
-
 
                                        
 

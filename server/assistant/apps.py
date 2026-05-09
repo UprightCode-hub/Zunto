@@ -32,7 +32,18 @@ class AssistantConfig(AppConfig):
             import assistant.signals  # noqa: F401
             return
 
-        if getattr(settings, 'ASSISTANT_PRELOAD_DATA', True):
+        running_tests = getattr(settings, 'TESTING', False) or 'test' in sys.argv
+        if running_tests or getattr(settings, 'AI_COMPONENTS_DISABLED', False):
+            logger.info("Skipping assistant AI preload during tests")
+            import assistant.signals  # noqa: F401
+            return
+
+        if getattr(settings, 'RENDER_FREE_TIER', False):
+            logger.info("Skipping assistant AI preload on Render free tier")
+            import assistant.signals  # noqa: F401
+            return
+
+        if not getattr(settings, 'RENDER_FREE_TIER', False) and getattr(settings, 'ASSISTANT_PRELOAD_DATA', True):
             try:
                 from assistant.ai.intent_classifier import IntentClassifier
                 from assistant.processors.local_model import LocalModelAdapter

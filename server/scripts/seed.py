@@ -23,11 +23,13 @@ from django.utils.text import slugify
 
 from accounts.models import SellerProfile
 from cart.models import Cart, CartItem
+from market.demo_image_urls import image_url_for_product
 from market.models import Category, Location, Product
 from orders.models import Order, OrderItem, ShippingAddress
 from reviews.models import ProductReview, SellerReview
 
 User = get_user_model()
+IMAGE_SOURCE = 'demo_external_url:loremflickr_category'
 
 
 # ── Data Constants ────────────────────────────────────────────────────────────
@@ -480,6 +482,11 @@ class Command(BaseCommand):
                 except Exception:
                     seller_loc = random.choice(locations)
 
+                image_url = image_url_for_product(
+                    title=title,
+                    category=sub_cat.name,
+                    product_identifier=slug,
+                )
                 product = Product(
                     seller=seller,
                     title=title,
@@ -498,6 +505,8 @@ class Command(BaseCommand):
                     is_verified_product=True,
                     views_count=random.randint(0, 2000),
                     favorites_count=random.randint(0, 200),
+                    image_url_locked=image_url,
+                    image_source=IMAGE_SOURCE,
                 )
                 product.save()
                 products.append(product)

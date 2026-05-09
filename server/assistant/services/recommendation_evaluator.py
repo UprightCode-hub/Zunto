@@ -1,3 +1,8 @@
+# Deprecated: this evaluates the legacy RecommendationService pipeline.
+# Live homepage recommendations are handled by
+# assistant.services.gigi_agent.GigiRecommendationAgent; keep this only for
+# historical comparison until a Gigi-specific evaluator replaces it.
+
 import json
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
@@ -19,136 +24,7 @@ class HomepageRecoEvalCase:
     expected_terms: List[str] = field(default_factory=list)
 
 
-DEFAULT_HOMEPAGE_RECO_EVAL_CASES = [
-    HomepageRecoEvalCase(
-        name='phones_budget_lagos',
-        prompts=['I need a fairly used iPhone in Lagos under 250k'],
-        slots={
-            'category': 'Phones',
-            'product_type': 'iphone',
-            'raw_query': 'I need a fairly used iPhone in Lagos under 250k',
-            'price_max': 250000,
-            'location': 'Lagos',
-            'condition': 'fair',
-        },
-        expected_family='iphone',
-        expected_location='Lagos',
-        price_max=250000,
-        expected_terms=['iphone'],
-    ),
-    HomepageRecoEvalCase(
-        name='beauty_sunscreen_spf50',
-        prompts=['SPF 50 sunscreen for my face in Lagos below 20k'],
-        slots={
-            'category': 'Beauty',
-            'product_type': 'sunscreen',
-            'raw_query': 'SPF 50 sunscreen for my face in Lagos below 20k',
-            'price_max': 20000,
-            'location': 'Lagos',
-            'condition': 'new',
-            'attributes': {'spf': '50'},
-        },
-        expected_family='sunscreen',
-        expected_location='Lagos',
-        price_max=20000,
-        expected_terms=['sunscreen', 'spf'],
-    ),
-    HomepageRecoEvalCase(
-        name='groceries_basmati_50kg',
-        prompts=['I want premium 50kg basmati rice in Lagos'],
-        slots={
-            'category': 'Groceries',
-            'product_type': 'basmati rice',
-            'raw_query': 'I want premium 50kg basmati rice in Lagos',
-            'location': 'Lagos',
-            'condition': 'new',
-            'attributes': {'weight': '50kg'},
-        },
-        expected_family='basmati rice',
-        expected_location='Lagos',
-        expected_terms=['basmati', 'rice'],
-    ),
-    HomepageRecoEvalCase(
-        name='shoes_size_42_abuja',
-        prompts=['Affordable Nike sneakers size 42 in Abuja'],
-        slots={
-            'category': 'Shoes',
-            'product_type': 'sneaker',
-            'raw_query': 'Affordable Nike sneakers size 42 in Abuja',
-            'brand': 'Nike',
-            'price_max': 65000,
-            'location': 'Abuja',
-            'attributes': {'size': '42'},
-        },
-        expected_family='sneaker',
-        expected_location='Abuja',
-        price_max=65000,
-        expected_terms=['nike', 'sneaker'],
-    ),
-    HomepageRecoEvalCase(
-        name='no_result_drone',
-        prompts=['Camera drone in Lagos'],
-        slots={
-            'category': 'Electronics',
-            'product_type': 'drone',
-            'raw_query': 'Camera drone in Lagos',
-            'location': 'Lagos',
-        },
-        expected_family='drone',
-        expected_location='Lagos',
-        expect_no_result=True,
-    ),
-    HomepageRecoEvalCase(
-        name='wrong_budget_iphone_under_80k',
-        prompts=['iPhone in Lagos under 80k'],
-        slots={
-            'category': 'Phones',
-            'product_type': 'iphone',
-            'raw_query': 'iPhone in Lagos under 80k',
-            'price_max': 80000,
-            'location': 'Lagos',
-        },
-        expected_family='iphone',
-        expected_location='Lagos',
-        price_max=80000,
-        expect_no_result=True,
-    ),
-    HomepageRecoEvalCase(
-        name='location_sneaker_lagos_trap',
-        prompts=['Nike sneaker size 42 in Lagos under 65k'],
-        slots={
-            'category': 'Shoes',
-            'product_type': 'sneaker',
-            'raw_query': 'Nike sneaker size 42 in Lagos under 65k',
-            'brand': 'Nike',
-            'price_max': 65000,
-            'location': 'Lagos',
-            'attributes': {'size': '42'},
-        },
-        expected_family='sneaker',
-        expected_location='Lagos',
-        price_max=65000,
-        expect_no_result=True,
-    ),
-    HomepageRecoEvalCase(
-        name='follow_up_refinement_cheaper_phone',
-        prompts=[
-            'Show me iPhones in Lagos',
-            'Those are too expensive, keep it under 200k',
-        ],
-        slots={
-            'category': 'Phones',
-            'product_type': 'iphone',
-            'raw_query': 'Those are too expensive, keep it under 200k',
-            'price_max': 200000,
-            'location': 'Lagos',
-        },
-        expected_family='iphone',
-        expected_location='Lagos',
-        price_max=200000,
-        expected_terms=['iphone'],
-    ),
-]
+DEFAULT_HOMEPAGE_RECO_EVAL_CASES: List[HomepageRecoEvalCase] = []
 
 
 def _safe_decimal(value: Any) -> Optional[Decimal]:
@@ -309,7 +185,7 @@ def run_homepage_recommender_evaluation(
     }
 
     return {
-        'suite': 'homepage_recommender_eval_v1',
+        'suite': 'homepage_recommender_eval',
         'total': total,
         'passed': passed_count,
         'failed': total - passed_count,

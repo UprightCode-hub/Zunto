@@ -30,11 +30,11 @@ _CHEAP_PRICE_THRESHOLD = 50_000
 def _location_filter_from_intent(location_hint):
     if not location_hint:
         return Q()
-    if location_hint in {'lagos', 'abuja', 'oyo'}:
-        return Q(location__state__icontains=location_hint)
-    if location_hint == 'ibadan':
-        return Q(location__city__icontains='ibadan') | Q(location__area__icontains='ibadan')
-    return Q(location__state__icontains=location_hint) | Q(location__city__icontains=location_hint)
+    return (
+        Q(location__state__icontains=location_hint)
+        | Q(location__city__icontains=location_hint)
+        | Q(location__area__icontains=location_hint)
+    )
 
 
 def _apply_intent_guidance(queryset, parsed_query, intent):
@@ -46,20 +46,8 @@ def _apply_intent_guidance(queryset, parsed_query, intent):
         'cheap_intent': intent.get('price_intent') == 'cheap',
     }
 
-    price_intent = intent.get('price_intent')
-    if not parsed_query.max_price and isinstance(price_intent, int):
-        queryset = queryset.filter(price__lte=price_intent)
-
     if not parsed_query.condition and intent.get('condition'):
-        condition_value = intent['condition']
-        inferred['condition_hint'] = condition_value
-        if condition_value == 'good':
-            queryset = queryset.filter(condition__in=['like_new', 'good', 'fair'])
-        else:
-            queryset = queryset.filter(condition=condition_value)
-
-    if not parsed_query.state and not parsed_query.lga and inferred['location_hint']:
-        queryset = queryset.filter(_location_filter_from_intent(inferred['location_hint']))
+        inferred['condition_hint'] = intent['condition']
 
     return queryset, inferred
 

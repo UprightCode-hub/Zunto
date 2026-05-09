@@ -15,9 +15,10 @@ Improvements:
 import logging
 import hashlib
 import math
-from functools import lru_cache
+import re
 
 from django.conf import settings
+from django.db.models import Q
 
 from market.search.vector_backend import (
     PRODUCT_VECTOR_MODEL,
@@ -37,7 +38,6 @@ logger = logging.getLogger(__name__)
 # name from settings.EMBEDDING_MODEL, so only one model is ever loaded.
 # ---------------------------------------------------------------------------
 
-@lru_cache(maxsize=1)
 def _load_sentence_transformer_model():
     """
     Load the shared sentence transformer once per process and cache it.
@@ -46,17 +46,18 @@ def _load_sentence_transformer_model():
     Falls back to the value resolved at vector_backend import time if the
     setting is absent (should not happen in a correctly configured env).
     """
-    try:
-        from sentence_transformers import SentenceTransformer
-    except ImportError:
-        logger.warning("sentence_transformers not installed; semantic search disabled.")
+    if getattr(settings, 'RENDER_FREE_TIER', False):
+        logger.info("Sentence transformer loading skipped on Render free tier.")
+        return None
+
+    if getattr(settings, 'AI_COMPONENTS_DISABLED', False):
+        logger.info("Sentence transformer loading skipped; AI components are disabled.")
         return None
 
     try:
-        model_name = getattr(settings, 'EMBEDDING_MODEL', PRODUCT_VECTOR_MODEL)
-        model = SentenceTransformer(model_name, device='cpu')
-        logger.info("Shared sentence transformer loaded (%s)", model_name)
-        return model
+        from assistant.processors.lazy_loader import get_ai_loader
+
+        return get_ai_loader().sentence_model
     except Exception as exc:
         logger.error("Failed to load sentence transformer: %s", exc)
         return None
@@ -111,6 +112,9 @@ def _encode_single(text):
     and cosine similarity are equivalent — required for FAISS IndexFlatIP
     and pgvector cosine distance to behave correctly.
     """
+    if getattr(settings, 'RENDER_FREE_TIER', False):
+        return None
+
     model = _load_sentence_transformer_model()
     if model is None:
         return _fallback_embedding(text)
@@ -129,6 +133,9 @@ def _encode_batch(texts):
     normalize_embeddings=True is required for inner-product search correctness.
     """
     if not texts:
+        return []
+
+    if getattr(settings, 'RENDER_FREE_TIER', False):
         return []
 
     model = _load_sentence_transformer_model()
@@ -160,6 +167,48 @@ def _cosine_similarity(left, right):
     return float(dot / (norm_left * norm_right))
 
 
+def _search_products_orm_text(query, base_queryset, candidate_limit=200, top_k=60):
+    """Lightweight text fallback for free-tier deployments."""
+    tokens = [
+        token
+        for token in re.findall(r"[a-z0-9]+", str(query or "").lower())
+        if len(token) > 2
+    ][:8]
+    if not tokens:
+        return []
+
+    text_query = Q()
+    for token in tokens:
+        text_query |= (
+            Q(title__icontains=token)
+            | Q(description__icontains=token)
+            | Q(brand__icontains=token)
+            | Q(condition__icontains=token)
+            | Q(category__name__icontains=token)
+            | Q(product_family__name__icontains=token)
+        )
+
+    candidates = list(
+        base_queryset.select_related('category', 'location', 'product_family')
+        .filter(text_query)
+        .distinct()
+        .order_by('-is_verified_product', '-views_count', '-favorites_count', '-created_at')[:candidate_limit]
+    )
+    if not candidates:
+        return []
+
+    scored = []
+    token_count = max(1, len(tokens))
+    for product in candidates:
+        text = product_search_text(product).lower()
+        score = sum(1 for token in tokens if token in text) / token_count
+        if score > 0:
+            scored.append((product.id, float(score)))
+
+    scored.sort(key=lambda item: item[1], reverse=True)
+    return scored[:top_k]
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -170,6 +219,8 @@ def generate_product_embedding(product):
     if not text:
         return []
     vector = _encode_single(text)
+    if vector is None:
+        return []
     sync_product_vector(product, vector, embedding_text=text)
     return vector
 
@@ -185,6 +236,14 @@ def search_similar_products(query, base_queryset, candidate_limit=200, top_k=60)
         return []
 
     # Encode the query — 1 model call
+    if getattr(settings, 'RENDER_FREE_TIER', False):
+        return _search_products_orm_text(
+            query,
+            base_queryset,
+            candidate_limit=candidate_limit,
+            top_k=top_k,
+        )
+
     query_vector = _encode_single(query)
     if not query_vector:
         return []
@@ -212,7 +271,7 @@ def search_similar_products(query, base_queryset, candidate_limit=200, top_k=60)
             len(vector_backend_results),
         )
         return vector_backend_results
-    if product_vector_backend_status().backend in {'pgvector', 'sqlite_vec'}:
+    if product_vector_backend_status().backend == 'pgvector':
         logger.warning("Configured vector backend returned no results; using JSON cosine fallback")
 
     # Separate products that already have stored vectors from those that don't

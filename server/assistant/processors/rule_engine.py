@@ -1,9 +1,12 @@
 #server/assistant/processors/rule_engine.py
 """
-Rule Engine - Fuzzy matching against safety/support rules.
-Matches user messages against rules.yaml using rapidfuzz for robustness.
+Rule Engine - conservative matching against safety/support rules.
+
+The customer-service agent owns contextual support work. This engine should only
+catch clear safety/escalation cases and explicit report commands.
 """
 import logging
+import re
 import yaml
 from pathlib import Path
 from typing import Dict, Optional, List
@@ -17,8 +20,25 @@ except ImportError:
     logger.warning("rapidfuzz not installed. Falling back to simple string matching.")
     HAS_RAPIDFUZZ = False
 
-RULE_MATCH_THRESHOLD = 0.75
+RULE_MATCH_THRESHOLD = 0.78
 BLOCK_THRESHOLD = 0.90
+MIN_RULE_MESSAGE_WORDS = 4
+SHORT_ACKNOWLEDGEMENTS = {
+    'y', 'yes', 'yeah', 'yep', 'no', 'nope', 'nah', 'ok', 'okay',
+    'sure', 'fine', 'cool', 'alright', 'thanks', 'thank you',
+}
+EXPLICIT_RULE_COMMANDS = {
+    'report seller',
+    'report buyer',
+    'report user',
+    'report account',
+    'report scam',
+    'report fraud',
+    'freeze account',
+    'freeze my account',
+    'lock account',
+    'lock my account',
+}
 
 
 class RuleEngine:
@@ -66,6 +86,11 @@ class RuleEngine:
             logger.error(f"Failed to load rules: {e}")
             self.rules = []
 
+    @staticmethod
+    def _meaningful_words(text: str) -> List[str]:
+        """Return simple alphanumeric words used for short-message gating."""
+        return [token for token in re.findall(r"[a-z0-9']+", (text or '').lower()) if len(token) > 1]
+
     def _fuzzy_match_phrase(self, phrase: str, message: str) -> float:
         """
         Calculate fuzzy match score using rapidfuzz.
@@ -75,18 +100,39 @@ class RuleEngine:
         """
         phrase_lower = phrase.lower().strip()
         message_lower = message.lower().strip()
+        phrase_words = self._meaningful_words(phrase_lower)
+        message_words = self._meaningful_words(message_lower)
 
-                                                
-        if phrase_lower in message_lower:
+        if not phrase_words or not message_words:
+            return 0.0
+
+        if re.search(rf"\b{re.escape(phrase_lower)}\b", message_lower):
+            return 1.0
+
+        phrase_word_set = set(phrase_words)
+        message_word_set = set(message_words)
+        overlap = phrase_word_set.intersection(message_word_set)
+
+        if phrase_word_set.issubset(message_word_set):
             return 1.0
 
         if not HAS_RAPIDFUZZ:
             return 0.0
 
-                                                
+        if not overlap:
+            return 0.0
+
+        # Short rule phrases are precise policy hooks, not fuzzy suggestions.
+        # Require every meaningful word so "hello support" cannot drift into a
+        # support/escalation rule because of a high partial-ratio score.
+        if len(phrase_word_set) <= 2 and overlap != phrase_word_set:
+            return 0.0
+
+        if len(overlap) / len(phrase_word_set) < 0.5:
+            return 0.0
+
         partial_score = fuzz.partial_ratio(phrase_lower, message_lower) / 100.0
 
-                                                             
         token_score = fuzz.token_set_ratio(phrase_lower, message_lower) / 100.0
 
         return max(partial_score, token_score)
@@ -111,6 +157,16 @@ class RuleEngine:
         if not message or not self.rules:
             return None
 
+        normalized_message = message.lower().strip()
+        meaningful_words = self._meaningful_words(normalized_message)
+        is_explicit_command = normalized_message in EXPLICIT_RULE_COMMANDS
+        if (
+            normalized_message in SHORT_ACKNOWLEDGEMENTS
+            or (len(meaningful_words) < MIN_RULE_MESSAGE_WORDS and not is_explicit_command)
+        ):
+            logger.debug("Skipping rule match for short/non-meaningful message: %r", message)
+            return None
+
         best_match = None
         best_confidence = 0.0
 
@@ -132,7 +188,8 @@ class RuleEngine:
                         'severity': severity,
                         'matched_phrase': phrase,
                         'confidence': confidence,
-                        'description': description
+                        'description': description,
+                        'response': rule.get('response', ''),
                     }
 
                                                     
@@ -147,16 +204,6 @@ class RuleEngine:
 
     def evaluate(self, message: str) -> Optional[Dict]:
         """Backward-compatible alias."""
-        message_l = (message or '').lower()
-        if "hasn't arrived" in message_l or "not arrived" in message_l:
-            return {
-                'id': 'not_delivered',
-                'action': 'escalate',
-                'severity': 'medium',
-                'matched_phrase': "hasn't arrived",
-                'confidence': 1.0,
-                'description': 'Delivery issue reported.',
-            }
         return self.match(message)
 
     def should_block(self, rule: Dict) -> bool:

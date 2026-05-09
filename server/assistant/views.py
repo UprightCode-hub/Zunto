@@ -3,7 +3,9 @@ import logging
 import time
 import uuid
 import json
+import re
 from collections import Counter
+from datetime import timedelta
 from pathlib import Path
 from django.conf import settings
 from django.http import JsonResponse
@@ -11,6 +13,7 @@ from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import render
@@ -50,7 +53,7 @@ from assistant.services.dispute_ticket_service import DisputeTicketService, Disp
 from assistant.services.dispute_ai_service import DisputeAIService
 from assistant.services.dispute_oversight_metrics import DisputeOversightMetricsService
 from assistant.services.demand_gap_service import log_demand_gap
-from assistant.services.recommendation_service import RecommendationService
+from assistant.services.gigi_agent import GigiRecommendationAgent
 
                    
 from assistant.utils.constants import (
@@ -76,6 +79,7 @@ from assistant.throttles import (
     DisputeEvidenceUploadUserThrottle,
 )
 from core.audit import audit_event
+from core.permissions import IsAdminOrStaff
 from market.search.intent import detect_search_intent
 from market.models import DemandEvent, Product
 from market.demand_engine import get_trending_products
@@ -86,6 +90,24 @@ from assistant.utils.formatters import (
     build_error_response
 )
 from assistant.utils import metrics
+
+
+def _is_platform_admin(user):
+    return bool(
+        user
+        and user.is_authenticated
+        and (getattr(user, 'is_staff', False) or getattr(user, 'role', None) == 'admin')
+    )
+
+
+def _paginate_queryset(request, queryset, serializer_class):
+    paginator = PageNumberPagination()
+    paginator.page_size = 25
+    paginator.page_size_query_param = 'page_size'
+    paginator.max_page_size = 100
+    page = paginator.paginate_queryset(queryset, request)
+    serializer = serializer_class(page, many=True, context={'request': request})
+    return paginator.get_paginated_response(serializer.data)
 
 logger = logging.getLogger(__name__)
 
@@ -151,11 +173,77 @@ def _customer_service_redirect_message() -> str:
     )
 
 
+TITLE_STOP_WORDS = {
+    'a', 'an', 'and', 'are', 'can', 'could', 'do', 'for', 'get', 'give',
+    'i', 'im', 'in', 'is', 'looking', 'me', 'need', 'please', 'show',
+    'the', 'to', 'want', 'with', 'you', 'actually',
+}
+
+
+def _title_case_token(token: str) -> str:
+    if any(char.isdigit() for char in token):
+        return token.upper()
+    return token.capitalize()
+
+
 def _build_title_from_first_message(message, product_name=None):
-    snippet = (message or '').strip()[:80].strip()
-    if len(snippet) >= 8:
-        return snippet
-    return f"Conversation about {product_name or 'support'}"
+    """Create a compact 4-6 word session title without pasting raw user text."""
+    lower = str(message or '').lower()
+    if re.search(r'\bbags?\s+of\s+rice\b', lower):
+        return 'Bag Of Rice Search'
+
+    seed = f"{message or ''} {product_name or ''}"
+    tokens = re.findall(r"[a-zA-Z0-9]+", seed.lower())
+    meaningful = []
+    for token in tokens:
+        if token in TITLE_STOP_WORDS:
+            continue
+        if len(token) <= 1:
+            continue
+        meaningful.append(token)
+
+    if not meaningful:
+        meaningful = ['ai', 'shopping']
+
+    title_tokens = meaningful[:4]
+    if len(title_tokens) == 1:
+        title_tokens.extend(['shopping', 'product', 'search'])
+    elif len(title_tokens) == 2:
+        title_tokens.extend(['product', 'search'])
+    elif len(title_tokens) == 3:
+        title_tokens.append('search')
+
+    return ' '.join(_title_case_token(token) for token in title_tokens[:6])
+
+
+def _serialize_session_messages(session: ConversationSession):
+    history = session.conversation_history if isinstance(session.conversation_history, list) else []
+    if not history:
+        context = session.context if isinstance(session.context, dict) else {}
+        history = context.get('history') if isinstance(context.get('history'), list) else []
+
+    messages = []
+    for index, entry in enumerate(history):
+        if not isinstance(entry, dict):
+            continue
+        role = str(entry.get('role') or entry.get('sender') or '').strip().lower()
+        if role in {'assistant', 'ai', 'bot'}:
+            sender = 'assistant'
+        else:
+            sender = 'user'
+        content = str(entry.get('content') or entry.get('text') or entry.get('message') or '').strip()
+        if not content:
+            continue
+        messages.append({
+            'id': entry.get('id') or f"{session.session_id}-{index}",
+            'sender': sender,
+            'role': sender,
+            'text': content,
+            'content': content,
+            'timestamp': entry.get('timestamp') or entry.get('created_at') or '',
+            'metadata': entry.get('metadata') if isinstance(entry.get('metadata'), dict) else {},
+        })
+    return messages
 
 
 
@@ -428,28 +516,7 @@ def _handle_ephemeral_chat(message: str, assistant_mode: str, lane: str, session
             }
         }
 
-    if lane == 'customer_service':
-        return {
-            'reply': (
-                "You're in Customer Service mode. Please share your dispute details: "
-                "what happened, which product/order is affected, and the timeline. "
-                "You can also upload screenshots and OPUS/WAV audio evidence after opening the dispute."
-            ),
-            'state': 'dispute_mode',
-            'explanation': 'Routed to customer service dispute flow.',
-            'confidence': 0.95,
-            'escalated': False,
-            'metadata': {
-                'assistant_mode': assistant_mode,
-                'assistant_lane': lane,
-                'persistence': 'temporary',
-                'expires_after_minutes': 15,
-                'conversation_title': _build_title_from_first_message(message),
-                'mode': 'dispute_only'
-            }
-        }
-
-    if _looks_like_dispute_request(message):
+    if assistant_mode != 'customer_service' and _looks_like_dispute_request(message):
         return {
             'reply': _customer_service_redirect_message(),
             'state': 'chat_mode',
@@ -512,10 +579,28 @@ def _get_or_create_homepage_reco_ephemeral_session(session_id: str, assistant_mo
     """Create or reuse a temporary anonymous recommendation session."""
     session = ConversationSession.objects.filter(session_id=session_id).first()
     effective_session_id = session_id
+    session_ttl_minutes = int(getattr(settings, 'HOMEPAGE_RECO_SESSION_TTL_MINUTES', 20) or 20)
 
     if session and (session.user_id or session.is_persistent):
         logger.info(
             "Rotating anonymous homepage_reco session away from persistent/authenticated session %s",
+            session.session_id[:8],
+        )
+        session = None
+        effective_session_id = str(uuid.uuid4())
+
+    if session and session.assistant_mode != assistant_mode:
+        logger.info(
+            "Rotating anonymous homepage_reco session away from %s session %s",
+            session.assistant_mode,
+            session.session_id[:8],
+        )
+        session = None
+        effective_session_id = str(uuid.uuid4())
+
+    if session and session.last_activity < timezone.now() - timedelta(minutes=session_ttl_minutes):
+        logger.info(
+            "Rotating expired anonymous homepage_reco session %s",
             session.session_id[:8],
         )
         session = None
@@ -564,6 +649,7 @@ def _get_or_create_homepage_reco_ephemeral_session(session_id: str, assistant_mo
 
 def _handle_homepage_reco_ephemeral_chat(message: str, assistant_mode: str, lane: str, session_id: str):
     """Dedicated logged-out homepage recommendation flow with guest previews."""
+    session_ttl_minutes = int(getattr(settings, 'HOMEPAGE_RECO_SESSION_TTL_MINUTES', 20) or 20)
     if _looks_like_dispute_request(message):
         return {
             'reply': (
@@ -578,7 +664,7 @@ def _handle_homepage_reco_ephemeral_chat(message: str, assistant_mode: str, lane
                 'assistant_mode': assistant_mode,
                 'assistant_lane': lane,
                 'persistence': 'temporary',
-                'expires_after_minutes': 15,
+                'expires_after_minutes': session_ttl_minutes,
                 'conversation_title': _build_title_from_first_message(message),
                 'mode': 'redirect_to_customer_service'
             }
@@ -591,7 +677,19 @@ def _handle_homepage_reco_ephemeral_chat(message: str, assistant_mode: str, lane
     )
 
     try:
-        result = RecommendationService.evaluate_recommendation_message(session, message)
+        agent = GigiRecommendationAgent()
+        history = session.conversation_history if isinstance(session.conversation_history, list) else []
+        result = agent.run(
+            conversation_history=history,
+            user_message=message,
+            session=session,
+        )
+        agent.append_ephemeral_turn(
+            session=session,
+            user_message=message,
+            assistant_reply=result.get('reply') or '',
+            assistant_metadata=result.get('metadata') if isinstance(result.get('metadata'), dict) else {},
+        )
     except Exception as exc:
         logger.error("Guest homepage_reco preview failed: %s", exc, exc_info=True)
         return {
@@ -607,7 +705,7 @@ def _handle_homepage_reco_ephemeral_chat(message: str, assistant_mode: str, lane
                 'assistant_lane': lane,
                 'intent': 'product_search',
                 'persistence': 'temporary',
-                'expires_after_minutes': 15,
+                'expires_after_minutes': session_ttl_minutes,
                 'conversation_title': _build_title_from_first_message(message),
             }
         }
@@ -625,7 +723,7 @@ def _handle_homepage_reco_ephemeral_chat(message: str, assistant_mode: str, lane
         'assistant_lane': lane,
         'intent': metadata.get('intent', 'product_search'),
         'persistence': 'temporary',
-        'expires_after_minutes': 15,
+        'expires_after_minutes': session_ttl_minutes,
         'conversation_title': session.conversation_title or _build_title_from_first_message(message),
         'guest_preview': True,
     })
@@ -706,16 +804,22 @@ def chat_endpoint(request):
         
                                 
         message = sanitized_data['message']
-        cookie_session = request.COOKIES.get('assistant_temp_session')
-        session_id = sanitized_data.get('session_id') or cookie_session or str(uuid.uuid4())
-        user_id = sanitized_data.get('user_id')
+        explicit_session_id = sanitized_data.get('session_id')
         assistant_mode = _resolve_assistant_mode(request.data)
         assistant_lane = resolve_legacy_lane(assistant_mode)
+        session_id = explicit_session_id or str(uuid.uuid4())
+        user_id = sanitized_data.get('user_id')
 
-        if 'session_id' not in sanitized_data:
+        if not explicit_session_id:
             logger.info(f"New session created: {session_id[:8]}")
 
         if not request.user.is_authenticated:
+            if assistant_mode != 'homepage_reco':
+                return Response(
+                    {'detail': 'Authentication credentials were not provided.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
             ephemeral_payload = _handle_ephemeral_chat(
                 message=message,
                 assistant_mode=assistant_mode,
@@ -724,9 +828,7 @@ def chat_endpoint(request):
             )
             response_session_id = ephemeral_payload.get('session_id') or session_id
             ephemeral_payload['session_id'] = response_session_id
-            response = Response(ephemeral_payload, status=status.HTTP_200_OK)
-            response.set_cookie('assistant_temp_session', response_session_id, max_age=15 * 60, httponly=True, samesite='Lax')
-            return response
+            return Response(ephemeral_payload, status=status.HTTP_200_OK)
 
         user_id = request.user.id
 
@@ -746,9 +848,13 @@ def chat_endpoint(request):
             f"Processing message [session={session_id[:8]}, "
             f"state={conv_manager.get_current_state()}]: {message[:50]}..."
         )
-        
+
                                                 
         reply = conv_manager.process_message(message)
+        if not conv_manager.session.conversation_title:
+            conv_manager.session.conversation_title = _build_title_from_first_message(message)
+            conv_manager.session.title_generated_at = timezone.now()
+            conv_manager.session.save(update_fields=['conversation_title', 'title_generated_at', 'updated_at'])
         try:
             from assistant.services.seller_memory_service import SellerMemoryService
             SellerMemoryService.update_from_conversation_async(
@@ -817,11 +923,14 @@ def chat_endpoint(request):
             response_data['source'] = ai_result.get('source')
         if ai_result.get('confidence') is not None:
             response_data['confidence'] = ai_result.get('confidence')
+        if ai_result.get('new_session_id'):
+            response_data['new_session_id'] = ai_result.get('new_session_id')
+            response_data['session_id'] = ai_result.get('new_session_id')
         
                                                                  
         _log_conversation(
             user_id=user_id,
-            session_id=session_id,
+            session_id=conv_manager.session.session_id,
             message=message,
             reply=reply,
             confidence=summary.get('satisfaction_score', 0.5),
@@ -833,7 +942,7 @@ def chat_endpoint(request):
             f"[state={response_data['state']}, escalated={is_escalated}]"
         )
         
-        audit_event(request, action='assistant.chat.persistent', session_id=session_id, extra={'assistant_mode': assistant_mode, 'assistant_lane': assistant_lane})
+        audit_event(request, action='assistant.chat.persistent', session_id=conv_manager.session.session_id, extra={'assistant_mode': assistant_mode, 'assistant_lane': assistant_lane})
         return Response(response_data, status=status.HTTP_200_OK)
     
     except Exception as e:
@@ -1104,12 +1213,20 @@ def session_status(request, session_id):
         
                                            
         conv_manager = ConversationManager(session_id, user_id=request.user.id)
+        session = conv_manager.session
         summary = conv_manager.get_conversation_summary()
         
                            
         summary['is_active'] = session.is_active()
         summary['session_id'] = session_id
         summary['state'] = session.current_state
+        summary['assistant_mode'] = getattr(session, 'assistant_mode', 'inbox_general')
+        summary['assistant_lane'] = session.assistant_lane
+        summary['conversation_title'] = session.conversation_title or 'AI Conversation'
+        summary['last_activity'] = session.last_activity.isoformat()
+        summary['created_at'] = session.created_at.isoformat()
+        summary['messages'] = _serialize_session_messages(session)
+        summary['conversation_history'] = summary['messages']
         
                                     
         summary['formatted_summary'] = format_conversation_summary(summary)
@@ -1232,7 +1349,12 @@ def list_sessions(request):
                 summary['formatted_summary'] = format_conversation_summary(summary)
                 summary['assistant_mode'] = getattr(session, 'assistant_mode', 'inbox_general')
                 summary['assistant_lane'] = session.assistant_lane
-                summary['conversation_title'] = session.conversation_title
+                history = (session.context or {}).get('history') if isinstance(session.context, dict) else []
+                first_message = history[0].get('content', '') if isinstance(history, list) and history else ''
+                summary['conversation_title'] = (
+                    session.conversation_title
+                    or (_build_title_from_first_message(first_message) if first_message else 'AI Conversation')
+                )
 
                 session_list.append(summary)
             except Exception as e:
@@ -1246,7 +1368,7 @@ def list_sessions(request):
                     'is_active': session.is_active(),
                     'assistant_mode': getattr(session, 'assistant_mode', 'inbox_general'),
                     'assistant_lane': session.assistant_lane,
-                    'conversation_title': session.conversation_title
+                    'conversation_title': session.conversation_title or 'AI Conversation'
                 })
         
         return Response(
@@ -1502,7 +1624,7 @@ def create_report(request):
         
         logger.info(f"Report created: ID={report.id}, Type={report_type}")
         audit_event(request, action='assistant.report.created', extra={'report_id': report.id, 'report_type': report_type})
-        if request.user.is_authenticated and request.user.is_staff:
+        if _is_platform_admin(request.user):
             audit_event(request, action='assistant.admin.report.created', extra={'report_id': report.id, 'report_type': report_type})
         
         return Response(
@@ -1556,7 +1678,7 @@ def create_dispute_ticket(request):
             'seller_id': str(ticket.seller_id),
         },
     )
-    if request.user.is_staff:
+    if _is_platform_admin(request.user):
         audit_event(
             request,
             action='assistant.admin.dispute_ticket.created',
@@ -1574,7 +1696,7 @@ def retrieve_dispute_ticket(request, ticket_id: str):
     except DisputeTicket.DoesNotExist:
         return Response({'error': 'Ticket not found'}, status=status.HTTP_404_NOT_FOUND)
 
-    if not request.user.is_staff and request.user.id not in {ticket.buyer_id, ticket.seller_id}:
+    if not _is_platform_admin(request.user) and request.user.id not in {ticket.buyer_id, ticket.seller_id}:
         return Response({'error': 'You do not have permission to view this ticket.'}, status=status.HTTP_403_FORBIDDEN)
 
     return Response(DisputeTicketSerializer(ticket).data, status=status.HTTP_200_OK)
@@ -1583,7 +1705,7 @@ def retrieve_dispute_ticket(request, ticket_id: str):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def dispute_ticket_admin_decision(request, ticket_id: str):
-    if not request.user.is_staff:
+    if not _is_platform_admin(request.user):
         return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
 
     try:
@@ -1641,7 +1763,7 @@ def upload_report_evidence(request, report_id):
     if report.report_type != 'dispute':
         return Response({'error': 'Evidence uploads are only supported for dispute reports.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    if request.user.is_authenticated and report.user_id and report.user_id != request.user.id and not request.user.is_staff:
+    if request.user.is_authenticated and report.user_id and report.user_id != request.user.id and not _is_platform_admin(request.user):
         return Response({'error': 'You do not have permission to upload evidence to this report.'}, status=status.HTTP_403_FORBIDDEN)
 
     uploaded_file = request.FILES.get('file')
@@ -1708,7 +1830,7 @@ def upload_report_evidence(request, report_id):
             action='assistant.report.evidence_validation_enqueue_failed',
             extra={'report_id': report.id, 'media_id': media.id, 'media_type': media_type},
         )
-        if request.user.is_authenticated and request.user.is_staff:
+        if _is_platform_admin(request.user):
             audit_event(
                 request,
                 action='assistant.admin.report.evidence_validation_enqueue_failed',
@@ -1716,7 +1838,7 @@ def upload_report_evidence(request, report_id):
             )
 
     audit_event(request, action='assistant.report.evidence_uploaded', extra={'report_id': report.id, 'media_id': media.id, 'media_type': media_type})
-    if request.user.is_authenticated and request.user.is_staff:
+    if _is_platform_admin(request.user):
         audit_event(request, action='assistant.admin.report.evidence_uploaded', extra={'report_id': report.id, 'media_id': media.id, 'media_type': media_type})
 
     linked_ticket = getattr(report, 'dispute_ticket', None)
@@ -1747,7 +1869,7 @@ def list_report_evidence(request, report_id):
     except Report.DoesNotExist:
         return Response({'error': 'Report not found'}, status=status.HTTP_404_NOT_FOUND)
 
-    if request.user.is_authenticated and report.user_id and report.user_id != request.user.id and not request.user.is_staff:
+    if request.user.is_authenticated and report.user_id and report.user_id != request.user.id and not _is_platform_admin(request.user):
         return Response({'error': 'You do not have permission to view evidence for this report.'}, status=status.HTTP_403_FORBIDDEN)
 
     limit = min(int(request.GET.get('limit', 20)), 100)
@@ -1766,14 +1888,14 @@ def close_report(request, report_id):
     except Report.DoesNotExist:
         return Response({'error': 'Report not found'}, status=status.HTTP_404_NOT_FOUND)
 
-    if not request.user.is_authenticated or (not request.user.is_staff and report.user_id != request.user.id):
+    if not request.user.is_authenticated or (not _is_platform_admin(request.user) and report.user_id != request.user.id):
         return Response({'error': 'You do not have permission to close this report.'}, status=status.HTTP_403_FORBIDDEN)
 
     if report.status not in {'resolved', 'closed'}:
         report.status = 'resolved'
         report.resolved_at = timezone.now()
         update_fields = ['status', 'resolved_at']
-        if request.user.is_staff:
+        if _is_platform_admin(request.user):
             report.resolved_by = request.user
             update_fields.append('resolved_by')
         report.save(update_fields=update_fields)
@@ -1785,7 +1907,7 @@ def close_report(request, report_id):
         updated += 1
 
     audit_event(request, action='assistant.report.closed', extra={'report_id': report.id, 'retention_files_updated': updated})
-    if request.user.is_staff:
+    if _is_platform_admin(request.user):
         audit_event(
             request,
             action='assistant.admin.report.closed',
@@ -1807,7 +1929,7 @@ def close_report(request, report_id):
 def recent_logs(request):
     """Admin endpoint: Get recent conversation logs."""
     try:
-        if not request.user.is_authenticated or not request.user.is_staff:
+        if not _is_platform_admin(request.user):
             return Response(
                 {'error': 'Admin access required'},
                 status=status.HTTP_403_FORBIDDEN
@@ -1848,7 +1970,7 @@ def recent_logs(request):
 def recent_reports(request):
     """Admin endpoint: Get recent reports."""
     try:
-        if not request.user.is_authenticated or not request.user.is_staff:
+        if not _is_platform_admin(request.user):
             return Response(
                 {'error': 'Admin access required'},
                 status=status.HTTP_403_FORBIDDEN
@@ -1883,6 +2005,124 @@ def recent_reports(request):
             {'error': 'Failed to retrieve reports'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+@api_view(['GET'])
+@permission_classes([IsAdminOrStaff])
+def admin_reports_queue(request):
+    """Paginated admin queue for assistant complaints, reports, and suggestions."""
+    queryset = Report.objects.select_related('user', 'session', 'resolved_by').order_by('-created_at')
+
+    status_filter = (request.GET.get('status') or '').strip().lower()
+    valid_statuses = {choice[0] for choice in Report.STATUS_CHOICES}
+    if status_filter in valid_statuses:
+        queryset = queryset.filter(status=status_filter)
+
+    report_type = (request.GET.get('report_type') or '').strip().lower()
+    valid_types = {choice[0] for choice in Report.REPORT_TYPE_CHOICES}
+    if report_type in valid_types:
+        queryset = queryset.filter(report_type=report_type)
+
+    severity = (request.GET.get('severity') or '').strip().lower()
+    valid_severities = {choice[0] for choice in Report.SEVERITY_CHOICES}
+    if severity in valid_severities:
+        queryset = queryset.filter(severity=severity)
+
+    audit_event(
+        request,
+        action='assistant.admin.reports.queue_viewed',
+        extra={
+            'status_filter': status_filter or None,
+            'report_type': report_type or None,
+            'severity': severity or None,
+        },
+    )
+    return _paginate_queryset(request, queryset, ReportSerializer)
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAdminOrStaff])
+def admin_report_update(request, report_id):
+    """Update assistant complaint/report status and admin response notes."""
+    try:
+        report = Report.objects.select_related('user', 'session', 'resolved_by').get(id=report_id)
+    except Report.DoesNotExist:
+        return Response({'error': 'Report not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    update_fields = set()
+    old_status = report.status
+
+    if 'status' in request.data:
+        target_status = str(request.data.get('status') or '').strip().lower()
+        valid_statuses = {choice[0] for choice in Report.STATUS_CHOICES}
+        if target_status not in valid_statuses:
+            return Response({'error': 'Invalid report status.'}, status=status.HTTP_400_BAD_REQUEST)
+        report.status = target_status
+        update_fields.add('status')
+        if target_status in {'resolved', 'closed'}:
+            report.resolved_at = timezone.now()
+            report.resolved_by = request.user
+            update_fields.update({'resolved_at', 'resolved_by'})
+        else:
+            report.resolved_at = None
+            report.resolved_by = None
+            update_fields.update({'resolved_at', 'resolved_by'})
+
+    if 'admin_notes' in request.data:
+        report.admin_notes = str(request.data.get('admin_notes') or '').strip()
+        update_fields.add('admin_notes')
+
+    if not update_fields:
+        return Response({'error': 'No supported report update was provided.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    report.save(update_fields=list(update_fields))
+
+    for evidence in report.evidence_files.filter(is_deleted=False):
+        evidence.refresh_retention()
+        evidence.save(update_fields=['retention_expires_at', 'updated_at'])
+
+    audit_event(
+        request,
+        action='assistant.admin.report.updated',
+        extra={
+            'report_id': report.id,
+            'old_status': old_status,
+            'new_status': report.status,
+            'fields': sorted(update_fields),
+        },
+    )
+    return Response(ReportSerializer(report, context={'request': request}).data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAdminOrStaff])
+def admin_dispute_tickets(request):
+    """Paginated admin queue for dispute tickets."""
+    queryset = DisputeTicket.objects.select_related(
+        'buyer',
+        'seller',
+        'order',
+        'product',
+        'admin_user',
+        'legacy_report',
+    ).prefetch_related('communications').order_by('-created_at')
+
+    status_filter = (request.GET.get('status') or '').strip().upper()
+    valid_statuses = {choice[0] for choice in DisputeTicket.STATUS_CHOICES}
+    if status_filter in valid_statuses:
+        queryset = queryset.filter(status=status_filter)
+
+    seller_type = (request.GET.get('seller_type') or '').strip().lower()
+    valid_seller_types = {choice[0] for choice in DisputeTicket.SELLER_TYPE_CHOICES}
+    if seller_type in valid_seller_types:
+        queryset = queryset.filter(seller_type=seller_type)
+
+    audit_event(
+        request,
+        action='assistant.admin.dispute_tickets.queue_viewed',
+        extra={'status_filter': status_filter or None, 'seller_type': seller_type or None},
+    )
+    return _paginate_queryset(request, queryset, DisputeTicketSerializer)
 
 
                                   

@@ -3,12 +3,38 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from rest_framework import status
+from rest_framework.test import APIClient
 
 from .models import Cart, CartAbandonment, CartEvent
 from .scoring import calculate_all_scores, calculate_composite_score
 
 
 User = get_user_model()
+
+
+class CartApiPermissionTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+
+    def test_anonymous_cart_api_requires_authentication(self):
+        item_id = '00000000-0000-0000-0000-000000000000'
+        requests = [
+            ('get', '/api/cart/', None),
+            ('post', '/api/cart/add/', {}),
+            ('patch', f'/api/cart/update/{item_id}/', {'quantity': 1}),
+            ('delete', f'/api/cart/remove/{item_id}/', None),
+            ('post', '/api/cart/clear/', {}),
+        ]
+
+        for method, endpoint, payload in requests:
+            with self.subTest(method=method, endpoint=endpoint):
+                client_method = getattr(self.client, method)
+                if payload is None:
+                    response = client_method(endpoint)
+                else:
+                    response = client_method(endpoint, payload, format='json')
+                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 class CartScoringTests(TestCase):

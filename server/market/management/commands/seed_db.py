@@ -14,6 +14,7 @@ from accounts.models import SellerProfile
 from assistant.models import ConversationSession, DemandCluster, UserBehaviorProfile
 from cart.models import Cart, CartItem
 from chat.models import Conversation, Message
+from market.demo_image_urls import existing_image_url_or_blank, image_url_for_product
 from market.models import Category, Location, Product, ProductImage
 from orders.models import Order, OrderItem, ShippingAddress
 from reviews.models import ProductReview, SellerReview
@@ -23,6 +24,7 @@ User = get_user_model()
 PASSWORD = 'ZuntoSeed@2026!'
 SELLER_DOMAIN = '@zunto-demo.com'
 BUYER_DOMAIN = '@zunto-buyer.com'
+IMAGE_SOURCE = 'demo_external_url:loremflickr_category'
 
 LOCATIONS = [
     ('Lagos', 'Ikeja', 'Allen Avenue'),
@@ -380,6 +382,11 @@ class Command(BaseCommand):
 
             for template_index, (title, base_price, condition, brand) in enumerate(seller_category['products'], start=1):
                 unique_title = f'{title} #{seller_index + 1}'
+                image_url = image_url_for_product(
+                    title=unique_title,
+                    category=category.name,
+                    brand=brand,
+                )
                 product, created = Product.objects.get_or_create(
                     seller=seller,
                     title=unique_title,
@@ -400,8 +407,14 @@ class Command(BaseCommand):
                         'views_count': random.randint(20, 1800),
                         'favorites_count': random.randint(0, 120),
                         'shares_count': random.randint(0, 35),
+                        'image_url_locked': image_url,
+                        'image_source': IMAGE_SOURCE,
                     },
                 )
+                if not existing_image_url_or_blank(product.image_url_locked):
+                    product.image_url_locked = image_url
+                    product.image_source = IMAGE_SOURCE
+                    product.save(update_fields=['image_url_locked', 'image_source', 'updated_at'])
                 if created:
                     for image_order in range(3):
                         image_bytes = generate_image_bytes(
@@ -473,7 +486,7 @@ class Command(BaseCommand):
                         product=product,
                         seller=product.seller,
                         product_name=product.title,
-                        product_image=product.images.order_by('order').first().image.url if product.images.exists() else '',
+                        product_image=product.image_url,
                         quantity=quantity,
                         unit_price=product.price,
                         total_price=product.price * quantity,

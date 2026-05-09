@@ -1,6 +1,6 @@
 {
   "lane": "buyer_support",
-  "num_faqs": 62,
+  "num_faqs": 68,
   "dimension": 384,
   "vector_backend": "faiss_hnsw_ip",
   "source": "updated_faq.json"

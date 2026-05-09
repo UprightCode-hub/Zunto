@@ -86,14 +86,7 @@ def cart_item_product_data(cart_item, request=None):
     equivalent to CartItemProductSerializer.
     """
     product = cart_item.product
-    images = product.images.all()
-    primary_image = images.filter(is_primary=True).first() or images.first()
-    image_url = None
-    if primary_image:
-        if request:
-            image_url = request.build_absolute_uri(primary_image.image.url)
-        else:
-            image_url = primary_image.image.url
+    image_url = product.image_url
 
     return {
         'id': product.id,

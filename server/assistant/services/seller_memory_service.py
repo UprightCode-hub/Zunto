@@ -21,12 +21,6 @@ class SellerMemoryService:
     _FORMAL_TOKENS = {
         'please', 'kindly', 'thank you', 'regards', 'assist', 'apologize',
     }
-    _SPECIALIZATION_KEYWORDS = {
-        'phone': ['phone', 'phones', 'iphone', 'android', 'samsung'],
-        'fashion': ['dress', 'shirt', 'shoe', 'bag', 'jacket'],
-        'electronics': ['laptop', 'tv', 'generator', 'fridge', 'tablet'],
-        'home_appliances': ['washing machine', 'microwave', 'blender', 'freezer'],
-    }
     _GOAL_KEYWORDS = {
         'increase_sales': ['sales', 'sell more', 'conversion', 'buyers'],
         'grow_brand': ['brand', 'visibility', 'reputation', 'trust'],
@@ -75,9 +69,25 @@ class SellerMemoryService:
     @classmethod
     def _detect_specializations(cls, combined_text: str) -> List[str]:
         specializations = []
-        for label, keywords in cls._SPECIALIZATION_KEYWORDS.items():
-            if any(re.search(rf'\b{re.escape(keyword)}\b', combined_text) for keyword in keywords):
-                specializations.append(label)
+        try:
+            from market.models import Category, ProductFamily
+
+            labels = set()
+            categories = Category.objects.filter(is_active=True).values_list('name', 'slug')[:500]
+            labels.update((name, slug) for name, slug in categories)
+
+            families = ProductFamily.objects.filter(is_active=True).values_list('name', 'slug')[:500]
+            labels.update((name, slug) for name, slug in families)
+
+            for name, slug in labels:
+                name_text = str(name or '').strip().lower()
+                slug_text = str(slug or '').strip().lower()
+                if not name_text:
+                    continue
+                if re.search(rf'\b{re.escape(name_text)}\b', combined_text):
+                    specializations.append(slug_text or name_text.replace(' ', '_'))
+        except Exception as exc:
+            logger.debug("Seller specialization lookup failed: %s", exc)
         return specializations
 
     @classmethod

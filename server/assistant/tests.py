@@ -5,7 +5,7 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase
 from rest_framework import status
-from .models import Report, ConversationLog, ConversationSession
+from .models import Report, ConversationLog, ConversationSession, DisputeTicket
 from market.models import Product, DemandEvent
 from .processors.rule_engine import RuleEngine
 from .processors.query_processor import QueryProcessor
@@ -34,11 +34,14 @@ class RuleEngineTests(TestCase):
         self.assertEqual(result['severity'], 'critical')
     
     def test_medium_severity(self):
-        """Test medium severity rule."""
+        """Structured delivery issues should not be answered by rules."""
         result = self.engine.evaluate("My package hasn't arrived yet")
-        self.assertIsNotNone(result)
-        self.assertEqual(result['id'], 'not_delivered')
-        self.assertEqual(result['severity'], 'medium')
+        self.assertIsNone(result)
+
+    def test_short_messages_do_not_match_rules(self):
+        """Short acknowledgements and vague help pings should stay with the agent."""
+        self.assertIsNone(self.engine.evaluate("yes"))
+        self.assertIsNone(self.engine.evaluate("hello support"))
     
     def test_no_rule_match(self):
         """Test message that doesn't match any rule."""
@@ -60,10 +63,33 @@ class QueryProcessorTests(TestCase):
         self.assertEqual(result['confidence'], 1.0)
         self.assertIn('escalate', result['explanation'].lower())
     
-    def test_faq_response(self):
-        """FAQ match should be used when no high-priority rule."""
-        result = self.processor.process("How do I track my order?")
+    def test_rag_context_reaches_llm(self):
+        """FAQ/RAG evidence should inform Groq instead of becoming a degraded fallback."""
+        faq_results = [
+            {
+                'id': 'track-order',
+                'question': 'How do I track my order?',
+                'answer': 'Track your order from the My Orders page.',
+                'confidence': 0.82,
+                'method': 'test_faq',
+                'lane': 'buyer_support',
+            }
+        ]
+
+        with patch.object(self.processor, '_search_faqs_multiple', return_value=faq_results), \
+             patch.object(self.processor, '_query_llm', return_value={
+                 'response': 'Track your order from the My Orders page.',
+                 'confidence': 0.82,
+                 'tokens': 12,
+                 'time_ms': 10,
+                 'model': 'test-groq',
+                 'context_provided': {},
+                 'rag_references_used': ['track-order'],
+             }):
+            result = self.processor.process("How do I track my order?")
+
         self.assertIsNotNone(result['faq'])
+        self.assertEqual(result['source'], 'llm')
         self.assertIn('track', result['reply'].lower())
         self.assertGreater(result['confidence'], 0.5)
     
@@ -406,6 +432,78 @@ class APIEndpointTests(APITestCase):
         self.assertIn('assistant.admin.report.evidence_validation_enqueue_failed', actions)
         self.assertIn('assistant.report.evidence_uploaded', actions)
         self.assertIn('assistant.admin.report.evidence_uploaded', actions)
+
+class AssistantAdminQueueTests(APITestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            email='assistant-admin@example.com',
+            password='admin123',
+            first_name='Assistant',
+            last_name='Admin',
+            role='admin',
+            is_staff=False,
+        )
+        self.buyer = User.objects.create_user(
+            email='assistant-buyer@example.com',
+            password='buyer123',
+            first_name='Assistant',
+            last_name='Buyer',
+            role='buyer',
+        )
+        self.seller = User.objects.create_user(
+            email='assistant-seller@example.com',
+            password='seller123',
+            first_name='Assistant',
+            last_name='Seller',
+            role='seller',
+        )
+
+    @patch('assistant.views.audit_event')
+    def test_role_admin_can_update_assistant_report(self, audit_mock):
+        report = Report.objects.create(
+            user=self.buyer,
+            message='Seller has not delivered my item.',
+            report_type='complaint',
+            severity='high',
+            status='pending',
+        )
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.patch(
+            f'/assistant/api/admin/reports/{report.id}/',
+            {'status': 'resolved', 'admin_notes': 'Refund guidance sent.'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        report.refresh_from_db()
+        self.assertEqual(report.status, 'resolved')
+        self.assertEqual(report.admin_notes, 'Refund guidance sent.')
+        self.assertEqual(report.resolved_by, self.admin)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertIn('assistant.admin.report.updated', actions)
+
+    @patch('assistant.views.audit_event')
+    def test_role_admin_can_view_dispute_ticket_queue(self, audit_mock):
+        ticket = DisputeTicket.objects.create(
+            ticket_id='TICKET-2026-0001',
+            buyer=self.buyer,
+            seller=self.seller,
+            seller_type=DisputeTicket.SELLER_TYPE_UNVERIFIED,
+            dispute_category='delivery',
+            description='Package never arrived.',
+            desired_resolution='Refund',
+            status=DisputeTicket.STATUS_OPEN,
+        )
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.get('/assistant/api/admin/dispute-tickets/?status=OPEN')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['results'][0]['ticket_id'], ticket.ticket_id)
+        actions = [call.kwargs.get('action') for call in audit_mock.call_args_list]
+        self.assertIn('assistant.admin.dispute_tickets.queue_viewed', actions)
+
 
 class ModelTests(TestCase):
     """Test database models."""

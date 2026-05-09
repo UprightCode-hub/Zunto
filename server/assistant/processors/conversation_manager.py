@@ -18,13 +18,16 @@ Change (this session):
 import logging
 from typing import Dict, Tuple, Optional
 import gc
+import re
+import uuid
 
 from django.conf import settings
 
 from assistant.models import ConversationSession
 from assistant.processors.query_processor import QueryProcessor
 from assistant.processors.local_model import LocalModelAdapter
-from assistant.services.recommendation_service import RecommendationService
+from assistant.services.gigi_agent import GigiRecommendationAgent
+from assistant.services.customer_service_agent import CustomerServiceAgent
 
 from assistant.ai import (
     classify_intent,
@@ -68,6 +71,100 @@ from assistant.utils.assistant_modes import (
 logger = logging.getLogger(__name__)
 
 
+PRODUCT_TYPE_ALIASES = (
+    ('rice', ('bag of rice', 'bags of rice', 'rice')),
+    ('air conditioner', ('air conditioner', 'air conditioners', 'air conditioning', 'split ac', 'split unit', 'a/c', 'ac', 'acs')),
+    ('phone', ('mobile phone', 'mobile phones', 'smartphone', 'smartphones', 'iphone', 'android phone', 'phone', 'phones')),
+    ('laptop', ('laptop computer', 'laptop computers', 'notebook computer', 'laptop', 'laptops')),
+    ('shoe', ('sneakers', 'trainer', 'trainers', 'shoe', 'shoes')),
+    ('shirt', ('shirt', 'shirts', 't-shirt', 't-shirts', 'tee shirt', 'tee shirts')),
+    ('dress', ('dress', 'dresses')),
+    ('generator', ('generator', 'generators')),
+    ('television', ('television', 'televisions', 'smart tv', 'tv', 'tvs')),
+    ('refrigerator', ('refrigerator', 'refrigerators', 'fridge', 'fridges')),
+    ('fan', ('standing fan', 'ceiling fan', 'fan', 'fans')),
+    ('bag', ('handbag', 'handbags', 'school bag', 'school bags', 'bag', 'bags')),
+    ('watch', ('smart watch', 'smartwatch', 'wristwatch', 'watch', 'watches')),
+    ('camera', ('camera', 'cameras')),
+    ('speaker', ('bluetooth speaker', 'speaker', 'speakers')),
+    ('chair', ('chair', 'chairs')),
+    ('table', ('table', 'tables')),
+    ('bed', ('bed frame', 'bed', 'beds')),
+    ('mattress', ('mattress', 'mattresses')),
+    ('perfume', ('perfume', 'perfumes', 'fragrance', 'fragrances')),
+)
+
+PRODUCT_CONTEXT_KEYS = {
+    'activeproduct',
+    'category',
+    'categoryname',
+    'categoryslug',
+    'itemtype',
+    'lastcategory',
+    'lastproduct',
+    'lastproducttype',
+    'normalizedproducttype',
+    'product',
+    'productcategory',
+    'productname',
+    'productslug',
+    'producttitle',
+    'producttype',
+    'requestedcategory',
+    'requestedproduct',
+    'requestedproducttype',
+    'searchcategory',
+}
+
+
+def _normalize_context_key(value) -> str:
+    return re.sub(r'[^a-z0-9]+', '', str(value or '').lower())
+
+
+def _normalize_product_text(value) -> str:
+    return re.sub(r'[^a-z0-9]+', ' ', str(value or '').lower()).strip()
+
+
+def _detect_product_type_from_text(value) -> str:
+    if isinstance(value, dict):
+        for nested in value.values():
+            detected = _detect_product_type_from_text(nested)
+            if detected:
+                return detected
+        return ''
+
+    if isinstance(value, (list, tuple, set)):
+        for nested in value:
+            detected = _detect_product_type_from_text(nested)
+            if detected:
+                return detected
+        return ''
+
+    normalized = _normalize_product_text(value)
+    if not normalized:
+        return ''
+
+    padded = f' {normalized} '
+    for canonical, aliases in PRODUCT_TYPE_ALIASES:
+        for alias in aliases:
+            normalized_alias = _normalize_product_text(alias)
+            if normalized_alias and f' {normalized_alias} ' in padded:
+                return canonical
+    return ''
+
+
+def _iter_product_context_values(data):
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if _normalize_context_key(key) in PRODUCT_CONTEXT_KEYS:
+                yield value
+            if isinstance(value, (dict, list, tuple)):
+                yield from _iter_product_context_values(value)
+    elif isinstance(data, (list, tuple)):
+        for item in data:
+            yield from _iter_product_context_values(item)
+
+
 class ConversationManager:
 
     def __init__(self, session_id: str, user_id: int = None, assistant_mode: str = ASSISTANT_MODE_INBOX_GENERAL):
@@ -104,7 +201,7 @@ class ConversationManager:
             if self.assistant_mode == ASSISTANT_MODE_HOMEPAGE_RECO:
                 initial_state = STATE_CHAT_MODE
             elif self.assistant_lane == 'customer_service':
-                initial_state = STATE_DISPUTE_MODE
+                initial_state = STATE_CHAT_MODE
 
             session, created = ConversationSession.objects.get_or_create(
                 session_id=self.session_id,
@@ -125,14 +222,60 @@ class ConversationManager:
                 if self.user_id and session.user_id and session.user_id != self.user_id:
                     raise PermissionError('Session does not belong to the authenticated user')
 
-                updates = []
                 if self.user_id and session.user_id is None:
-                    session.user_id = self.user_id
-                    updates.append('user')
-                    if not session.is_persistent:
-                        session.is_persistent = True
-                        updates.append('is_persistent')
+                    logger.info(
+                        "Ignoring anonymous session %s for authenticated user %s; creating a fresh session",
+                        session.session_id[:8],
+                        self.user_id,
+                    )
+                    self.session_id = str(uuid.uuid4())
+                    session = ConversationSession.objects.create(
+                        session_id=self.session_id,
+                        user_id=self.user_id,
+                        assistant_lane=self.assistant_lane,
+                        assistant_mode=self.assistant_mode,
+                        is_persistent=True,
+                        current_state=initial_state,
+                        context={},
+                        context_data={},
+                        conversation_history=[],
+                        context_type=(
+                            ConversationSession.CONTEXT_TYPE_RECOMMENDATION
+                            if self.assistant_mode == ASSISTANT_MODE_HOMEPAGE_RECO
+                            else ConversationSession.CONTEXT_TYPE_SUPPORT
+                        ),
+                        constraint_state={},
+                        intent_state={},
+                    )
+                    return session
 
+                if (
+                    self.assistant_mode == ASSISTANT_MODE_HOMEPAGE_RECO
+                    and session.assistant_mode != ASSISTANT_MODE_HOMEPAGE_RECO
+                ):
+                    logger.info(
+                        "Rotating homepage_reco request away from %s session %s",
+                        session.assistant_mode,
+                        session.session_id[:8],
+                    )
+                    self.session_id = str(uuid.uuid4())
+                    session = ConversationSession.objects.create(
+                        session_id=self.session_id,
+                        user_id=self.user_id,
+                        assistant_lane=self.assistant_lane,
+                        assistant_mode=self.assistant_mode,
+                        is_persistent=True,
+                        current_state=initial_state,
+                        context={},
+                        context_data={},
+                        conversation_history=[],
+                        context_type=ConversationSession.CONTEXT_TYPE_RECOMMENDATION,
+                        constraint_state={},
+                        intent_state={},
+                    )
+                    return session
+
+                updates = []
                 persisted_mode = getattr(session, 'assistant_mode', None)
                 if persisted_mode:
                     self.assistant_mode = persisted_mode
@@ -196,17 +339,17 @@ class ConversationManager:
 
             message = sanitize_message(message)
             message = clean_message(message)
-            self._ensure_conversation_title(message)
 
             current_state = self.session.current_state
 
             if self.assistant_mode == ASSISTANT_MODE_HOMEPAGE_RECO:
-                RecommendationService.initialize_context(self.session)
+                GigiRecommendationAgent.initialize_context(self.session)
                 return self._handle_homepage_reco_mode(message)
 
-            if self.assistant_mode == ASSISTANT_MODE_CUSTOMER_SERVICE and current_state != STATE_DISPUTE_MODE:
-                self.dispute_flow.enter_dispute_mode()
-                current_state = self.session.current_state
+            if self.assistant_mode == ASSISTANT_MODE_CUSTOMER_SERVICE and current_state != STATE_CHAT_MODE:
+                self.session.current_state = STATE_CHAT_MODE
+                self.session.save(update_fields=['current_state', 'updated_at'])
+                current_state = STATE_CHAT_MODE
 
             if self.assistant_mode != ASSISTANT_MODE_CUSTOMER_SERVICE and current_state == STATE_DISPUTE_MODE:
                 self.session.current_state = STATE_CHAT_MODE
@@ -320,10 +463,110 @@ class ConversationManager:
     def _is_dispute_request(self, message: str, intent_value: str = '') -> bool:
         if intent_value in {'dispute', 'complaint', 'issue'}:
             return True
-        return mode_gate_response(ASSISTANT_MODE_CUSTOMER_SERVICE, message) is None
+        text = (message or '').lower()
+        dispute_terms = {
+            'dispute', 'chargeback', 'formal complaint', 'scam', 'fraud',
+            'counterfeit', 'fake product', 'wrong item', 'damaged',
+            'not delivered', 'did not receive', 'never arrived', 'evidence',
+            'proof', 'mediation', 'escalate', 'report seller', 'report buyer',
+        }
+        return any(term in text for term in dispute_terms)
 
     def _apply_mode_gate(self, message: str) -> Optional[str]:
         return mode_gate_response(self.assistant_mode, message)
+
+    # -----------------------------------------------------------------------
+    # Recommendation context hygiene
+    # -----------------------------------------------------------------------
+
+    def _loaded_recommendation_product_type(self) -> str:
+        for data in (
+            self.session.intent_state,
+            self.session.constraint_state,
+            self.session.context,
+            self.session.context_data,
+        ):
+            for value in _iter_product_context_values(data):
+                detected = _detect_product_type_from_text(value)
+                if detected:
+                    return detected
+
+        detected = _detect_product_type_from_text(self.session.conversation_title)
+        if detected:
+            return detected
+
+        active_product = getattr(self.session, 'active_product', None)
+        if active_product:
+            for value in (
+                getattr(active_product, 'title', ''),
+                getattr(active_product, 'name', ''),
+                getattr(getattr(active_product, 'category', None), 'name', ''),
+                getattr(getattr(active_product, 'category', None), 'slug', ''),
+            ):
+                detected = _detect_product_type_from_text(value)
+                if detected:
+                    return detected
+
+        return ''
+
+    def _reset_recommendation_context(self, stale_product_type: str, incoming_product_type: str):
+        self.session.context = {}
+        self.session.context_data = {}
+        self.session.conversation_history = []
+        self.session.constraint_state = {}
+        self.session.intent_state = {}
+        self.session.active_product = None
+        self.session.context_type = ConversationSession.CONTEXT_TYPE_RECOMMENDATION
+        self.session.current_state = STATE_CHAT_MODE
+        self.session.conversation_title = ''
+        self.session.title_generated_at = None
+        self.session.message_count = 0
+        self.session.sentiment_score = 0.5
+        self.session.satisfaction_score = 0.5
+        self.session.escalation_level = 0
+        self.session.is_escalated = False
+        self.session.drift_flag = False
+        self.session.completed_at = None
+        self.session.closed_at = None
+        self.session.save(update_fields=[
+            'context',
+            'context_data',
+            'conversation_history',
+            'constraint_state',
+            'intent_state',
+            'active_product',
+            'context_type',
+            'current_state',
+            'conversation_title',
+            'title_generated_at',
+            'message_count',
+            'sentiment_score',
+            'satisfaction_score',
+            'escalation_level',
+            'is_escalated',
+            'drift_flag',
+            'completed_at',
+            'closed_at',
+            'updated_at',
+        ])
+        self.context_mgr = ContextManager(self.session)
+        self.personalizer = ResponsePersonalizer(self.session)
+        self._message_intent_cache.clear()
+        logger.info(
+            "Discarded stale homepage_reco context for session %s: %s -> %s",
+            self.session.session_id[:8],
+            stale_product_type,
+            incoming_product_type,
+        )
+
+    def _discard_stale_recommendation_context(self, message: str):
+        incoming_product_type = _detect_product_type_from_text(message)
+        if not incoming_product_type:
+            return
+
+        stale_product_type = self._loaded_recommendation_product_type()
+        if stale_product_type and stale_product_type != incoming_product_type:
+            self._reset_recommendation_context(stale_product_type, incoming_product_type)
 
     # -----------------------------------------------------------------------
     # State handlers
@@ -344,6 +587,11 @@ class ConversationManager:
 
     def _handle_menu_selection(self, message: str) -> str:
         try:
+            if self.assistant_mode == ASSISTANT_MODE_CUSTOMER_SERVICE:
+                self.session.current_state = STATE_CHAT_MODE
+                self.session.save(update_fields=['current_state', 'updated_at'])
+                return self._handle_customer_service_mode(message)
+
             message_lower = message.lower().strip()
 
             if message_lower in ['1', 'faq', 'question', 'questions', 'ask']:
@@ -395,12 +643,6 @@ class ConversationManager:
             if self.assistant_mode != ASSISTANT_MODE_CUSTOMER_SERVICE and self._is_dispute_request(message, intent.value):
                 return self._customer_service_redirect_message()
 
-            if self.assistant_mode == ASSISTANT_MODE_CUSTOMER_SERVICE and not self._is_dispute_request(message, intent.value):
-                return (
-                    "Customer Service mode is dedicated to dispute handling. "
-                    "Please describe the dispute, product/order affected, and timeline."
-                )
-
             self.context_mgr.add_message(
                 role='user',
                 content=message,
@@ -438,6 +680,8 @@ class ConversationManager:
             if self.assistant_mode != ASSISTANT_MODE_CUSTOMER_SERVICE:
                 return self._customer_service_redirect_message()
 
+            return self._handle_customer_service_mode(message)
+
             gate_reply = self._apply_mode_gate(message)
             if gate_reply:
                 return gate_reply
@@ -446,10 +690,9 @@ class ConversationManager:
             emotion = metadata.get('emotion', 'neutral')
 
             if self.assistant_mode == ASSISTANT_MODE_CUSTOMER_SERVICE and not self._is_dispute_request(message, intent.value):
-                return (
-                    "Customer Service mode is dedicated to dispute handling. "
-                    "Please describe the dispute, product/order affected, and timeline."
-                )
+                self.session.current_state = STATE_CHAT_MODE
+                self.session.save(update_fields=['current_state', 'updated_at'])
+                return self._handle_chat_mode(message)
 
             self.context_mgr.add_message(
                 role='user',
@@ -499,12 +742,6 @@ class ConversationManager:
 
             if self.assistant_mode != ASSISTANT_MODE_CUSTOMER_SERVICE and self._is_dispute_request(message, intent.value):
                 return self._customer_service_redirect_message()
-
-            if self.assistant_mode == ASSISTANT_MODE_CUSTOMER_SERVICE and not self._is_dispute_request(message, intent.value):
-                return (
-                    "Customer Service mode is dedicated to dispute handling. "
-                    "Please describe the dispute, product/order affected, and timeline."
-                )
 
             self.context_mgr.add_message(
                 role='user',
@@ -556,7 +793,17 @@ class ConversationManager:
                 emotion='neutral',
             )
 
-            recommendation = RecommendationService.evaluate_recommendation_message(self.session, message)
+            agent = GigiRecommendationAgent()
+            history = (
+                self.session.conversation_history
+                if isinstance(self.session.conversation_history, list)
+                else []
+            )
+            recommendation = agent.run(
+                conversation_history=history,
+                user_message=message,
+                session=self.session,
+            )
             self.last_ai_result = recommendation
             final_reply = recommendation['reply']
             assistant_confidence = float(recommendation.get('confidence', 0.8) or 0.8)
@@ -565,7 +812,10 @@ class ConversationManager:
                 role='assistant',
                 content=final_reply,
                 confidence=assistant_confidence,
-                metadata={'source': recommendation.get('source', 'recommendation_service')},
+                metadata={
+                    'source': recommendation.get('source', 'recommendation_service'),
+                    **(recommendation.get('metadata') if isinstance(recommendation.get('metadata'), dict) else {}),
+                },
             )
 
             new_session_id = recommendation.get('new_session_id')
@@ -581,6 +831,9 @@ class ConversationManager:
 
     def _handle_chat_mode(self, message: str) -> str:
         try:
+            if self.assistant_mode == ASSISTANT_MODE_CUSTOMER_SERVICE:
+                return self._handle_customer_service_mode(message)
+
             gate_reply = self._apply_mode_gate(message)
             if gate_reply:
                 return gate_reply
@@ -598,11 +851,9 @@ class ConversationManager:
             if self.assistant_mode != ASSISTANT_MODE_CUSTOMER_SERVICE and self._is_dispute_request(message, intent.value):
                 return self._customer_service_redirect_message()
 
-            if self.assistant_mode == ASSISTANT_MODE_CUSTOMER_SERVICE and not self._is_dispute_request(message, intent.value):
-                return (
-                    "Customer Service mode is dedicated to dispute handling. "
-                    "Please describe the dispute, product/order affected, and timeline."
-                )
+            if self.assistant_mode == ASSISTANT_MODE_CUSTOMER_SERVICE and self._is_dispute_request(message, intent.value):
+                self.dispute_flow.enter_dispute_mode()
+                return self._handle_dispute_mode(message)
 
             self.context_mgr.add_message(
                 role='user',
@@ -657,6 +908,38 @@ class ConversationManager:
         except Exception as e:
             logger.error(f"Chat mode error: {e}", exc_info=True)
             return "I encountered an issue. Could you rephrase your question?"
+
+    def _handle_customer_service_mode(self, message: str) -> str:
+        try:
+            self.context_mgr.add_message(
+                role='user',
+                content=message,
+                intent='customer_service',
+                emotion='neutral',
+            )
+
+            agent = CustomerServiceAgent(self.session)
+            result = agent.run(message)
+            self.last_ai_result = result
+            final_reply = result.get('reply') or "I could not process that support request. Please try again."
+            metadata = result.get('metadata') if isinstance(result.get('metadata'), dict) else {}
+            confidence = float(result.get('confidence', 0.85) or 0.85)
+
+            self.session.current_state = STATE_CHAT_MODE
+            self.session.context_type = ConversationSession.CONTEXT_TYPE_SUPPORT
+            self.session.save(update_fields=['current_state', 'context_type', 'updated_at'])
+
+            self.context_mgr.add_message(
+                role='assistant',
+                content=final_reply,
+                confidence=confidence,
+                metadata=metadata,
+            )
+            return final_reply
+
+        except Exception as e:
+            logger.error("Customer service mode error: %s", e, exc_info=True)
+            return "I hit an issue while checking your account records. Please try again in a moment."
 
     # -----------------------------------------------------------------------
     # Utilities

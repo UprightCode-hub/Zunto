@@ -3,7 +3,6 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from rest_framework_simplejwt.exceptions import AuthenticationFailed
 from accounts.seller_utils import (
     get_seller_profile,
     get_seller_commerce_mode,
@@ -65,18 +64,16 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
 
-        if not self.user.is_verified:
-            raise AuthenticationFailed(
-                "Email is not verified. Complete email verification before logging in."
-            )
-        
-                                                
+        # Email verification is surfaced in the user payload but no longer blocks
+        # login; signup must remain usable even when email delivery is delayed.
         data['user'] = {
             'id': str(self.user.id),
             'email': self.user.email,
             'first_name': self.user.first_name,
             'last_name': self.user.last_name,
             'role': self.user.role,
+            'is_staff': self.user.is_staff,
+            'is_superuser': self.user.is_superuser,
             'is_seller': self.user.is_seller,
             'is_verified_seller': self.user.is_verified_seller,
             'is_verified': self.user.is_verified,
@@ -103,11 +100,15 @@ class UserProfileSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'email', 'first_name', 'last_name', 'full_name', 'phone',
             'profile_picture', 'bio', 'role', 'is_seller', 'is_verified_seller', 'is_verified', 'is_phone_verified',
+            'is_staff', 'is_superuser',
             'address', 'city', 'state', 'country', 'seller_commerce_mode',
             'is_managed_seller', 'created_at',
             'isSellerActive', 'isSellerPending', 'isVerifiedSeller', 'sellerProfileStatus', 'sellerCommerceMode'
         ]
-        read_only_fields = ['id', 'email', 'is_seller', 'is_verified_seller', 'is_verified', 'is_phone_verified', 'created_at', 'is_managed_seller']
+        read_only_fields = [
+            'id', 'email', 'is_seller', 'is_verified_seller', 'is_verified', 'is_phone_verified',
+            'is_staff', 'is_superuser', 'created_at', 'is_managed_seller'
+        ]
 
     isSellerActive = serializers.SerializerMethodField()
     isSellerPending = serializers.SerializerMethodField()

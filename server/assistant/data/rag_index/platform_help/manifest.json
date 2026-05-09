@@ -1,6 +1,6 @@
 {
   "lane": "platform_help",
-  "num_faqs": 25,
+  "num_faqs": 27,
   "dimension": 384,
   "vector_backend": "faiss_hnsw_ip",
   "source": "updated_faq.json"
