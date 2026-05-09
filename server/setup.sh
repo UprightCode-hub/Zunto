@@ -47,7 +47,7 @@ echo ""
 echo "2️⃣  Creating .env.local file..."
 if [ ! -f ".env.local" ]; then
     cat > .env.local << EOF
-VITE_API_BASE_URL=http://localhost:8000
+VITE_API_BASE_URL=https://zunto-backend-bdml.onrender.com
 VITE_APP_NAME=Zunto
 VITE_APP_VERSION=1.0.0
 VITE_ENABLE_ANALYTICS=true
