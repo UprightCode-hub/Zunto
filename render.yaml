@@ -19,7 +19,7 @@ services:
       - key: BACKEND_URL
         value: https://onrender.com
       - key: ALLOWED_HOSTS
-        value: ://onrender.com,.onrender.com
+        value: zunto-backend.onrender.com,.onrender.com
       - key: FRONTEND_URL
         value: https://onrender.com
       - key: CORS_ALLOWED_ORIGINS
@@ -53,10 +53,10 @@ services:
       - key: GOOGLE_OAUTH_CLIENT_ID
         sync: false
 
-  - type: static  # Corrected from 'web' to 'static'
+  - type: web
     name: zunto-frontend
     runtime: static
-    plan: free    # This is now valid because type is 'static'
+    # Removed 'plan' and 'region' as they are invalid for runtime: static
     branch: main
     autoDeploy: true
     buildCommand: cd client && npm install && npm run build
