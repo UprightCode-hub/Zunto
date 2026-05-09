@@ -17,15 +17,15 @@ services:
       - key: RENDER_FREE_TIER
         value: "True"
       - key: BACKEND_URL
-        value: https://zunto-backend.onrender.com
+        value: https://onrender.com
       - key: ALLOWED_HOSTS
-        value: zunto-backend.onrender.com
+        value: ://onrender.com,.onrender.com
       - key: FRONTEND_URL
-        value: https://zunto-frontend.onrender.com
+        value: https://onrender.com
       - key: CORS_ALLOWED_ORIGINS
-        value: https://zunto-frontend.onrender.com
+        value: https://onrender.com
       - key: CSRF_TRUSTED_ORIGINS
-        value: https://zunto-frontend.onrender.com
+        value: https://onrender.com
       - key: PRODUCT_VECTOR_BACKEND
         value: auto
       - key: SECRET_KEY
@@ -56,7 +56,7 @@ services:
   - type: web
     name: zunto-frontend
     runtime: static
-    region: oregon
+    # region removed because static sites are global
     plan: free
     branch: main
     autoDeploy: true
@@ -64,7 +64,7 @@ services:
     staticPublishPath: client/dist
     envVars:
       - key: VITE_API_BASE_URL
-        value: https://zunto-backend.onrender.com
+        value: https://onrender.com
       - key: VITE_GOOGLE_CLIENT_ID
         sync: false
     routes:
@@ -73,12 +73,12 @@ services:
         destination: /index.html
 
 databases:
-  # Render Postgres on PostgreSQL 13+ supports pgvector; Zunto migrations run
-  # CREATE EXTENSION IF NOT EXISTS vector when the extension is available.
   - name: zunto-db
     region: oregon
     plan: free
     databaseName: zunto_db
     user: zunto_user
     postgresMajorVersion: "16"
-    ipAllowList: []
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: Required for web service access
