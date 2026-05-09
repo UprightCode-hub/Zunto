@@ -56,8 +56,7 @@ services:
   - type: web
     name: zunto-frontend
     runtime: static
-    # region removed because static sites are global
-    plan: free
+    plan: static  # Changed from 'free' to 'static'
     branch: main
     autoDeploy: true
     buildCommand: cd client && npm install && npm run build
@@ -81,4 +80,4 @@ databases:
     postgresMajorVersion: "16"
     ipAllowList:
       - source: 0.0.0.0/0
-        description: Required for web service access
+        description: internal-access
