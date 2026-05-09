@@ -53,10 +53,10 @@ services:
       - key: GOOGLE_OAUTH_CLIENT_ID
         sync: false
 
-  - type: web
+  - type: static  # Corrected from 'web' to 'static'
     name: zunto-frontend
     runtime: static
-    plan: static  # Changed from 'free' to 'static'
+    plan: free    # This is now valid because type is 'static'
     branch: main
     autoDeploy: true
     buildCommand: cd client && npm install && npm run build
