@@ -1,6 +1,7 @@
 // client/src/services/api.js
 import { getClientContext } from '../utils/clientContext';
 
+// Current - checks VITE_API_BASE first, but Render only has VITE_API_BASE_URL
 const rawApiBaseUrl = import.meta.env.VITE_API_BASE
   || import.meta.env.VITE_API_BASE_URL
   || import.meta.env.VITE_API_URL
