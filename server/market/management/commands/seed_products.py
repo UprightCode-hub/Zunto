@@ -100,7 +100,7 @@ class Command(BaseCommand):
                 )
 
         # ------------------------------------------------------------------
-        # Pre-cache lookups — avoids N+1 queries in the loop
+        # Pre-cache lookups
         # ------------------------------------------------------------------
         category_cache = {c.name: c for c in Category.objects.all()}
         family_cache = {f.name: f for f in ProductFamily.objects.all()}
@@ -117,9 +117,19 @@ class Command(BaseCommand):
             title = data.get("title", "")
             seller = sellers[i % len(sellers)]
 
-            # Resolve Category
+            # ---- Resolve or CREATE Category ----
             category_name = data.get("category", "")
             category = category_cache.get(category_name)
+            if not category and category_name and not options["dry_run"]:
+                category, _ = Category.objects.get_or_create(
+                    name=category_name,
+                    defaults={
+                        "description": category_name,
+                        "is_active": True,
+                        "order": 100,
+                    },
+                )
+                category_cache[category_name] = category
             if not category:
                 errors.append(
                     f"Row {i}: category '{category_name}' not found "
@@ -128,9 +138,19 @@ class Command(BaseCommand):
                 skipped += 1
                 continue
 
-            # Resolve ProductFamily
+            # ---- Resolve or CREATE ProductFamily ----
             family_name = data.get("product_family", "")
             family = family_cache.get(family_name)
+            if not family and family_name and not options["dry_run"]:
+                family, _ = ProductFamily.objects.get_or_create(
+                    name=family_name,
+                    defaults={
+                        "top_category": category,
+                        "subcategory": None,
+                        "is_active": True,
+                    },
+                )
+                family_cache[family_name] = family
             if not family:
                 errors.append(
                     f"Row {i}: product_family '{family_name}' not found "
@@ -139,19 +159,29 @@ class Command(BaseCommand):
                 skipped += 1
                 continue
 
-            # Validate family belongs to category
-            allowed = {family.top_category_id, family.subcategory_id}
-            if category.id not in allowed:
-                errors.append(
-                    f"Row {i}: family '{family_name}' does not belong to "
-                    f"category '{category_name}' — skipping '{title[:50]}'"
-                )
-                skipped += 1
-                continue
-
-            # Resolve Location
+            # ---- Resolve or CREATE Location ----
             location_str = data.get("location", "")
             location = location_cache.get(location_str)
+            if not location and location_str and not options["dry_run"]:
+                # Parse "Area, City, State" format
+                parts = [p.strip() for p in location_str.split(",") if p.strip()]
+                if len(parts) >= 3:
+                    area, city, state = parts[0], parts[1], parts[2]
+                elif len(parts) == 2:
+                    area, city, state = "", parts[0], parts[1]
+                elif len(parts) == 1:
+                    area, city, state = "", parts[0], "Nigeria"
+                else:
+                    area, city, state = "", "Lagos", "Lagos"
+
+                location, _ = Location.objects.get_or_create(
+                    state=state,
+                    city=city,
+                    area=area,
+                    defaults={"is_active": True},
+                )
+                location_cache[location_str] = location
+                location_cache[str(location)] = location
             if not location:
                 errors.append(
                     f"Row {i}: location '{location_str}' not found "
@@ -160,7 +190,7 @@ class Command(BaseCommand):
                 skipped += 1
                 continue
 
-            # Validate condition (required for listing_type=product)
+            # Validate condition
             condition = data.get("condition", "")
             listing_type = data.get("listing_type", "product")
             if listing_type == "product" and condition not in dict(
@@ -179,10 +209,7 @@ class Command(BaseCommand):
 
             try:
                 existing_product = Product.objects.filter(seller=seller, title=title).only(
-                    "id",
-                    "slug",
-                    "image_url_locked",
-                    "image_source",
+                    "id", "slug", "image_url_locked", "image_source",
                 ).first()
                 provided_image_url = existing_image_url_or_blank(data.get("image_url") or data.get("image_url_locked"))
                 existing_image_url = existing_image_url_or_blank(getattr(existing_product, "image_url_locked", ""))
@@ -218,8 +245,6 @@ class Command(BaseCommand):
                     "status": data.get("status", "active"),
                     "attributes": data.get("attributes", {}),
                     "search_tags": data.get("search_tags", []),
-                    # Store URL-backed demo images so Render free tier
-                    # restarts do not wipe locally stored product media.
                     "image_url_locked": image_url,
                     "image_source": image_source,
                 }
