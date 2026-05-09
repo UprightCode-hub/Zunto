@@ -1,3 +1,4 @@
+import os
 import sys
 
 from django.db.models.signals import post_save, pre_save
@@ -9,12 +10,12 @@ from market.demand_signals import track_demand_event
 from market.models import DemandEvent, Favorite, Product
 from market.tasks import schedule_product_embedding_generation
 
-SKIP_MARKET_BACKGROUND_COMMANDS = {'seed_db', 'seed_taxonomy_scale_catalog'}
+SKIP_MARKET_BACKGROUND_COMMANDS = {'seed_db', 'seed_demo', 'seed_taxonomy_scale_catalog'}
 
 
 def _skip_market_background_hooks():
     command = sys.argv[1] if len(sys.argv) > 1 else ''
-    return command in SKIP_MARKET_BACKGROUND_COMMANDS
+    return command in SKIP_MARKET_BACKGROUND_COMMANDS or os.environ.get('ZUNTO_SEEDING_DEMO') == '1'
 
 
 

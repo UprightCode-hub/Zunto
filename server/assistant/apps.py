@@ -23,9 +23,11 @@ class AssistantConfig(AppConfig):
         management_command = sys.argv[1] if len(sys.argv) > 1 else ''
         skip_preload_commands = {
             'seed_db',
+            'seed_demo',
             'migrate',
             'makemigrations',
             'collectstatic',
+            'check',
             'shell',
         }
         if management_command in skip_preload_commands:

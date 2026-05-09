@@ -25,6 +25,7 @@ PASSWORD = 'ZuntoSeed@2026!'
 SELLER_DOMAIN = '@zunto-demo.com'
 BUYER_DOMAIN = '@zunto-buyer.com'
 IMAGE_SOURCE = 'demo_external_url:loremflickr_category'
+ORDER_PREFIX = 'DEMO'
 
 LOCATIONS = [
     ('Lagos', 'Ikeja', 'Allen Avenue'),
@@ -463,41 +464,58 @@ class Command(BaseCommand):
             for order_index in range(2):
                 sample_size = min(2 + (order_index % 2), len(products))
                 selected_products = random.sample(products, sample_size)
-                order = Order.objects.create(
-                    customer=buyer,
-                    status=random.choice(['paid', 'processing', 'shipped', 'delivered']),
-                    payment_method=random.choice(['paystack', 'cash_on_delivery']),
-                    payment_status='paid',
-                    shipping_address_ref=address,
-                    shipping_address=address.address,
-                    shipping_city=address.city,
-                    shipping_state=address.state,
-                    shipping_country=address.country,
-                    shipping_phone=address.phone,
-                    shipping_email=buyer.email,
-                    shipping_full_name=buyer.get_full_name(),
-                    shipping_postal_code=address.postal_code,
-                    paid_at=timezone.now() - timedelta(days=random.randint(1, 60)),
+                status = random.choice(['paid', 'processing', 'shipped', 'delivered'])
+                order_number = f'{ORDER_PREFIX}-{buyer_index + 1:02d}-{order_index + 1:02d}'
+                order, created = Order.objects.update_or_create(
+                    order_number=order_number,
+                    defaults={
+                        'customer': buyer,
+                        'status': status,
+                        'payment_method': random.choice(['paystack', 'cash_on_delivery']),
+                        'payment_reference': f'{ORDER_PREFIX}-PAY-{buyer_index + 1:02d}-{order_index + 1:02d}',
+                        'payment_status': 'paid',
+                        'shipping_address_ref': address,
+                        'shipping_address': address.address,
+                        'shipping_city': address.city,
+                        'shipping_state': address.state,
+                        'shipping_country': address.country,
+                        'shipping_phone': address.phone,
+                        'shipping_email': buyer.email,
+                        'shipping_full_name': buyer.get_full_name(),
+                        'shipping_postal_code': address.postal_code,
+                        'paid_at': timezone.now() - timedelta(days=random.randint(1, 60)),
+                    },
                 )
-                for product in selected_products:
-                    quantity = 1 if product.price > Decimal('1000000.00') else random.randint(1, 2)
-                    OrderItem.objects.create(
-                        order=order,
-                        product=product,
-                        seller=product.seller,
-                        product_name=product.title,
-                        product_image=product.image_url,
-                        quantity=quantity,
-                        unit_price=product.price,
-                        total_price=product.price * quantity,
-                        status='shipped',
-                    )
+                if created or not order.items.exists():
+                    for product in selected_products:
+                        quantity = 1 if product.price > Decimal('1000000.00') else random.randint(1, 2)
+                        OrderItem.objects.create(
+                            order=order,
+                            product=product,
+                            seller=product.seller,
+                            product_name=product.title,
+                            product_image=product.image_url,
+                            quantity=quantity,
+                            unit_price=product.price,
+                            total_price=product.price * quantity,
+                            status='shipped',
+                        )
+                else:
+                    # Keep the deterministic random stream stable on repeated runs.
+                    for product in selected_products:
+                        if product.price <= Decimal('1000000.00'):
+                            random.randint(1, 2)
                 order.tax_amount = (order.subtotal * Decimal('0.075')).quantize(Decimal('0.01'))
                 order.total_amount = order.subtotal + order.tax_amount
-                if order.status == 'delivered':
+                if status == 'delivered':
                     order.delivered_at = timezone.now() - timedelta(days=random.randint(1, 30))
-                elif order.status == 'shipped':
+                    order.shipped_at = None
+                elif status == 'shipped':
                     order.shipped_at = timezone.now() - timedelta(days=random.randint(1, 10))
+                    order.delivered_at = None
+                else:
+                    order.shipped_at = None
+                    order.delivered_at = None
                 order.save()
                 orders.append(order)
         self.log(f'Orders ready: {len(orders)}')
