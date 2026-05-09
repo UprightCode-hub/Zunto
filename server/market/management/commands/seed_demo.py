@@ -17,6 +17,8 @@ from market.search.vector_backend import (
     product_vector_backend_status,
 )
 
+SCALE_SELLER_DOMAIN = "@zunto-scale.local"
+
 
 class Command(BaseCommand):
     help = (
@@ -46,9 +48,18 @@ class Command(BaseCommand):
         previous_seed_flag = os.environ.get("ZUNTO_SEEDING_DEMO")
         os.environ["ZUNTO_SEEDING_DEMO"] = "1"
         try:
+            # Step 1: seed core demo accounts + products (72 products)
             call_command(
                 "seed_db",
                 clear=options["clear"],
+                verbosity=options.get("verbosity", 1),
+            )
+            # Step 2: seed the 400-product JSON catalog distributed
+            # across the demo sellers created in step 1
+            self.stdout.write(self.style.NOTICE("Seeding scale product catalog..."))
+            call_command(
+                "seed_products",
+                seller_domain=SELLER_DOMAIN,
                 verbosity=options.get("verbosity", 1),
             )
         finally:
@@ -90,7 +101,12 @@ class Command(BaseCommand):
         return User.objects.filter(email__endswith=BUYER_DOMAIN).count()
 
     def _demo_products(self):
-        return Product.objects.filter(seller__email__endswith=SELLER_DOMAIN)
+        # Include both core demo products and the scale catalog products
+        return Product.objects.filter(
+            seller__email__endswith=SELLER_DOMAIN
+        ) | Product.objects.filter(
+            seller__email__endswith=SCALE_SELLER_DOMAIN
+        )
 
     def _ensure_product_embeddings(self, *, refresh=False):
         products = list(
