@@ -3,7 +3,7 @@ import { Inbox } from 'lucide-react';
 
 const MarketplaceInbox = lazy(() => import('../../components/chat/MarketplaceInbox'));
 
-export default function InboxTab() {
+export default function InboxTab({ onUnreadCountChange = null }) {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
@@ -18,6 +18,7 @@ export default function InboxTab() {
             containerClassName="h-[70vh]"
             headerTitle="Seller Inbox"
             emptyListLabel="No buyer conversations yet"
+            onUnreadCountChange={onUnreadCountChange}
           />
         </Suspense>
       </div>

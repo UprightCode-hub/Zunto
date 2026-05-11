@@ -453,6 +453,93 @@ class DisputeTicket(models.Model):
         raise ValueError('Unable to generate unique ticket id')
 
 
+class DisputeCase(models.Model):
+    CATEGORY_DELIVERY = 'delivery'
+    CATEGORY_PAYMENT = 'payment'
+    CATEGORY_HARASSMENT = 'harassment'
+    CATEGORY_FRAUD = 'fraud'
+    CATEGORY_PRODUCT_QUALITY = 'product_quality'
+    CATEGORY_CHOICES = [
+        (CATEGORY_DELIVERY, 'Delivery'),
+        (CATEGORY_PAYMENT, 'Payment'),
+        (CATEGORY_HARASSMENT, 'Harassment'),
+        (CATEGORY_FRAUD, 'Fraud'),
+        (CATEGORY_PRODUCT_QUALITY, 'Product Quality'),
+    ]
+
+    STATUS_OPEN = 'open'
+    STATUS_UNDER_REVIEW = 'under_review'
+    STATUS_RESOLVED = 'resolved'
+    STATUS_CHOICES = [
+        (STATUS_OPEN, 'Open'),
+        (STATUS_UNDER_REVIEW, 'Under Review'),
+        (STATUS_RESOLVED, 'Resolved'),
+    ]
+
+    case_id = models.CharField(max_length=24, unique=True, db_index=True)
+    buyer = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='dispute_cases_as_buyer',
+    )
+    seller = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='dispute_cases_as_seller',
+    )
+    buyer_name = models.CharField(max_length=255, blank=True)
+    buyer_email = models.EmailField(blank=True)
+    seller_name = models.CharField(max_length=255, blank=True)
+    seller_email = models.EmailField(blank=True)
+    complaint_category = models.CharField(max_length=32, choices=CATEGORY_CHOICES)
+    order = models.ForeignKey(
+        'orders.Order',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='dispute_cases',
+    )
+    conversation = models.ForeignKey(
+        'chat.Conversation',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='dispute_cases',
+    )
+    reference = models.CharField(max_length=255, blank=True)
+    ai_summary = models.TextField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_OPEN)
+    escalated_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-escalated_at']
+        indexes = [
+            models.Index(fields=['case_id']),
+            models.Index(fields=['status', '-escalated_at']),
+            models.Index(fields=['complaint_category', '-escalated_at']),
+            models.Index(fields=['buyer', '-escalated_at']),
+            models.Index(fields=['seller', '-escalated_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.case_id} ({self.status})"
+
+    @classmethod
+    def generate_case_id(cls) -> str:
+        year = timezone.now().year
+        for _ in range(10):
+            suffix = get_random_string(5, allowed_chars='0123456789')
+            candidate = f"CASE-{year}-{suffix}"
+            if not cls.objects.filter(case_id=candidate).exists():
+                return candidate
+        raise ValueError('Unable to generate unique case id')
+
+
 class DisputeTicketCommunication(models.Model):
     CHANNEL_CHAT = 'chat'
     CHANNEL_EMAIL = 'email'

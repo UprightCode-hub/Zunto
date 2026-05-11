@@ -469,10 +469,22 @@ class UpdateOrderItemStatusView(APIView):
             order.shipped_at = timezone.now()
             order.save(update_fields=['status', 'shipped_at'])
             EmailService.send_order_shipped_email(order)
+        elif len(item_statuses) == 1 and item_statuses[0] == 'delivered':
+            order.status = 'delivered'
+            order.delivered_at = timezone.now()
+            order.save(update_fields=['status', 'delivered_at'])
+            EmailService.send_order_delivered_email(order)
         elif len(item_statuses) == 1 and item_statuses[0] == 'cancelled':
             order.status = 'cancelled'
             order.cancelled_at = timezone.now()
             order.save(update_fields=['status', 'cancelled_at'])
+        elif all(status_value in {'shipped', 'delivered'} for status_value in item_statuses):
+            order.status = 'shipped'
+            if not order.shipped_at:
+                order.shipped_at = timezone.now()
+                order.save(update_fields=['status', 'shipped_at'])
+            else:
+                order.save(update_fields=['status'])
         else:
             order.status = 'processing'
             order.save(update_fields=['status'])

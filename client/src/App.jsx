@@ -39,7 +39,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 
 function AppLayout() {
   const location = useLocation();
-  const isDashboard = location.pathname === "/dashboard" || location.pathname === "/seller/dashboard";
+  const isDashboard = location.pathname === "/dashboard" || location.pathname === "/seller/dashboard" || location.pathname === "/admin";
   const shopRedirectPath = `/products${location.search || ''}${location.hash || ''}`;
 
   useEffect(() => {

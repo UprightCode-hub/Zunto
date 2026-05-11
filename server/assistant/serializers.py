@@ -4,6 +4,7 @@ from .models import (
     Report,
     ConversationLog,
     ConversationSession,
+    DisputeCase,
     DisputeMedia,
     DisputeTicket,
     DisputeTicketCommunication,
@@ -281,6 +282,36 @@ class DisputeTicketAdminDecisionSerializer(serializers.Serializer):
     admin_decision = serializers.CharField(max_length=5000)
     admin_decision_reason = serializers.CharField(max_length=5000, required=False, allow_blank=True)
 
+
+class DisputeCaseSerializer(serializers.ModelSerializer):
+    buyer_id = serializers.UUIDField(source='buyer.id', read_only=True)
+    seller_id = serializers.UUIDField(source='seller.id', read_only=True)
+    order_number = serializers.CharField(source='order.order_number', read_only=True)
+    conversation_id = serializers.UUIDField(source='conversation.id', read_only=True)
+
+    class Meta:
+        model = DisputeCase
+        fields = [
+            'id',
+            'case_id',
+            'buyer_id',
+            'buyer_name',
+            'buyer_email',
+            'seller_id',
+            'seller_name',
+            'seller_email',
+            'complaint_category',
+            'order',
+            'order_number',
+            'conversation',
+            'conversation_id',
+            'reference',
+            'ai_summary',
+            'status',
+            'escalated_at',
+            'updated_at',
+        ]
+        read_only_fields = fields
 
 
 

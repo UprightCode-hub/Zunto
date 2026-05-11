@@ -23,7 +23,7 @@ from django.utils.text import slugify
 from django.db.models import Count
 
 from assistant.utils.tts_utils import get_tts_service
-from assistant.models import ConversationSession, ConversationLog, Report, DisputeMedia, DisputeTicket, DisputeTicketCommunication, DemandCluster, AIRecommendationFeedback
+from assistant.models import ConversationSession, ConversationLog, Report, DisputeCase, DisputeMedia, DisputeTicket, DisputeTicketCommunication, DemandCluster, AIRecommendationFeedback
 from assistant.processors.conversation_manager import ConversationManager
 from assistant.utils.assistant_modes import (
     normalize_assistant_mode,
@@ -38,6 +38,7 @@ from assistant.serializers import (
     DisputeMediaSerializer,
     DisputeTicketCreateSerializer,
     DisputeTicketAdminDecisionSerializer,
+    DisputeCaseSerializer,
     DisputeTicketSerializer,
     TranslateSearchRequestSerializer,
     TranslateSearchResponseSerializer,
@@ -2123,6 +2124,35 @@ def admin_dispute_tickets(request):
         extra={'status_filter': status_filter or None, 'seller_type': seller_type or None},
     )
     return _paginate_queryset(request, queryset, DisputeTicketSerializer)
+
+
+@api_view(['GET'])
+@permission_classes([IsAdminOrStaff])
+def admin_dispute_cases(request):
+    """Paginated admin queue for AI-escalated dispute case files."""
+    queryset = DisputeCase.objects.select_related(
+        'buyer',
+        'seller',
+        'order',
+        'conversation',
+    ).order_by('-escalated_at')
+
+    status_filter = (request.GET.get('status') or '').strip().lower()
+    valid_statuses = {choice[0] for choice in DisputeCase.STATUS_CHOICES}
+    if status_filter in valid_statuses:
+        queryset = queryset.filter(status=status_filter)
+
+    category = (request.GET.get('complaint_category') or '').strip().lower()
+    valid_categories = {choice[0] for choice in DisputeCase.CATEGORY_CHOICES}
+    if category in valid_categories:
+        queryset = queryset.filter(complaint_category=category)
+
+    audit_event(
+        request,
+        action='assistant.admin.dispute_cases.queue_viewed',
+        extra={'status_filter': status_filter or None, 'complaint_category': category or None},
+    )
+    return _paginate_queryset(request, queryset, DisputeCaseSerializer)
 
 
                                   

@@ -1,5 +1,8 @@
 import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import {
+  BarChart3,
+  Headphones,
+  Home,
   Plus,
   Trash2,
   Pencil,
@@ -13,6 +16,9 @@ import {
   X,
   LogOut,
   Store,
+  MessageSquare,
+  Settings,
+  ClipboardList,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -27,6 +33,7 @@ import {
   getSellerOrderDetail,
   getSellerOrders,
   getSellerStatistics,
+  getChatRooms,
   markProductAsSold,
   reactivateProduct,
   updateProduct,
@@ -42,6 +49,7 @@ import { getProductImage } from '../utils/product';
 const OrdersTab = lazy(() => import('./sellerTabs/OrdersTab'));
 const InboxTab = lazy(() => import('./sellerTabs/InboxTab'));
 const SettingsTab = lazy(() => import('./sellerTabs/SettingsTab'));
+const InboxAI = lazy(() => import('./InboxAI'));
 
 const INITIAL_FORM = {
   title: '',
@@ -63,12 +71,13 @@ const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const SELLER_NAV_ITEMS = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'products', label: 'My Products' },
-  { key: 'orders', label: 'Orders' },
-  { key: 'inbox', label: 'Messages' },
-  { key: 'analytics', label: 'Analytics' },
-  { key: 'settings', label: 'Settings' },
+  { key: 'overview', label: 'Dashboard/Overview', icon: Home },
+  { key: 'products', label: 'Products', icon: Package },
+  { key: 'orders', label: 'Orders', icon: ClipboardList },
+  { key: 'inbox', label: 'Messages', icon: MessageSquare },
+  { key: 'support', label: 'Customer Support', icon: Headphones },
+  { key: 'analytics', label: 'Analytics', icon: BarChart3 },
+  { key: 'settings', label: 'Settings', icon: Settings },
 ];
 
 const SellerDashboard = () => {
@@ -80,6 +89,7 @@ const SellerDashboard = () => {
   const [showMediaModal, setShowMediaModal] = useState(false);
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [messagesUnreadCount, setMessagesUnreadCount] = useState(0);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [orderDetailLoading, setOrderDetailLoading] = useState(false);
@@ -112,6 +122,16 @@ const SellerDashboard = () => {
     bio: user?.bio || '',
   });
   const [savingSettings, setSavingSettings] = useState(false);
+
+  const refreshUnreadCount = async () => {
+    try {
+      const data = await getChatRooms();
+      const conversations = Array.isArray(data) ? data : data?.results || [];
+      setMessagesUnreadCount(conversations.reduce((total, conversation) => total + Number(conversation.unread_count || 0), 0));
+    } catch {
+      setMessagesUnreadCount(0);
+    }
+  };
 
   const fetchDashboardData = async (showLoader = true) => {
     try {
@@ -148,6 +168,7 @@ const SellerDashboard = () => {
         shipped_items: Number(statsData?.shipped_items || 0),
         cancelled_items: Number(statsData?.cancelled_items || 0),
       });
+      refreshUnreadCount();
     } catch (fetchError) {
       setError(fetchError?.message || 'Unable to load seller dashboard data.');
     } finally {
@@ -169,15 +190,14 @@ const SellerDashboard = () => {
   }, [user]);
 
   const stats = useMemo(() => {
+    const pendingOrders = orders.filter((order) => ['pending', 'processing', 'paid'].includes(String(order.status || '').toLowerCase())).length;
     return [
-      { label: 'Total Orders', value: String(sellerStats.total_orders), icon: ShoppingCart, accent: 'text-blue-600 dark:text-blue-400' },
-      { label: 'Total Sales', value: formatNaira(sellerStats.total_sales), icon: DollarSign, accent: 'text-green-600 dark:text-green-400' },
-      { label: 'Items Sold', value: String(sellerStats.total_items_sold), icon: Package, accent: 'text-purple-600 dark:text-purple-400' },
-      { label: 'Pending Items', value: String(sellerStats.pending_items), icon: TrendingUp, accent: 'text-amber-600 dark:text-amber-400' },
-      { label: 'Shipped Items', value: String(sellerStats.shipped_items), icon: TrendingUp, accent: 'text-emerald-600 dark:text-emerald-400' },
-      { label: 'Cancelled Items', value: String(sellerStats.cancelled_items), icon: TrendingUp, accent: 'text-red-600 dark:text-red-400' },
+      { label: 'Products Listed', value: String(products.length), icon: Package, accent: 'text-blue-600 dark:text-blue-400' },
+      { label: 'Orders Received', value: String(sellerStats.total_orders), icon: ShoppingCart, accent: 'text-emerald-600 dark:text-emerald-400' },
+      { label: 'Total Revenue', value: formatNaira(sellerStats.total_sales), icon: DollarSign, accent: 'text-purple-600 dark:text-purple-400' },
+      { label: 'Pending Action', value: String(Math.max(pendingOrders, Number(sellerStats.pending_items || 0))), icon: TrendingUp, accent: 'text-amber-600 dark:text-amber-400' },
     ];
-  }, [sellerStats]);
+  }, [orders, products.length, sellerStats]);
 
   const handleOpenOrder = async (orderNumber) => {
     try {
@@ -241,6 +261,17 @@ const SellerDashboard = () => {
       setSuccessMessage('Product reactivated successfully.');
     } catch (statusError) {
       setError(statusError?.message || 'Unable to reactivate product.');
+    }
+  };
+
+  const handleDeactivateProduct = async (slug) => {
+    try {
+      setError('');
+      await updateProduct(slug, { status: 'suspended' });
+      await fetchDashboardData(false);
+      setSuccessMessage('Product deactivated successfully.');
+    } catch (statusError) {
+      setError(statusError?.message || 'Unable to deactivate product.');
     }
   };
 
@@ -610,36 +641,84 @@ const SellerDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 px-4">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-8 flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-green-100 px-3 py-1 text-sm font-semibold text-green-700 dark:bg-green-900/40 dark:text-green-200">
-              <Store className="w-4 h-4" />
+    <div className="min-h-screen bg-slate-100 dark:bg-gray-950">
+      <div className="mx-auto flex min-h-screen max-w-[1600px] gap-6 px-4 py-6">
+        <aside className="sticky top-6 flex h-[calc(100vh-3rem)] w-72 shrink-0 flex-col rounded-lg border border-slate-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-950">
+          <div className="mb-6">
+            <div className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200">
+              <Store className="h-4 w-4" />
               Seller Mode
             </div>
-            <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">Seller Dashboard</h1>
-            <p className="text-gray-600 dark:text-gray-400">Manage your products, media, and buyer conversations</p>
+            <h1 className="mt-4 text-xl font-bold text-gray-950 dark:text-white">Zunto Seller</h1>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Commerce operations workspace</p>
           </div>
-          <div className="flex flex-wrap gap-3">
+
+          <nav className="space-y-1">
+            {SELLER_NAV_ITEMS.map((item) => {
+              const Icon = item.icon;
+              const active = activeTab === item.key;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setActiveTab(item.key)}
+                  className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm font-semibold transition ${
+                    active
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'text-gray-700 hover:bg-slate-100 dark:text-gray-200 dark:hover:bg-gray-900'
+                  }`}
+                >
+                  <span className="flex items-center gap-3">
+                    <Icon className="h-4 w-4" />
+                    {item.label}
+                  </span>
+                  {item.key === 'inbox' && messagesUnreadCount > 0 && (
+                    <span className={`rounded-full px-2 py-0.5 text-xs ${active ? 'bg-white text-emerald-700' : 'bg-emerald-600 text-white'}`}>
+                      {messagesUnreadCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+
+          <div className="mt-auto border-t border-slate-200 pt-4 dark:border-gray-800">
             <button
               type="button"
               onClick={handleExitSellerDashboard}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 dark:border-red-900/50 dark:text-red-300 dark:hover:bg-red-950/30"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="h-4 w-4" />
               Exit Seller Dashboard
             </button>
-            <button
-              type="button"
-              onClick={() => fetchDashboardData(false)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
-            >
-              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-              Refresh
-            </button>
           </div>
-        </div>
+        </aside>
+
+        <main className="min-w-0 flex-1">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">{SELLER_NAV_ITEMS.find((item) => item.key === activeTab)?.label}</p>
+              <h2 className="mt-1 text-3xl font-bold text-gray-950 dark:text-white">Seller Dashboard</h2>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {activeTab === 'products' && (
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
+                >
+                  <Plus className="h-4 w-4" /> Add New Product
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => fetchDashboardData(false)}
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-900"
+              >
+                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+            </div>
+          </div>
 
         {error && <p className="mb-4 rounded-lg bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 px-4 py-3">{error}</p>}
         {successMessage && <p className="mb-4 rounded-lg bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 px-4 py-3">{successMessage}</p>}
@@ -661,32 +740,6 @@ const SellerDashboard = () => {
           </div>
         )}
 
-        <div className="flex justify-between items-center mb-6 gap-4 flex-wrap">
-          <div className="border-b border-gray-200 dark:border-gray-700 flex gap-2 overflow-x-auto">
-            {SELLER_NAV_ITEMS.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`px-4 py-3 font-semibold transition-colors whitespace-nowrap ${
-                  activeTab === tab.key
-                    ? 'border-b-2 border-green-600 text-green-600 dark:text-green-400'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-          {activeTab === 'products' && (
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="bg-green-600 hover:bg-green-700 text-white font-semibold px-5 py-2 rounded-lg transition-colors flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" /> Add Product
-            </button>
-          )}
-        </div>
-
         {activeTab === 'products' && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-x-auto">
             {loading ? (
@@ -698,11 +751,10 @@ const SellerDashboard = () => {
                 <thead className="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
                   <tr>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">Product</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">Category</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">Status</th>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">Price</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">Views</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">Favorites</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">Actions</th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-white">Stock</th>
+                    <th className="px-6 py-4 text-right text-sm font-semibold text-gray-900 dark:text-white">Quick Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -729,47 +781,49 @@ const SellerDashboard = () => {
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">{product.category_name || 'N/A'}</td>
+                      <td className="px-6 py-4 text-sm">
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${
+                          product.status === 'active'
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200'
+                            : 'bg-slate-100 text-slate-700 dark:bg-slate-500/15 dark:text-slate-200'
+                        }`}>
+                          {product.status || 'draft'}
+                        </span>
+                      </td>
                       <td className="px-6 py-4 text-sm font-semibold text-gray-900 dark:text-white">{formatNaira(product.price)}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">{product.views_count || 0}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">{product.favorites_count || 0}</td>
-                      <td className="px-6 py-4 text-sm flex gap-2">
+                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">{product.quantity ?? 0}</td>
+                      <td className="px-6 py-4 text-sm">
+                        <div className="flex justify-end gap-2">
                         <button
                           onClick={() => openEditModal(product.slug)}
-                          className="text-emerald-600 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300 p-1"
+                          className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900"
                           aria-label={`Edit ${product.title || product.name}`}
                         >
-                          <Pencil className="w-4 h-4" />
+                          <Pencil className="h-3.5 w-3.5" /> Edit
                         </button>
                         <button
                           onClick={() => openMediaManager(product.slug)}
-                          className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 p-1"
+                          className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900"
                           aria-label={`Manage media for ${product.title || product.name}`}
                         >
-                          <ImagePlus className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteProduct(product.slug)}
-                          className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 p-1"
-                          aria-label={`Delete ${product.title || product.name}`}
-                        >
-                          <Trash2 className="w-4 h-4" />
+                          <ImagePlus className="h-3.5 w-3.5" /> Media
                         </button>
                         {product.status === 'active' ? (
                           <button
-                            onClick={() => handleMarkAsSold(product.slug)}
-                            className="text-orange-600 hover:text-orange-800 dark:text-orange-400 dark:hover:text-orange-300 text-xs font-semibold"
+                            onClick={() => handleDeactivateProduct(product.slug)}
+                            className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 dark:border-red-900/50 dark:text-red-300 dark:hover:bg-red-950/30"
                           >
-                            Mark Sold
+                            Deactivate
                           </button>
                         ) : (
                           <button
                             onClick={() => handleReactivateProduct(product.slug)}
-                            className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 text-xs font-semibold"
+                            className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900/50 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
                           >
                             Reactivate
                           </button>
                         )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -792,12 +846,79 @@ const SellerDashboard = () => {
             />
           )}
 
-          {activeTab === 'inbox' && <InboxTab />}
+          {activeTab === 'inbox' && <InboxTab onUnreadCountChange={setMessagesUnreadCount} />}
+
+          {activeTab === 'support' && (
+            <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950">
+              <InboxAI
+                embedded
+                defaultAssistantMode="customer_service"
+                initialTitle="Zunto Seller Support"
+              />
+            </div>
+          )}
 
           {activeTab === 'analytics' && (
-            <div className="rounded-lg bg-white dark:bg-gray-800 shadow-md p-8">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Analytics</h2>
-              <p className="text-gray-600 dark:text-gray-400">Seller analytics will appear here as sales data grows.</p>
+            <div className="grid gap-6 lg:grid-cols-2">
+              <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-950">
+                <h2 className="text-xl font-bold text-gray-950 dark:text-white">Sales Over Time</h2>
+                <div className="mt-5 space-y-4">
+                  {orders.slice(0, 6).map((order) => {
+                    const maxValue = Math.max(...orders.map((item) => Number(item.total_amount || 0)), 1);
+                    const width = Math.max(8, (Number(order.total_amount || 0) / maxValue) * 100);
+                    return (
+                      <div key={order.order_number}>
+                        <div className="mb-1 flex justify-between text-sm">
+                          <span className="text-gray-500">{new Date(order.created_at).toLocaleDateString()}</span>
+                          <span className="font-semibold text-gray-950 dark:text-white">{formatNaira(order.total_amount)}</span>
+                        </div>
+                        <div className="h-3 rounded-full bg-gray-100 dark:bg-gray-800">
+                          <div className="h-3 rounded-full bg-emerald-600" style={{ width: `${width}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {orders.length === 0 && <p className="text-sm text-gray-500">No order revenue yet.</p>}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-950">
+                <h2 className="text-xl font-bold text-gray-950 dark:text-white">Top Performing Products</h2>
+                <div className="mt-5 space-y-3">
+                  {products
+                    .slice()
+                    .sort((a, b) => Number(b.views_count || 0) - Number(a.views_count || 0))
+                    .slice(0, 6)
+                    .map((product) => (
+                      <div key={product.slug} className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3 dark:border-gray-800">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-950 dark:text-white">{product.title || product.name}</p>
+                          <p className="text-xs text-gray-500">{product.views_count || 0} views - stock {product.quantity ?? 0}</p>
+                        </div>
+                        <span className="text-sm font-bold text-emerald-700 dark:text-emerald-300">{formatNaira(product.price)}</span>
+                      </div>
+                    ))}
+                  {products.length === 0 && <p className="text-sm text-gray-500">No product analytics yet.</p>}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-950 lg:col-span-2">
+                <h2 className="text-xl font-bold text-gray-950 dark:text-white">Revenue Trend</h2>
+                <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                  <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-900">
+                    <p className="text-sm text-gray-500">Paid Revenue</p>
+                    <p className="mt-1 text-2xl font-bold text-gray-950 dark:text-white">{formatNaira(sellerStats.total_sales)}</p>
+                  </div>
+                  <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-900">
+                    <p className="text-sm text-gray-500">Items Sold</p>
+                    <p className="mt-1 text-2xl font-bold text-gray-950 dark:text-white">{sellerStats.total_items_sold}</p>
+                  </div>
+                  <div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-900">
+                    <p className="text-sm text-gray-500">Shipped Items</p>
+                    <p className="mt-1 text-2xl font-bold text-gray-950 dark:text-white">{sellerStats.shipped_items}</p>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -810,6 +931,7 @@ const SellerDashboard = () => {
             />
           )}
         </Suspense>
+        </main>
 
         {showCreateModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
