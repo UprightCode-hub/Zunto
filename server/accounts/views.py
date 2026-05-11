@@ -101,6 +101,26 @@ def _issue_auth_payload(user, message, *, email_sent=None, status_code=status.HT
     return Response(payload, status=status_code)
 
 
+def _registration_pending_payload(user, email_sent, *, status_code=status.HTTP_201_CREATED):
+    if email_sent:
+        message = 'Account created. We sent a verification code to your email.'
+    else:
+        message = (
+            'Account created, but we could not send the verification email right now. '
+            'Please use Resend Code on the verification page.'
+        )
+
+    return Response(
+        {
+            'message': message,
+            'email': user.email,
+            'verification_required': True,
+            'email_delivery_status': 'sent' if email_sent else 'deferred',
+        },
+        status=status_code,
+    )
+
+
 def _resend_cooldown_key(email, scope=''):
     return f"registration_resend_cooldown:{email}:{scope}"
 
@@ -142,9 +162,8 @@ def _user_payload(user):
 @method_decorator(ratelimit(key='ip', rate='50/h', method='POST'), name='post')
 class UserRegistrationView(generics.CreateAPIView):
     """
-    Create an account immediately and send the verification code best-effort.
-    Email delivery must never block initial signup because a transient SMTP/Celery
-    failure should not strand a valid buyer or seller during onboarding.
+    Create an inactive account and send the verification code best-effort.
+    The account only receives auth tokens after the code is verified.
     """
 
     queryset = PendingRegistration.objects.all()
@@ -166,6 +185,7 @@ class UserRegistrationView(generics.CreateAPIView):
                     phone=data.get('phone'),
                     role=data.get('role', 'buyer'),
                     is_seller=(data.get('role', 'buyer') == 'seller'),
+                    is_active=False,
                     is_verified=False,
                     is_verified_seller=False,
                     seller_commerce_mode=data.get('seller_commerce_mode', 'direct'),
@@ -196,9 +216,8 @@ class UserRegistrationView(generics.CreateAPIView):
             code=code,
         )
 
-        return _issue_auth_payload(
+        return _registration_pending_payload(
             user,
-            'Account created successfully. Verify your email when the code arrives.',
             email_sent=email_sent,
             status_code=status.HTTP_201_CREATED,
         )
@@ -250,7 +269,8 @@ class VerifyRegistrationView(APIView):
                 )
 
             user.is_verified = True
-            user.save(update_fields=['is_verified'])
+            user.is_active = True
+            user.save(update_fields=['is_verified', 'is_active'])
             verification.is_used = True
             verification.save(update_fields=['is_used'])
 
@@ -303,6 +323,7 @@ class VerifyRegistrationView(APIView):
                     phone=pending.phone,
                     role=pending.role,
                     is_seller=(pending.role == 'seller'),
+                    is_active=True,
                     is_verified_seller=False,
                     seller_commerce_mode=pending.seller_commerce_mode,
                     is_verified=True,

@@ -5,10 +5,14 @@ import os
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
 from django.utils.text import slugify
+from accounts.models import SellerProfile
 from market.demo_image_urls import existing_image_url_or_blank, image_url_for_product
 from market.models import Category, ProductFamily, Location, Product
 
 User = get_user_model()
+
+SEED_SELLER_PASSWORD = "Seller1234!"
+DEFAULT_SELLER_COUNT = 20
 
 SEED_PATH = os.path.join(
     os.path.dirname(__file__), "..", "..", "seed", "seed.json"
@@ -34,6 +38,12 @@ class Command(BaseCommand):
             help="Email domain to filter scale sellers (default: @zunto-scale.local)",
         )
         parser.add_argument(
+            "--seller-count",
+            type=int,
+            default=DEFAULT_SELLER_COUNT,
+            help="Number of login-ready sellers to create when seeding by domain.",
+        )
+        parser.add_argument(
             "--clear",
             action="store_true",
             help="Delete existing products for the target seller(s) before importing",
@@ -54,16 +64,15 @@ class Command(BaseCommand):
         if not os.path.exists(SEED_PATH):
             self.stderr.write(f"seed.json not found at {SEED_PATH}")
             return
+        if options["seller_count"] < 1:
+            self.stderr.write("--seller-count must be at least 1")
+            return
 
         # ------------------------------------------------------------------
         # Resolve seller(s)
         # ------------------------------------------------------------------
         if options["seller"]:
-            try:
-                sellers = [User.objects.get(email=options["seller"])]
-            except User.DoesNotExist:
-                self.stderr.write(f"No user with email '{options['seller']}'")
-                return
+            sellers = [self._ensure_seed_seller(options["seller"], index=1)]
         else:
             sellers = list(
                 User.objects.filter(
@@ -71,11 +80,24 @@ class Command(BaseCommand):
                 ).order_by("email")
             )
             if not sellers:
-                self.stderr.write(
-                    f"No users found with domain '{options['seller_domain']}'. "
-                    f"Pass --seller <email> to specify one manually."
+                sellers = [
+                    self._ensure_seed_seller(
+                        f"scale-seller-{index:02d}{options['seller_domain']}",
+                        index=index,
+                    )
+                    for index in range(1, options["seller_count"] + 1)
+                ]
+                self.stdout.write(
+                    f"Created {len(sellers)} login-ready sellers for {options['seller_domain']}."
                 )
-                return
+            else:
+                sellers = [
+                    self._ensure_seed_seller(seller.email, index=index)
+                    for index, seller in enumerate(sellers, start=1)
+                ]
+                self.stdout.write(
+                    f"Repaired {len(sellers)} seller accounts for {options['seller_domain']}."
+                )
             self.stdout.write(f"Distributing across {len(sellers)} sellers.")
 
         # ------------------------------------------------------------------
@@ -282,6 +304,45 @@ class Command(BaseCommand):
                 self.stderr.write(f"  {msg}")
             if len(errors) > 10:
                 self.stderr.write(f"  ... and {len(errors) - 10} more")
+        self.stdout.write("")
+        self.stdout.write("Seed seller credentials:")
+        for seller in sellers[:3]:
+            self.stdout.write(f"  {seller.email} / {SEED_SELLER_PASSWORD}")
+        self.stdout.write("  See TEST_CREDENTIALS.md for more demo credentials.")
+
+    def _ensure_seed_seller(self, email, *, index=1):
+        local_part = email.split("@", 1)[0]
+        display_name = local_part.replace(".", "-").replace("_", "-")
+        user, _created = User.objects.get_or_create(
+            email=email,
+            defaults={
+                "first_name": display_name[:30] or "Seed",
+                "last_name": "Seller",
+            },
+        )
+        user.first_name = user.first_name or display_name[:30] or "Seed"
+        user.last_name = user.last_name or "Seller"
+        user.role = "seller"
+        user.is_seller = True
+        user.is_verified = True
+        user.is_verified_seller = True
+        user.is_active = True
+        user.seller_commerce_mode = "managed" if index % 3 == 0 else "direct"
+        user.country = user.country or "Nigeria"
+        user.bio = user.bio or "Seeded demo seller account with verified login credentials."
+        user.set_password(SEED_SELLER_PASSWORD)
+        user.save()
+
+        SellerProfile.objects.update_or_create(
+            user=user,
+            defaults={
+                "status": SellerProfile.STATUS_APPROVED,
+                "is_verified_seller": True,
+                "verified": True,
+                "seller_commerce_mode": user.seller_commerce_mode,
+            },
+        )
+        return user
 
     def _unique_slug(self, value):
         base = slugify(value)[:230] or "product"

@@ -145,6 +145,12 @@ class EmailService:
     @staticmethod
     def send_verification_email_to_recipient(recipient_email, recipient_name, code):
         """Send email verification code to an arbitrary recipient."""
+        if settings.EMAIL_BACKEND == 'django.core.mail.backends.console.EmailBackend':
+            print(
+                f'[Zunto email verification] {recipient_email} code: {code}',
+                flush=True,
+            )
+
         context = {
             'user_name': recipient_name or recipient_email,
             'verification_code': code,

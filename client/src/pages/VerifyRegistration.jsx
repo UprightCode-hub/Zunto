@@ -1,19 +1,23 @@
 import React, { useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { MailCheck, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function VerifyRegistration() {
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const { verifyRegistration, resendRegistrationCode } = useAuth();
 
-  const [email, setEmail] = useState(() => searchParams.get('email') || '');
+  const [email, setEmail] = useState(() => searchParams.get('email') || location.state?.email || '');
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState(() => location.state?.signupMessage || '');
+  const [messageTone, setMessageTone] = useState(
+    () => (location.state?.emailDeliveryStatus === 'deferred' ? 'warning' : 'success'),
+  );
 
 
   const handleVerify = async (e) => {
@@ -58,6 +62,7 @@ export default function VerifyRegistration() {
 
     if (result.success) {
       setMessage(result.data?.message || 'Verification code resent.');
+      setMessageTone(result.data?.email_delivery_status === 'deferred' ? 'warning' : 'success');
       return;
     }
 
@@ -85,7 +90,13 @@ export default function VerifyRegistration() {
           )}
 
           {message && (
-            <div className="text-sm text-green-400 bg-green-500/10 border border-green-500/40 rounded-lg px-3 py-2">
+            <div
+              className={`text-sm rounded-lg px-3 py-2 ${
+                messageTone === 'warning'
+                  ? 'text-amber-300 bg-amber-500/10 border border-amber-500/40'
+                  : 'text-green-400 bg-green-500/10 border border-green-500/40'
+              }`}
+            >
               {message}
             </div>
           )}

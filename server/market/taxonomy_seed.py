@@ -22,7 +22,7 @@ User = get_user_model()
 
 SCALE_DATASET_LABEL = 'zunto_taxonomy_scale_v1'
 SCALE_SELLER_DOMAIN = '@zunto-scale.local'
-SCALE_PASSWORD = 'ZuntoScaleSeed@2026!'
+SCALE_PASSWORD = 'Seller1234!'
 IMAGE_SOURCE = 'demo_external_url:loremflickr_category'
 
 TOP_CATEGORIES = [
@@ -364,7 +364,7 @@ def _ensure_sellers(locations: List[Location], seller_count: int) -> List[User]:
     for index in range(1, seller_count + 1):
         location = locations[(index - 1) % len(locations)]
         email = f'scale-seller-{index:02d}{SCALE_SELLER_DOMAIN}'
-        user, created = User.objects.get_or_create(
+        user, _created = User.objects.get_or_create(
             email=email,
             defaults={
                 'first_name': f'Scale{index:02d}',
@@ -380,9 +380,20 @@ def _ensure_sellers(locations: List[Location], seller_count: int) -> List[User]:
                 'bio': 'Fake seller account for large-scale recommender testing.',
             },
         )
-        if created:
-            user.set_password(SCALE_PASSWORD)
-            user.save(update_fields=['password'])
+        user.first_name = f'Scale{index:02d}'
+        user.last_name = 'Seller'
+        user.role = 'seller'
+        user.is_seller = True
+        user.is_verified = True
+        user.is_verified_seller = True
+        user.is_active = True
+        user.seller_commerce_mode = 'managed'
+        user.city = location.city
+        user.state = location.state
+        user.country = 'Nigeria'
+        user.bio = 'Fake seller account for large-scale recommender testing.'
+        user.set_password(SCALE_PASSWORD)
+        user.save()
         SellerProfile.objects.update_or_create(
             user=user,
             defaults={

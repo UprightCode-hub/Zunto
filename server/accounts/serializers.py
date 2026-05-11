@@ -1,5 +1,6 @@
 #server/accounts/serializers.py
 from rest_framework import serializers
+from rest_framework.exceptions import AuthenticationFailed
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -62,10 +63,26 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     """Custom JWT token serializer with user data"""
     
     def validate(self, attrs):
+        email = attrs.get(self.username_field)
+        password = attrs.get('password')
+        if email and password:
+            candidate = User.objects.filter(email=str(email).lower()).first()
+            if candidate and candidate.check_password(password) and (
+                not candidate.is_active or not candidate.is_verified
+            ):
+                raise AuthenticationFailed(
+                    'Email verification required. Please verify your account or request a new code.',
+                    code='email_not_verified',
+                )
+
         data = super().validate(attrs)
 
-        # Email verification is surfaced in the user payload but no longer blocks
-        # login; signup must remain usable even when email delivery is delayed.
+        if not self.user.is_verified:
+            raise AuthenticationFailed(
+                'Email verification required. Please verify your account or request a new code.',
+                code='email_not_verified',
+            )
+
         data['user'] = {
             'id': str(self.user.id),
             'email': self.user.email,
@@ -206,7 +223,9 @@ class RegistrationInitiateSerializer(serializers.Serializer):
     def validate_email(self, value):
         normalized = value.lower()
         if User.objects.filter(email=normalized).exists():
-            raise serializers.ValidationError("A user with this email already exists.")
+            raise serializers.ValidationError(
+                "A user with this email already exists. If you have not verified it, request a new verification code."
+            )
         return normalized
 
     def validate_phone(self, value):

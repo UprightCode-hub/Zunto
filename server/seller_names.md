@@ -1,41 +1,12 @@
-1. scale-seller-20@zunto-scale.local | Seller1234!
-2. scale-seller-19@zunto-scale.local | Seller1234!
-3. scale-seller-18@zunto-scale.local | Seller1234!
-4. scale-seller-17@zunto-scale.local | Seller1234!
-5. scale-seller-16@zunto-scale.local | Seller1234!
-6. scale-seller-15@zunto-scale.local | Seller1234!
-7. scale-seller-14@zunto-scale.local | Seller1234!
-8. scale-seller-13@zunto-scale.local | Seller1234!
-9. scale-seller-12@zunto-scale.local | Seller1234!
-10. scale-seller-11@zunto-scale.local | Seller1234!
-11. scale-seller-10@zunto-scale.local | Seller1234!
-12. scale-seller-09@zunto-scale.local | Seller1234!
-13. scale-seller-08@zunto-scale.local | Seller1234!
-14. scale-seller-07@zunto-scale.local | Seller1234!
-15. scale-seller-06@zunto-scale.local | Seller1234!
-16. scale-seller-05@zunto-scale.local | Seller1234!
-17. scale-seller-04@zunto-scale.local | Seller1234!
-18. scale-seller-03@zunto-scale.local | Seller1234!
-19. scale-seller-02@zunto-scale.local | Seller1234!
-20. scale-seller-01@zunto-scale.local | Seller1234!
-21. trusted-debughyb@ex.com | Seller1234!
-22. nneka.reco@zunto-reco-eval.local | Seller1234!
-23. kemi.reco@zunto-reco-eval.local | Seller1234!
-24. ibrahim.reco@zunto-reco-eval.local | Seller1234!
-25. mariam.reco@zunto-reco-eval.local | Seller1234!
-26. tunde.reco@zunto-reco-eval.local | Seller1234!
-27. ada.reco@zunto-reco-eval.local | Seller1234!
-28. tobi.adesanya@zunto-demo.com | Seller1234!
-29. mariam.yusuf@zunto-demo.com | Seller1234!
-30. chioma.igwe@zunto-demo.com | Seller1234!
-31. ibrahim.salisu@zunto-demo.com | Seller1234!
-32. funmilayo.okonkwo@zunto-demo.com | Seller1234!
-33. emeka.okafor@zunto-demo.com | Seller1234!
-34. amina.musa@zunto-demo.com | Seller1234!
-35. oluwaseun.afolabi@zunto-demo.com | Seller1234!
-36. ngozi.eze@zunto-demo.com | Seller1234!
-37. babatunde.adeyemi@zunto-demo.com | Seller1234!
-38. adaeze.nwosu@zunto-demo.com | Seller1234!
-39. chukwuemeka.obi@zunto-demo.com | Seller1234!
-40. wisdomekwugha@gmail.com | Seller1234!
-41. seller-flow@example.com | Seller1234!
+# Seeded Seller Credentials
+
+Canonical demo credentials now live in `../TEST_CREDENTIALS.md`.
+
+Quick seller examples:
+
+1. `chukwuemeka.obi@zunto-demo.com` | `Seller1234!`
+2. `adaeze.nwosu@zunto-demo.com` | `Seller1234!`
+3. `babatunde.adeyemi@zunto-demo.com` | `Seller1234!`
+4. `scale-seller-01@zunto-scale.local` | `Seller1234!`
+5. `scale-seller-02@zunto-scale.local` | `Seller1234!`
+6. `scale-seller-03@zunto-scale.local` | `Seller1234!`

@@ -21,7 +21,7 @@ from reviews.models import ProductReview, SellerReview
 
 User = get_user_model()
 
-PASSWORD = 'ZuntoSeed@2026!'
+PASSWORD = 'Seller1234!'
 SELLER_DOMAIN = '@zunto-demo.com'
 BUYER_DOMAIN = '@zunto-buyer.com'
 IMAGE_SOURCE = 'demo_external_url:loremflickr_category'
@@ -309,7 +309,7 @@ class Command(BaseCommand):
             location = locations[(index - 1) % len(locations)]
             commerce_mode = 'managed' if index % 3 == 0 else 'direct'
 
-            user, created = User.objects.get_or_create(
+            user, _created = User.objects.get_or_create(
                 email=email,
                 defaults={
                     'first_name': first_name,
@@ -327,9 +327,23 @@ class Command(BaseCommand):
                     'bio': f'{first_name} focuses on verified marketplace sales with responsive buyer communication.',
                 },
             )
-            if created:
-                user.set_password(PASSWORD)
-                user.save(update_fields=['password'])
+            user.first_name = first_name
+            user.last_name = last_name
+            user.role = 'seller'
+            user.is_seller = True
+            user.is_verified = True
+            user.is_verified_seller = True
+            user.is_active = True
+            user.seller_commerce_mode = commerce_mode
+            user.address = f'{20 + index} Demo Plaza'
+            user.city = location.city
+            user.state = location.state
+            user.country = 'Nigeria'
+            user.bio = f'{first_name} focuses on verified marketplace sales with responsive buyer communication.'
+            if not user.phone:
+                user.phone = make_phone('081')
+            user.set_password(PASSWORD)
+            user.save()
 
             SellerProfile.objects.update_or_create(
                 user=user,
@@ -352,7 +366,7 @@ class Command(BaseCommand):
         for index, (first_name, last_name) in enumerate(BUYER_IDENTITIES, start=1):
             email = f'{first_name.lower()}.{last_name.lower()}{BUYER_DOMAIN}'
             location = locations[(index * 2 - 1) % len(locations)]
-            user, created = User.objects.get_or_create(
+            user, _created = User.objects.get_or_create(
                 email=email,
                 defaults={
                     'first_name': first_name,
@@ -367,9 +381,22 @@ class Command(BaseCommand):
                     'bio': f'{first_name} frequently buys electronics, fashion, and household items.',
                 },
             )
-            if created:
-                user.set_password(PASSWORD)
-                user.save(update_fields=['password'])
+            user.first_name = first_name
+            user.last_name = last_name
+            user.role = 'buyer'
+            user.is_seller = False
+            user.is_verified = True
+            user.is_verified_seller = False
+            user.is_active = True
+            user.address = f'{100 + index} Buyer Close'
+            user.city = location.city
+            user.state = location.state
+            user.country = 'Nigeria'
+            user.bio = f'{first_name} frequently buys electronics, fashion, and household items.'
+            if not user.phone:
+                user.phone = make_phone('090')
+            user.set_password(PASSWORD)
+            user.save()
             buyers.append(user)
         self.log(f'Buyers ready: {len(buyers)}')
         return buyers
@@ -659,5 +686,8 @@ class Command(BaseCommand):
         self.stdout.write(f'Orders: {Order.objects.filter(customer__email__endswith=BUYER_DOMAIN).count()}')
         self.stdout.write(f'Conversations: {Conversation.objects.filter(buyer__email__endswith=BUYER_DOMAIN).count()}')
         self.stdout.write('')
-        self.stdout.write(f'Seller login example: {sellers[0].email} / {PASSWORD}')
-        self.stdout.write(f'Buyer login example: {buyers[0].email} / {PASSWORD}')
+        self.stdout.write('Demo login credentials:')
+        for seller in sellers[:3]:
+            self.stdout.write(f'  Seller: {seller.email} / {PASSWORD}')
+        self.stdout.write(f'  Buyer: {buyers[0].email} / {PASSWORD}')
+        self.stdout.write('  See TEST_CREDENTIALS.md for the full demo credential list.')

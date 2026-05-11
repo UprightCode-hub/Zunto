@@ -84,12 +84,13 @@ export default function Signup() {
       });
       
       if (result.success) {
-        navigate(formData.role === 'seller' ? '/become-seller' : '/', {
+        const email = formData.email.trim().toLowerCase();
+        navigate(`/verify-registration?email=${encodeURIComponent(email)}`, {
           replace: true,
           state: {
             signupMessage: result.data?.message,
             emailDeliveryStatus: result.data?.email_delivery_status,
-            email: formData.email,
+            email,
           },
         });
       } else {

@@ -1,10 +1,14 @@
 #server/accounts/tests.py
+import io
+from contextlib import redirect_stdout
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from notifications.email_service import EmailService
 from .models import PendingRegistration, SellerProfile, VerificationCode
 
 User = get_user_model()
@@ -32,13 +36,16 @@ class AuthenticationFlowTestCase(TestCase):
             'role': 'buyer',
         }
 
-    def test_registration_creates_account_without_waiting_for_email(self):
+    def test_registration_creates_inactive_account_pending_email_verification(self):
         response = self.client.post(self.register_url, self.user_data, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertIn('message', response.data)
-        self.assertIn('access', response.data)
-        self.assertTrue(User.objects.filter(email=self.user_data['email']).exists())
+        self.assertNotIn('access', response.data)
+        self.assertTrue(response.data['verification_required'])
+        user = User.objects.get(email=self.user_data['email'])
+        self.assertFalse(user.is_active)
+        self.assertFalse(user.is_verified)
         self.assertFalse(PendingRegistration.objects.filter(email=self.user_data['email']).exists())
         self.assertTrue(
             VerificationCode.objects.filter(
@@ -66,6 +73,7 @@ class AuthenticationFlowTestCase(TestCase):
 
         user = User.objects.get(email=self.user_data['email'])
         self.assertTrue(user.is_verified)
+        self.assertTrue(user.is_active)
         self.assertFalse(PendingRegistration.objects.filter(email=self.user_data['email']).exists())
 
     def test_resend_registration_code(self):
@@ -136,7 +144,7 @@ class AuthenticationFlowTestCase(TestCase):
         )
         self.assertEqual(second.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
 
-    def test_login_allows_unverified_user_with_verification_status(self):
+    def test_login_blocks_unverified_user_with_resend_message(self):
         User.objects.create_user(
             email='unverified@example.com',
             password='TestPass123!',
@@ -151,8 +159,8 @@ class AuthenticationFlowTestCase(TestCase):
             format='json',
         )
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertFalse(response.data['user']['is_verified'])
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertIn('Email verification required', str(response.data['detail']))
 
     def test_login_verified_user(self):
         User.objects.create_user(
@@ -173,6 +181,20 @@ class AuthenticationFlowTestCase(TestCase):
         self.assertIn('access', response.data)
         self.assertIn('refresh', response.data)
         self.assertIn('is_staff', response.data['user'])
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.console.EmailBackend')
+    def test_console_email_backend_prints_verification_code(self):
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            sent = EmailService.send_verification_email_to_recipient(
+                recipient_email='console-code@example.com',
+                recipient_name='Console Code',
+                code='123456',
+            )
+
+        self.assertTrue(sent)
+        output = buffer.getvalue()
+        self.assertIn('[Zunto email verification] console-code@example.com code: 123456', output)
 
     def test_logout_prefers_jwt_over_session_csrf(self):
         user = User.objects.create_user(

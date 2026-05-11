@@ -20,7 +20,7 @@ DATASET_LABEL = 'zunto_recommender_eval_v1'
 DEMO_TITLE_PREFIX = '[DEMO EVAL]'
 SELLER_DOMAIN = '@zunto-reco-eval.local'
 VERIFIER_EMAIL = f'recommender.verifier{SELLER_DOMAIN}'
-PASSWORD = 'ZuntoRecoEval@2026!'
+PASSWORD = 'Seller1234!'
 IMAGE_CAPTION_PREFIX = 'Zunto recommender eval image'
 IMAGE_SOURCE = 'demo_external_url:loremflickr_category'
 
@@ -672,7 +672,7 @@ def _seed_categories() -> Dict[str, Category]:
 
 
 def _seed_verifier() -> User:
-    user, created = User.objects.get_or_create(
+    user, _created = User.objects.get_or_create(
         email=VERIFIER_EMAIL,
         defaults={
             'first_name': 'Reco',
@@ -682,20 +682,18 @@ def _seed_verifier() -> User:
             'is_verified': True,
         },
     )
-    if created:
-        user.set_password(PASSWORD)
-        user.save(update_fields=['password'])
-    else:
-        updates = {
-            'first_name': 'Reco',
-            'last_name': 'Verifier',
-            'role': 'admin',
-            'is_staff': True,
-            'is_verified': True,
-        }
-        for field, value in updates.items():
-            setattr(user, field, value)
-        user.save(update_fields=[*updates.keys(), 'updated_at'])
+    updates = {
+        'first_name': 'Reco',
+        'last_name': 'Verifier',
+        'role': 'admin',
+        'is_staff': True,
+        'is_verified': True,
+        'is_active': True,
+    }
+    for field, value in updates.items():
+        setattr(user, field, value)
+    user.set_password(PASSWORD)
+    user.save()
     return user
 
 
@@ -704,7 +702,7 @@ def _seed_sellers(locations: Dict[str, Location]) -> Dict[str, User]:
     for key, (first_name, last_name, local_part) in SELLER_SPECS.items():
         location = locations[key]
         email = f'{local_part}{SELLER_DOMAIN}'
-        user, created = User.objects.get_or_create(
+        user, _created = User.objects.get_or_create(
             email=email,
             defaults={
                 'first_name': first_name,
@@ -720,26 +718,24 @@ def _seed_sellers(locations: Dict[str, Location]) -> Dict[str, User]:
                 'bio': f'{first_name} is a clearly labeled recommender eval seller.',
             },
         )
-        if created:
-            user.set_password(PASSWORD)
-            user.save(update_fields=['password'])
-        else:
-            updates = {
-                'first_name': first_name,
-                'last_name': last_name,
-                'role': 'seller',
-                'is_seller': True,
-                'is_verified': True,
-                'is_verified_seller': True,
-                'seller_commerce_mode': 'managed',
-                'city': location.city,
-                'state': location.state,
-                'country': 'Nigeria',
-                'bio': f'{first_name} is a clearly labeled recommender eval seller.',
-            }
-            for field, value in updates.items():
-                setattr(user, field, value)
-            user.save(update_fields=[*updates.keys(), 'updated_at'])
+        updates = {
+            'first_name': first_name,
+            'last_name': last_name,
+            'role': 'seller',
+            'is_seller': True,
+            'is_verified': True,
+            'is_verified_seller': True,
+            'is_active': True,
+            'seller_commerce_mode': 'managed',
+            'city': location.city,
+            'state': location.state,
+            'country': 'Nigeria',
+            'bio': f'{first_name} is a clearly labeled recommender eval seller.',
+        }
+        for field, value in updates.items():
+            setattr(user, field, value)
+        user.set_password(PASSWORD)
+        user.save()
 
         SellerProfile.objects.update_or_create(
             user=user,
