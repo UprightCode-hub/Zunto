@@ -12,6 +12,13 @@ logger = logging.getLogger(__name__)
 
 class EmailService:
     """Service for sending emails"""
+
+    @staticmethod
+    def _smtp_backend_unconfigured():
+        return (
+            settings.EMAIL_BACKEND == 'django.core.mail.backends.smtp.EmailBackend'
+            and (not settings.EMAIL_HOST_USER or not settings.EMAIL_HOST_PASSWORD)
+        )
     
     @staticmethod
     def send_email(template_type, recipient_email, context_data, recipient_name=''):
@@ -27,6 +34,12 @@ class EmailService:
         Returns:
             bool: True if email sent successfully
         """
+        if EmailService._smtp_backend_unconfigured():
+            logger.warning(
+                f"SMTP email backend is not configured; skipping email to {recipient_email}"
+            )
+            return False
+
         try:
                           
             template = EmailTemplate.objects.get(
@@ -111,6 +124,9 @@ class EmailService:
             return True
 
                                                       
+        if EmailService._smtp_backend_unconfigured():
+            return False
+
         subject = 'Welcome to Zunto'
         html_content = (
             f"<p>Hello {context['user_name']},</p>"
@@ -167,6 +183,9 @@ class EmailService:
             return True
 
                                                       
+        if EmailService._smtp_backend_unconfigured():
+            return False
+
         subject = 'Your Zunto verification code'
         html_content = (
             f"<p>Hello {context['user_name']},</p>"

@@ -196,6 +196,20 @@ class AuthenticationFlowTestCase(TestCase):
         output = buffer.getvalue()
         self.assertIn('[Zunto email verification] console-code@example.com code: 123456', output)
 
+    @override_settings(
+        EMAIL_BACKEND='django.core.mail.backends.smtp.EmailBackend',
+        EMAIL_HOST_USER='',
+        EMAIL_HOST_PASSWORD='',
+    )
+    def test_unconfigured_smtp_defers_verification_email(self):
+        sent = EmailService.send_verification_email_to_recipient(
+            recipient_email='deferred-code@example.com',
+            recipient_name='Deferred Code',
+            code='123456',
+        )
+
+        self.assertFalse(sent)
+
     def test_logout_prefers_jwt_over_session_csrf(self):
         user = User.objects.create_user(
             email='logout-csrf@example.com',
