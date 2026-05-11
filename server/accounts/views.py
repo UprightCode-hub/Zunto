@@ -61,6 +61,16 @@ RESEND_COOLDOWN_SECONDS = getattr(settings, 'REGISTRATION_RESEND_COOLDOWN_SECOND
 
 def _queue_verification_email(recipient_email, recipient_name, code):
     """Queue verification email job, fallback to sync send if broker unavailable."""
+    if getattr(settings, 'CELERY_TASK_ALWAYS_EAGER', False):
+        try:
+            return EmailService.send_verification_email_to_recipient(
+                recipient_email=recipient_email,
+                recipient_name=recipient_name,
+                code=code,
+            )
+        except Exception:
+            return False
+
     try:
         send_verification_email_to_recipient_task.delay(recipient_email, recipient_name, code)
         return True
