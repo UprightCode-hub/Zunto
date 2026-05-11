@@ -1,6 +1,8 @@
 #server/accounts/views.py
 from datetime import timedelta
+import logging
 import random
+import threading
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -20,7 +22,6 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 
 from notifications.email_service import EmailService
 from notifications.tasks import (
-    send_verification_email_task,
     send_verification_email_to_recipient_task,
     send_welcome_email_task,
 )
@@ -54,35 +55,53 @@ except Exception:
 
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 RESEND_COOLDOWN_SECONDS = getattr(settings, 'REGISTRATION_RESEND_COOLDOWN_SECONDS', 60)
 
 
 def _queue_verification_email(recipient_email, recipient_name, code):
-    """Queue verification email job, fallback to sync send if broker unavailable."""
-    if getattr(settings, 'CELERY_TASK_ALWAYS_EAGER', False):
+    """Fire-and-forget verification email dispatch."""
+    delivery_will_defer = EmailService.is_smtp_backend_unconfigured()
+    should_isolate_eager_task = (
+        getattr(settings, 'IS_PRODUCTION', False)
+        and getattr(settings, 'CELERY_TASK_ALWAYS_EAGER', False)
+    )
+
+    def dispatch_task():
         try:
-            return EmailService.send_verification_email_to_recipient(
-                recipient_email=recipient_email,
-                recipient_name=recipient_name,
-                code=code,
+            send_verification_email_to_recipient_task.apply_async(
+                args=[recipient_email, recipient_name, code],
+                retry=False,
             )
-        except Exception:
+            return True
+        except Exception as exc:
+            logger.warning(
+                "Verification email dispatch failed for %s: %s",
+                recipient_email,
+                exc,
+            )
             return False
 
     try:
-        send_verification_email_to_recipient_task.delay(recipient_email, recipient_name, code)
-        return True
-    except Exception:
-        try:
-            return EmailService.send_verification_email_to_recipient(
-                recipient_email=recipient_email,
-                recipient_name=recipient_name,
-                code=code,
-            )
-        except Exception:
-            return False
+        if should_isolate_eager_task:
+            # Render free tier runs eager Celery in the web process; isolate it from the request.
+            threading.Thread(
+                target=dispatch_task,
+                name='verification-email-dispatch',
+                daemon=True,
+            ).start()
+            return not delivery_will_defer
+        else:
+            return dispatch_task() and not delivery_will_defer
+    except Exception as exc:
+        logger.warning(
+            "Verification email dispatch thread failed for %s: %s",
+            recipient_email,
+            exc,
+        )
+        return False
 
 
 def _create_email_verification(user, code=None):
@@ -769,13 +788,17 @@ class ResendVerificationCodeView(APIView):
             expires_at=expires_at,
         )
 
-        try:
-            send_verification_email_task.delay(str(user.id), code)
-        except Exception:
-            EmailService.send_verification_email(user, code)
+        email_sent = _queue_verification_email(
+            recipient_email=user.email,
+            recipient_name=user.get_full_name() or user.email,
+            code=code,
+        )
 
         return Response(
-            {'message': 'Verification code sent successfully.'},
+            {
+                'message': 'Verification code queued.' if email_sent else 'Verification code created; email delivery will retry later.',
+                'email_delivery_status': 'sent' if email_sent else 'deferred',
+            },
             status=status.HTTP_200_OK,
         )
 

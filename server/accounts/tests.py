@@ -1,6 +1,9 @@
 #server/accounts/tests.py
 import io
+import threading
+import time
 from contextlib import redirect_stdout
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
@@ -209,6 +212,39 @@ class AuthenticationFlowTestCase(TestCase):
         )
 
         self.assertFalse(sent)
+
+    @override_settings(
+        IS_PRODUCTION=True,
+        CELERY_TASK_ALWAYS_EAGER=True,
+        EMAIL_BACKEND='django.core.mail.backends.smtp.EmailBackend',
+        EMAIL_HOST_USER='configured@example.com',
+        EMAIL_HOST_PASSWORD='configured-password',
+    )
+    def test_production_eager_verification_dispatch_returns_immediately(self):
+        from accounts.views import _queue_verification_email
+
+        called = threading.Event()
+
+        def slow_apply_async(*args, **kwargs):
+            called.set()
+            time.sleep(0.5)
+            return True
+
+        with patch(
+            'accounts.views.send_verification_email_to_recipient_task.apply_async',
+            side_effect=slow_apply_async,
+        ):
+            started = time.monotonic()
+            queued = _queue_verification_email(
+                recipient_email='eager-code@example.com',
+                recipient_name='Eager Code',
+                code='123456',
+            )
+            elapsed = time.monotonic() - started
+            self.assertTrue(called.wait(timeout=1))
+
+        self.assertTrue(queued)
+        self.assertLess(elapsed, 0.2)
 
     def test_logout_prefers_jwt_over_session_csrf(self):
         user = User.objects.create_user(

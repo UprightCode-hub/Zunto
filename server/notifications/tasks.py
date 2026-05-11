@@ -54,9 +54,9 @@ def send_welcome_email_task(self, user_id):
         logger.error(f"Failed to send welcome email: {str(e)}")
 
 
-@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_jitter=True, retry_kwargs={'max_retries': 5})
+@shared_task(bind=True, max_retries=0)
 def send_verification_email_task(self, user_id, code):
-    """Send verification email asynchronously"""
+    """Send verification email asynchronously with no task-level retries."""
     from django.contrib.auth import get_user_model
     User = get_user_model()
     started_at = time.monotonic()
@@ -68,31 +68,45 @@ def send_verification_email_task(self, user_id, code):
         if sent:
             logger.info(f"Verification email sent to {user.email}")
         else:
-            logger.error(f"Verification email failed for {user.email}")
+            logger.warning(f"Verification email deferred for {user.email}")
+        return bool(sent)
     except User.DoesNotExist:
         _log_task_metric('send_verification_email_task', started_at, False, {'user_id': str(user_id), 'error': 'user_not_found'})
         logger.error(f"User with id {user_id} not found")
+        return False
     except Exception as e:
         _log_task_metric('send_verification_email_task', started_at, False, {'user_id': str(user_id), 'error': str(e)})
         logger.error(f"Failed to send verification email: {str(e)}")
+        return False
 
 
 
 
-@shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True, retry_jitter=True, retry_kwargs={'max_retries': 5})
+@shared_task(bind=True, max_retries=0)
 def send_verification_email_to_recipient_task(self, recipient_email, recipient_name, code):
     """Send verification email to a pending-registration recipient asynchronously."""
     started_at = time.monotonic()
-    sent = EmailService.send_verification_email_to_recipient(
-        recipient_email=recipient_email,
-        recipient_name=recipient_name,
-        code=code,
-    )
-    _log_task_metric('send_verification_email_to_recipient_task', started_at, bool(sent), {'recipient_email': recipient_email})
-    if not sent:
-        raise RuntimeError(f"Verification email failed for {recipient_email}")
-    logger.info(f"Verification email sent to {recipient_email}")
-    return True
+    try:
+        sent = EmailService.send_verification_email_to_recipient(
+            recipient_email=recipient_email,
+            recipient_name=recipient_name,
+            code=code,
+        )
+        _log_task_metric('send_verification_email_to_recipient_task', started_at, bool(sent), {'recipient_email': recipient_email})
+        if sent:
+            logger.info(f"Verification email sent to {recipient_email}")
+        else:
+            logger.warning(f"Verification email deferred for {recipient_email}")
+        return bool(sent)
+    except Exception as e:
+        _log_task_metric(
+            'send_verification_email_to_recipient_task',
+            started_at,
+            False,
+            {'recipient_email': recipient_email, 'error': str(e)},
+        )
+        logger.error(f"Failed to send verification email to {recipient_email}: {str(e)}")
+        return False
 
 
 @shared_task

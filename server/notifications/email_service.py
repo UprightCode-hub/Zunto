@@ -1,5 +1,5 @@
 #server/notifications/email_service.py
-from django.core.mail import EmailMultiAlternatives
+from django.core.mail import EmailMultiAlternatives, get_connection
 from django.utils.html import strip_tags
 from django.template import Template, Context
 from django.conf import settings
@@ -19,6 +19,12 @@ class EmailService:
             settings.EMAIL_BACKEND == 'django.core.mail.backends.smtp.EmailBackend'
             and (not settings.EMAIL_HOST_USER or not settings.EMAIL_HOST_PASSWORD)
         )
+
+    is_smtp_backend_unconfigured = _smtp_backend_unconfigured
+
+    @staticmethod
+    def _mail_connection():
+        return get_connection(timeout=getattr(settings, 'EMAIL_TIMEOUT', 5))
     
     @staticmethod
     def send_email(template_type, recipient_email, context_data, recipient_name=''):
@@ -76,7 +82,8 @@ class EmailService:
                 subject=subject,
                 body=text_content,
                 from_email=settings.DEFAULT_FROM_EMAIL,
-                to=[recipient_email]
+                to=[recipient_email],
+                connection=EmailService._mail_connection(),
             )
             email.attach_alternative(html_content, "text/html")
             
@@ -139,7 +146,8 @@ class EmailService:
                 subject=subject,
                 body=text_content,
                 from_email=settings.DEFAULT_FROM_EMAIL,
-                to=[user.email]
+                to=[user.email],
+                connection=EmailService._mail_connection(),
             )
             email.attach_alternative(html_content, 'text/html')
             email.send()
@@ -200,7 +208,8 @@ class EmailService:
                 subject=subject,
                 body=text_content,
                 from_email=settings.DEFAULT_FROM_EMAIL,
-                to=[recipient_email]
+                to=[recipient_email],
+                connection=EmailService._mail_connection(),
             )
             email.attach_alternative(html_content, 'text/html')
             email.send()
