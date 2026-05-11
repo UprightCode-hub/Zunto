@@ -1,12 +1,53 @@
 #server/accounts/admin.py
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.conf import settings
+from django.core.mail import EmailMultiAlternatives
 from django.utils.html import format_html
+from django.utils.html import strip_tags
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 from django.db.models import Q
 from datetime import timedelta
-from .models import SellerProfile, User, VerificationCode
+import logging
+import threading
+from notifications.email_service import EmailService
+from .models import SellerApplication, SellerProfile, User, VerificationCode
+
+
+logger = logging.getLogger(__name__)
+
+
+def _queue_seller_approval_email(user):
+    if EmailService.is_smtp_backend_unconfigured():
+        return
+
+    def send_email():
+        subject = 'Your Zunto seller application was approved'
+        seller_name = user.get_full_name() or user.email
+        html_content = (
+            f"<p>Hello {seller_name},</p>"
+            "<p>Your seller application has been approved. You can now access your Seller Dashboard.</p>"
+            f"<p><a href=\"{settings.FRONTEND_URL}/seller/dashboard\">Open Seller Dashboard</a></p>"
+        )
+        try:
+            email = EmailMultiAlternatives(
+                subject=subject,
+                body=strip_tags(html_content),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=[user.email],
+                connection=EmailService._mail_connection(),
+            )
+            email.attach_alternative(html_content, 'text/html')
+            email.send()
+        except Exception as exc:
+            logger.warning('Seller approval email failed for %s: %s', user.email, exc)
+
+    threading.Thread(
+        target=send_email,
+        name='seller-approval-email-dispatch',
+        daemon=True,
+    ).start()
 
 
 class VerificationStatusFilter(admin.SimpleListFilter):
@@ -232,3 +273,45 @@ class SellerProfileAdmin(admin.ModelAdmin):
     autocomplete_fields = ['user']
     readonly_fields = ['created_at', 'updated_at']
     date_hierarchy = 'created_at'
+
+
+@admin.register(SellerApplication)
+class SellerApplicationAdmin(admin.ModelAdmin):
+    list_display = ['user', 'business_name', 'business_type', 'category', 'location', 'status', 'created_at']
+    list_filter = ['status', 'business_type', 'category', 'created_at']
+    search_fields = ['user__email', 'business_name', 'location', 'phone']
+    autocomplete_fields = ['user', 'category']
+    readonly_fields = ['created_at', 'updated_at']
+    actions = ['approve_applications', 'reject_applications']
+    date_hierarchy = 'created_at'
+
+    @admin.action(description='Approve selected seller applications')
+    def approve_applications(self, request, queryset):
+        approved_count = 0
+        for application in queryset.select_related('user'):
+            user = application.user
+            user.role = 'seller'
+            user.is_seller = True
+            user.is_verified_seller = True
+            user.save(update_fields=['role', 'is_seller', 'is_verified_seller'])
+
+            SellerProfile.objects.update_or_create(
+                user=user,
+                defaults={
+                    'status': SellerProfile.STATUS_APPROVED,
+                    'is_verified_seller': True,
+                    'seller_commerce_mode': user.seller_commerce_mode,
+                },
+            )
+
+            application.status = SellerApplication.STATUS_APPROVED
+            application.save(update_fields=['status', 'updated_at'])
+            _queue_seller_approval_email(user)
+            approved_count += 1
+
+        self.message_user(request, f'{approved_count} seller application(s) approved.')
+
+    @admin.action(description='Reject selected seller applications')
+    def reject_applications(self, request, queryset):
+        updated = queryset.update(status=SellerApplication.STATUS_REJECTED)
+        self.message_user(request, f'{updated} seller application(s) rejected.', level='warning')

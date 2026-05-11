@@ -16,7 +16,7 @@ from .views import (
     LoginPageView,
     RegisterPageView,
     GoogleAuthView,
-    SellerRegistrationView,
+    SellerApplicationView,
 )
 
 app_name = 'accounts'
@@ -48,5 +48,5 @@ urlpatterns = [
                     
     path('password-reset/request/', PasswordResetRequestView.as_view(), name='password_reset_request'),
     path('password-reset/confirm/', PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
-    path('seller/register/', SellerRegistrationView.as_view(), name='seller_register'),
+    path('seller/application/', SellerApplicationView.as_view(), name='seller_application'),
 ]

@@ -240,6 +240,47 @@ class SellerProfile(models.Model):
             self.save()    
 
 
+class SellerApplication(models.Model):
+    STATUS_PENDING = 'pending'
+    STATUS_APPROVED = 'approved'
+    STATUS_REJECTED = 'rejected'
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_APPROVED, 'Approved'),
+        (STATUS_REJECTED, 'Rejected'),
+    ]
+
+    BUSINESS_TYPE_CHOICES = [
+        ('individual', 'Individual'),
+        ('small_business', 'Small Business'),
+        ('enterprise', 'Enterprise'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='seller_application')
+    business_name = models.CharField(max_length=255)
+    business_type = models.CharField(max_length=30, choices=BUSINESS_TYPE_CHOICES)
+    category = models.ForeignKey('market.Category', on_delete=models.PROTECT, related_name='seller_applications')
+    location = models.CharField(max_length=255)
+    description = models.TextField()
+    phone = models.CharField(max_length=17)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'seller_applications'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['created_at']),
+        ]
+
+    def __str__(self):
+        return f"SellerApplication<{self.user.email}> ({self.status})"
+
+
 class VerificationCode(models.Model):
     """Email and Phone verification codes"""
     

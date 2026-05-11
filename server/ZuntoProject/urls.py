@@ -6,7 +6,7 @@ from django.conf.urls.static import static
 from django.http import JsonResponse
 from django.views.generic import RedirectView
 from core.views import health_check, marketplace_view
-from accounts.views import SellerRegistrationView
+from accounts.views import SellerApplicationView
 from assistant import views as assistant_views
 from market.views_trending import TrendingProductsView
                                                           
@@ -45,7 +45,7 @@ urlpatterns = [
                                                                   
     path('', include(('accounts.urls', 'accounts'), namespace='accounts')),
     path('api/accounts/', include(('accounts.urls', 'accounts_api'), namespace='accounts_api')),
-    path('api/seller/register/', SellerRegistrationView.as_view(), name='seller_register_api'),
+    path('api/seller/register/', SellerApplicationView.as_view(), name='seller_register_api'),
     path('api/market/', include('market.urls')),
     path('api/products/trending/', TrendingProductsView.as_view(), name='products_trending_api'),
     path('api/reviews/', include('reviews.urls')),

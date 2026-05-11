@@ -1,15 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { BarChart3, TrendingUp, Users, ShoppingCart, DollarSign, Package } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { BarChart3, TrendingUp, Users, ShoppingCart, DollarSign, Package, Store } from 'lucide-react';
 import { getOrderStatistics, getSellerStatistics } from '../services/api';
 import { formatNaira } from '../utils/helpers';
 import AdminDashboard from './AdminDashboard';
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const location = useLocation();
   const isSellerActive = Boolean(user?.isSellerActive);
   const isPlatformAdmin = Boolean(user?.role === 'admin' || user?.is_staff || user?.is_superuser);
+  const canBecomeSeller = Boolean(
+    user?.role === 'buyer'
+    && !user?.isSellerActive
+    && !user?.isSellerPending
+    && user?.sellerApplicationStatus !== 'pending'
+    && user?.sellerApplicationStatus !== 'approved',
+  );
+  const sellerAccessMessage = location.state?.sellerAccessMessage;
   const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -28,14 +37,10 @@ export default function Dashboard() {
 
     if (isPlatformAdmin) {
       setLoading(false);
-    } else if (user.role === 'buyer') {
-      fetchBuyerStats();
-    } else if (isSellerActive) {
-      fetchSellerStats();
     } else {
-      setLoading(false);
+      fetchBuyerStats();
     }
-  }, [isPlatformAdmin, isSellerActive, navigate, user]);
+  }, [isPlatformAdmin, navigate, user]);
 
   const fetchBuyerStats = async () => {
     try {
@@ -71,13 +76,27 @@ export default function Dashboard() {
     return <AdminDashboard />;
   }
 
-  if (user?.role === 'buyer') {
+  if (user?.role === 'buyer' || !isPlatformAdmin) {
     return (
       <div className="min-h-screen pb-12">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="mb-8">
-            <h1 className="text-4xl font-bold mb-2">Welcome Back, {user?.first_name}!</h1>
-            <p className="text-gray-400">Here's your activity overview</p>
+          {sellerAccessMessage && (
+            <div className="mb-6 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-amber-200">
+              {sellerAccessMessage}
+            </div>
+          )}
+
+          <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-4xl font-bold mb-2">Welcome Back, {user?.first_name}!</h1>
+              <p className="text-gray-400">Here's your activity overview</p>
+            </div>
+            {canBecomeSeller && (
+              <Link to="/become-seller" className="btn-primary justify-center">
+                <Store className="w-5 h-5" />
+                Become a Seller
+              </Link>
+            )}
           </div>
 
           {/* Stats Cards */}

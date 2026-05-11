@@ -227,10 +227,10 @@ export const resendRegistrationCode = (email) => {
   });
 };
 
-export const registerSellerAccount = () => {
-  return apiCall('/api/seller/register/', {
+export const submitSellerApplication = (applicationData) => {
+  return apiCall('/api/accounts/seller/application/', {
     method: 'POST',
-    body: JSON.stringify({}),
+    body: JSON.stringify(applicationData),
   });
 };
 

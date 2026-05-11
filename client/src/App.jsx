@@ -39,7 +39,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 
 function AppLayout() {
   const location = useLocation();
-  const isDashboard = location.pathname === "/dashboard";
+  const isDashboard = location.pathname === "/dashboard" || location.pathname === "/seller/dashboard";
   const shopRedirectPath = `/products${location.search || ''}${location.hash || ''}`;
 
   useEffect(() => {
@@ -125,10 +125,14 @@ function AppLayout() {
               <ProtectedRoute requiredRole="admin">
                 <AdminDashboard />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/seller" 
+          <Route
+            path="/seller"
+            element={<Navigate to="/seller/dashboard" replace />}
+          />
+          <Route
+            path="/seller/dashboard"
             element={
               <ProtectedRoute requiredRole="seller">
                 <SellerDashboard />

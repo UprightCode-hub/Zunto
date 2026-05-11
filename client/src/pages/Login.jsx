@@ -52,7 +52,7 @@ export default function Login() {
 
   const completeLoginRedirect = (userData) => {
     const isAdmin = isPlatformAdmin(userData);
-    const defaultPath = isAdmin ? '/admin' : (userData?.isSellerActive ? '/seller' : '/');
+    const defaultPath = isAdmin ? '/admin' : (userData?.isSellerActive ? '/seller/dashboard' : '/dashboard');
     const nextPath = resolvePostLoginPath(defaultPath);
     const targetPath = isAdmin && (nextPath === '/dashboard' || nextPath.startsWith('/dashboard/'))
       ? '/admin'
@@ -194,7 +194,7 @@ export default function Login() {
               onSuccess={async (data) => {
                 const authResult = await googleAuth(data);
                 if (authResult.success) {
-                  completeLoginRedirect(data?.user);
+                  completeLoginRedirect(authResult.data?.user);
                 } else {
                   setError(authResult.error || 'Google authentication failed.');
                 }

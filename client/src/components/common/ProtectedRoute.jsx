@@ -29,17 +29,11 @@ const ProtectedRoute = ({ children, requiredRole = null, requireVerified = false
 
   if (requiredRole === 'seller' && !isSellerActive) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Seller Access Pending</h1>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">
-            Your seller access requires admin approval before this page is available.
-          </p>
-          <a href="/" className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-            Go to Home
-          </a>
-        </div>
-      </div>
+      <Navigate
+        to="/dashboard"
+        replace
+        state={{ sellerAccessMessage: 'You need to be an approved seller to access this area' }}
+      />
     );
   }
 

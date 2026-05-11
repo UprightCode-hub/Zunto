@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { MailCheck, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -9,7 +9,12 @@ export default function VerifyRegistration() {
   const navigate = useNavigate();
   const { verifyRegistration, resendRegistrationCode } = useAuth();
 
-  const [email, setEmail] = useState(() => searchParams.get('email') || location.state?.email || '');
+  const [email, setEmail] = useState(() => (
+    searchParams.get('email')
+    || location.state?.email
+    || sessionStorage.getItem('zunto_registration_email')
+    || ''
+  ));
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
@@ -19,6 +24,12 @@ export default function VerifyRegistration() {
     () => (location.state?.emailDeliveryStatus === 'deferred' ? 'warning' : 'success'),
   );
 
+  useEffect(() => {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (normalizedEmail) {
+      sessionStorage.setItem('zunto_registration_email', normalizedEmail);
+    }
+  }, [email]);
 
   const handleVerify = async (e) => {
     e.preventDefault();
@@ -40,7 +51,8 @@ export default function VerifyRegistration() {
     setLoading(false);
 
     if (result.success) {
-      navigate('/', { replace: true });
+      sessionStorage.removeItem('zunto_registration_email');
+      navigate('/dashboard', { replace: true });
       return;
     }
 
@@ -85,7 +97,10 @@ export default function VerifyRegistration() {
         <form onSubmit={handleVerify} className="space-y-4">
           {error && (
             <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/40 rounded-lg px-3 py-2">
-              {error}
+              <p>{error}</p>
+              <p className="mt-2 text-red-200">
+                Didn't receive the code? Check your spam folder or click Resend Code.
+              </p>
             </div>
           )}
 
@@ -137,18 +152,18 @@ export default function VerifyRegistration() {
           </button>
         </form>
 
-        <div className="mt-4 flex items-center justify-between">
+        <div className="mt-5 space-y-4">
           <button
             type="button"
             onClick={handleResend}
             disabled={resending}
-            className="text-sm text-[#2c77d1] hover:text-[#5aa5ff] transition-colors inline-flex items-center gap-1 disabled:opacity-60"
+            className="w-full bg-white text-[#0f172a] hover:bg-blue-50 transition-colors rounded-lg py-3 font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-60"
           >
-            <RefreshCw className={`w-4 h-4 ${resending ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-5 h-5 ${resending ? 'animate-spin' : ''}`} />
             {resending ? 'Resending...' : 'Resend Code'}
           </button>
 
-          <Link to="/login" className="text-sm text-gray-400 hover:text-white transition-colors">
+          <Link to="/login" className="block text-center text-sm text-gray-400 hover:text-white transition-colors">
             Back to Login
           </Link>
         </div>

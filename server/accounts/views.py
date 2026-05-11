@@ -26,13 +26,14 @@ from notifications.tasks import (
     send_welcome_email_task,
 )
 from accounts.seller_utils import (
+    get_seller_application_status,
     get_seller_commerce_mode,
     get_seller_profile,
     is_active_seller,
     is_pending_seller,
     is_verified_seller,
 )
-from .models import PendingRegistration, SellerProfile, VerificationCode
+from .models import PendingRegistration, SellerApplication, SellerProfile, VerificationCode
 from .serializers import (
     ChangePasswordSerializer,
     CustomTokenObtainPairSerializer,
@@ -59,6 +60,17 @@ logger = logging.getLogger(__name__)
 
 
 RESEND_COOLDOWN_SECONDS = getattr(settings, 'REGISTRATION_RESEND_COOLDOWN_SECONDS', 60)
+
+
+def _should_include_debug_code():
+    return bool(getattr(settings, 'DEBUG', False) or not getattr(settings, 'IS_PRODUCTION', False))
+
+
+def _attach_debug_code(payload, email, code):
+    if _should_include_debug_code():
+        payload['debug_code'] = code
+        print(f'[Zunto debug] registration resend code for {email}: {code}', flush=True)
+    return payload
 
 
 def _queue_verification_email(recipient_email, recipient_name, code):
@@ -181,6 +193,7 @@ def _user_payload(user):
         'isSellerPending': is_pending_seller(user),
         'isVerifiedSeller': is_verified_seller(user),
         'sellerProfileStatus': getattr(seller_profile, 'status', None),
+        'sellerApplicationStatus': get_seller_application_status(user),
         'sellerCommerceMode': get_seller_commerce_mode(user),
         'is_verified': user.is_verified,
         'is_managed_seller': user.is_managed_seller,
@@ -212,23 +225,13 @@ class UserRegistrationView(generics.CreateAPIView):
                     first_name=data['first_name'],
                     last_name=data['last_name'],
                     phone=data.get('phone'),
-                    role=data.get('role', 'buyer'),
-                    is_seller=(data.get('role', 'buyer') == 'seller'),
+                    role='buyer',
+                    is_seller=False,
                     is_active=False,
                     is_verified=False,
                     is_verified_seller=False,
-                    seller_commerce_mode=data.get('seller_commerce_mode', 'direct'),
+                    seller_commerce_mode='direct',
                 )
-
-                if user.role == 'seller':
-                    SellerProfile.objects.update_or_create(
-                        user=user,
-                        defaults={
-                            'status': SellerProfile.STATUS_PENDING,
-                            'is_verified_seller': False,
-                            'seller_commerce_mode': user.seller_commerce_mode,
-                        },
-                    )
 
                 PendingRegistration.objects.filter(email=user.email).delete()
                 code = _create_email_verification(user)
@@ -350,24 +353,15 @@ class VerifyRegistrationView(APIView):
                     first_name=pending.first_name,
                     last_name=pending.last_name,
                     phone=pending.phone,
-                    role=pending.role,
-                    is_seller=(pending.role == 'seller'),
+                    role='buyer',
+                    is_seller=False,
                     is_active=True,
                     is_verified_seller=False,
-                    seller_commerce_mode=pending.seller_commerce_mode,
+                    seller_commerce_mode='direct',
                     is_verified=True,
                 )
                 user.password = pending.password_hash
                 user.save()
-                if pending.role == 'seller':
-                    SellerProfile.objects.update_or_create(
-                        user=user,
-                        defaults={
-                            'status': SellerProfile.STATUS_PENDING,
-                            'is_verified_seller': False,
-                            'seller_commerce_mode': pending.seller_commerce_mode,
-                        },
-                    )
                 pending.delete()
         except IntegrityError:
             return Response(
@@ -432,11 +426,12 @@ class ResendRegistrationCodeView(APIView):
                 code=code,
             )
             _set_resend_cooldown(email, scope)
+            payload = {
+                'message': 'Verification code queued.' if email_sent else 'Verification code created; email delivery will retry later.',
+                'email_delivery_status': 'sent' if email_sent else 'deferred',
+            }
             return Response(
-                {
-                    'message': 'Verification code queued.' if email_sent else 'Verification code created; email delivery will retry later.',
-                    'email_delivery_status': 'sent' if email_sent else 'deferred',
-                },
+                _attach_debug_code(payload, email, code),
                 status=status.HTTP_200_OK,
             )
 
@@ -471,11 +466,12 @@ class ResendRegistrationCodeView(APIView):
         )
 
         _set_resend_cooldown(email, scope)
+        payload = {
+            'message': 'Verification code resent successfully.' if email_sent else 'Verification code refreshed; email delivery will retry later.',
+            'email_delivery_status': 'sent' if email_sent else 'deferred',
+        }
         return Response(
-            {
-                'message': 'Verification code resent successfully.' if email_sent else 'Verification code refreshed; email delivery will retry later.',
-                'email_delivery_status': 'sent' if email_sent else 'deferred',
-            },
+            _attach_debug_code(payload, email, pending.verification_code),
             status=status.HTTP_200_OK,
         )
 
@@ -599,45 +595,68 @@ class GoogleAuthView(APIView):
             )
 
 
-class SellerRegistrationView(APIView):
-    """Create or update seller application profile. Requires admin approval to become active."""
+class SellerApplicationView(APIView):
+    """Create or update a seller application. Requires admin approval to become active."""
 
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
         user = request.user
 
-        user_updates = []
-        if user.role != 'seller':
-            user.role = 'seller'
-            user_updates.append('role')
-        if not user.is_seller:
-            user.is_seller = True
-            user_updates.append('is_seller')
-        if user_updates:
-            user.save(update_fields=user_updates)
+        if is_active_seller(user):
+            return Response(
+                {'error': 'You are already an approved seller.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        profile, created = SellerProfile.objects.get_or_create(
+        required_fields = ['business_name', 'business_type', 'category', 'location', 'description', 'phone']
+        missing_fields = [field for field in required_fields if not str(request.data.get(field, '')).strip()]
+        if missing_fields:
+            return Response(
+                {'error': f"Missing required fields: {', '.join(missing_fields)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        business_type = request.data.get('business_type')
+        valid_business_types = dict(SellerApplication.BUSINESS_TYPE_CHOICES)
+        if business_type not in valid_business_types:
+            return Response(
+                {'error': 'Invalid business type.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        category_id = request.data.get('category')
+        try:
+            from market.models import Category
+            category_exists = Category.objects.filter(pk=category_id).exists()
+        except Exception:
+            category_exists = False
+
+        if not category_exists:
+            return Response(
+                {'error': 'Invalid product category.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        application, created = SellerApplication.objects.update_or_create(
             user=user,
             defaults={
-                'status': SellerProfile.STATUS_PENDING,
-                'is_verified_seller': False,
-                'seller_commerce_mode': user.seller_commerce_mode,
+                'business_name': request.data.get('business_name', '').strip(),
+                'business_type': business_type,
+                'category_id': category_id,
+                'location': request.data.get('location', '').strip(),
+                'description': request.data.get('description', '').strip(),
+                'phone': request.data.get('phone', '').strip(),
+                'status': SellerApplication.STATUS_PENDING,
             },
         )
 
-        if not created and profile.status == SellerProfile.STATUS_REJECTED:
-            profile.status = SellerProfile.STATUS_PENDING
-            profile.save(update_fields=['status'])
-
         return Response({
-            'message': 'Seller registration submitted and pending admin approval.',
+            'message': 'Your application has been submitted and is under review. You will be notified by email once approved.',
             'user': _user_payload(user),
-            'seller_profile_status': profile.status,
-            'isSellerActive': is_active_seller(user),
-            'isSellerPending': is_pending_seller(user),
-            'isVerifiedSeller': is_verified_seller(user),
-        }, status=status.HTTP_200_OK)
+            'seller_application_status': application.status,
+            'created': created,
+        }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
 
 
@@ -794,11 +813,13 @@ class ResendVerificationCodeView(APIView):
             code=code,
         )
 
+        payload = {
+            'message': 'Verification code queued.' if email_sent else 'Verification code created; email delivery will retry later.',
+            'email_delivery_status': 'sent' if email_sent else 'deferred',
+        }
+
         return Response(
-            {
-                'message': 'Verification code queued.' if email_sent else 'Verification code created; email delivery will retry later.',
-                'email_delivery_status': 'sent' if email_sent else 'deferred',
-            },
+            _attach_debug_code(payload, user.email, code),
             status=status.HTTP_200_OK,
         )
 

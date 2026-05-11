@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, RotateCcw, Search, Sparkles } from 'lucide-react';
+import { ArrowRight, CheckCircle2, RotateCcw, Search, Sparkles, Store } from 'lucide-react';
 import { getCategories, sendHomepageRecommendationMessage } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ProductGrid from '../components/products/ProductGrid';
@@ -42,6 +42,14 @@ export default function Home() {
   const [assistantLoading, setAssistantLoading] = useState(false);
 
   const aiCtaHref = user ? '/inbox/ai' : '/login';
+  const canBecomeSeller = Boolean(
+    user
+    && user.role === 'buyer'
+    && !user.isSellerActive
+    && !user.isSellerPending
+    && user.sellerApplicationStatus !== 'pending'
+    && user.sellerApplicationStatus !== 'approved',
+  );
 
   useEffect(() => {
     clearStoredAssistantSession();
@@ -141,6 +149,12 @@ export default function Home() {
               <Link to={aiCtaHref} className="btn-secondary">
                 Shop with AI
               </Link>
+              {canBecomeSeller && (
+                <Link to="/become-seller" className="btn-secondary">
+                  <Store className="w-5 h-5" />
+                  Become a Seller
+                </Link>
+              )}
             </div>
           </div>
 

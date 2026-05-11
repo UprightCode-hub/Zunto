@@ -1,9 +1,23 @@
-from accounts.models import SellerProfile
+from accounts.models import SellerApplication, SellerProfile
 
 
 def get_seller_profile(user):
     if not user or not getattr(user, 'is_authenticated', False):
         return None
+
+
+def get_seller_application(user):
+    if not user or not getattr(user, 'is_authenticated', False):
+        return None
+    try:
+        return user.seller_application
+    except SellerApplication.DoesNotExist:
+        return None
+
+
+def get_seller_application_status(user):
+    application = get_seller_application(user)
+    return getattr(application, 'status', None)
     try:
         return user.seller_profile
     except SellerProfile.DoesNotExist:
@@ -23,7 +37,8 @@ def is_pending_seller(user):
     profile = get_seller_profile(user)
     if profile is not None:
         return profile.status == SellerProfile.STATUS_PENDING
-    return False
+    application = get_seller_application(user)
+    return getattr(application, 'status', None) == SellerApplication.STATUS_PENDING
 
 
 def is_verified_seller(user):

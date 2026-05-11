@@ -11,7 +11,10 @@ import {
   ImagePlus,
   Video,
   X,
+  LogOut,
+  Store,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   createProduct,
@@ -59,9 +62,19 @@ const MAX_VIDEOS = 2;
 const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const SELLER_NAV_ITEMS = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'products', label: 'My Products' },
+  { key: 'orders', label: 'Orders' },
+  { key: 'inbox', label: 'Messages' },
+  { key: 'analytics', label: 'Analytics' },
+  { key: 'settings', label: 'Settings' },
+];
+
 const SellerDashboard = () => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('products');
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('overview');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showMediaModal, setShowMediaModal] = useState(false);
@@ -590,55 +603,77 @@ const SellerDashboard = () => {
     }
   };
 
+  const handleExitSellerDashboard = () => {
+    if (window.confirm('Leave Seller Dashboard and return to buyer view?')) {
+      navigate('/');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 px-4">
       <div className="max-w-7xl mx-auto">
         <div className="mb-8 flex items-center justify-between gap-4 flex-wrap">
           <div>
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-green-100 px-3 py-1 text-sm font-semibold text-green-700 dark:bg-green-900/40 dark:text-green-200">
+              <Store className="w-4 h-4" />
+              Seller Mode
+            </div>
             <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">Seller Dashboard</h1>
             <p className="text-gray-600 dark:text-gray-400">Manage your products, media, and buyer conversations</p>
           </div>
-          <button
-            type="button"
-            onClick={() => fetchDashboardData(false)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
-          >
-            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={handleExitSellerDashboard}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+            >
+              <LogOut className="w-4 h-4" />
+              Exit Seller Dashboard
+            </button>
+            <button
+              type="button"
+              onClick={() => fetchDashboardData(false)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
         </div>
 
         {error && <p className="mb-4 rounded-lg bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 px-4 py-3">{error}</p>}
         {successMessage && <p className="mb-4 rounded-lg bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 px-4 py-3">{successMessage}</p>}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {stats.map((stat) => {
-            const Icon = stat.icon;
-            return (
-              <div key={stat.label} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-                <div className="flex justify-between items-start mb-3">
-                  <Icon className={`w-8 h-8 ${stat.accent}`} />
+        {activeTab === 'overview' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            {stats.map((stat) => {
+              const Icon = stat.icon;
+              return (
+                <div key={stat.label} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+                  <div className="flex justify-between items-start mb-3">
+                    <Icon className={`w-8 h-8 ${stat.accent}`} />
+                  </div>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">{stat.label}</p>
+                  <p className="text-3xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
                 </div>
-                <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">{stat.label}</p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
 
         <div className="flex justify-between items-center mb-6 gap-4 flex-wrap">
-          <div className="border-b border-gray-200 dark:border-gray-700 flex gap-4">
-            {['products', 'orders', 'inbox', 'settings'].map((tab) => (
+          <div className="border-b border-gray-200 dark:border-gray-700 flex gap-2 overflow-x-auto">
+            {SELLER_NAV_ITEMS.map((tab) => (
               <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
                 className={`px-4 py-3 font-semibold transition-colors whitespace-nowrap ${
-                  activeTab === tab
+                  activeTab === tab.key
                     ? 'border-b-2 border-green-600 text-green-600 dark:text-green-400'
                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                {tab.label}
               </button>
             ))}
           </div>
@@ -758,6 +793,13 @@ const SellerDashboard = () => {
           )}
 
           {activeTab === 'inbox' && <InboxTab />}
+
+          {activeTab === 'analytics' && (
+            <div className="rounded-lg bg-white dark:bg-gray-800 shadow-md p-8">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Analytics</h2>
+              <p className="text-gray-600 dark:text-gray-400">Seller analytics will appear here as sales data grows.</p>
+            </div>
+          )}
 
           {activeTab === 'settings' && (
             <SettingsTab
