@@ -50,6 +50,7 @@ export default function MarketplaceInbox({
   containerClassName = 'min-h-0 flex-1',
   headerTitle = 'Conversations',
   emptyListLabel = 'No conversations yet',
+  onUnreadCountChange = null,
 }) {
   const { user } = useAuth();
   const [conversations, setConversations] = useState([]);
@@ -243,6 +244,14 @@ export default function MarketplaceInbox({
   }, [initialConversationId]);
 
   useEffect(() => {
+    if (!onUnreadCountChange) return;
+    const unreadTotal = conversations.reduce((total, conversation) => (
+      total + Number(conversation.unread_count || 0)
+    ), 0);
+    onUnreadCountChange(unreadTotal);
+  }, [conversations, onUnreadCountChange]);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
@@ -278,8 +287,14 @@ export default function MarketplaceInbox({
     }
 
     let active = true;
+    let reconnectTimer = null;
+    let reconnectAttempts = 0;
 
     const teardown = () => {
+      if (reconnectTimer) {
+        window.clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
       stopTypingNow(wsRef.current, selectedConversation?.id);
       if (wsRef.current) {
         wsRef.current.close();
@@ -288,7 +303,17 @@ export default function MarketplaceInbox({
       clearTypingForConversation(selectedConversation?.id);
     };
 
-    const openConversation = async () => {
+    function scheduleReconnect() {
+      if (!active || reconnectTimer) return;
+      reconnectAttempts += 1;
+      const delay = Math.min(5000, 800 * reconnectAttempts);
+      reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = null;
+        openConversation();
+      }, delay);
+    }
+
+    async function openConversation() {
       try {
         setConnectionStatus('connecting');
         const data = await getChatMessages(selectedConversation.id);
@@ -315,6 +340,7 @@ export default function MarketplaceInbox({
 
         socket.onopen = () => {
           if (active) {
+            reconnectAttempts = 0;
             setConnectionStatus('online');
           }
         };
@@ -428,15 +454,17 @@ export default function MarketplaceInbox({
           stopTypingNow(socket);
           if (active) {
             setConnectionStatus('offline');
+            scheduleReconnect();
           }
         };
       } catch (error) {
         if (active) {
           console.error('Error connecting to conversation:', error);
           setConnectionStatus('offline');
+          scheduleReconnect();
         }
       }
-    };
+    }
 
     openConversation();
 
@@ -554,10 +582,26 @@ export default function MarketplaceInbox({
                   className={`w-full text-left px-4 py-3 border-b border-[#2c77d1]/10 hover:bg-[#111b32] transition ${selectedConversation?.id === conversation.id ? 'bg-[#14203d]' : ''}`}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-semibold text-white truncate">{getConversationTitle(conversation)}</p>
-                    <span className="text-[11px] text-gray-500">{new Date(conversation.updated_at || conversation.created_at).toLocaleDateString()}</span>
+                    <p className="truncate text-sm font-semibold text-white">{getOtherParticipantLabel(conversation, user)}</p>
+                    <span className="text-[11px] text-gray-500">
+                      {new Date(conversation.last_message?.created_at || conversation.updated_at || conversation.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
                   </div>
-                  <p className="text-xs text-gray-400 truncate mt-1">{typingMap.get(String(conversation.id))?.expiresAt > Date.now() && String(typingMap.get(String(conversation.id))?.actor_id) !== String(user?.id) ? 'Typing...' : `${getOtherParticipantOnline(conversation) ? 'online - ' : ''}${getConversationPreview(conversation) || getOtherParticipantLabel(conversation, user)}`}</p>
+                  <div className="mt-1 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs text-gray-500">{getConversationTitle(conversation)}</p>
+                      <p className="truncate text-xs text-gray-400">
+                        {typingMap.get(String(conversation.id))?.expiresAt > Date.now() && String(typingMap.get(String(conversation.id))?.actor_id) !== String(user?.id)
+                          ? 'Typing...'
+                          : `${getOtherParticipantOnline(conversation) ? 'online - ' : ''}${getConversationPreview(conversation) || 'No messages yet'}`}
+                      </p>
+                    </div>
+                    {Number(conversation.unread_count || 0) > 0 && (
+                      <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[11px] font-bold text-white">
+                        {conversation.unread_count}
+                      </span>
+                    )}
+                  </div>
                 </button>
               ))
             )}

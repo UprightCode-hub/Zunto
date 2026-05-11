@@ -12,8 +12,8 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.models import SellerProfile
-from assistant.models import DisputeTicket, Report
+from accounts.models import SellerApplication, SellerProfile
+from assistant.models import DisputeCase, DisputeTicket, Report
 from cart.analytics import get_abandonment_summary_with_scores
 from core.authentication import CookieJWTAuthentication
 from core.audit import audit_event
@@ -115,6 +115,24 @@ def _serialize_seller_profile(profile):
         'total_reviews': profile.total_reviews,
         'created_at': profile.created_at.isoformat() if profile.created_at else None,
         'updated_at': profile.updated_at.isoformat() if profile.updated_at else None,
+    }
+
+
+def _serialize_seller_application(application):
+    user = application.user
+    return {
+        'id': str(application.id),
+        'user_id': str(user.id),
+        'name': _full_name(user),
+        'email': user.email,
+        'business_name': application.business_name,
+        'business_type': application.business_type,
+        'category': application.category.name if application.category else '',
+        'location': application.location,
+        'phone': application.phone,
+        'status': application.status,
+        'created_at': application.created_at.isoformat() if application.created_at else None,
+        'updated_at': application.updated_at.isoformat() if application.updated_at else None,
     }
 
 
@@ -324,6 +342,14 @@ def customers_list_api(request):
     if role_filter in {choice[0] for choice in User.ROLE_CHOICES}:
         queryset = queryset.filter(role=role_filter)
 
+    search = (request.GET.get('search') or '').strip()
+    if search:
+        queryset = queryset.filter(
+            Q(email__icontains=search)
+            | Q(first_name__icontains=search)
+            | Q(last_name__icontains=search)
+        )
+
     status_filter = (request.GET.get('status') or '').strip().lower()
     if status_filter == 'suspended':
         queryset = queryset.filter(is_suspended=True)
@@ -415,13 +441,13 @@ def user_admin_update_api(request, user_id):
 @permission_classes([IsAdminOrStaff])
 def seller_applications_api(request):
     """Admin queue for seller profile approval."""
-    queryset = SellerProfile.objects.select_related('user', 'active_location').order_by('-created_at')
+    queryset = SellerApplication.objects.select_related('user', 'category').order_by('-created_at')
     status_filter = (request.GET.get('status') or '').strip().lower()
-    if status_filter in {choice[0] for choice in SellerProfile.STATUS_CHOICES}:
+    if status_filter in {choice[0] for choice in SellerApplication.STATUS_CHOICES}:
         queryset = queryset.filter(status=status_filter)
 
     audit_event(request, action='dashboard.admin.seller_applications.viewed', extra={'status_filter': status_filter or None})
-    return _paginate(request, queryset, _serialize_seller_profile)
+    return _paginate(request, queryset, _serialize_seller_application)
 
 
 @api_view(['PATCH'])
@@ -429,24 +455,32 @@ def seller_applications_api(request):
 @permission_classes([IsAdminOrStaff])
 def seller_application_decision_api(request, profile_id):
     """Approve, reject, or return seller applications to pending."""
-    profile = get_object_or_404(SellerProfile.objects.select_related('user'), id=profile_id)
+    application = get_object_or_404(SellerApplication.objects.select_related('user'), id=profile_id)
     target_status = str(request.data.get('status') or '').strip().lower()
-    valid_statuses = {choice[0] for choice in SellerProfile.STATUS_CHOICES}
+    valid_statuses = {choice[0] for choice in SellerApplication.STATUS_CHOICES}
     if target_status not in valid_statuses:
         return Response({'error': 'Invalid seller status.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    commerce_mode = str(request.data.get('seller_commerce_mode') or profile.seller_commerce_mode).strip().lower()
+    try:
+        existing_profile = application.user.seller_profile
+    except SellerProfile.DoesNotExist:
+        existing_profile = None
+    commerce_mode = str(request.data.get('seller_commerce_mode') or getattr(existing_profile, 'seller_commerce_mode', 'managed')).strip().lower()
     valid_modes = {choice[0] for choice in SellerProfile.SELLER_COMMERCE_MODE_CHOICES}
     if commerce_mode not in valid_modes:
         return Response({'error': 'Invalid seller commerce mode.'}, status=status.HTTP_400_BAD_REQUEST)
 
     with transaction.atomic():
-        old_status = profile.status
+        old_status = application.status
+        application.status = target_status
+        application.save(update_fields=['status', 'updated_at'])
+
+        profile, _created = SellerProfile.objects.get_or_create(user=application.user)
         profile.status = target_status
         profile.seller_commerce_mode = commerce_mode
-        if target_status == SellerProfile.STATUS_APPROVED:
+        if target_status == SellerApplication.STATUS_APPROVED:
             profile.is_verified_seller = _parse_bool(request.data.get('is_verified_seller'), default=True)
-        elif target_status == SellerProfile.STATUS_REJECTED:
+        elif target_status == SellerApplication.STATUS_REJECTED:
             profile.is_verified_seller = False
         elif 'is_verified_seller' in request.data:
             profile.is_verified_seller = _parse_bool(request.data.get('is_verified_seller'))
@@ -454,8 +488,12 @@ def seller_application_decision_api(request, profile_id):
         profile.save(update_fields=['status', 'seller_commerce_mode', 'is_verified_seller', 'verified', 'updated_at'])
 
         user = profile.user
-        user.role = 'seller'
-        user.is_seller = True
+        if target_status == SellerApplication.STATUS_APPROVED:
+            user.role = 'seller'
+            user.is_seller = True
+        elif target_status == SellerApplication.STATUS_REJECTED and user.role == 'seller' and not profile.is_verified_seller:
+            user.role = 'buyer'
+            user.is_seller = False
         user.is_verified_seller = profile.is_verified_seller
         user.seller_commerce_mode = profile.seller_commerce_mode
         user.save(update_fields=['role', 'is_seller', 'is_verified_seller', 'seller_commerce_mode', 'updated_at'])
@@ -464,14 +502,15 @@ def seller_application_decision_api(request, profile_id):
         request,
         action='dashboard.admin.seller_application.updated',
         extra={
+            'application_id': str(application.id),
             'profile_id': str(profile.id),
             'user_id': str(profile.user_id),
             'old_status': old_status,
-            'new_status': profile.status,
+            'new_status': application.status,
             'is_verified_seller': profile.is_verified_seller,
         },
     )
-    return Response(_serialize_seller_profile(profile), status=status.HTTP_200_OK)
+    return Response(_serialize_seller_application(application), status=status.HTTP_200_OK)
 
 
 @api_view(['PATCH'])
@@ -547,9 +586,9 @@ def company_admin_operations_api(request):
     """Company-admin operational queue summary (frontend ops center)."""
     payload = {
         'seller_applications': {
-            'pending': SellerProfile.objects.filter(status=SellerProfile.STATUS_PENDING).count(),
-            'approved': SellerProfile.objects.filter(status=SellerProfile.STATUS_APPROVED).count(),
-            'rejected': SellerProfile.objects.filter(status=SellerProfile.STATUS_REJECTED).count(),
+            'pending': SellerApplication.objects.filter(status=SellerApplication.STATUS_PENDING).count(),
+            'approved': SellerApplication.objects.filter(status=SellerApplication.STATUS_APPROVED).count(),
+            'rejected': SellerApplication.objects.filter(status=SellerApplication.STATUS_REJECTED).count(),
         },
         'product_reports': {
             'pending': ProductReport.objects.filter(status='pending').count(),
@@ -571,6 +610,11 @@ def company_admin_operations_api(request):
             'open': DisputeTicket.objects.filter(status=DisputeTicket.STATUS_OPEN).count(),
             'under_review': DisputeTicket.objects.filter(status=DisputeTicket.STATUS_UNDER_REVIEW).count(),
             'escalated': DisputeTicket.objects.filter(status=DisputeTicket.STATUS_ESCALATED).count(),
+        },
+        'dispute_cases': {
+            'open': DisputeCase.objects.filter(status=DisputeCase.STATUS_OPEN).count(),
+            'under_review': DisputeCase.objects.filter(status=DisputeCase.STATUS_UNDER_REVIEW).count(),
+            'resolved': DisputeCase.objects.filter(status=DisputeCase.STATUS_RESOLVED).count(),
         },
         'product_videos': {
             'pending_scan': ProductVideo.objects.filter(security_scan_status=ProductVideo.SCAN_PENDING).count(),

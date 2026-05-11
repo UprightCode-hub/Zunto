@@ -7,9 +7,13 @@ export default function SettingsTab({
   savingSettings,
 }) {
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8">
-      <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Seller Settings</h2>
-      <form onSubmit={handleStoreSettingsSave} className="space-y-5 max-w-3xl">
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-gray-950 dark:text-white">Settings</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400">Manage seller profile, business, and payout readiness.</p>
+      </div>
+
+      <form onSubmit={handleStoreSettingsSave} className="space-y-5 rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-950">
         <label className="flex items-center justify-between gap-4 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
           <span>
             <span className="block font-semibold text-gray-900 dark:text-white">Seller commerce mode</span>
@@ -42,6 +46,27 @@ export default function SettingsTab({
           {savingSettings ? 'Saving...' : 'Save Seller Settings'}
         </button>
       </form>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-950">
+          <h3 className="text-lg font-bold text-gray-950 dark:text-white">Business Information</h3>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <input className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-800 dark:bg-gray-900" placeholder="Registered business name" />
+            <input className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-800 dark:bg-gray-900" placeholder="Business phone" />
+            <input className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-800 dark:bg-gray-900" placeholder="Business address" />
+            <input className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-800 dark:bg-gray-900" placeholder="Primary category" />
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-950">
+          <h3 className="text-lg font-bold text-gray-950 dark:text-white">Payout Details</h3>
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Bank settlement fields are ready for onboarding once managed payouts are enabled.</p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <input className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-800 dark:bg-gray-900" placeholder="Bank name" disabled />
+            <input className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-800 dark:bg-gray-900" placeholder="Account number" disabled />
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

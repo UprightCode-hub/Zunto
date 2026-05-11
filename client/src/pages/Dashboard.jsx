@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { BarChart3, TrendingUp, Users, ShoppingCart, DollarSign, Package, Store } from 'lucide-react';
 import { getOrderStatistics, getSellerStatistics } from '../services/api';
 import { formatNaira } from '../utils/helpers';
@@ -74,6 +74,10 @@ export default function Dashboard() {
 
   if (isPlatformAdmin) {
     return <AdminDashboard />;
+  }
+
+  if (isSellerActive) {
+    return <Navigate to="/seller/dashboard" replace />;
   }
 
   if (user?.role === 'buyer' || !isPlatformAdmin) {

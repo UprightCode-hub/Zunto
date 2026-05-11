@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import re
+import threading
 from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from django.conf import settings
+from django.core.mail import send_mail
 from django.db.models import Q
 from django.utils import timezone
 
@@ -48,6 +51,7 @@ class CustomerServiceAgent:
     DISPUTE_TERMS = {
         'dispute', 'seller', 'buyer', 'complaint', 'wrong item', 'damaged',
         'not as described', 'scam', 'fraud', 'fake', 'refused', 'problem with',
+        'abusive', 'abuse', 'harassment', 'harass', 'threat', 'insult',
     }
 
     def __init__(self, session):
@@ -55,12 +59,14 @@ class CustomerServiceAgent:
         self.user = getattr(session, 'user', None)
         context_data = session.context_data if isinstance(session.context_data, dict) else {}
         self.flow = context_data.get(self.FLOW_KEY) if isinstance(context_data.get(self.FLOW_KEY), dict) else {}
-        self.metadata: Dict[str, Any] = {
+        self.base_metadata: Dict[str, Any] = {
             'assistant_mode': 'customer_service',
             'retrieval_system': 'structured_customer_service_flow',
         }
+        self.metadata: Dict[str, Any] = dict(self.base_metadata)
 
     def run(self, message: str) -> Dict[str, Any]:
+        self.metadata = dict(self.base_metadata)
         text = self._clean(message)
         lower = text.lower()
         self._active_emotion = self._detect_emotion(lower)
@@ -79,9 +85,7 @@ class CustomerServiceAgent:
             self._active_emotion = 'neutral'
             self._clear_pending()
             return self._final(
-                f"Hello {self._user_name()}! I am Gigi from Zunto Customer Service. "
-                "I can help with payments, refunds, deliveries, and buyer/seller disputes. "
-                "What happened?",
+                self._opening_message(),
                 intent='greeting',
                 confidence=0.96,
             )
@@ -95,6 +99,9 @@ class CustomerServiceAgent:
         reference_result = self._handle_explicit_reference(text)
         if reference_result:
             return reference_result
+
+        if self._is_seller_user() and self._is_harassment_report(lower):
+            return self._present_harassment_conversations()
 
         if pending_kind:
             return self._final(
@@ -119,17 +126,58 @@ class CustomerServiceAgent:
 
         if lower in self.SHORT_ACKS:
             return self._final(
-                "I am with you. Tell me whether this is about a payment, refund, delivery, or a buyer/seller dispute, "
-                "and I will pull the matching records.",
+                self._short_ack_message(),
                 intent='short_ack',
                 confidence=0.82,
             )
 
         return self._final(
-            "I can help with that. Is this about a payment, refund, delivery, or a buyer/seller dispute? "
-            "Once you pick one, I will show the related records from your account.",
+            self._clarify_message(),
             intent='clarify_issue_type',
             confidence=0.8,
+        )
+
+    def _account_role(self) -> str:
+        role = str(getattr(self.user, 'role', '') or '').lower()
+        if role == 'seller' or bool(getattr(self.user, 'is_seller', False)):
+            return 'seller'
+        return 'buyer'
+
+    def _is_seller_user(self) -> bool:
+        return self._account_role() == 'seller'
+
+    def _opening_message(self) -> str:
+        name = self._user_name()
+        if self._is_seller_user():
+            return (
+                f"Hi {name}, I'm Gigi from Zunto Seller Support. "
+                "I can help with buyer disputes, order issues, payments, and account questions. What's happened?"
+            )
+        return (
+            f"Hi {name}, I'm Gigi from Zunto Customer Support. "
+            "I can help with order status, delivery issues, payments, refunds, and seller disputes. What's happened?"
+        )
+
+    def _short_ack_message(self) -> str:
+        if self._is_seller_user():
+            return (
+                "I am with you. Tell me whether this is about a buyer complaint, order dispute, payment settlement, "
+                "account issue, or product moderation question, and I will pull the matching records."
+            )
+        return (
+            "I am with you. Tell me whether this is about order status, delivery, payment, refund, or a seller dispute, "
+            "and I will pull the matching records."
+        )
+
+    def _clarify_message(self) -> str:
+        if self._is_seller_user():
+            return (
+                "I can help with that. Is this about a buyer complaint, an order dispute, payment settlement, account access, "
+                "or product moderation? Once you pick one, I will show the related records from your seller account."
+            )
+        return (
+            "I can help with that. Is this about a payment, refund, delivery, or a seller dispute? "
+            "Once you pick one, I will show the related records from your account."
         )
 
     def _detect_intent(self, lower: str) -> str:
@@ -189,6 +237,14 @@ class CustomerServiceAgent:
             )
 
         if self.ORDER_REFERENCE_HINT_RE.search(message):
+            if self._is_seller_user():
+                orders = self._recent_orders(limit=self.MAX_RECORDS)
+                if orders:
+                    return self._present_order_choices(
+                        orders,
+                        topic='dispute',
+                        intro="I found your recent seller orders. Which one should I link to this issue?",
+                    )
             return self._final(
                 "Send the full order number, for example ORD-20260509-ABCD, and I will pull the matching record from your account.",
                 intent='order_reference_requested',
@@ -284,10 +340,16 @@ class CustomerServiceAgent:
         orders = self._recent_orders(limit=self.MAX_RECORDS)
         conversations = self._recent_conversations(limit=self.MAX_RECORDS)
         candidates: List[Dict[str, Any]] = []
-        lines = [
-            "I can help with the dispute, but first I want to anchor it to the real record. "
-            "Which order or chat is involved?"
-        ]
+        if self._is_seller_user():
+            lines = [
+                "I can help with the buyer dispute, but first I want to anchor it to the real seller record. "
+                "Which order or buyer chat is involved?"
+            ]
+        else:
+            lines = [
+                "I can help with the dispute, but first I want to anchor it to the real record. "
+                "Which order or chat is involved?"
+            ]
 
         if orders:
             lines.append("\nRecent orders:")
@@ -314,6 +376,34 @@ class CustomerServiceAgent:
         self._set_candidates('dispute', 'order_or_conversation', candidates)
         self.metadata['records_presented'] = self._public_candidates(candidates)
         return self._final('\n'.join(lines), intent='dispute_lookup', confidence=0.94)
+
+    def _is_harassment_report(self, lower: str) -> bool:
+        return (
+            self._contains_any(lower, {'abusive', 'abuse', 'harassment', 'harass', 'threat', 'insult', 'rude messages'})
+            and self._contains_any(lower, {'buyer', 'message', 'chat', 'conversation'})
+        )
+
+    def _present_harassment_conversations(self) -> Dict[str, Any]:
+        conversations = self._recent_conversations(limit=self.MAX_RECORDS)
+        if not conversations:
+            return self._final(
+                "I could not find recent buyer chats on your seller account. Tell me the buyer name or product and I will still prepare the harassment report.",
+                intent='harassment_no_conversations',
+                confidence=0.76,
+            )
+
+        candidates = []
+        lines = [
+            "I found these recent buyer conversations on your seller account. Which chat contains the abusive messages?"
+        ]
+        for index, conversation in enumerate(conversations, start=1):
+            key = f"C{index}"
+            candidates.append(self._candidate_for_conversation(key, conversation))
+            lines.append(f"{key}. {self._conversation_line(conversation)}")
+        lines.append("Reply with the chat code like C1.")
+        self._set_candidates('dispute', 'conversation', candidates)
+        self.metadata['records_presented'] = self._public_candidates(candidates)
+        return self._final('\n'.join(lines), intent='harassment_conversation_lookup', confidence=0.95)
 
     def _present_order_choices(self, orders: Iterable[Order], *, topic: str, intro: str) -> Dict[str, Any]:
         candidates = []
@@ -482,10 +572,14 @@ class CustomerServiceAgent:
             ticket_reference = self._create_dispute_ticket_if_possible(context, resolution_label)
             if ticket_reference:
                 context['ticket_reference'] = ticket_reference
+            case_reference = self._create_dispute_case_if_possible(context, resolution_label, ticket_reference)
+            if case_reference:
+                context['case_reference'] = case_reference
             self.flow['dispute_context'] = context
             self.flow['stage'] = self.STAGE_DISPUTE_ESCALATED
             self._save_flow()
             support_case = f"\nSupport case: {ticket_reference}" if ticket_reference else ""
+            admin_case = f"\nAdmin case file: {case_reference}" if case_reference else ""
             return self._final(
                 "I have escalated this dispute to the Zunto support team.\n"
                 f"Order: {context.get('order_reference', 'not recorded')}\n"
@@ -494,7 +588,8 @@ class CustomerServiceAgent:
                 f"Sellers: {context.get('sellers', 'not listed')}\n"
                 f"Issue: {context.get('description', 'not recorded')}\n"
                 f"Requested resolution: {resolution_label}"
-                f"{support_case}\n\n"
+                f"{support_case}"
+                f"{admin_case}\n\n"
                 "The support team will review the order record, buyer/seller identities, and related chat context.",
                 intent='dispute_escalated',
                 confidence=0.96,
@@ -532,16 +627,26 @@ class CustomerServiceAgent:
     def _build_order_dispute_context(self, order: Order) -> Dict[str, Any]:
         related_chats = self._conversations_for_order(order)
         chat_summaries = [self._conversation_public_label(chat) for chat in related_chats]
+        seller = self._primary_seller_for_order(order)
+        linked_conversation = related_chats[0] if related_chats else None
         return {
             'order_reference': order.order_number,
+            'order_id': str(order.id),
             'items': self._order_summary(order),
+            'product_names': [item.product_name for item in order.items.all()],
             'amount': self._money(order.total_amount),
             'order_status': order.status,
             'payment_status': order.payment_status,
             'date': self._date(order.created_at),
             'buyer': self._person(order.customer),
+            'buyer_email': getattr(order.customer, 'email', '') or '',
+            'buyer_id': str(order.customer_id) if order.customer_id else '',
             'sellers': ', '.join(self._seller_names(order)) or 'not listed',
+            'seller': self._person(seller),
+            'seller_email': getattr(seller, 'email', '') or '',
+            'seller_id': str(getattr(seller, 'id', '') or ''),
             'related_chats': chat_summaries,
+            'linked_conversation_id': str(linked_conversation.id) if linked_conversation else '',
             'description': self._clean(self._dispute_context().get('description', '')),
             'desired_resolution': self._clean(self._dispute_context().get('desired_resolution', '')),
         }
@@ -551,14 +656,22 @@ class CustomerServiceAgent:
         last_text = self._clean(getattr(last_message, 'content', '') or '')[:120] if last_message else 'no messages yet'
         return {
             'order_reference': '',
+            'order_id': '',
             'items': getattr(conversation.product, 'title', 'Unknown product'),
+            'product_names': [getattr(conversation.product, 'title', 'Unknown product')],
             'amount': '',
             'order_status': '',
             'payment_status': '',
             'date': self._date(conversation.updated_at),
             'buyer': self._person(conversation.buyer),
+            'buyer_email': getattr(conversation.buyer, 'email', '') or '',
+            'buyer_id': str(conversation.buyer_id) if conversation.buyer_id else '',
             'sellers': self._person(conversation.seller),
+            'seller': self._person(conversation.seller),
+            'seller_email': getattr(conversation.seller, 'email', '') or '',
+            'seller_id': str(conversation.seller_id) if conversation.seller_id else '',
             'related_chats': [self._conversation_public_label(conversation)],
+            'linked_conversation_id': str(conversation.id),
             'last_message': last_text,
             'description': self._clean(self._dispute_context().get('description', '')),
             'desired_resolution': self._clean(self._dispute_context().get('desired_resolution', '')),
@@ -612,19 +725,25 @@ class CustomerServiceAgent:
 
     def _detect_dispute_category(self, description: str) -> str:
         lower = (description or '').lower()
-        if any(term in lower for term in {'recorded', 'message', 'chat', 'said', 'say', 'lied', 'false statement'}):
-            return 'communication_issue'
+        if any(term in lower for term in {'abusive', 'abuse', 'harass', 'harassment', 'threat', 'insult'}):
+            return 'harassment'
         if any(term in lower for term in {'delivery', 'delivered', 'shipping', 'package', 'arrived'}):
-            return 'delivery_issue'
+            return 'delivery'
         if any(term in lower for term in {'damaged', 'broken', 'wrong item', 'not as described', 'fake'}):
-            return 'quality_issue'
+            return 'product_quality'
+        if any(term in lower for term in {'scam', 'fraud'}):
+            return 'fraud'
         if any(term in lower for term in {'payment', 'charged', 'refund', 'paid'}):
-            return 'payment_issue'
-        return 'other'
+            return 'payment'
+        if any(term in lower for term in {'recorded', 'message', 'chat', 'said', 'say', 'lied', 'false statement'}):
+            return 'harassment' if self._is_seller_user() else 'fraud'
+        return 'product_quality'
 
     def _create_dispute_ticket_if_possible(self, context: Dict[str, Any], desired_resolution: str) -> str:
         order = self._selected_order()
-        if not order:
+        if not order or self._is_seller_user():
+            if self._is_seller_user():
+                self.metadata['ticket_creation_status'] = 'skipped_for_seller_originated_case'
             return ''
 
         product_id = self._single_product_id(order)
@@ -650,6 +769,92 @@ class CustomerServiceAgent:
             self.metadata['ticket_creation_status'] = 'failed'
             self.metadata['ticket_creation_reason'] = type(exc).__name__
             return ''
+
+    def _create_dispute_case_if_possible(self, context: Dict[str, Any], desired_resolution: str, ticket_reference: str = '') -> str:
+        try:
+            from assistant.models import DisputeCase
+
+            order = self._selected_order()
+            conversation = self._selected_conversation()
+            buyer = getattr(order, 'customer', None) if order else getattr(conversation, 'buyer', None)
+            seller = self._primary_seller_for_order(order) if order else getattr(conversation, 'seller', None)
+            category = self._detect_dispute_category(context.get('description', ''))
+            reference_parts = []
+            if context.get('order_reference'):
+                reference_parts.append(str(context['order_reference']))
+            if context.get('linked_conversation_id'):
+                reference_parts.append(f"chat {context['linked_conversation_id']}")
+            if ticket_reference:
+                reference_parts.append(ticket_reference)
+
+            summary = self._plain_case_summary(context, desired_resolution, ticket_reference)
+            case = DisputeCase.objects.create(
+                case_id=DisputeCase.generate_case_id(),
+                buyer=buyer,
+                seller=seller,
+                buyer_name=self._person(buyer),
+                buyer_email=getattr(buyer, 'email', '') or '',
+                seller_name=self._person(seller),
+                seller_email=getattr(seller, 'email', '') or '',
+                complaint_category=category,
+                order=order,
+                conversation=conversation,
+                reference=' | '.join(reference_parts),
+                ai_summary=summary,
+                status=DisputeCase.STATUS_OPEN,
+            )
+            self.metadata['dispute_case_id'] = case.case_id
+            self._send_dispute_case_email_async(case)
+            return case.case_id
+        except Exception as exc:
+            self.metadata['dispute_case_creation_status'] = 'failed'
+            self.metadata['dispute_case_creation_reason'] = type(exc).__name__
+            return ''
+
+    def _plain_case_summary(self, context: Dict[str, Any], desired_resolution: str, ticket_reference: str = '') -> str:
+        role = 'seller' if self._is_seller_user() else 'buyer'
+        lines = [
+            f"Escalated from Zunto customer service chat by a {role}.",
+            f"Complaint category: {self._detect_dispute_category(context.get('description', ''))}.",
+        ]
+        if context.get('order_reference'):
+            lines.append(f"Order: {context.get('order_reference')}.")
+        if context.get('linked_conversation_id'):
+            lines.append(f"Linked conversation: {context.get('linked_conversation_id')}.")
+        lines.extend([
+            f"Buyer: {context.get('buyer') or 'not listed'} ({context.get('buyer_email') or 'no email'}).",
+            f"Seller: {context.get('seller') or context.get('sellers') or 'not listed'} ({context.get('seller_email') or 'no email'}).",
+            f"Items: {context.get('items') or 'not recorded'}.",
+            f"Amount: {context.get('amount') or 'not recorded'}.",
+            f"Order status: {context.get('order_status') or 'not recorded'}; payment status: {context.get('payment_status') or 'not recorded'}.",
+            f"Issue summary: {context.get('description') or 'not recorded'}.",
+            f"Requested resolution: {desired_resolution or context.get('desired_resolution') or 'not recorded'}.",
+        ])
+        if ticket_reference:
+            lines.append(f"Related dispute ticket: {ticket_reference}.")
+        return '\n'.join(lines)
+
+    def _send_dispute_case_email_async(self, case) -> None:
+        admin_email = getattr(settings, 'ADMIN_EMAIL', '') or ''
+        if not admin_email:
+            return
+
+        def send_case_email():
+            subject = f"[Zunto Admin] New dispute case {case.case_id}"
+            body = (
+                f"Case ID: {case.case_id}\n"
+                f"Category: {case.get_complaint_category_display()}\n"
+                f"Buyer: {case.buyer_name} <{case.buyer_email}>\n"
+                f"Seller: {case.seller_name} <{case.seller_email}>\n"
+                f"Reference: {case.reference or 'not recorded'}\n\n"
+                f"{case.ai_summary}"
+            )
+            try:
+                send_mail(subject, body, getattr(settings, 'DEFAULT_FROM_EMAIL', None), [admin_email], fail_silently=True)
+            except Exception:
+                pass
+
+        threading.Thread(target=send_case_email, name='dispute-case-admin-email', daemon=True).start()
 
     def _single_product_id(self, order: Order) -> Optional[str]:
         product_ids = []
@@ -830,9 +1035,10 @@ class CustomerServiceAgent:
 
     def _recent_payments(self) -> List[Payment]:
         return list(
-            Payment.objects.filter(order__customer=self.user)
+            Payment.objects.filter(Q(order__customer=self.user) | Q(order__items__seller=self.user))
             .select_related('order', 'order__customer')
             .prefetch_related('order__items__seller', 'order__items__product')
+            .distinct()
             .order_by('-created_at')[: self.MAX_RECORDS]
         )
 
@@ -880,9 +1086,11 @@ class CustomerServiceAgent:
         if not payment_id:
             return None
         return (
-            Payment.objects.filter(id=payment_id, order__customer=self.user)
+            Payment.objects.filter(id=payment_id)
+            .filter(Q(order__customer=self.user) | Q(order__items__seller=self.user))
             .select_related('order', 'order__customer')
             .prefetch_related('order__items__seller', 'order__items__product')
+            .distinct()
             .first()
         )
 
@@ -890,10 +1098,11 @@ class CustomerServiceAgent:
         if not reference:
             return None
         return (
-            Payment.objects.filter(order__customer=self.user)
+            Payment.objects.filter(Q(order__customer=self.user) | Q(order__items__seller=self.user))
             .filter(Q(gateway_reference__iexact=reference) | Q(order__payment_reference__iexact=reference))
             .select_related('order', 'order__customer')
             .prefetch_related('order__items__seller', 'order__items__product')
+            .distinct()
             .first()
         )
 
@@ -922,6 +1131,21 @@ class CustomerServiceAgent:
 
     def _selected_order(self) -> Optional[Order]:
         return self._get_order(self.flow.get('selected_order_id'))
+
+    def _selected_conversation(self) -> Optional[Conversation]:
+        return self._get_conversation(self.flow.get('selected_conversation_id'))
+
+    def _primary_seller_for_order(self, order: Optional[Order]):
+        if not order:
+            return None
+        if self._is_seller_user():
+            for item in order.items.all():
+                if item.seller_id == getattr(self.user, 'id', None):
+                    return item.seller
+        for item in order.items.all():
+            if item.seller_id:
+                return item.seller
+        return None
 
     def _payment_line(self, payment: Payment) -> str:
         order = payment.order
@@ -1100,6 +1324,33 @@ class CustomerServiceAgent:
             state['desired_resolution'] = context.get('desired_resolution')
         return state
 
+    def _contextual_dispute_panel(self) -> Dict[str, Any]:
+        context = self._dispute_context()
+        if not context:
+            return {}
+        if not (context.get('order_reference') or context.get('linked_conversation_id')):
+            return {}
+        return {
+            'order_reference': context.get('order_reference') or '',
+            'product_names': context.get('product_names') or ([context.get('items')] if context.get('items') else []),
+            'buyer': {
+                'name': context.get('buyer') or '',
+                'email': context.get('buyer_email') or '',
+                'user_id': context.get('buyer_id') or '',
+                'contact': context.get('buyer_email') or '',
+            },
+            'seller': {
+                'name': context.get('seller') or context.get('sellers') or '',
+                'email': context.get('seller_email') or '',
+                'user_id': context.get('seller_id') or '',
+                'contact': context.get('seller_email') or '',
+            },
+            'order_status': context.get('order_status') or '',
+            'payment_status': context.get('payment_status') or '',
+            'amount': context.get('amount') or '',
+            'linked_conversation_id': context.get('linked_conversation_id') or '',
+        }
+
     def _clear_pending(self) -> None:
         self.flow.pop('awaiting_selection', None)
         self.flow.pop('candidates', None)
@@ -1113,12 +1364,17 @@ class CustomerServiceAgent:
 
     def _final(self, reply: str, *, intent: str, confidence: float) -> Dict[str, Any]:
         reply = self._apply_empathy_prefix(reply)
+        self.metadata['account_role'] = self._account_role() if self.user else 'anonymous'
         self.metadata['intent'] = intent
         self.metadata['emotion'] = getattr(self, '_active_emotion', 'neutral')
         self.metadata['flow_state'] = self._public_flow_state()
+        panel = self._contextual_dispute_panel()
+        if panel:
+            self.metadata['contextual_dispute_panel'] = panel
+        response_metadata = dict(self.metadata)
         return {
             'reply': reply,
             'confidence': confidence,
             'source': 'customer_service_agent',
-            'metadata': self.metadata,
+            'metadata': response_metadata,
         }

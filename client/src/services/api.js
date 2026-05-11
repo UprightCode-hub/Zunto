@@ -919,6 +919,7 @@ export const updateAssistantReport = (reportId, payload) => apiCall(`/assistant/
   body: JSON.stringify(payload),
 });
 export const getAdminDisputeTickets = (params = {}) => apiCall(`/assistant/api/admin/dispute-tickets/${buildDashboardQuery(params)}`);
+export const getAdminDisputeCases = (params = {}) => apiCall(`/assistant/api/admin/dispute-cases/${buildDashboardQuery(params)}`);
 export const applyDisputeTicketDecision = (ticketId, payload) => apiCall(`/assistant/api/dispute-tickets/${encodeURIComponent(ticketId)}/admin-decision/`, {
   method: 'POST',
   body: JSON.stringify(payload),

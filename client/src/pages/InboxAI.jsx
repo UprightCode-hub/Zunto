@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Bot, Clock3, MessageSquare, Package, Plus, RotateCcw, Send, Sparkles } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Bot, ChevronRight, Clock3, MessageSquare, Package, Plus, RotateCcw, Send, Sparkles } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { getAssistantSession, getAssistantSessions, sendAssistantMessage } from '../services/api';
 import AssistantReply from '../components/assistant/AssistantReply';
 import ProductSuggestionRail from '../components/assistant/ProductSuggestionRail';
@@ -32,11 +33,11 @@ const modeBadgeClass = (mode, active = false) => {
     : 'bg-blue-400/10 text-blue-200 border-blue-300/15';
 };
 
-const createDraftHomepageSession = () => ({
-  client_session_key: NEW_HOMEPAGE_SESSION_KEY,
+const createDraftSession = (assistantMode = 'homepage_reco', title = 'New Conversation') => ({
+  client_session_key: assistantMode === 'homepage_reco' ? NEW_HOMEPAGE_SESSION_KEY : `new-${assistantMode}-session`,
   session_id: null,
-  assistant_mode: 'homepage_reco',
-  conversation_title: 'New Conversation',
+  assistant_mode: assistantMode,
+  conversation_title: title,
   last_activity: new Date().toISOString(),
   isDraft: true,
 });
@@ -262,8 +263,59 @@ function ProductPanel({ products }) {
   );
 }
 
-export default function InboxAI() {
+function buildSupportGreeting(user) {
+  const name = user?.first_name || user?.name || user?.email?.split('@')?.[0] || 'there';
+  const isSeller = user?.role === 'seller' || user?.isSellerActive || user?.is_seller;
+  if (isSeller) {
+    return `Hi ${name}, I'm Gigi from Zunto Seller Support. I can help with buyer disputes, order issues, payments, and account questions. What's happened?`;
+  }
+  return `Hi ${name}, I'm Gigi from Zunto Customer Support. I can help with order status, delivery issues, payments, refunds, and seller disputes. What's happened?`;
+}
+
+function DisputeContextPanel({ panel, collapsed, onToggle }) {
+  if (!panel) return null;
+  const products = Array.isArray(panel.product_names) ? panel.product_names.filter(Boolean) : [];
+
+  return (
+    <aside className={`${collapsed ? 'lg:w-14' : ''} hidden min-h-0 rounded-lg border border-[#2c77d1]/20 bg-[#071124]/95 lg:flex lg:flex-col`}>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex items-center justify-between border-b border-[#2c77d1]/20 p-4 text-left text-white"
+      >
+        {!collapsed && <span className="text-sm font-semibold">Dispute Context</span>}
+        <ChevronRight className={`h-4 w-4 transition ${collapsed ? '' : 'rotate-180'}`} />
+      </button>
+      {!collapsed && (
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 text-sm">
+          <Field label="Order reference" value={panel.order_reference || 'Not linked'} />
+          <Field label="Products" value={products.length ? products.join(', ') : 'Not recorded'} />
+          <Field label="Buyer" value={`${panel.buyer?.name || 'Not listed'}${panel.buyer?.contact ? ` - ${panel.buyer.contact}` : ''}`} />
+          <Field label="Seller" value={`${panel.seller?.name || 'Not listed'}${panel.seller?.contact ? ` - ${panel.seller.contact}` : ''}`} />
+          <Field label="Order status" value={panel.order_status || 'Not recorded'} />
+          <Field label="Payment status" value={panel.payment_status || 'Not recorded'} />
+          <Field label="Amount" value={panel.amount || 'Not recorded'} />
+          <Field label="Conversation" value={panel.linked_conversation_id || 'Not linked'} />
+        </div>
+      )}
+    </aside>
+  );
+}
+
+function Field({ label, value }) {
+  return (
+    <div>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-1 break-words text-slate-100">{value}</p>
+    </div>
+  );
+}
+
+export default function InboxAI({ embedded = false, defaultAssistantMode = null, initialTitle = 'AI Inbox' }) {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const requestedMode = defaultAssistantMode || searchParams.get('mode') || 'homepage_reco';
   const [sessions, setSessions] = useState([]);
   const [selected, setSelected] = useState(null);
   const [input, setInput] = useState('');
@@ -273,6 +325,7 @@ export default function InboxAI() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [loginGate, setLoginGate] = useState(null);
+  const [disputePanelCollapsed, setDisputePanelCollapsed] = useState(false);
 
   const sessionsAbortRef = useRef(null);
   const detailAbortRef = useRef(null);
@@ -316,10 +369,13 @@ export default function InboxAI() {
   }, []);
 
   const refreshSessions = useCallback(async (signal) => {
-    const data = await getAssistantSessions({ signal });
+    const data = await getAssistantSessions({
+      assistantMode: requestedMode === 'customer_service' ? 'customer_service' : null,
+      signal,
+    });
     const next = (data?.sessions || []).filter((session) => session?.session_id);
     setSessions(next);
-  }, []);
+  }, [requestedMode]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -370,8 +426,22 @@ export default function InboxAI() {
         setError('');
         await refreshSessions(controller.signal);
         if (!mountedRef.current || controller.signal.aborted) return;
-        setSelected(null);
-        setMessages([]);
+        if (requestedMode === 'customer_service') {
+          const draft = createDraftSession('customer_service', 'New Support Case');
+          setSelected(draft);
+          selectedRef.current = draft;
+          setMessages([{
+            id: createMessageId(),
+            sender: 'assistant',
+            text: buildSupportGreeting(user),
+            status: 'completed',
+            timestamp: new Date().toISOString(),
+            metadata: { assistant_mode: 'customer_service' },
+          }]);
+        } else {
+          setSelected(null);
+          setMessages([]);
+        }
       } catch (err) {
         if (err?.name === 'AbortError' || !mountedRef.current) return;
         setError(err?.message || 'Unable to load AI conversations.');
@@ -383,7 +453,7 @@ export default function InboxAI() {
     })();
 
     return () => controller.abort();
-  }, [refreshSessions]);
+  }, [refreshSessions, requestedMode, user]);
 
   const orderedMessages = useMemo(() => messages.slice(-MESSAGE_WINDOW_SIZE), [messages]);
 
@@ -397,14 +467,36 @@ export default function InboxAI() {
     return [];
   }, [messages]);
 
+  const latestDisputePanel = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const panel = messages[index]?.metadata?.contextual_dispute_panel;
+      if (panel && typeof panel === 'object') {
+        return panel;
+      }
+    }
+    return null;
+  }, [messages]);
+
   const handleNewConversation = () => {
     detailAbortRef.current?.abort();
     abortActiveSend('aborted');
     requestSeqRef.current += 1;
-    const draft = createDraftHomepageSession();
+    const draft = createDraftSession(
+      requestedMode,
+      requestedMode === 'customer_service' ? 'New Support Case' : 'New Conversation',
+    );
     setSelected(draft);
     selectedRef.current = draft;
-    setMessages([]);
+    setMessages(requestedMode === 'customer_service'
+      ? [{
+          id: createMessageId(),
+          sender: 'assistant',
+          text: buildSupportGreeting(user),
+          status: 'completed',
+          timestamp: new Date().toISOString(),
+          metadata: { assistant_mode: 'customer_service' },
+        }]
+      : []);
     setInput('');
     setError('');
     setLoginGate(null);
@@ -644,10 +736,10 @@ export default function InboxAI() {
   };
 
   return (
-    <div className="min-h-[var(--app-min-height)] bg-[#050d1b] text-white">
-      <div className="mx-auto flex min-h-[calc(var(--app-min-height)-4rem)] max-w-7xl flex-col px-3 py-4 sm:px-5 lg:px-8">
-        <div className="min-h-0 flex-1 grid-cols-1 gap-4 lg:grid lg:grid-cols-[300px_minmax(0,1fr)_320px]">
-          <aside className={`${selected ? 'hidden lg:flex' : 'flex'} min-h-[calc(var(--app-min-height)-6rem)] flex-col rounded-lg border border-[#2c77d1]/20 bg-[#071124]/95 lg:min-h-0`}>
+    <div className={`${embedded ? 'h-[76vh]' : 'min-h-[var(--app-min-height)]'} bg-[#050d1b] text-white`}>
+      <div className={`${embedded ? 'h-full' : 'mx-auto flex min-h-[calc(var(--app-min-height)-4rem)] max-w-7xl flex-col px-3 py-4 sm:px-5 lg:px-8'}`}>
+        <div className={`${embedded ? 'h-full p-3' : ''} min-h-0 flex-1 grid-cols-1 gap-4 lg:grid ${requestedMode === 'customer_service' && !latestDisputePanel ? 'lg:grid-cols-[300px_minmax(0,1fr)]' : 'lg:grid-cols-[300px_minmax(0,1fr)_320px]'}`}>
+          <aside className={`${selected ? 'hidden lg:flex' : 'flex'} ${embedded ? 'min-h-0' : 'min-h-[calc(var(--app-min-height)-6rem)]'} flex-col rounded-lg border border-[#2c77d1]/20 bg-[#071124]/95 lg:min-h-0`}>
             <div className="sticky top-0 z-10 border-b border-[#2c77d1]/20 bg-[#071124] p-4">
               <button
                 type="button"
@@ -659,7 +751,7 @@ export default function InboxAI() {
               </button>
               <div className="flex items-center gap-2">
                 <Bot className="h-5 w-5 text-blue-300" />
-                <h1 className="text-base font-bold text-white">AI Inbox</h1>
+                <h1 className="text-base font-bold text-white">{initialTitle}</h1>
               </div>
             </div>
 
@@ -703,7 +795,7 @@ export default function InboxAI() {
             </div>
           </aside>
 
-          <section className={`${selected ? 'flex' : 'hidden lg:flex'} min-h-[calc(var(--app-min-height)-6rem)] flex-col overflow-hidden rounded-lg border border-[#2c77d1]/20 bg-[#071124]/95 lg:min-h-0`}>
+          <section className={`${selected ? 'flex' : 'hidden lg:flex'} ${embedded ? 'min-h-0' : 'min-h-[calc(var(--app-min-height)-6rem)]'} flex-col overflow-hidden rounded-lg border border-[#2c77d1]/20 bg-[#071124]/95 lg:min-h-0`}>
             {selected ? (
               <>
                 <header className="flex min-h-16 items-center gap-3 border-b border-[#2c77d1]/20 bg-[#08152b] px-4">
@@ -793,7 +885,15 @@ export default function InboxAI() {
             )}
           </section>
 
-          <ProductPanel products={latestSuggestedProducts} />
+          {requestedMode === 'customer_service' ? (
+            <DisputeContextPanel
+              panel={latestDisputePanel}
+              collapsed={disputePanelCollapsed}
+              onToggle={() => setDisputePanelCollapsed((value) => !value)}
+            />
+          ) : (
+            <ProductPanel products={latestSuggestedProducts} />
+          )}
         </div>
       </div>
     </div>

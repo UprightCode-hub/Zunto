@@ -5,6 +5,7 @@ from django.utils.html import format_html
 from .models import (
     Report,
     ConversationLog,
+    DisputeCase,
     DisputeTicket,
     DisputeTicketCommunication,
     DisputeAuditLog,
@@ -51,6 +52,47 @@ class DisputeTicketAdmin(admin.ModelAdmin):
     list_filter = ['seller_type', 'status', 'created_at']
     search_fields = ['ticket_id', 'buyer__email', 'seller__email', 'dispute_category', 'description']
     readonly_fields = ['ticket_id', 'created_at', 'updated_at']
+
+
+@admin.register(DisputeCase)
+class DisputeCaseAdmin(admin.ModelAdmin):
+    list_display = ['case_id', 'complaint_category', 'buyer_display', 'seller_display', 'status', 'reference', 'escalated_at']
+    list_filter = ['status', 'complaint_category', 'escalated_at']
+    search_fields = ['case_id', 'buyer_email', 'seller_email', 'buyer_name', 'seller_name', 'reference', 'ai_summary']
+    readonly_fields = ['case_id', 'buyer_identity', 'seller_identity', 'reference', 'ai_summary', 'escalated_at', 'updated_at']
+    fieldsets = (
+        ('Case Status', {'fields': ('case_id', 'status', 'complaint_category')}),
+        ('People', {'fields': ('buyer', 'buyer_identity', 'seller', 'seller_identity')}),
+        ('References', {'fields': ('order', 'conversation', 'reference')}),
+        ('Case File', {'fields': ('ai_summary',)}),
+        ('Timeline', {'fields': ('escalated_at', 'updated_at')}),
+    )
+
+    @admin.display(description='Buyer')
+    def buyer_display(self, obj):
+        return obj.buyer_name or obj.buyer_email or 'Not listed'
+
+    @admin.display(description='Seller')
+    def seller_display(self, obj):
+        return obj.seller_name or obj.seller_email or 'Not listed'
+
+    @admin.display(description='Buyer Identity')
+    def buyer_identity(self, obj):
+        return format_html(
+            '<strong>{}</strong><br>{}<br>User ID: {}',
+            obj.buyer_name or 'Not listed',
+            obj.buyer_email or 'Not listed',
+            obj.buyer_id or 'Not linked',
+        )
+
+    @admin.display(description='Seller Identity')
+    def seller_identity(self, obj):
+        return format_html(
+            '<strong>{}</strong><br>{}<br>User ID: {}',
+            obj.seller_name or 'Not listed',
+            obj.seller_email or 'Not listed',
+            obj.seller_id or 'Not linked',
+        )
 
 
 @admin.register(DisputeTicketCommunication)

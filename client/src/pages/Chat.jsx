@@ -2,15 +2,21 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { FileText, Headset, Send } from 'lucide-react';
 import MarketplaceInbox from '../components/chat/MarketplaceInbox';
+import { useAuth } from '../context/AuthContext';
 import { sendCustomerServiceMessage } from '../services/api';
 
 function CustomerServiceChat() {
-  const [messages, setMessages] = useState([
-    {
+  const { user } = useAuth();
+  const [messages, setMessages] = useState(() => {
+    const name = user?.first_name || user?.email?.split('@')?.[0] || 'there';
+    const isSeller = user?.role === 'seller' || user?.isSellerActive || user?.is_seller;
+    return [{
       sender: 'bot',
-      text: 'Hi, I am Gigi from Zunto Customer Service. I can help with payments, refunds, deliveries, and buyer/seller disputes. What happened?',
-    },
-  ]);
+      text: isSeller
+        ? `Hi ${name}, I'm Gigi from Zunto Seller Support. I can help with buyer disputes, order issues, payments, and account questions. What's happened?`
+        : `Hi ${name}, I'm Gigi from Zunto Customer Support. I can help with order status, delivery issues, payments, refunds, and seller disputes. What's happened?`,
+    }];
+  });
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
